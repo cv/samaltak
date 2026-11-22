@@ -1868,6 +1868,21 @@ primRasterBands
 	(bad or: [n < 0 or: [n > 64]]) ifTrue: [^self fail].
 	self answer: (self intOop: (raster forcedBands: n))
 !
+primRasterQuadBounds
+	"vertices firstQuad count out: the device pixels that quads firstQuad .. firstQuad + count - 1 of a DisplayList's vertex bytes cover (PlatformRaster>>quadBounds:count:into:), as int32 x0 y0 x1 y1 into the first 16 bytes of out; answers false, out untouched, if count is 0. For culling batches outside a damaged rectangle (DisplayList>>boundsOfBatch:)."
+	<vmPrimitive: 485 name: 'rasterQuadBounds'>
+	| q n v o |
+	(self args: 4) ifFalse: [^self fail].
+	q := self intArg: 1.
+	n := self intArg: 2.
+	(bad or: [q < 0 or: [n < 0 or: [n > 100000000]]]) ifTrue: [^self fail].
+	v := self memoryArg: 0 offset: q * 240 length: n * 240 writable: false.
+	o := self memoryArg: 3 offset: 0 length: 16 writable: true.
+	bad ifTrue: [^self fail].
+	n = 0 ifTrue: [^self answer: memory falseOop].
+	raster quadBounds: v count: n into: o.
+	self answer: memory trueOop
+!
 primRasterCopy
 	"dst dstStride src srcStride width height bytesPerPixel mode: rows of pixels of 1 or 4 bytes; dst and src are addresses or byte objects (Bitmaps); mode bit 1 swaps red and blue, bit 2 copies only the pixels whose alpha is not 0 (4-byte pixels)"
 	<vmPrimitive: 483 name: 'rasterCopy'>

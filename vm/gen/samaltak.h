@@ -2396,6 +2396,7 @@ void prim_raster_blit(void);
 void prim_raster_copy(void);
 void prim_raster_draw(void);
 void prim_raster_fill(void);
+void prim_raster_quad_bounds(void);
 void prim_set_cursor(void);
 void prim_socket_accept(void);
 void prim_socket_close(void);
@@ -2434,6 +2435,7 @@ void blit_pixels(uint8_t *src, int64_t src_w, int64_t src_h, int32_t src_fmt, in
 void copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode, bool parallel);
 void platform_raster_fill(uint8_t *pixels, int64_t n, int bpp, uint32_t v);
 int64_t platform_raster_forced_bands(int64_t n);
+void quad_bounds(uint8_t *v, int64_t n, uint8_t *o);
 void rasterize(raster_state *st, uint8_t *base, int64_t first, int64_t count);
 int32_t platform_sockets_accept(int32_t s, bool *would_block);
 int32_t platform_sockets_add(int fd, int kind, void *ptr);

@@ -34,7 +34,60 @@ initialize
 	RS_PARALLEL_PIXELS := 32768
 ! !
 
+!PlatformRaster methodsFor: 'bounds'!
+quadBounds: v count: n into: o
+	"The device pixels the n quads at v cover (a DisplayList's vertices, 240 bytes a quad: its rect plus its origin, or with bit 31 of the mode six explicit positions plus origins), floored and ceiled, as int32 x0 y0 x1 y1 at o; n > 0."
+	<function>
+	<var: #v type: 'uint8_t *'>
+	<var: #n type: 'int64_t'>
+	<var: #o type: 'uint8_t *'>
+	| f u x0 y0 x1 y1 x y i k b |
+	x0 := 1.0e30.
+	y0 := 1.0e30.
+	x1 := -1.0e30.
+	y1 := -1.0e30.
+	i := 0.
+	[i < n] whileTrue: [
+		f := self cCoerce: v + (i * 240) to: 'float *'.
+		u := self cCoerce: v + (i * 240) to: 'uint32_t *'.
+		((u at: 7) bitAnd: 16r80000000) = 0
+			ifTrue: [
+				x := (f at: 0) asFloat + (f at: 8) asFloat.
+				x < x0 ifTrue: [x0 := x].
+				x := (f at: 2) asFloat + (f at: 8) asFloat.
+				x > x1 ifTrue: [x1 := x].
+				y := (f at: 1) asFloat + (f at: 9) asFloat.
+				y < y0 ifTrue: [y0 := y].
+				y := (f at: 3) asFloat + (f at: 9) asFloat.
+				y > y1 ifTrue: [y1 := y]]
+			ifFalse: [
+				k := 0.
+				[k < 6] whileTrue: [
+					x := (f at: k * 10) asFloat + (f at: k * 10 + 8) asFloat.
+					y := (f at: k * 10 + 1) asFloat + (f at: k * 10 + 9) asFloat.
+					x < x0 ifTrue: [x0 := x].
+					x > x1 ifTrue: [x1 := x].
+					y < y0 ifTrue: [y0 := y].
+					y > y1 ifTrue: [y1 := y].
+					k := k + 1]].
+		i := i + 1].
+	b := self cCoerce: o to: 'int32_t *'.
+	b at: 0 put: (self int32Of: (self floorOf: x0)).
+	b at: 1 put: (self int32Of: (self floorOf: y0)).
+	b at: 2 put: (self int32Of: 0 - (self floorOf: 0.0 - x1)).
+	b at: 3 put: (self int32Of: 0 - (self floorOf: 0.0 - y1))
+! !
+
 !PlatformRaster methodsFor: 'private'!
+int32Of: t
+	"t clamped to +-2^30."
+	<function>
+	<var: #t type: 'int64_t'>
+	<returns: 'int32_t'>
+	t < -1073741824 ifTrue: [^-1073741824].
+	t > 1073741824 ifTrue: [^1073741824].
+	^t asInt32
+!
 floorOf: x
 	"floor(x) as an integer (0 for NaN; clamped to +-2^50)."
 	<function>

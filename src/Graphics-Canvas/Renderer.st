@@ -80,7 +80,7 @@ fill: scissors color: aColor into: aTexture commandBuffer: aCommandBuffer
 	self render: c displayList into: aTexture clear: nil commandBuffer: aCommandBuffer
 !
 render: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer within: scissorsOrNil
-	"The same, drawing only inside the rectangles scissorsOrNil ({x. y. width. height} device pixels; nil: everywhere): each batch once per rectangle, its clip cut to it, those it leaves nothing of skipped. Inside them the pixels are those of drawing everywhere (damage-limited rendering, DamageRegion)."
+	"The same, drawing only inside the rectangles scissorsOrNil ({x. y. width. height} device pixels; nil: everywhere): each batch once per rectangle, its clip cut to it and to the batch's quads (DisplayList>>boundsOfBatch:), those it leaves nothing of skipped. Inside them the pixels are those of drawing everywhere (damage-limited rendering, DamageRegion)."
 	| byteCount offset textures pass w h tx ty |
 	sourceGeneration = SourceGeneration ifFalse: [self updatePipeline].
 	commandBuffer := aCommandBuffer.
@@ -106,7 +106,14 @@ render: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBu
 			aDisplayList batches doWithIndex: [:each :i |
 				| s |
 				s := each scissor.
-				within isNil ifFalse: [s := self cut: (s ifNil: [Array with: 0 with: 0 with: w with: h]) to: within].
+				within isNil ifFalse: [| box |
+					s := self cut: (s ifNil: [Array with: 0 with: 0 with: w with: h]) to: within.
+					"Culled on the CPU: a batch whose quads all lie outside the rectangle is not drawn for it, and the others only where their quads are."
+					s == #none ifFalse: [
+						box := aDisplayList boundsOfBatch: i.
+						s := box == #none
+							ifTrue: [#none]
+							ifFalse: [self cut: s to: (Array with: (box at: 1) + each dx floor with: (box at: 2) + each dy floor with: (box at: 3) + 1 with: (box at: 4) + 1)]]].
 				s == #none ifFalse: [
 					s isNil
 						ifTrue: [pass scissorX: 0 y: 0 width: w height: h]

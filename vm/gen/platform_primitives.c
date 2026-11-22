@@ -3887,6 +3887,46 @@ void prim_raster_fill(void)
     prim_status = PS_OK;
 }
 
+/* PlatformPrimitives>>primRasterQuadBounds */
+void prim_raster_quad_bounds(void)
+{
+    bool r_args;
+    int64_t q;
+    int64_t n;
+    uint8_t *v;
+    uint8_t *o;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 4;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    q = int_arg(1);
+    n = int_arg(2);
+    if (bad || ((q < 0) || ((n < 0) || (n > 100000000)))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = memory_arg(0, q * 240, n * 240, false);
+    o = memory_arg(3, 0, 16, true);
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (n == 0) {
+        prim_result = false_oop;
+        prim_status = PS_OK;
+        return;
+    }
+    quad_bounds(v, n, o);
+    prim_result = true_oop;
+    prim_status = PS_OK;
+}
+
 /* PlatformPrimitives>>primSetCursor */
 void prim_set_cursor(void)
 {

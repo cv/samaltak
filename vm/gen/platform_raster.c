@@ -50,6 +50,7 @@ static int64_t floor_div(int64_t a, int64_t b);
 static int64_t floor_of(double x);
 static void glyph_row(uint32_t *d, uint8_t *cov, int64_t step, int64_t n);
 static void image_row(uint32_t *d, uint8_t *src, int64_t n);
+static int32_t int32_of(int64_t t);
 static bool is_quad(uint8_t *v);
 static void pattern_x(int64_t x, int64_t y, int64_t w, int64_t h);
 static int pixel_bytes(int32_t format);
@@ -1726,6 +1727,18 @@ static void image_row(uint32_t *d, uint8_t *src, int64_t n)
 }
 
 #endif
+/* PlatformRaster>>int32Of: */
+static int32_t int32_of(int64_t t)
+{
+    if (t < -1073741824) {
+        return -1073741824;
+    }
+    if (t > 1073741824) {
+        return 1073741824;
+    }
+    return (int32_t)t;
+}
+
 /* PlatformRaster>>isQuad: */
 static bool is_quad(uint8_t *v)
 {
@@ -2334,6 +2347,74 @@ static bool prepare(raster_state *st)
     rs_linear = st->linear;
     rs_repeat = st->wrap;
     return true;
+}
+
+/* PlatformRaster>>quadBounds:count:into: */
+void quad_bounds(uint8_t *v, int64_t n, uint8_t *o)
+{
+    double x0;
+    double y0;
+    double x1;
+    double y1;
+    int64_t i;
+    float *f;
+    uint32_t *u;
+    double x;
+    double y;
+    int64_t k;
+    int32_t *b;
+    x0 = 1000000000000000019884624838656.0;
+    y0 = 1000000000000000019884624838656.0;
+    x1 = -1000000000000000019884624838656.0;
+    y1 = -1000000000000000019884624838656.0;
+    i = 0;
+    while (i < n) {
+        f = (float *)(v + i * 240);
+        u = (uint32_t *)(v + i * 240);
+        if ((u[7] & 0x80000000LL) == 0) {
+            x = (double)f[0] + (double)f[8];
+            if (x < x0) {
+                x0 = x;
+            }
+            x = (double)f[2] + (double)f[8];
+            if (x > x1) {
+                x1 = x;
+            }
+            y = (double)f[1] + (double)f[9];
+            if (y < y0) {
+                y0 = y;
+            }
+            y = (double)f[3] + (double)f[9];
+            if (y > y1) {
+                y1 = y;
+            }
+        } else {
+            k = 0;
+            while (k < 6) {
+                x = (double)f[k * 10] + (double)f[k * 10 + 8];
+                y = (double)f[k * 10 + 1] + (double)f[k * 10 + 9];
+                if (x < x0) {
+                    x0 = x;
+                }
+                if (x > x1) {
+                    x1 = x;
+                }
+                if (y < y0) {
+                    y0 = y;
+                }
+                if (y > y1) {
+                    y1 = y;
+                }
+                k = k + 1;
+            }
+        }
+        i = i + 1;
+    }
+    b = (int32_t *)o;
+    b[0] = int32_of(floor_of(x0));
+    b[1] = int32_of(floor_of(y0));
+    b[2] = int32_of(0 - floor_of(0.0 - x1));
+    b[3] = int32_of(0 - floor_of(0.0 - y1));
 }
 
 /* PlatformRaster>>rasterize:vertices:first:count: */

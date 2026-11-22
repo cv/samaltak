@@ -1,5 +1,5 @@
 Object subclass: #DisplayList
-	instanceVariableNames: 'vertices vertexCount batches extent scale'
+	instanceVariableNames: 'vertices vertexCount batches extent scale batchBounds'
 	classVariableNames: ''
 	package: 'Graphics-Canvas'!
 
@@ -51,6 +51,55 @@ pixelExtent
 !
 isEmpty
 	^vertexCount = 0
+!
+boundsOfBatch: i
+	"The device pixels batch i's quads cover, {x. y. width. height} before its translation (a pixel more around), or nil if it has none: for drawing only the batches that reach a damaged rectangle (Renderer>>render:into:clear:commandBuffer:within:). Found the first time asked, then kept (the vertices do not change)."
+	batchBounds isNil ifTrue: [batchBounds := Array new: batches size].
+	^(batchBounds at: i) ifNil: [batchBounds at: i put: (self computeBoundsOf: (batches at: i))]
+! !
+
+!DisplayList methodsFor: 'private'!
+computeBoundsOf: aBatch
+	| x0 y0 out found |
+	aBatch count = 0 ifTrue: [^#none].
+	out := ByteArray new: 16.
+	found := SoftwareRaster quadBoundsOf: vertices from: aBatch first // 6 count: aBatch count // 6 into: out.
+	found == false ifTrue: [^#none].
+	found == true ifTrue: [| at |
+		at := [:i | | w | w := out uint32At: i. w >= 16r80000000 ifTrue: [w - 16r100000000] ifFalse: [w]].
+		x0 := (at value: 1) - 1.
+		y0 := (at value: 5) - 1.
+		^Array with: x0 with: y0 with: (at value: 9) + 1 - x0 with: (at value: 13) + 1 - y0].
+	^self slowBoundsOf: aBatch
+!
+slowBoundsOf: aBatch
+	"computeBoundsOf: in Smalltalk (a VM without the rasterQuadBounds primitive)."
+	| v x0 y0 x1 y1 |
+	aBatch count = 0 ifTrue: [^#none].
+	v := vertices.
+	x0 := y0 := 1.0e30.
+	x1 := y1 := -1.0e30.
+	aBatch first // 6 to: aBatch first + aBatch count // 6 - 1 do: [:q | | p ox oy |
+		p := q * 240 + 1.
+		((v uint32At: p + 28) bitAnd: 16r80000000) = 0
+			ifTrue: [| a b |
+				ox := v float32At: p + 32.
+				oy := v float32At: p + 36.
+				(a := (v float32At: p) + ox) < x0 ifTrue: [x0 := a].
+				(b := (v float32At: p + 8) + ox) > x1 ifTrue: [x1 := b].
+				(a := (v float32At: p + 4) + oy) < y0 ifTrue: [y0 := a].
+				(b := (v float32At: p + 12) + oy) > y1 ifTrue: [y1 := b]]
+			ifFalse: [
+				0 to: 5 do: [:k | | r x y |
+					r := p + (k * 40).
+					x := (v float32At: r) + (v float32At: r + 32).
+					y := (v float32At: r + 4) + (v float32At: r + 36).
+					x < x0 ifTrue: [x0 := x]. x > x1 ifTrue: [x1 := x].
+					y < y0 ifTrue: [y0 := y]. y > y1 ifTrue: [y1 := y]]]].
+	x0 > x1 ifTrue: [^#none].
+	x0 := x0 floor - 1.
+	y0 := y0 floor - 1.
+	^Array with: x0 with: y0 with: x1 ceiling + 1 - x0 with: y1 ceiling + 1 - y0
 ! !
 
 !DisplayList methodsFor: 'inspecting'!

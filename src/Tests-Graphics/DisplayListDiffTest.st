@@ -101,6 +101,21 @@ testSurfaceQuadsUnlessStable
 	 self assert: d region isEmpty]
 		ensure: [surface release]
 !
+testBatchBounds
+	"DisplayList>>boundsOfBatch: (the rasterQuadBounds primitive) covers each batch's quads, a pixel around: rects with origins, lines by their vertices; the same without the primitive."
+	| c l bounds |
+	c := Canvas extent: 200 @ 100 scale: 2.
+	c fillRect: (3.5 @ 2.25 extent: 10 @ 8) color: Color white.
+	c line: 10 @ 70 to: 90 @ 75 color: Color black width: 1.
+	c clip: (0 @ 0 extent: 50 @ 50) during: [c fillRect: (20 @ 30 extent: 5 @ 5) color: Color black].
+	l := c displayList.
+	bounds := (1 to: l batches size) collect: [:i | l boundsOfBatch: i].
+	self assert: (bounds first first <= 7 and: [(bounds first at: 2) <= 5]).
+	self assert: (bounds first first + (bounds first at: 3)) >= 180.
+	self assert: ((bounds first at: 2) + (bounds first at: 4)) >= 150.
+	self assert: (bounds last first <= 40 and: [(bounds last at: 2) <= 60 and: [(bounds last first + (bounds last at: 3)) >= 50]]).
+	self assert: ((1 to: l batches size) collect: [:i | l slowBoundsOf: (l batches at: i)]) equals: bounds
+!
 testRenderWithinDamageIsRenderingWhole
 	"Render a, then b only where it differs: the pixels of rendering b whole."
 	| a b damage partial whole renderer |

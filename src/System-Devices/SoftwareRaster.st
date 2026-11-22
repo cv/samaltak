@@ -26,6 +26,11 @@ bands: n
 	<primitive: 'rasterBands'>
 	^self error: 'bad band count'
 !
+quadBoundsOf: vertices from: firstQuad count: n into: aByteArray
+	"The device pixels that quads firstQuad .. firstQuad + n - 1 of a DisplayList's vertex bytes cover, as int32 x0 y0 x1 y1 (floored and ceiled) in aByteArray's first 16 bytes: true, false if n is 0, nil if the VM cannot (an older one)."
+	<primitive: 'rasterQuadBounds'>
+	^nil
+!
 copy: destination stride: destinationStride from: source stride: sourceStride width: w height: h bytesPerPixel: bpp mode: mode
 	"h rows of w pixels of bpp bytes (1 or 4); destination and source are addresses or byte objects (Bitmaps). mode bit 1 swaps red and blue, bit 2 copies only the pixels whose alpha is not 0."
 	<primitive: 'rasterCopy'>
