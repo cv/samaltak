@@ -1,5 +1,5 @@
 TestCase subclass: #AgentConversationTest
-	instanceVariableNames: 'provider conversation frameResult'
+	instanceVariableNames: 'provider conversation frameResult others'
 	classVariableNames: ''
 	package: 'Tests-Agent'!
 
@@ -7,6 +7,7 @@ AgentConversationTest comment: 'Tests AgentConversation''s turns against a Scrip
 
 !AgentConversationTest methodsFor: 'running'!
 setUp
+	others := self agentProcesses.
 	provider := ScriptedProvider new.
 	conversation := AgentConversation new provider: provider; yourself
 !
@@ -155,7 +156,7 @@ testTimeout
 	(conversation toolNamed: 'code-mode') timeout: 1.
 	outputs := self run: #('(Delay forSeconds: 30) wait. 3' '4').
 	self assert: outputs equals: #('error: terminated after 1 s' 'o1 4').
-	self deny: (Processor allProcesses anySatisfy: [:p | p name = 'agent code-mode'])
+	self assert: self cellProcesses isEmpty
 !
 testShowUnknownObjectAndUnknownTool
 	| other |
@@ -184,10 +185,10 @@ testStopDuringCell
 	| cell request |
 	provider reply: (Array with: (self code: '(Delay forSeconds: 30) wait' call: 'c1')).
 	conversation ask: 'sleep'.
-	self assert: (self waitFor: [Processor allProcesses anySatisfy: [:p | p name = 'agent code-mode']]).
+	self assert: (self waitFor: [self cellProcesses notEmpty]).
 	conversation stop.
 	self deny: conversation isBusy.
-	self deny: (Processor allProcesses anySatisfy: [:p | p name = 'agent code-mode' or: [p name = 'agent turn']]).
+	self assert: self agentProcesses isEmpty.
 	cell := (self itemsOfKind: #code) first.
 	self assert: cell failed.
 	self assert: cell result equals: 'error: stopped by the user'.
@@ -203,7 +204,7 @@ testACellEndsWithTheProcessWaitingForIt
 	| item session cells left |
 	item := AgentItem call: (self code: '(Delay forSeconds: 30) wait' call: 'c1') kind: #code text: '(Delay forSeconds: 30) wait'.
 	session := DebugSession debugProcess: (self track: [(conversation toolNamed: 'code-mode') evaluate: item in: conversation] newProcess).
-	cells := [Processor allProcesses select: [:p | p name = 'agent code-mode']].
+	cells := [self cellProcesses].
 	[session interruptedContext selector == #evaluate:in:] whileFalse: [session stepInto].
 	[cells value isEmpty] whileTrue: [session stepThrough].
 	session stepThrough.
@@ -359,4 +360,15 @@ testFrame
 	process resume.
 	self assert: (self waitFor: [frameResult notNil]).
 	self assert: frameResult equals: 5
+! !
+
+!AgentConversationTest methodsFor: 'private'!
+agentProcesses
+	"The Processes of agent turns and cells, except those that were there before the test (another conversation's, the agent's own when it runs me)."
+	^Processor allProcesses select: [:p |
+		(p name = 'agent code-mode' or: [p name = 'agent turn']) and: [others isNil or: [(others includes: p) not]]]
+!
+cellProcesses
+	"The Processes of cells started during the test."
+	^self agentProcesses select: [:p | p name = 'agent code-mode']
 ! !
