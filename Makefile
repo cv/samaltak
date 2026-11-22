@@ -99,6 +99,11 @@ UEFI := $(OUT)/uefi-$(UEFI_ARCH)
 UEFI_ARGS ?= --headless --eval 'Smalltalk vmBanner'
 UEFI_HEAP_MB ?= 256
 UEFI_SCREEN ?= 1024x768
+# UEFI_VNC=N: uefi-ui and uefi-control show the screen on a VNC server on 127.0.0.1:590N instead of a window (from another
+# machine: ssh -L 590N:127.0.0.1:590N, then vnc://localhost:590N), its password the file UEFI_VNC_PASSWORD (at most 8 characters).
+UEFI_VNC ?=
+UEFI_VNC_PASSWORD ?= $(HOME)/.samaltak-vnc
+UEFI_VNC_DISPLAY = -object secret,id=vncpw,file=$(UEFI_VNC_PASSWORD) -display vnc=127.0.0.1:$(UEFI_VNC),password-secret=vncpw
 ifeq ($(shell uname -s),Darwin)
 UEFI_DISPLAY := -display cocoa,zoom-to-fit=on
 UEFI_WINDOW := osascript tools/qemu-window.applescript $(subst x, ,$(UEFI_SCREEN)) &
@@ -110,16 +115,22 @@ UEFI_TARGET := aarch64
 UEFI_BOOT := BOOTAA64.EFI
 OVMF_CODE ?= $(firstword $(wildcard /usr/share/AAVMF/AAVMF_CODE.fd /opt/homebrew/share/qemu/edk2-aarch64-code.fd /usr/share/qemu/edk2-aarch64-code.fd))
 OVMF_VARS ?= $(firstword $(wildcard /usr/share/AAVMF/AAVMF_VARS.fd /opt/homebrew/share/qemu/edk2-arm-vars.fd /usr/share/qemu/edk2-arm-vars.fd))
-QEMU_UEFI_MACHINE := qemu-system-aarch64 -machine virt $(or $(UEFI_ACCEL),-cpu max) -device ramfb
+# UEFI_GPU: the display device. ramfb's firmware modes stop at 1024x768; virtio-gpu-pci's (VirtioGpuDxe) go to 1920x1080 and
+# beyond, without a framebuffer: FirmwareScreen draws with Blt.
+UEFI_GPU ?= ramfb
+QEMU_UEFI_MACHINE := qemu-system-aarch64 -machine virt $(or $(UEFI_ACCEL),-cpu max) -device $(UEFI_GPU)
 UEFI_NIC ?= virtio-net-pci
 else
 UEFI_TARGET := x86_64
 UEFI_BOOT := BOOTX64.EFI
 OVMF_CODE ?= $(firstword $(wildcard /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/OVMF_CODE.fd /opt/homebrew/share/qemu/edk2-x86_64-code.fd /usr/share/qemu/edk2-x86_64-code.fd))
 OVMF_VARS ?= $(firstword $(wildcard /usr/share/OVMF/OVMF_VARS_4M.fd /usr/share/OVMF/OVMF_VARS.fd /opt/homebrew/share/qemu/edk2-i386-vars.fd /usr/share/qemu/edk2-i386-vars.fd))
-QEMU_UEFI_MACHINE := qemu-system-x86_64 -machine q35 $(UEFI_ACCEL)
+# UEFI_GPU: empty for q35's standard VGA (its firmware has modes up to 1920x1080 and more), or a device such as virtio-gpu-pci.
+UEFI_GPU ?=
+QEMU_UEFI_MACHINE := qemu-system-x86_64 -machine q35 $(UEFI_ACCEL) $(if $(UEFI_GPU),-vga none -device $(UEFI_GPU))
 UEFI_NIC ?= e1000e
 endif
+UEFI_VGA = $(if $(filter x86_64,$(UEFI_ARCH)),$(if $(UEFI_GPU),,-vga std))
 QEMU_UEFI = $(QEMU_UEFI_MACHINE) -m 2048 -no-reboot \
 	-nic user,model=$(UEFI_NIC)$(if $(UEFI_CONTROL_PORT),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_CONTROL_PORT)-:7341) -global $(UEFI_NIC).romfile= \
 	-device virtio-rng-pci -drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/vars.fd \
@@ -164,11 +175,11 @@ uefi-boot:
 uefi-ui: uefi
 	printf '%s\n' --max-heap $(UEFI_HEAP_MB) disk: --window-size $(UEFI_SCREEN) > $(UEFI)/esp/samaltak.args
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
-	$(UEFI_WINDOW) $(QEMU_UEFI) $(UEFI_DISPLAY) $(if $(filter x86_64,$(UEFI_ARCH)),-vga std) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
+	$(if $(UEFI_VNC),,$(UEFI_WINDOW)) $(QEMU_UEFI) $(if $(UEFI_VNC),$(UEFI_VNC_DISPLAY),$(UEFI_DISPLAY)) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 uefi-control: uefi
 	printf '%s\n' --max-heap $(UEFI_HEAP_MB) disk: --control --control-host 0.0.0.0 --control-port 7341 $(UEFI_CONTROL_ARGS) > $(UEFI)/esp/samaltak.args
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
-	$(QEMU_UEFI) -display none $(if $(filter x86_64,$(UEFI_ARCH)),-vga std) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
+	$(QEMU_UEFI) $(if $(UEFI_VNC),$(UEFI_VNC_DISPLAY),-display none) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest ContextTest ExceptionTest FloatTest FractionTest \
 	HashingTest ImmutabilityTest IntegerTest LazyContextTest MarriedContextTest MessageNotUnderstoodTest ObjectTest ProcessTest \
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \
@@ -189,6 +200,8 @@ test-uefi:
 	$(MAKE) uefi-run UEFI_ARGS='--headless --test $(UEFI_TESTS)'
 	$(MAKE) uefi-boot UEFI_ARGS="--eval \"$(UEFI_WORLD)\""
 	grep -qE "^world [0-9]+@[0-9]+ true 123@45" $(UEFI)/console.log
+	$(MAKE) uefi-boot UEFI_GPU=virtio-gpu-pci UEFI_ARGS="--window-size 1920x1080 --eval \"$(UEFI_WORLD)\""
+	grep -qE "^world 1920@1080 true 123@45" $(UEFI)/console.log
 	$(MAKE) $(UEFI_EXT4_DISK) $(UEFI_EXT4_GPT_DISK)
 	$(MAKE) uefi-boot UEFI_DISKS="$(UEFI_EXT4_DISK)@nvme $(UEFI_EXT4_GPT_DISK)@virtio-blk-pci" UEFI_ARGS="--headless --eval \"$(UEFI_FILES)\""
 	while read -r line; do grep -qF "$$line" $(UEFI)/console.log || { echo "test-uefi: files: no line: $$line"; exit 1; }; done < tests/uefi/files.expected
