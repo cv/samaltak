@@ -17,7 +17,7 @@ setDevice: aDevice
 	pipelineVersion := 1.
 	nearestSampler := device samplerLinear: false repeat: false.
 	linearSampler := device samplerLinear: true repeat: false.
-	vertexBuffer := device vertexBufferSize: 1024 * 1024.
+	vertexBuffer := device vertexBufferSize: 4 * 1024 * 1024.
 	bufferOffset := 0.
 	white := Form width: 1 height: 1.
 	white fill: Color white.
@@ -70,11 +70,20 @@ render: aDisplayList on: aSurface clear: aColorOrNil
 !
 render: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer
 	"Encode a render pass drawing aDisplayList into aTexture (a GPUTexture of format rgba8). aColorOrNil clears first; nil keeps the contents."
+	^self render: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer within: nil
+!
+fill: scissors color: aColor into: aTexture commandBuffer: aCommandBuffer
+	"Encode a render pass filling the rectangles scissors ({x. y. width. height} device pixels) of aTexture with aColor, as a clear would (an opaque color: blending over anything leaves it)."
+	| c |
+	c := Canvas extent: aTexture width @ aTexture height scale: 1.
+	scissors do: [:s | c fillRect: ((s at: 1) @ (s at: 2) extent: (s at: 3) @ (s at: 4)) color: aColor].
+	self render: c displayList into: aTexture clear: nil commandBuffer: aCommandBuffer
+!
+render: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer within: scissorsOrNil
+	"The same, drawing only inside the rectangles scissorsOrNil ({x. y. width. height} device pixels; nil: everywhere): each batch once per rectangle, its clip cut to it, those it leaves nothing of skipped. Inside them the pixels are those of drawing everywhere (damage-limited rendering, DamageRegion)."
 	| byteCount offset textures pass w h tx ty |
 	sourceGeneration = SourceGeneration ifFalse: [self updatePipeline].
-	aCommandBuffer == commandBuffer ifFalse: [
-		commandBuffer := aCommandBuffer.
-		bufferOffset := 0].
+	commandBuffer := aCommandBuffer.
 	byteCount := aDisplayList byteCount.
 	offset := self reserve: byteCount.
 	byteCount > 0 ifTrue: [vertexBuffer upload: aDisplayList vertices count: byteCount offset: offset].
@@ -93,38 +102,52 @@ render: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBu
 	aDisplayList batches isEmpty ifFalse: [
 		pass pipeline: pipeline.
 		pass vertexBuffer: vertexBuffer offset: offset.
-		aDisplayList batches doWithIndex: [:each :i |
-			| s |
-			s := each scissor.
-			s isNil
-				ifTrue: [pass scissorX: 0 y: 0 width: w height: h]
-				ifFalse: [self scissor: s on: pass width: w height: h].
-			(each dx = tx and: [each dy = ty]) ifFalse: [
-				tx := each dx.
-				ty := each dy.
-				uniforms float32At: 9 put: tx asFloat.
-				uniforms float32At: 13 put: ty asFloat.
-				aCommandBuffer pushVertexUniforms: uniforms slot: 0].
-			pass texture: (textures at: i)
-				sampler: ((each texture ifNil: [white]) isLinearFiltered ifTrue: [linearSampler] ifFalse: [nearestSampler])
-				slot: 0.
-			pass draw: each count from: each first]].
+		(scissorsOrNil ifNil: [#(nil)]) do: [:within |
+			aDisplayList batches doWithIndex: [:each :i |
+				| s |
+				s := each scissor.
+				within isNil ifFalse: [s := self cut: (s ifNil: [Array with: 0 with: 0 with: w with: h]) to: within].
+				s == #none ifFalse: [
+					s isNil
+						ifTrue: [pass scissorX: 0 y: 0 width: w height: h]
+						ifFalse: [self scissor: s on: pass width: w height: h].
+					(each dx = tx and: [each dy = ty]) ifFalse: [
+						tx := each dx.
+						ty := each dy.
+						uniforms float32At: 9 put: tx asFloat.
+						uniforms float32At: 13 put: ty asFloat.
+						aCommandBuffer pushVertexUniforms: uniforms slot: 0].
+					pass texture: (textures at: i)
+						sampler: ((each texture ifNil: [white]) isLinearFiltered ifTrue: [linearSampler] ifFalse: [nearestSampler])
+						slot: 0.
+					pass draw: each count from: each first]]]].
 	pass end
 ! !
 
 !Renderer methodsFor: 'private'!
 reserve: byteCount
-	"Answer the offset of byteCount free bytes in the vertex buffer for the current command buffer, replacing the buffer by a larger one if needed."
+	"Answer the offset of byteCount free bytes in the vertex buffer, used as a ring: the lists of the frames in flight keep their bytes (an upload into a range a submitted command buffer still reads would race with it; damage-limited frames draw different lists from frame to frame, and a frame's pixels stay). Replace the buffer by a larger one when a list takes more than a quarter of it."
 	| offset size |
 	offset := bufferOffset.
-	offset + byteCount > vertexBuffer size ifTrue: [
+	byteCount * 4 > vertexBuffer size ifTrue: [
 		size := vertexBuffer size.
-		[size < (byteCount * 2)] whileTrue: [size := size * 2].
+		[size < (byteCount * 4)] whileTrue: [size := size * 2].
 		vertexBuffer release.
 		vertexBuffer := device vertexBufferSize: size.
 		offset := 0].
+	offset + byteCount > vertexBuffer size ifTrue: [offset := 0].
 	bufferOffset := offset + byteCount + 255 // 256 * 256.
 	^offset
+!
+cut: a to: b
+	"The intersection of the rectangles a and b ({x. y. width. height}), or #none."
+	| x y x1 y1 |
+	x := (a at: 1) max: (b at: 1).
+	y := (a at: 2) max: (b at: 2).
+	x1 := (a at: 1) + (a at: 3) min: (b at: 1) + (b at: 3).
+	y1 := (a at: 2) + (a at: 4) min: (b at: 2) + (b at: 4).
+	(x < x1 and: [y < y1]) ifFalse: [^#none].
+	^Array with: x with: y with: x1 - x with: y1 - y
 !
 scissor: anArray on: aPass width: w height: h
 	| x y x1 y1 |

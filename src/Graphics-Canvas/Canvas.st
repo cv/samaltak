@@ -73,6 +73,15 @@ opacity
 !
 vertexCount
 	^next - 1 // 40
+!
+quadCount
+	^next - 1 // 240
+!
+deviceRectOf: aRectangle
+	"aRectangle (points, in my coordinates) snapped to device pixels as I would fill it."
+	^Rectangle
+		left: (self deviceX: aRectangle left) right: (self deviceX: aRectangle right)
+		top: (self deviceY: aRectangle top) bottom: (self deviceY: aRectangle bottom)
 ! !
 
 !Canvas methodsFor: 'drawing'!
@@ -469,6 +478,9 @@ quadX0: x0 y0: y0 x1: x1 y1: y1 color: packedColor mode: mode
 	bytes float32At: p + 4 put: y0.
 	bytes float32At: p + 8 put: x1.
 	bytes float32At: p + 12 put: y1.
+	"No texels, but written: a reused buffer's old bytes would make equal drawings differ (DisplayListDiff)."
+	bytes uint32At: p + 16 put: 0.
+	bytes uint32At: p + 20 put: 0.
 	bytes uint32At: p + 24 put: packedColor.
 	bytes uint32At: p + 28 put: mode.
 	self replicateVertexAt: p
@@ -499,10 +511,15 @@ antialiasedLineX0: x0 y0: y0 x1: x1 y1: y1 width: w color: packedColor
 		c := corner - 1 * 3.
 		bytes float32At: q put: (corners at: c + 1).
 		bytes float32At: q + 4 put: (corners at: c + 2).
+		bytes float32At: q + 8 put: 0.
+		bytes float32At: q + 12 put: 0.
 		bytes float32At: q + 16 put: (corners at: c + 3).
 		bytes float32At: q + 20 put: half.
 		bytes uint32At: q + 24 put: packedColor.
-		bytes uint32At: q + 28 put: DisplayList modeLine + DisplayList explicitPosition]
+		bytes uint32At: q + 28 put: DisplayList modeLine + DisplayList explicitPosition.
+		"Every vertex's origin (the shader adds it), not only the first's: a reused buffer holds old bytes there."
+		bytes float32At: q + 32 put: 0.
+		bytes float32At: q + 36 put: 0]
 !
 useTexture: aTextureSource
 	"Make aTextureSource the texture of the current batch, starting a new batch if it already has another one."

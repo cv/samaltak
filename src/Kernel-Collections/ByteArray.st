@@ -5,6 +5,19 @@ ArrayedCollection variableByteSubclass: #ByteArray
 
 ByteArray comment: 'I am a fixed-size sequence of bytes (SmallIntegers 0..255). I also read and write little-endian 16/32-bit integers and 32/64-bit floats at 1-based byte offsets, and big-endian integers for TrueType data. Bytecodes of CompiledMethods are ByteArrays.'!
 
+!ByteArray methodsFor: 'comparing'!
+compareBytes: aByteArray
+	"Answer -1, 0 or 1 comparing my bytes with aByteArray's as unsigned numbers (then the shorter first): 0 if they are equal. A primitive: equal ByteArrays of a page compare in microseconds."
+	<primitive: 'stringCompare'>
+	| n |
+	n := self size min: aByteArray size.
+	1 to: n do: [:i | | a b |
+		a := self at: i.
+		b := aByteArray at: i.
+		a = b ifFalse: [^a < b ifTrue: [-1] ifFalse: [1]]].
+	^self size < aByteArray size ifTrue: [-1] ifFalse: [self size > aByteArray size ifTrue: [1] ifFalse: [0]]
+! !
+
 !ByteArray methodsFor: 'accessing'!
 uint16At: byteOffset
 	<primitive: 'bytesUint16At'>
