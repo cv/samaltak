@@ -101,6 +101,7 @@ async function ctlSession(
     };
   };
   let notified = false;
+  let closeIt = false;
   try {
     if (input.xvfb) {
       const x = await execFile("sh", [
@@ -112,8 +113,12 @@ async function ctlSession(
       await execFile("sleep", ["1"]);
     }
     if (input.open) {
+      closeIt = true;
       const o = await run(["open", ...input.open], Math.min(Math.max(input.openTimeoutS ?? 240, 10), 285));
-      results.push({ step: ["open", ...input.open], ...o });
+      // samaltak-ctl open on a live session says "already open" and succeeds: that VM is someone else's (the
+      // operator's World, session vnc): run the steps in it, but never close (quit) it.
+      if (/already open/.test(o.out)) closeIt = false;
+      results.push({ step: ["open", ...input.open], ...o, ...(closeIt ? {} : { note: "the session was already open: left open" }) });
       if (o.code !== 0) return { ok: false, session, display: display || undefined, made, results };
     }
     for (const step of input.steps) {
@@ -136,7 +141,7 @@ async function ctlSession(
       if (r.code !== 0 && !input.continueOnError) break;
     }
   } finally {
-    if (input.open && !input.keepOpen) results.push({ step: ["close"], ...(await run(["close"], 30)) });
+    if (closeIt && !input.keepOpen) results.push({ step: ["close"], ...(await run(["close"], 30)) });
     if (xvfbPid && !input.keepOpen) await execFile("kill", [xvfbPid]);
   }
   const ok = results.every((r) => r.code === 0);
