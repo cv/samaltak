@@ -1,19 +1,16 @@
 TestCase subclass: #GitHubAccountTest
-	instanceVariableNames: 'saved account'
+	instanceVariableNames: 'account'
 	classVariableNames: ''
 	package: 'Tests-Net'!
 
-GitHubAccountTest comment: 'Tests GitHubAccount: the github-config control command (configure, answer without the token, refuse bad settings and leave the account as it was, clear), the branches it owns, that the token is never printed, forgotten at shutdown and not in a snapshot written after it was used for a request. The image''s account is swapped for a fresh one during each test.'!
+GitHubAccountTest comment: 'Tests GitHubAccount: the github-config control command (configure, answer without the token, refuse bad settings and leave the account as it was, clear), the branches it owns, that the token is never printed, forgotten at shutdown and not in a snapshot written after it was used for a request. The image''s account is swapped for a fresh one during each test (replace:of:with:) and is never cleared; the tests that forget every account''s token (shutDown:, a snapshot) run only in a throwaway image (needsThrowawayImage:).'!
 
 !GitHubAccountTest methodsFor: 'running'!
 setUp
-	saved := GitHubAccount default.
-	account := GitHubAccount new.
-	GitHubAccount default: account
+	account := self replace: #default of: GitHubAccount with: GitHubAccount new
 !
 tearDown
-	account forgetToken.
-	GitHubAccount default: saved
+	account forgetToken
 !
 githubConfig: aDictionary
 	"The github-config command's response, as the control connection would send it."
@@ -121,6 +118,7 @@ testValidation
 !
 testShutDownForgetsEveryToken
 	| other token |
+	self needsThrowawayImage: 'GitHubAccount shutDown: forgets the token of every account, the image''s own too'.
 	token := self newToken.
 	account configure: (self settings at: 'token' put: token; yourself).
 	other := GitHubAccount new token: self newToken; yourself.
@@ -134,6 +132,7 @@ testShutDownForgetsEveryToken
 testTokenIsNotSnapshotted
 	"Use the token for a request, write a snapshot, and look for it in the file: absent; its reversal, which this method holds, is there."
 	| token reversed server client path bytes |
+	self needsThrowawayImage: 'a snapshot runs every shutDown: hook, which forgets the image''s keys and tokens'.
 	token := self newToken.
 	reversed := token reversed.
 	server := HTTPTestServer on: [:request | HTTPTestServer response: 401 body: '{"message":"Bad credentials"}'].

@@ -1,19 +1,16 @@
 TestCase subclass: #ApiKeyAccountTest
-	instanceVariableNames: 'saved account'
+	instanceVariableNames: 'account'
 	classVariableNames: ''
 	package: 'Tests-Agent'!
 
-ApiKeyAccountTest comment: 'Tests ApiKeyAccount: the agent-config control command (configure, answer without the key, refuse bad settings, clear), that the key is never printed, forgotten at shutdown and not in a snapshot written after it was used for a request, and that conversations pick AnthropicProvider once an account is configured. The image''s account is swapped for a fresh one during each test.'!
+ApiKeyAccountTest comment: 'Tests ApiKeyAccount: the agent-config control command (configure, answer without the key, refuse bad settings, clear), that the key is never printed, forgotten at shutdown and not in a snapshot written after it was used for a request, and that conversations pick AnthropicProvider once an account is configured. The image''s account is swapped for a fresh one during each test (replace:of:with:) and is never signed out; the tests that forget every account''s key (shutDown:, a snapshot) run only in a throwaway image (needsThrowawayImage:).'!
 
 !ApiKeyAccountTest methodsFor: 'running'!
 setUp
-	saved := ApiKeyAccount default.
-	account := ApiKeyAccount new.
-	ApiKeyAccount default: account
+	account := self replace: #default of: ApiKeyAccount with: ApiKeyAccount new
 !
 tearDown
-	account forgetKey.
-	ApiKeyAccount default: saved
+	account forgetKey
 !
 agentConfig: aDictionary
 	"The agent-config command's response, as the control connection would send it."
@@ -95,6 +92,7 @@ testSignOutKeepsTheConfiguration
 !
 testShutDownForgetsEveryKey
 	| other key |
+	self needsThrowawayImage: 'ApiKeyAccount shutDown: forgets the key of every account, the image''s own too'.
 	key := self newKey.
 	account configure: (self settings at: 'apiKey' put: key; yourself).
 	other := ApiKeyAccount new apiKey: self newKey; yourself.
@@ -107,6 +105,7 @@ testShutDownForgetsEveryKey
 testKeyIsNotSnapshotted
 	"Use the key for a request, write a snapshot, and look for it in the file: absent; its reversal, which this method holds, is there."
 	| key reversed server provider path bytes |
+	self needsThrowawayImage: 'a snapshot runs every shutDown: hook, which forgets the image''s keys and tokens'.
 	key := self newKey.
 	reversed := key reversed.
 	server := HTTPTestServer on: [:request | HTTPTestServer response: 400 body: '{"type":"error","error":{"type":"invalid_request_error","message":"no"}}'].

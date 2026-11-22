@@ -60,24 +60,17 @@ tests: names call: anId
 
 !AgentConversationTest methodsFor: 'tests'!
 testInstructionsSayWhereChangesGo
-	| savedAccount savedFiler filerClass account |
-	savedAccount := GitHubAccount default.
-	filerClass := Smalltalk at: #SourceFiler ifAbsent: [nil].
-	savedFiler := filerClass ifNotNil: [:c | c default].
-	account := GitHubAccount new.
-	GitHubAccount default: account.
-	[filerClass ifNotNil: [:c | c default: (c new sourceDirectory: nil; yourself)].
-	self assert: (AgentInstructions sourceState includesSubstring: 'cannot be saved').
+	| account |
+	account := self replace: #default of: GitHubAccount with: GitHubAccount new.
+	(Smalltalk at: #SourceFiler ifAbsent: [nil]) ifNotNil: [:c | self replace: #default of: c with: (c new sourceDirectory: nil; yourself)].
+	[self assert: (AgentInstructions sourceState includesSubstring: 'cannot be saved').
 	self assert: (AgentInstructions sourceState includesSubstring: 'samaltak-ctl github-config --from-gh').
 	account configure: (Dictionary new at: 'repository' put: 'octo/demo'; at: 'token' put: 'x', 'y'; yourself).
 	self assert: (AgentInstructions sourceState includesSubstring: 'GitHub, octo/demo').
 	self assert: (AgentInstructions sourceState includesSubstring: 'into main').
 	self assert: ((AgentInstructions textFor: conversation context) includesSubstring: 'Source: changes go to GitHub, octo/demo').
 	self assert: (AgentInstructions text includesSubstring: 'default commit:')]
-		ensure: [
-			account forgetToken.
-			GitHubAccount default: savedAccount.
-			filerClass ifNotNil: [:c | c default: savedFiler]]
+		ensure: [account forgetToken]
 !
 testTurnWithCellsAndShow
 	| second third fourth outputs |
