@@ -9,7 +9,7 @@ Base64 comment: 'I decode Base64 (RFC 4648), in the standard or the URL alphabet
 
 !Base64 class methodsFor: 'decoding'!
 decode: aString
-	"The bytes aString encodes; padding and white space are skipped. Error if it has another character."
+	"Answer the bytes aString encodes; padding and white space are skipped. Error if it has another character."
 	| out bits count v |
 	out := WriteStream on: (ByteArray new: aString size * 3 // 4).
 	bits := 0.
