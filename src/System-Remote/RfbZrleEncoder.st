@@ -100,6 +100,9 @@ tileX: tx y: ty width: tw height: th
 !
 rawX: tx y: ty width: tw height: th
 	out nextPut: 0.
+	(bpp = 4 and: [cp = 3 and: [cpOffset = 0]]) ifTrue: [
+		"the low three bytes of each pixel: PixelPack's vector primitive"
+		^out nextPutAll: (PixelPack pack: pixels stride: width * 4 x: tx y: ty width: tw height: th swap: false into: (ByteArray new: tw * th * 3))].
 	0 to: th - 1 do: [:y | | row |
 		row := (ty + y) * width + tx * bpp + 1.
 		cp = bpp
