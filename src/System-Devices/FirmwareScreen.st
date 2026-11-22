@@ -70,11 +70,16 @@ isStarted
 
 !FirmwareScreen methodsFor: 'drawing'!
 present: pixels width: w height: h
-	"A frame of w x h BGRA8 pixels at the address pixels: into the shadow copy and onto the screen, the pointer over it."
+	"A frame of w x h BGRA8 pixels at the address pixels: into the shadow copy and onto the screen, the pointer over it. While StageTimes measures, the copy and the transfer to the screen count as screen.shadow and screen.blt."
+	| s t |
 	width isNil ifTrue: [^self].
+	s := StageTimes current.
 	lock critical: [
+		s isNil ifFalse: [t := Time microsecondClockValue].
 		SoftwareRaster copy: shadow stride: width * 4 from: pixels stride: w * 4 width: (w min: width) height: (h min: height) bytesPerPixel: 4 mode: 0.
+		s isNil ifFalse: [t := s add: #'screen.shadow' since: t bytes: (w min: width) * (h min: height) * 4].
 		self copyToScreen: (0 @ 0 extent: width @ height).
+		s isNil ifFalse: [s add: #'screen.blt' since: t bytes: width * height * 4].
 		self drawCursor]
 !
 copyToScreen: aRectangle
@@ -90,12 +95,16 @@ copyToScreen: aRectangle
 !
 moveCursorTo: aPoint
 	"The pointer to aPoint (pixels): what was under it back from the shadow copy, the arrow drawn there."
+	| s t |
 	width isNil ifTrue: [^self].
+	s := StageTimes current.
+	s isNil ifFalse: [t := Time microsecondClockValue].
 	lock critical: [
 		aPoint = cursor ifFalse: [
 			self copyToScreen: (cursor extent: Arrow first size @ Arrow size).
 			cursor := aPoint.
-			self drawCursor]]
+			self drawCursor.
+			s isNil ifFalse: [s add: #'screen.pointer' since: t bytes: 0]]]
 !
 drawCursor
 	"The arrow at the pointer: straight into the framebuffer, or with Blt from the shadow pixels under it with the arrow over them."

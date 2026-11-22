@@ -71,6 +71,13 @@ renderedExtent
 	"The extent (points) of the last rendered frame."
 	^renderedExtent
 !
+renderedContent
+	"The content list my surface shows."
+	^renderedContent
+!
+renderedChrome
+	^renderedChrome
+!
 waitForContent
 	"Hold my first appearance (and animations) until my owner published a frame, at most 150 ms."
 	waitingSince := 0
@@ -140,8 +147,10 @@ finishAnimations
 
 !Layer methodsFor: 'rendering'!
 renderExtent: aPoint scale: aNumber renderer: aRenderer commandBuffer: aCommandBuffer
-	"Render my lists for a frame of aPoint points at aNumber device pixels per point."
-	| pixels list |
+	"Render my lists for a frame of aPoint points at aNumber device pixels per point (layer.render while StageTimes measures)."
+	| pixels list s t |
+	s := StageTimes current.
+	s isNil ifFalse: [t := Time microsecondClockValue].
 	pixels := (aPoint x * aNumber) ceiling @ (aPoint y * aNumber) ceiling.
 	self ensureSurface: pixels scale: aNumber.
 	list := contentList ifNil: [(Canvas extent: aPoint scale: aNumber) displayList].
@@ -152,7 +161,8 @@ renderExtent: aPoint scale: aNumber renderer: aRenderer commandBuffer: aCommandB
 	renderedExtent := aPoint.
 	renderedContent := contentList.
 	renderedChrome := chromeList.
-	needsRender := false
+	needsRender := false.
+	s isNil ifFalse: [s add: #'layer.render' since: t bytes: pixels x * pixels y * 4]
 !
 ensureSurface: pixels scale: aNumber
 	| w h |

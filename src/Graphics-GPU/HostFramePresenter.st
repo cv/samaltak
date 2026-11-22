@@ -15,14 +15,18 @@ windowPixelSize: window
 	^GPUPrimitives windowPixelSize: window
 !
 presentWindow: window pixels: address width: w height: h
-	| f cmd swap |
+	| f cmd swap s t |
+	s := StageTimes current.
+	s isNil ifFalse: [t := Time microsecondClockValue].
 	f := self frameFor: window width: w height: h.
 	GPUPrimitives uploadTexture: f first bytes: address x: 0 y: 0 width: w height: h bytesPerRow: w * 4.
+	s isNil ifFalse: [t := s add: #'host.upload' since: t bytes: w * h * 4].
 	cmd := GPUPrimitives acquireCommandBuffer: device.
 	swap := GPUPrimitives acquireSwapchain: cmd window: window.
 	swap isNil ifFalse: [
 		GPUPrimitives blit: cmd source: f first rect: {0. 0. w. h} destination: swap first rect: {0. 0. swap at: 2. swap at: 3} linear: false].
-	GPUPrimitives submit: cmd fence: false
+	GPUPrimitives submit: cmd fence: false.
+	s isNil ifFalse: [s add: #'host.blit' since: t bytes: 0]
 !
 windowClosed: window
 	"The VM released the window's swapchain; my texture for it goes too."

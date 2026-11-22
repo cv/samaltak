@@ -38,6 +38,7 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - `docs/implementation.md` — object format, bytecodes, image format, primitives
 - `docs/lowtalk.md` — the Smalltalk subset the VM is written in, its translation to C and its simulation
 - `docs/ui.md` — the layers from GPU to tools
+- `docs/graphics-damage.md` — how much of each frame changes on the four presentation paths (SDL_GPU, NV, UEFI, VNC), measured with DamageProbe and StageTimes; the design of damage-limited composition and presentation
 - `docs/platform.md` — the platform layer and its primitives
 - `docs/apps.md` — applications as Linux windows, run from source (AppWorld, Application, OmarchyTheme, apps/Weather)
 - `docs/uefi.md` — the headless VM as a UEFI application (bare metal, QEMU)

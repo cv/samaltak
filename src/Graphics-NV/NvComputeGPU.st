@@ -350,8 +350,12 @@ blit: s rect: sr to: d rect: dr linear: aBoolean
 		using: (Array with: s first with: d first)
 !
 present: aSwapchainTexture
-	"Once the GPU has drawn it."
+	"Once the GPU has drawn it (the wait counts as nv.wait while StageTimes measures)."
+	| s t |
+	s := StageTimes current.
+	s isNil ifFalse: [t := Time microsecondClockValue].
 	self touch: aSwapchainTexture address.
+	s isNil ifFalse: [s add: #'nv.wait' since: t bytes: 0].
 	super present: aSwapchainTexture
 ! !
 

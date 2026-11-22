@@ -1,6 +1,6 @@
 Object subclass: #Compositor
 	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder lastFrameWork onWorkClock ownsWorkClock gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn tickCount compositeBytes restMs'
-	classVariableNames: 'Running'
+	classVariableNames: 'Probe Running'
 	package: 'UI-Windows'!
 
 Compositor comment: 'I am the compositor: a Process at priority 70 woken by the platform''s vsync semaphore, presenting at 60 Hz (every second refresh on a 120 Hz display). Each frame I step the layer animations (window open/close, focus cross-fades, menus), toasts and the remote pointer, post frame ticks to windows with animations, render every Layer whose DisplayList or chrome changed into its Surface, composite all layers (offset, scale about the center, opacity, hard shadows) over the halftone desk with the top bar and overlays onto the DisplayWindow, and record a FrameRecord (Profiler recordFrame:). I never wait for a window''s Process: a busy window keeps its last frame.
@@ -452,6 +452,13 @@ lastError
 ! !
 
 !Compositor class methodsFor: 'accessing'!
+probe
+	"The DamageProbe measuring a compositor's frames, or nil (the default)."
+	^Probe
+!
+probe: aDamageProbeOrNil
+	Probe := aDamageProbeOrNil
+!
 priority
 	^70
 !
@@ -496,7 +503,7 @@ compositeListScale: aNumber pointer: showPointer time: now
 
 !Compositor methodsFor: 'private'!
 present: t0 now: now
-	| scale toRender drawUs rasterUs t cmd list stats0 stats1 t1 shown gpuStart fence fenceAt |
+	| scale toRender drawUs rasterUs t cmd list stats0 stats1 t1 shown gpuStart fence fenceAt probe before layerUs showUs |
 	scale := world displayScale.
 	stats0 := Smalltalk vm statistics.
 	t := self frameClock.
@@ -511,6 +518,8 @@ present: t0 now: now
 		key = w layer chromeKey ifFalse: [
 			w layer chromeList: (w chromeDisplayListScale: scale); chromeKey: key].
 		w layer needsRender ifTrue: [toRender add: w]].
+	probe := (Probe notNil and: [Probe compositor == self]) ifTrue: [Probe].
+	probe isNil ifFalse: [before := probe beforeRender: toRender].
 	drawUs := self frameClock - t.
 	t := self frameClock.
 	toRender isEmpty ifFalse: [
@@ -519,6 +528,7 @@ present: t0 now: now
 		gpuStart := self frameClock.
 		cmd submit].
 	rasterUs := self frameClock - t.
+	layerUs := rasterUs.
 	t := self frameClock.
 	compositeBytes isNil ifTrue: [compositeBytes := ByteArray new: 32768].
 	list := self compositeOn: (Canvas extent: world extent scale: scale buffer: compositeBytes) pointer: true time: now.
@@ -526,6 +536,7 @@ present: t0 now: now
 	t := self frameClock.
 	gpuStart isNil ifTrue: [gpuStart := t].
 	shown := displayWindow show: list clear: Color desk.
+	showUs := self frameClock - t.
 	"The upload has copied these bytes; screenshots use independently owned lists."
 	compositeBytes := list vertices.
 	fenceAt := self frameClock.
@@ -540,5 +551,7 @@ present: t0 now: now
 		gcCount: stats1 gcCount - stats0 gcCount
 		gcMicros: stats1 gcMicroseconds - stats0 gcMicroseconds
 		dropped: (recorder isNil ifTrue: [shown not] ifFalse: [recorder missedTickBefore: t0]).
-	gpuTimer fence: fence submittedAt: fenceAt - gpuStart record: lastRecord
+	gpuTimer fence: fence submittedAt: fenceAt - gpuStart record: lastRecord.
+	"After the frame: the list's bytes are reused by the next one only."
+	probe isNil ifFalse: [probe frame: list rendered: before start: t0 draw: drawUs layers: layerUs show: showUs record: lastRecord]
 ! !

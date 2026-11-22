@@ -52,14 +52,20 @@ textInputArea: aRectangle cursor: x
 
 !DisplayWindow methodsFor: 'presenting'!
 show: aDisplayList clear: aColorOrNil
-	"Render aDisplayList and present it. Answer false if the window could not be drawn (hidden, minimized, too many frames in flight)."
-	| cmd target swap |
+	"Render aDisplayList and present it. Answer false if the window could not be drawn (hidden, minimized, too many frames in flight). While StageTimes measures, the stages count as composite.render, composite.blit and present.submit (encoding on a GPU, the work itself on a SoftwareGPU)."
+	| cmd target swap s t area |
+	s := StageTimes current.
+	s isNil ifFalse: [t := Time microsecondClockValue].
 	target := self surface.
+	area := target pixelExtent x * target pixelExtent y * 4.
 	cmd := renderer device commandBuffer.
 	renderer render: aDisplayList into: target texture clear: aColorOrNil commandBuffer: cmd.
+	s isNil ifFalse: [t := s add: #'composite.render' since: t bytes: area].
 	swap := cmd acquireSwapchainTexture: swapchain.
 	swap isNil ifFalse: [cmd blit: target texture to: swap].
+	s isNil ifFalse: [t := s add: #'composite.blit' since: t bytes: (swap isNil ifTrue: [0] ifFalse: [area])].
 	cmd submit.
+	s isNil ifFalse: [s add: #'present.submit' since: t bytes: 0].
 	^swap notNil
 !
 close
