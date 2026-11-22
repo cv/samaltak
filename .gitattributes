@@ -1,0 +1,2 @@
+# vm/gen is generated (make translate; tests/vm/gen_test.sh compares it): its files end in a blank line.
+vm/gen/** whitespace=-blank-at-eof
