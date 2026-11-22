@@ -1554,6 +1554,7 @@ void amd64_assembler_bind(int32_t a_label);
 #else
 void arm64_assembler_bind(int32_t a_label);
 #endif
+void bind_data(int32_t a_label, int64_t k);
 uint64_t branch_target_at(uint64_t site);
 #if defined(__x86_64__)
 void branch_to(int32_t a_label);

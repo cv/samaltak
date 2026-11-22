@@ -589,6 +589,22 @@ exit_flags:;
     asm_label_fixups[a_label] = -1;
 }
 
+/* Amd64Assembler>>bindData:offset: */
+void bind_data(int32_t a_label, int64_t k)
+{
+    uint64_t a;
+    int32_t f;
+    a = asm_pc + k;
+    asm_labels[a_label] = a;
+    f = asm_label_fixups[a_label];
+    while (f >= 0) {
+        patch_branch_at(asm_fixup_sites[f], a);
+        asm_unresolved = asm_unresolved - 1;
+        f = asm_fixup_next[f];
+    }
+    asm_label_fixups[a_label] = -1;
+}
+
 /* Amd64Assembler>>branchTargetAt: */
 uint64_t branch_target_at(uint64_t site)
 {

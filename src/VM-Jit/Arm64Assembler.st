@@ -136,6 +136,21 @@ bind: aLabel
 		f := asmFixupNext at: f].
 	asmLabelFixups at: aLabel put: -1
 !
+bindData: aLabel offset: k
+	"Bind aLabel to the data k bytes past the next instruction (a word of what follows the code, such as its header) and patch the pc-relative loads of it. No code is there: what is known at labels stays as it is."
+	<export>
+	<var: #aLabel type: 'int32_t'>
+	<var: #k type: 'int64_t'>
+	| f a |
+	a := asmPc + k.
+	asmLabels at: aLabel put: a.
+	f := asmLabelFixups at: aLabel.
+	[f >= 0] whileTrue: [
+		self patchBranchAt: (asmFixupSites at: f) to: a.
+		asmUnresolved := asmUnresolved - 1.
+		f := asmFixupNext at: f].
+	asmLabelFixups at: aLabel put: -1
+!
 addressOf: aLabel
 	"The address aLabel is bound to, 0 if it is not bound yet."
 	^asmLabels at: aLabel

@@ -1,5 +1,5 @@
 OptModule subclass: #OptCodegen
-	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgRawBase cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced'
+	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgRawBase cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgFlagsLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced'
 	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_HELD CG_MAX_SITES CG_MAX_SP OUT_ARRAY OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_NOTMADE OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW'
 	package: 'VM-Jit'!
 
@@ -13,7 +13,7 @@ What registers hold: the code generator knows which registers hold the values of
 declarations
 	^#((ir OptIR) (passes OptPasses) (regalloc OptRegalloc)
 		(cgCodeStart uint64_t) (cgBcSize int32_t) (cgValidSlots int32_t) (cgEntryPc int32_t) (cgSlotTop int32_t) (cgRawBase int32_t) (cgMaxOut int32_t) (cgNeed int32_t)
-		(cgExitPlainLabel int32_t) (cgExitSyncLabel int32_t) (cgDeoptLabel int32_t) (cgReturnLabel int32_t) (cgHeaderLabel int32_t) (cgChecksLabel int32_t) (cgBodyLabel int32_t) (cgInterruptLabel int32_t)
+		(cgExitPlainLabel int32_t) (cgExitSyncLabel int32_t) (cgDeoptLabel int32_t) (cgReturnLabel int32_t) (cgHeaderLabel int32_t) (cgFlagsLabel int32_t) (cgChecksLabel int32_t) (cgBodyLabel int32_t) (cgInterruptLabel int32_t)
 		(cgBarrierLabel int32_t) (cgDeoptReturnLabel int32_t) (cgStackFullLabel int32_t)
 		(cgOuts 'OptOut[CG_MAX_OUT]') (cgOutCount int32_t)
 		(cgPoolOops 'oop[CG_MAX_POOL]') (cgPoolLabels 'int32_t[CG_MAX_POOL]') (cgPoolCount int32_t)
@@ -170,6 +170,7 @@ generate: m act: a
 	cgDeoptReturnLabel := asm labelAt: stubs optDeoptReturnStub.
 	cgStackFullLabel := asm labelAt: stubs optStackFullStub.
 	cgHeaderLabel := asm newLabel.
+	cgFlagsLabel := asm newLabel.
 	cgChecksLabel := asm newLabel.
 	cgBodyLabel := asm newLabel.
 	0 to: passes orderCount - 1 do: [:i | (ir block: (passes orderAt: i)) label: asm newLabel].
@@ -199,6 +200,8 @@ generate: m act: a
 		ifTrue: [asm alignTo: 8]
 		ifFalse: [[(asm pc bitAnd: 7) ~= 0] whileTrue: [asm emit: 16rD503201F]].
 	asm bind: cgHeaderLabel.
+	"the header's flags, which the checks after calls read pc-relative"
+	asm bindData: cgFlagsLabel offset: self headerFlagsOffset.
 	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
 		libc fprintf: libc stderr format: 'codegen: asm error %d, %d safepoints, %d metadata words
 ' with: asm errorCode with: cgSpCount with: cgMetaCount].
@@ -285,10 +288,7 @@ emitEntry
 			asm cmp: X16 with: X17].
 	asm b: s if: COND_HI.
 	asm comment: 'invalidated (entered from older code): the interpreter runs it'.
-	asm adr: X16 label: cgHeaderLabel.
-	asm ldr: W16 base: X16 offset: self headerFlagsOffset.
-	asm tst: W16 imm: 2.
-	asm b: s if: COND_NE.
+	self emitDeadCheck: s.
 	cgRawBase > cgValidSlots ifTrue: [
 		asm comment: 'home slots nil'.
 		cgValidSlots to: cgRawBase - 1 do: [:i | asm str: X23 base: X20 offset: 8 * i]].
@@ -425,7 +425,28 @@ loadConstant: v into: r
 	v = memory trueOop ifTrue: [^asm mov: r with: X24].
 	v = memory falseOop ifTrue: [^asm mov: r with: X25].
 	(v bitAnd: 7) ~= 0 ifTrue: [^asm mov: r imm: v].
-	asm ldr: r label: (cgPoolLabels at: (self poolIndexOf: v))
+	self loadPoolEntry: (self poolIndexOf: v) into: r
+!
+loadPoolEntry: i into: r
+	"r := the pool's entry i: nothing if r holds it since the last label, a move if another register does (on arm64), else a pc-relative load."
+	| key h |
+	key := self poolKey: i.
+	self catchUp.
+	(self register: r holds: key) ifTrue: [^self].
+	h := self holderOf: key.
+	(h >= 0 and: [asm isX64 not and: [r <= 30]])
+		ifTrue: [asm mov: r with: h]
+		ifFalse: [asm ldr: r label: (cgPoolLabels at: i)].
+	self catchUp.
+	self hold: key in: r
+!
+poolKey: i
+	"What a register holding the pool's entry i holds, among the slots' offsets (catchUp's register contents)."
+	^16r40000000 + i
+!
+classWordKey: x
+	"What a register holding the class word of what register x holds (or a word of the JitState if x is tagged) holds."
+	^16r50000000 + x
 !
 poolIndexOf: v
 	"v's entry in the pool (made if needed)."
@@ -593,12 +614,12 @@ copy: rm to: rd
 	0 to: n - 1 do: [:i | (cgHeldReg at: i) = rm ifTrue: [self hold: (cgHeldSlot at: i) in: rd]]
 !
 wrote: r
-	"r changed: it holds no slot; x20 changed: no register does."
+	"r changed: it holds no slot, and no register holds its class word; x20 changed: no register holds anything."
 	| i |
 	r = 20 ifTrue: [^self forgetAll].
 	i := 0.
 	[i < cgHeldCount] whileTrue: [
-		(cgHeldReg at: i) = r
+		((cgHeldReg at: i) = r or: [(cgHeldSlot at: i) = (self classWordKey: r)])
 			ifTrue: [
 				cgHeldCount := cgHeldCount - 1.
 				cgHeldSlot at: i put: (cgHeldSlot at: cgHeldCount).
@@ -639,6 +660,11 @@ ipOffset
 !
 headerFlagsOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitMethod *') fieldAddress: #flags) to: 'int64_t'
+!
+emitDeadCheck: s
+	"Branch to s if this code has been invalidated (its header's JM_DEAD): the flags word loaded pc-relative, its bit tested."
+	asm ldr: W16 label: cgFlagsLabel.
+	asm tbnz: W16 bit: 1 to: s
 ! !
 
 !OptCodegen methodsFor: 'nodes'!
@@ -1152,9 +1178,15 @@ emitClassTest: x class: cls
 	cls = memory clsChar ifTrue: [
 		asm and: X16 with: x imm: 7.
 		^asm cmp: X16 imm: 2].
-	asm tst: x imm: 7.
-	asm csel: X16 with: x with: X22 cond: COND_EQ.
-	asm ldr: X16 base: X16 offset: 8.
+	"a type switch tests the same value again: its class word is in X16 still"
+	self catchUp.
+	(x ~= X16 and: [self register: X16 holds: (self classWordKey: x)]) ifFalse: [
+		asm tst: x imm: 7.
+		asm csel: X16 with: x with: X22 cond: COND_EQ.
+		asm ldr: X16 base: X16 offset: 8.
+		x ~= X16 ifTrue: [
+			self catchUp.
+			self hold: (self classWordKey: x) in: X16]].
 	self loadConstant: cls into: X17.
 	asm cmp: X16 with: X17
 !
@@ -1642,10 +1674,7 @@ emitSend: n
 	(cgOuts + (cgOutCount - 1)) resume: cont.
 	lazy := self out: OUT_LAZY node: n index: k.
 	asm comment: 'invalidated meanwhile: deoptimize'.
-	asm adr: X16 label: cgHeaderLabel.
-	asm ldr: W16 base: X16 offset: self headerFlagsOffset.
-	asm tst: W16 imm: 2.
-	asm b: lazy if: COND_NE.
+	self emitDeadCheck: lazy.
 	self emitStressAt: n label: lazy.
 	(nd flags bitAnd: NF_ALLOC) ~= 0 ifTrue: [
 		asm comment: 'an instance of the class it makes (its primitive''s fallback may answer anything: deoptimize, and the site sends from then on)'.

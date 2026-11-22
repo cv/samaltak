@@ -320,7 +320,7 @@ buildIntervals
 linearScan
 	"Registers in order of interval start; spill the interval that ends last when none is free."
 	<function>
-	| v nd j r victim far lo hi dbl best |
+	| v nd j r victim far lo hi dbl best in |
 	self sortIntervals.
 	raActiveCount := 0.
 	0 to: RA_NREGS - 1 do: [:i | raFreeRegs at: i put: 1].
@@ -339,15 +339,28 @@ linearScan
 		[j < raActiveCount] whileTrue: [
 			(ir node: (raActive at: j)) lend < nd lstart
 				ifTrue: [
-					raFreeRegs at: (self regIndexOf: (ir node: (raActive at: j)) reg asInt32) put: 1.
+					r := (ir node: (raActive at: j)) reg asInt32.
 					raActiveCount := raActiveCount - 1.
-					raActive at: j put: (raActive at: raActiveCount)]
+					raActive at: j put: (raActive at: raActiveCount).
+					"a register two values share (a guard and its input) is free when both have ended"
+					(self isHeld: r) ifFalse: [raFreeRegs at: (self regIndexOf: r) put: 1]]
 				ifFalse: [j := j + 1]].
+		"a guard's result is its input: in the input's register (no move), shared while the input lives on"
+		in := (self isGuard: nd) ifTrue: [ir node: nd a] ifFalse: [nd].
+		((self isGuard: nd) and: [in reg >= 0 and: [in rep = nd rep and: [(raFreeRegs at: (self regIndexOf: in reg asInt32)) = 0 and: [self isActive: nd a]]]])
+			ifTrue: [
+				nd reg: in reg.
+				raActiveCount >= RA_MAX_ACTIVE ifTrue: [^false].
+				raActive at: raActiveCount put: v.
+				raActiveCount := raActiveCount + 1]
+			ifFalse: [
 		"doubles: d16-d31, spilled as the others are (to raw slots)"
 		dbl := nd rep asInt32 = R_DBL.
 		lo := dbl ifTrue: [20] ifFalse: [0].
 		hi := dbl ifTrue: [RA_NREGS - 1] ifFalse: [19].
 		r := -1.
+		((self isGuard: nd) and: [in reg >= 0 and: [in rep = nd rep and: [(raFreeRegs at: (self regIndexOf: in reg asInt32)) = 1]]]) ifTrue: [
+			r := self regIndexOf: in reg asInt32].
 		lo to: hi do: [:k | (r < 0 and: [(raFreeRegs at: k) = 1]) ifTrue: [r := k]].
 		r >= 0
 			ifTrue: [
@@ -364,12 +377,12 @@ linearScan
 						"x86, few registers: the one that costs least per position it is live kept in its slot (cost:plus:), at a tie the one ending last; maybe this one"
 						best := v.
 						0 to: raActiveCount - 1 do: [:k |
-							((ir node: (raActive at: k)) rep = nd rep and: [self is: (raActive at: k) cheaperThan: best]) ifTrue: [
+							((ir node: (raActive at: k)) rep = nd rep and: [(self is: (raActive at: k) cheaperThan: best) and: [(self isShared: k) not]]) ifTrue: [
 								best := raActive at: k.
 								victim := k]]]
 					ifFalse: [
 						0 to: raActiveCount - 1 do: [:k |
-							((ir node: (raActive at: k)) lend > far and: [(ir node: (raActive at: k)) rep = nd rep]) ifTrue: [
+							((ir node: (raActive at: k)) lend > far and: [(ir node: (raActive at: k)) rep = nd rep and: [(self isShared: k) not]]) ifTrue: [
 								far := (ir node: (raActive at: k)) lend.
 								victim := k]]].
 				victim >= 0
@@ -377,8 +390,24 @@ linearScan
 						nd reg: (ir node: (raActive at: victim)) reg.
 						(ir node: (raActive at: victim)) reg: -1.
 						raActive at: victim put: v]
-					ifFalse: [nd reg: -1]]].
+					ifFalse: [nd reg: -1]]]].
 	^true
+!
+isHeld: r
+	"An active interval has register r."
+	0 to: raActiveCount - 1 do: [:k | (ir node: (raActive at: k)) reg asInt32 = r ifTrue: [^true]].
+	^false
+!
+isActive: v
+	0 to: raActiveCount - 1 do: [:k | (raActive at: k) = v ifTrue: [^true]].
+	^false
+!
+isShared: k
+	"Active interval k shares its register with another (a guard and its input): neither is spilled for a new one (the other would keep the register)."
+	| r |
+	r := (ir node: (raActive at: k)) reg asInt32.
+	0 to: raActiveCount - 1 do: [:j | (j ~= k and: [(ir node: (raActive at: j)) reg asInt32 = r]) ifTrue: [^true]].
+	^false
 !
 regAtX64: i
 	"x86: x0-x5 (rdi rsi rdx rcx r8 r9), x9 (rax), x21 (r13: optimized code does not keep the receiver there), then d2-d15; the others have no x86 register or are the code generator's (x10, x11, x16, x17)."
