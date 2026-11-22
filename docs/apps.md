@@ -55,3 +55,4 @@ What remains beyond C is mostly the object memory (the image and the app, 8 MB, 
 - **wlr-layer-shell**, to sit on the desktop below the windows as the QML card does. This needs an SDL window with a custom Wayland role and `zwlr_layer_shell_v1` through libwayland-client in `PlatformWayland`, a Linux-only Lowtalk module.
 - **More than one host window per image.** A debugger or a second app window would get a host window of its own; today a Notifier opens inside the app's window.
 - **`--watch`**: file in an app's source again when it is saved, so the running window changes as you edit.
+
