@@ -36,6 +36,7 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - `docs/tls.md` — the TLS 1.3 client in Smalltalk (HTTPS on UEFI)
 - `docs/crypto.md` — hashes, MACs, ciphers and randomness in Smalltalk (System-Crypto)
 - `docs/agent.md` — the in-image coding agent: conversations, tools, the OpenAI and Anthropic Messages providers, API keys from the host
+- `docs/github.md` — source changes as GitHub branches, commits and pull requests through the REST API (GitHubClient, SourceFiler's GitHub store)
 - `docs/certificates.md` — DER, X.509 certificates, trust anchors and chain validation in Smalltalk (System-TLS)
 - `docs/storage.md` — block devices and the read-only ext2/3/4 reader
 - `docs/files.md` — files on UEFI: the firmware's block devices, ext4 volumes mounted read-only under `/` and `/mnt`
