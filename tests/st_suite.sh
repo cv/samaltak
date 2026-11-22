@@ -14,7 +14,8 @@
 # suites (gate stages, several agents' gates) together run at most that many test VMs; the rest wait for a slot.
 # Displays: VMs sharing one X display disturb each other (a clipboard request answered after its requestor's window
 # went is a BadWindow that ends the VM), so with SAMALTAK_TEST_XVFB=1 each VM gets an Xvfb of its own; the default
-# (auto) does that for shards when DISPLAY is set; 0: always DISPLAY.
+# (auto) does that for shards when DISPLAY is set; 0: always DISPLAY. Shards render with 2 lavapipe threads each
+# (LP_NUM_THREADS, unless set).
 set -u
 cd "$(dirname "$0")/.."
 IMAGE=$1
@@ -111,6 +112,8 @@ vm/build/samaltak "$IMAGE" --headless --test-list --test "$@" 2>/dev/null | grep
 NCLASSES=$(wc -l <"$WORK/classes")
 [ "$NCLASSES" -ge 2 ] || serial "$@"
 [ "$XVFB" = auto ] && [ -n "${DISPLAY:-}" ] && OWN_X=1
+# lavapipe (software Vulkan) renders with a thread per core by default: 2 per VM take as long and half the CPU
+export LP_NUM_THREADS="${LP_NUM_THREADS:-2}"
 [ "$JOBS" -gt "$NCLASSES" ] && JOBS=$NCLASSES
 
 # The arguments after the names (image options such as --load) go to every shard.

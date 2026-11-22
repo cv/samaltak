@@ -22,6 +22,8 @@ for a in $VARS; do case $a in OUT=*) OUT=${a#OUT=} ;; esac; done
 LOGS=$OUT/stages
 mkdir -p "$LOGS"
 [ -n "${DISPLAY:-}" ] && export SAMALTAK_TEST_XVFB="${SAMALTAK_TEST_XVFB:-1}"
+# lavapipe renders with a thread per core by default; 2 per VM take as long at half the CPU
+export LP_NUM_THREADS="${LP_NUM_THREADS:-2}"
 START=$(date +%s)
 PIDS=
 trap '[ -n "$PIDS" ] && kill $PIDS 2>/dev/null; exit 143' INT TERM HUP
