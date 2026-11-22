@@ -3,7 +3,7 @@ Object subclass: #AgentInstructions
 	classVariableNames: ''
 	package: 'System-Agent'!
 
-AgentInstructions comment: 'I am the developer message that opens every request of an AgentConversation: what the agent is, its tools, how to explore the image and how code changes reach src/, then the conversation''s context.'!
+AgentInstructions comment: 'I am the developer message that opens every request of an AgentConversation: what the agent is, its tools, how to explore the image and how code changes reach src/ and become a pull request (SourceFiler default commit:), where they go in this image (sourceState: GitHub, a local checkout, or nowhere), then the conversation''s context.'!
 
 !AgentInstructions class methodsFor: 'text'!
 text
@@ -20,12 +20,29 @@ Changes: the image is built from the text sources in src/ (src/<Package>/<Class>
   (Smalltalk at: #SourceFiler) default writeMethod: Foo >> #bar
 writeMethod: answers the path written, or nil when nothing changed or writing is off. A class definition: evaluate the subclass:instanceVariableNames:classVariableNames:package: message, then (Smalltalk at: #SourceFiler) default writeDefinition: definitionString of: Foo; after Foo comment: ''...'', writeCommentOf: Foo. Follow the code around you: class comments start "I am", methods are categorized, comments are terse.
 
+Committing: after changing code, run the affected tests in the image ((Smalltalk at: #FooTest) run answers a TestResult; print it) and fix what fails. Where changes go is under Source below. When they go to GitHub, then (Smalltalk at: #SourceFiler) default commit: ''Area: one sentence saying what changed.'' sends every change written since the last commit (pendingChanges lists them) as one commit on a new branch and answers the pull request into the base branch (a GitHubPullRequest): report its url. The message names the area (a package or tool) and says the change in one sentence. Never push to or update the base branch: a person reviews and merges the pull request. When changes cannot be saved, say so before changing code: the user runs samaltak-ctl github-config --from-gh on the host.
+
 Answer briefly. Your answers are shown as plain text: do not use Markdown.'
 !
 textFor: anAgentContext
-	"text, then what anAgentContext binds."
+	"text, where source changes go, then what anAgentContext binds."
 	^self text, '
+
+Source: ', self sourceState, '
 
 Context (', anAgentContext label, '):
 ', anAgentContext describe
+!
+sourceState
+	"Where SourceFiler sends changes in this image: GitHub (GitHubAccount default), a local checkout, or nowhere."
+	| account filer |
+	account := GitHubAccount default.
+	filer := (Smalltalk at: #SourceFiler ifAbsent: [nil]) ifNotNil: [:class | class default].
+	(filer notNil and: [filer isEnabled and: [filer usesGitHub]]) ifTrue: [
+		account hasToken ifFalse: [
+			^'changes collect for GitHub, ', (account repository ifNil: ['no repository']), ', but there is no token, so commit: fails: tell the user to run samaltak-ctl github-config --from-gh on the host (docs/github.md).'].
+		^'changes go to GitHub, ', account repository, ': commit: opens a pull request from a new branch ', account branchPrefix, '... into ', account baseBranch, '.'].
+	(filer notNil and: [filer isEnabled and: [filer hasWritableSourceDirectory]]) ifTrue: [
+		^'changes are written to the local checkout ', filer sourceDirectory, '; the user commits them with git (commit: is for GitHub: SourceFiler default useGitHub: true after samaltak-ctl github-config).'].
+	^'changes cannot be saved: no writable source directory and no GitHub account. Tell the user to run samaltak-ctl github-config --from-gh on the host (docs/github.md).'
 ! !
