@@ -33,4 +33,7 @@ testEncode
 	self assert: (Base64 encode: #[102 111]) equals: 'Zm8='.
 	self assert: (Base64 encode: #[102 111 111]) equals: 'Zm9v'.
 	self assert: (Base64 decode: (Base64 encode: (ByteArray withAll: (0 to: 255)))) equals: (ByteArray withAll: (0 to: 255))
+!
+testEncodeHi
+	self assert: (Base64 encode: #[104 105]) equals: 'aGk='
 ! !
