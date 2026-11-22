@@ -1490,8 +1490,9 @@ flushed
 	rtVariantCount := 0
 !
 release
-	"All code was dropped (flushed): give back the pages of the optimizer's scratch areas; each compile starts them anew."
+	"All code was dropped (flushed): give back the pages of the optimizer's scratch areas; each compile starts them anew. Not while the helper works in them."
 	<function>
+	self bgQuiesce.
 	ir release.
 	regalloc release
 ! !

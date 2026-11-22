@@ -1572,6 +1572,12 @@ static void hoist_receiver_guards(int32_t entry)
     int32_t m;
     opt_node *nd;
     int32_t a_2;
+    int32_t pc;
+    uint32_t r_flags_at_act;
+    int64_t key;
+    int32_t r_fb_slot;
+    int32_t i_2;
+    int32_t i;
     int32_t m_2;
     a = (opt_blocks + entry)->act;
     rcv = (opt_acts + a)->receiver;
@@ -1598,7 +1604,23 @@ static void hoist_receiver_guards(int32_t entry)
         nd = opt_nodes + m;
         if (((int32_t)nd->op == O_GUARDCLASS) && ((nd->block >= 0) && ((nd->block != entry) && (opt_ir_resolve(nd->a) == rcv)))) {
             a_2 = nd->bcact;
-            if ((flags_at((opt_acts + a_2)->method, nd->bcpc) & FB_DEOPT_HOISTED) != 0) {
+            pc = nd->bcpc;
+            if ((({
+    key = ((((int64_t)a_2) << 32) | (((int64_t)pc) & 0xFFFFFFFFLL)) + 1;
+    i = ({
+    i_2 = ((int32_t)(((uint64_t)key * 6364136223846793005ULL) >> 50)) & 16383;
+    while ((opt_fb_stamps[i_2] == opt_fb_stamp) && (opt_fb_keys[i_2] != key)) {
+        i_2 = (i_2 + 1) & 16383;
+    }
+    r_fb_slot = i_2;
+    r_fb_slot; });
+    if (opt_fb_stamps[i] == opt_fb_stamp) {
+        r_flags_at_act = opt_fb_vals[i];
+        goto exit_flags_at_act;
+    }
+    r_flags_at_act = 4294967295LL;
+exit_flags_at_act:;
+    r_flags_at_act; }) & FB_DEOPT_HOISTED) != 0) {
                 return;
             }
             if ((cls != 0) && (cls != nd->aux)) {

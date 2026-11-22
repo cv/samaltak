@@ -2321,6 +2321,7 @@ exit_note_young:;
 /* OptRuntime>>release */
 void opt_runtime_release(void)
 {
+    bg_quiesce();
     opt_ir_release();
     opt_regalloc_release();
 }

@@ -3,7 +3,9 @@ OptModule subclass: #OptPasses
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-OptPasses comment: 'Passes over the IR (OptIR) after it is built: operands resolved through replaced nodes, trivial phis removed, unreachable blocks and unused pure nodes dropped, critical edges split, the blocks ordered (reverse postorder, the order code is emitted in).'!
+OptPasses comment: 'Passes over the IR (OptIR) after it is built: operands resolved through replaced nodes, trivial phis removed, unreachable blocks and unused pure nodes dropped, critical edges split, the blocks ordered (reverse postorder, the order code is emitted in).
+
+They may run on the helper thread (OptRuntime>>backEnd:, docs/jit.md Background compilation) while the VM runs Smalltalk: read nothing of the heap, the type feedback or the runtime but through the IR (its snapshot: OptIR>>flagsAtAct:pc:, constClassOf:, smallFloatClass; flags are fine).'!
 
 !OptPasses class methodsFor: 'declaring'!
 declarations
@@ -805,7 +807,7 @@ hoistReceiverGuards: entry
 	0 to: ir nodeCount - 1 do: [:m |
 		nd := ir node: m.
 		(nd op asInt32 = O_GUARDCLASS and: [nd block >= 0 and: [nd block ~= entry and: [(ir resolve: nd a) = rcv]]]) ifTrue: [
-			((feedback flagsAt: (ir act: nd bcact) method pc: nd bcpc) bitAnd: feedback deoptHoisted) ~= 0 ifTrue: [^self].
+			((ir flagsAtAct: nd bcact pc: nd bcpc) bitAnd: feedback deoptHoisted) ~= 0 ifTrue: [^self].
 			(cls ~= 0 and: [cls ~= nd aux]) ifTrue: [^self].
 			cls := nd aux]].
 	cls = 0 ifTrue: [^self].
