@@ -1496,7 +1496,7 @@ floatArith: k x: x y: y pc: pc act: a rcvSlot: r
 	"Float arithmetic or comparison k, speculated: SmallFloat64 or SmallInteger operands as doubles (two SmallIntegers: the SmallInteger operation), the result a SmallFloat64; anything else deoptimizes to the send."
 	<function>
 	<var: #merge type: 'int32_t'>
-	| s fx fy n merge t f test fl |
+	| s fx fy n merge t f test fl op |
 	fl := feedback flagsAt: (ir act: a) method pc: pc.
 	s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
 	merge := -1.
@@ -1525,8 +1525,16 @@ floatArith: k x: x y: y pc: pc act: a rcvSlot: r
 			ifFalse: [self intArith: k x: (self cast: x class: memory clsSmallint) y: (self cast: y class: memory clsSmallint) pc: pc act: a rcvSlot: r].
 		self goto: merge.
 		obCurBlock := f].
-	fx := self unboxFloat: x state: s.
-	fy := self unboxFloat: y state: s.
+	(k = 8 and: [(self isTwo: x) or: [self isTwo: y]])
+		ifTrue: [
+			"2 * x is x + x, exactly (an addition is a cycle shorter than a multiplication)"
+			fx := self unboxFloat: ((self isTwo: x) ifTrue: [y] ifFalse: [x]) state: s.
+			fy := fx.
+			op := 0]
+		ifFalse: [
+			fx := self unboxFloat: x state: s.
+			fy := self unboxFloat: y state: s.
+			op := k].
 	(k >= 2 and: [k <= 7])
 		ifTrue: [
 			n := self binary: O_FCMP a: fx b: fy.
@@ -1537,13 +1545,21 @@ floatArith: k x: x y: y pc: pc act: a rcvSlot: r
 			n := self add: O_FARITH rep: R_DBL.
 			(ir node: n) a: fx.
 			(ir node: n) b: fy.
-			(ir node: n) aux: k.
-			k = 9 ifTrue: [(ir node: n) state: s].
+			(ir node: n) aux: op.
+			op = 9 ifTrue: [(ir node: n) state: s].
 			self push: (self boxFloat: n state: s) act: a depth: r].
 	merge >= 0 ifTrue: [
 		self goto: merge.
 		self seal: merge.
 		obCurBlock := merge]
+!
+isTwo: v
+	"v is the constant 2.0 or 2."
+	| nd |
+	nd := ir node: (ir resolve: v).
+	nd op asInt32 = O_CONST ifFalse: [^false].
+	(nd aux asUInt64 = 5 or: [(nd aux asUInt64 bitAnd: 7) = 4 and: [(self constantDouble: nd aux asUInt64) = 16r4000000000000000]]) ifFalse: [^false].
+	^true
 !
 speculatesFloats: fl
 	"An arithmetic site with flags fl takes Floats only: it saw Floats and never two SmallIntegers (one that only its method's other arithmetic saw Floats at takes both)."
