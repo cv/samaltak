@@ -204,7 +204,12 @@ unmapFromGpu: hMemory address: gpuAddress
 allocate: size
 	"size bytes (rounded up to 4 KB) of zeroed memory the GPU and the CPU reach (an NvMemory); mine until freed or I close."
 	| m |
-	m := NvMemory new device: self size: size.
+	^self allocate: size gpuCached: false
+!
+allocate: size gpuCached: aBoolean
+	"allocate:, or memory the GPU caches in its L2 (aBoolean): faster for kernels, not coherent with the CPU (NvMemory)."
+	| m |
+	m := NvMemory new device: self size: size gpuCached: aBoolean.
 	memories add: m.
 	^m
 !

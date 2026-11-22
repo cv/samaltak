@@ -1,5 +1,5 @@
 Object subclass: #NvChannel
-	instanceVariableNames: 'device group contextShare gpfifo computeObject computeClass ring errors pushBuffer semaphore token entries put pbOffset fenceValue syncedPut rerings'
+	instanceVariableNames: 'device group contextShare gpfifo computeObject computeClass ring errors pushBuffer semaphore token entries put pbOffset fenceValue syncedPut'
 	classVariableNames: ''
 	package: 'System-NV'!
 
@@ -79,15 +79,17 @@ submit: anNvPushBuffer
 !
 submitBytes: bytes
 	"Queue pushbuffer words (little-endian, as NvPushBuffer bytes makes them) and ring the doorbell; returns at once."
-	bytes size + 64 > pushBuffer size ifTrue: [^self error: 'pushbuffer of ', bytes size printString, ' bytes too big'].
-	pbOffset + bytes size + 64 > pushBuffer size ifTrue: [self wrapPushBuffer].
-	self push: bytes
-!
-push: bytes
-	"Copy bytes into the pushbuffer at pbOffset and queue a GPFIFO entry for them."
-	gpfifo isNil ifTrue: [^self error: 'closed channel'].
-	put - syncedPut >= (entries - 2) ifTrue: [self drain].
+	self makeRoomFor: bytes size.
 	self pushEntry: bytes
+!
+makeRoomFor: byteCount
+	"Room in the pushbuffer and the ring for byteCount more bytes: start the pushbuffer over, or drain the ring, if needed
+	(both wait for the GPU, with a fence of their own). Before a fence value is taken for the words: a fence taken
+	first would be written after the drain's, the semaphore going back, a wait for it returning early."
+	gpfifo isNil ifTrue: [^self error: 'closed channel'].
+	byteCount + 64 > pushBuffer size ifTrue: [^self error: 'pushbuffer of ', byteCount printString, ' bytes too big'].
+	pbOffset + byteCount + 64 > pushBuffer size ifTrue: [self wrapPushBuffer].
+	put - syncedPut >= (entries - 2) ifTrue: [self drain]
 !
 drain
 	"Wait until the GPU has run every entry in the ring (one more entry, a fence, is always free for it)."
@@ -108,14 +110,14 @@ pushEntry: bytes
 	ring uint32At: self userdOffset + 16r8C put: put \\ entries.
 	self ringDoorbell
 !
+errorNotifier
+	"What RM wrote to the channel's error notifier (NvNotification): {info32. info16. status}; status 0 while all is well."
+	^Array with: (errors uint32At: 8) with: ((errors uint32At: 12) bitAnd: 16rFFFF) with: ((errors uint32At: 12) bitShift: -16)
+!
 ringDoorbell
 	"Tell the GPU to look at GPPut."
 	Machine barrier.
 	Machine uint32At: device doorbell + 16r90 put: token
-!
-rerings
-	"How often a wait rang the doorbell again (wait:timeoutMilliseconds:)."
-	^rerings ifNil: [0]
 !
 wrapPushBuffer
 	"Wait until the GPU has run everything in the pushbuffer, then start again at its beginning."
@@ -124,22 +126,34 @@ wrapPushBuffer
 !
 submitBytes: bytes fenceAt: offset
 	"Queue pushbuffer words that end with a semaphore release of my semaphore (semaphoreAddress) whose 64-bit payload is at the 0-based byte offset: I write the next fence value there; answer it."
+	self makeRoomFor: bytes size.
 	fenceValue := fenceValue + 1.
 	bytes uint32At: offset + 1 put: (fenceValue bitAnd: 16rFFFFFFFF).
 	bytes uint32At: offset + 5 put: (fenceValue bitShift: -32).
-	self submitBytes: bytes.
+	self pushEntry: bytes.
 	^fenceValue
 !
 semaphoreAddress
 	"The GPU address of the 64-bit word fence values are written to."
 	^semaphore gpuAddress
 !
+timestamp: gpuAddress payload: value
+	"Once the work before it is done, the GPU writes value (64 bits) to gpuAddress and its clock (ns, 64 bits) after it (SEM_EXECUTE with RELEASE_TIMESTAMP); no fence, no interrupt."
+	| pb |
+	pb := NvPushBuffer new.
+	pb method: 16r5C subchannel: 0 data: (Array
+		with: (gpuAddress bitAnd: 16rFFFFFFFF) with: (gpuAddress bitShift: -32)
+		with: (value bitAnd: 16rFFFFFFFF) with: (value bitShift: -32)
+		with: (((1 bitOr: (1 bitShift: 20)) bitOr: (1 bitShift: 24)) bitOr: (1 bitShift: 25))).
+	self submit: pb
+!
 submitWithFence: anNvPushBuffer
 	"Submit anNvPushBuffer followed by a semaphore release; answer the value it writes."
-	fenceValue := fenceValue + 1.
-	anNvPushBuffer semaphoreRelease: semaphore gpuAddress payload: fenceValue.
-	self submit: anNvPushBuffer.
-	^fenceValue
+	| bytes |
+	anNvPushBuffer semaphoreRelease: semaphore gpuAddress payload: 0.
+	bytes := anNvPushBuffer bytes.
+	"its payload: the release's fourth word (header, address low and high, payload); a non-stall interrupt follows (two words)"
+	^self submitBytes: bytes fenceAt: bytes size - 20
 !
 fence
 	"Submit a semaphore release after the work submitted so far; answer the value it writes."
@@ -149,31 +163,17 @@ wait: value
 	self wait: value timeoutMilliseconds: 5000
 !
 wait: value timeoutMilliseconds: ms
-	"Return once the GPU has written a fence value of at least value; error after ms. Polls without pause; while the
-	semaphore stands still, rings the doorbell again every 20 µs: on the GB10 a doorbell now and then arrives before
-	the GPU sees the GPPut written before it (Machine barrier orders the stores for the CPUs, not for the GPU), and then
-	the work waits for the next one (rerings counts them). Real time (Time utcMicroseconds): the image's clock stands still during a frame on the recording clock."
-	| deadline last n now seen |
+	"Return once the GPU has written a fence value of at least value; error after ms. Polls without pause, timed by the
+	real clock (Time utcMicroseconds): the image's clock stands still during a frame on the recording clock."
+	| deadline n |
 	(semaphore uint64At: 0) >= value ifTrue: [^self].
-	last := Time utcMicroseconds.
-	deadline := last + (ms * 1000).
-	seen := semaphore uint64At: 0.
+	deadline := Time utcMicroseconds + (ms * 1000).
 	n := 0.
 	[(semaphore uint64At: 0) >= value] whileFalse: [
 		n := n + 1.
-		n \\ 16 = 0 ifTrue: [
-			now := Time utcMicroseconds.
-			now > deadline ifTrue: [
-				^self error: 'GPU timeout waiting for fence ', value printString, ' (at ', self completedValue printString,
-					'; GPGet ', self gpGet printString, ', GPPut ', self gpPut printString, ')'].
-			(semaphore uint64At: 0) = seen
-				ifTrue: [now - last >= 20 ifTrue: [
-					rerings := (rerings ifNil: [0]) + 1.
-					last := now.
-					self ringDoorbell]]
-				ifFalse: [
-					seen := semaphore uint64At: 0.
-					last := now]]]
+		(n \\ 256 = 0 and: [Time utcMicroseconds > deadline]) ifTrue: [
+			^self error: 'GPU timeout waiting for fence ', value printString, ' (at ', self completedValue printString,
+				'; GPGet ', self gpGet printString, ', GPPut ', self gpPut printString, '; error notifier ', self errorNotifier printString, ')']]
 !
 sync
 	"Return once the GPU has run all the work submitted."

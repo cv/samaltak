@@ -13,12 +13,35 @@ gpuOn: aDisplay
 shaderLanguage
 	^'raster'
 !
+isSynchronous
+	^false
+!
 tearDown
 	gpu isNil ifTrue: [^self].
 	[super tearDown] ensure: [gpu close]
 !
 timeLimitMilliseconds
 	^60000
+! !
+
+!NvComputeGPUTest methodsFor: 'tests'!
+testFenceElapsedIsTheGPUsTime
+	"The GPU's clock around the command buffer's work: more than nothing for ten clears of 1920 x 1080, at most the wall time; nothing for a command buffer without GPU work."
+	| tex cmd f t0 wall |
+	tex := gpu createTexture: dev width: 1920 height: 1080 format: 2 usage: 3.
+	cmd := gpu acquireCommandBuffer: dev.
+	t0 := Time microsecondClockValue.
+	10 timesRepeat: [gpu endPass: (gpu beginPass: cmd target: tex clear: #(1.0 0.0 0.0 1.0))].
+	f := gpu submit: cmd fence: true.
+	gpu waitFence: f.
+	wall := Time microsecondClockValue - t0.
+	self assert: (gpu fenceDone: f).
+	self assert: (gpu fenceElapsed: f) > 0.
+	self assert: (gpu fenceElapsed: f) <= wall.
+	cmd := gpu acquireCommandBuffer: dev.
+	f := gpu submit: cmd fence: true.
+	gpu waitFence: f.
+	self assert: (gpu fenceElapsed: f) equals: 0
 ! !
 
 !NvComputeGPUTest class methodsFor: 'testing'!

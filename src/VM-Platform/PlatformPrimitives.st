@@ -26,6 +26,17 @@ timeMs: platform monotonic ms (nil when injecting = now). windowId: window handl
 Keycodes (SDL): printable keys are their lowercase character code (''a'' = 97 ... ''z'' = 122, ''0'' = 48, space = 32), return 13, escape 27, backspace 8, tab 9, delete 127, right 16r4000004F, left 16r40000050, down 16r40000051, up 16r40000052, home 16r4000004A, end 16r4000004D, pageUp 16r4000004B, pageDown 16r4000004E, insert 16r40000049, F1 16r4000003A ... F12 16r40000045, keypad enter 16r40000058, lshift 16r400000E1, lctrl 16r400000E0, lalt 16r400000E2, lcmd 16r400000E3.'!
 
 !PlatformPrimitives class methodsFor: 'declaring'!
+cPreamble
+	"Builtins>>deviceBarrier."
+	^'static inline void lt_device_barrier(void)
+{
+#if defined(__aarch64__)
+	__asm__ volatile("dmb osh" : : : "memory");
+#else
+	__sync_synchronize();
+#endif
+}'
+!
 declarations
 	^#((bad bool) (nic PlatformNic) (builtins Builtins))
 ! !
@@ -654,9 +665,9 @@ primGpuUploadBuffer
 	self answerOk: (gpu uploadBuffer: b asInt32 data: p count: n asUInt32 offset: off asUInt32)
 !
 primGpuUploadTexture
-	"tex bytes x y w h bytesPerRow"
+	"tex bytes x y w h bytesPerRow; bytes a byte object (Bitmap), or an Integer address of h rows of bytesPerRow bytes"
 	<vmPrimitive: 440 name: 'gpuUploadTexture'>
-	| t x y w h bpr len p |
+	| t x y w h bpr len p o |
 	(self args: 7) ifFalse: [^self fail].
 	t := self intArg: 0.
 	x := self intArg: 2.
@@ -666,7 +677,14 @@ primGpuUploadTexture
 	bpr := self intArg: 6.
 	bad ifTrue: [^self fail].
 	len := self local: 'size_t'.
-	p := self bytesOf: (self arg: 1) size: len writable: false.
+	o := self arg: 1.
+	((self isInt: o) or: [(self isPtr: o) and: [(memory classOf: o) = (memory special: SO_LARGEPOS)]])
+		ifTrue: [
+			"an address of h rows of bpr bytes outside the heap (an NvComputeGPU's back buffer)"
+			(h <= 0 or: [bpr <= 0]) ifTrue: [^self fail].
+			p := self addressArg: 1.
+			len value: h asUInt64 * bpr asUInt64]
+		ifFalse: [p := self bytesOf: o size: len writable: false].
 	p isNull ifTrue: [^self fail].
 	self answerOk: (gpu uploadTexture: t asInt32 data: p length: len value x: x asInt32 y: y asInt32 width: w asInt32 height: h asInt32 bytesPerRow: bpr asInt32)
 !
@@ -1622,9 +1640,9 @@ primMachineFree
 	self answerSelf
 !
 primMachineBarrier
-	"A full memory barrier (the compiler's and the CPU's): a device sees the stores before it before those after it."
+	"A full memory barrier (the compiler's and the CPU's): a device sees the stores before it before those after it (on arm64 a dmb osh: Builtins>>deviceBarrier)."
 	<vmPrimitive: 477 name: 'machineBarrier'>
-	builtins memoryBarrier.
+	builtins deviceBarrier.
 	self answerSelf
 !
 primMachineWatch

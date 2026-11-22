@@ -1,5 +1,5 @@
 VMCoreModule subclass: #JitRuntime
-	instanceVariableNames: 'stubs baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending releasePending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned perfMap'
+	instanceVariableNames: 'stubs baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending releasePending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned perfMap jitDump jitDumpIndex'
 	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_LIVE JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
 	package: 'VM-Jit'!
 
@@ -20,7 +20,7 @@ declarations
 		(sendPushed int32_t)
 		(performFn prim_fn) (performArgsFn prim_fn)
 		(statCompiled uint64_t) (statFailed uint64_t) (statBytecodes uint64_t) (statCompileUs uint64_t) (statCodeBytes uint64_t) (statCacheFlushes uint64_t)
-		(statEntries uint64_t) (statExits uint64_t) (statResumes uint64_t) (statOsr uint64_t) (copying bool) (bottomReturned bool) (perfMap 'FILE *'))
+		(statEntries uint64_t) (statExits uint64_t) (statResumes uint64_t) (statOsr uint64_t) (copying bool) (bottomReturned bool) (perfMap 'FILE *') (jitDump 'FILE *') (jitDumpIndex uint64_t))
 !
 initialize
 	JIT_NONE := 0.
@@ -363,43 +363,121 @@ ensureOpen
 	^true
 !
 openPerfMap
-	"With SAMALTAK_PERF_MAP set, /tmp/perf-<pid>.map (perf's map of JIT code) names the stubs, then the code as it is made."
+	"With SAMALTAK_PERF_MAP set, /tmp/perf-<pid>.map (perf's map of JIT code) names the stubs, then the code as it is made. With SAMALTAK_PERF_MAP=jitdump also /tmp/jit-<pid>.dump, perf's jitdump (tools/perf/Documentation/jitdump-specification.txt): each piece of code with its bytes and the time it was made, mapped executable so that perf record (-k mono) notes it and perf inject --jit turns it into ELF files perf annotate disassembles."
 	<function>
-	| path end |
-	(libc getenv: 'SAMALTAK_PERF_MAP') isNull ifTrue: [^self].
+	| path end v hd sname |
+	v := libc getenv: 'SAMALTAK_PERF_MAP'.
+	v isNull ifTrue: [^self].
 	path := self local: 'char[64]'.
 	libc snprintf: path size: 64 format: '/tmp/perf-%d.map' with: posix getpid.
 	perfMap := libc fopen: path mode: 'w'.
 	perfMap isNull ifTrue: [^self].
+	(libc strcmp: v with: 'jitdump') = 0 ifTrue: [
+		libc snprintf: path size: 64 format: '/tmp/jit-%d.dump' with: posix getpid.
+		jitDump := libc fopen: path mode: 'w+'.
+		jitDump notNull ifTrue: [
+			"magic, version 1; header size, ELF machine; padding, pid; time; flags"
+			hd := self local: 'uint64_t[5]'.
+			hd at: 0 put: 16r4A695444 + (1 << 32).
+			hd at: 1 put: 40 + ((asm isX64 ifTrue: [62] ifFalse: [183]) << 32).
+			hd at: 2 put: posix getpid asUInt64 << 32.
+			hd at: 3 put: self perfNowNs.
+			hd at: 4 put: 0.
+			libc fwrite: hd size: 8 count: 5 file: jitDump.
+			libc fflush: jitDump.
+			cache mapForPerf: path]].
+	sname := self local: 'char[64]'.
 	0 to: stubs symbolCount - 1 do: [:i |
 		end := i + 1 < stubs symbolCount ifTrue: [stubs symbolAddressAt: i + 1] ifFalse: [cache top].
-		libc fprintf: perfMap format: '%llx %llx stub:%s
-' with: (stubs symbolAddressAt: i) with: end - (stubs symbolAddressAt: i) with: (stubs symbolNameAt: i)].
-	libc fflush: perfMap
+		libc snprintf: sname size: 64 format: 'stub:%s' with: (stubs symbolNameAt: i).
+		self perfMapAt: (stubs symbolAddressAt: i) size: end - (stubs symbolAddressAt: i) name: sname]
 !
 perfMapCode: h mode: md
 	"h's code in the perf map: bl:Class>>selector, opt: for optimized code (a block's or a loop's unit with its pc)."
 	<function>
 	<var: #h type: 'JitMethod *'>
-	libc fprintf: perfMap format: '%llx %x ' with: h codeStart with: h codeSize.
-	libc fputs: (md = JIT_OPT ifTrue: ['opt:'] ifFalse: ['bl:']) to: perfMap.
-	interpreter printClassName: (self loadRef: h method at: CM_CLASS) on: perfMap.
-	libc fputs: '>>' to: perfMap.
-	interpreter printSymbol: (self loadRef: h method at: CM_SELECTOR) on: perfMap.
+	| name n |
+	name := self local: 'char[256]'.
+	n := self perfAppend: (md = JIT_OPT ifTrue: ['opt:'] ifFalse: ['bl:']) size: -1 to: name at: 0.
+	n := self perfAppendClassName: (self loadRef: h method at: CM_CLASS) to: name at: n.
+	n := self perfAppend: '>>' size: -1 to: name at: n.
+	n := self perfAppendSymbol: (self loadRef: h method at: CM_SELECTOR) to: name at: n.
 	md = JIT_OPT ifTrue: [
-		optimizer unitOsr > 0 ifTrue: [libc fprintf: perfMap format: ' [loop %d]' with: optimizer unitEntry].
-		(optimizer unitOsr = 0 and: [optimizer unitEntry > 0]) ifTrue: [libc fprintf: perfMap format: ' [block %d]' with: optimizer unitEntry]].
-	libc fputc: 10 to: perfMap.
-	libc fflush: perfMap
+		optimizer unitOsr > 0 ifTrue: [libc snprintf: (self cCoerce: name to: 'char *') + n size: (256 - n) asUInt64 format: ' [loop %d]' with: optimizer unitEntry].
+		(optimizer unitOsr = 0 and: [optimizer unitEntry > 0]) ifTrue: [libc snprintf: (self cCoerce: name to: 'char *') + n size: (256 - n) asUInt64 format: ' [block %d]' with: optimizer unitEntry]].
+	self perfMapAt: h codeStart size: h codeSize asUInt64 name: name
 !
 perfMapAt: start size: n name: name
-	"Other code (a polymorphic inline cache) in the perf map."
+	"Code (a stub, a method, a polymorphic inline cache) in the perf map and the jitdump."
 	<function>
+	<var: #start type: 'uint64_t'>
+	<var: #n type: 'uint64_t'>
 	<var: #name type: 'const char *'>
+	| r len |
 	perfMap isNull ifTrue: [^self].
 	libc fprintf: perfMap format: '%llx %llx %s
 ' with: start with: n with: name.
-	libc fflush: perfMap
+	libc fflush: perfMap.
+	jitDump isNull ifTrue: [^self].
+	"JIT_CODE_LOAD: id 0, size; time; pid, tid (the VM's thread, which compiles); address; code address; code size; index; then the name and the code"
+	len := (libc strlen: name) + 1.
+	r := self local: 'uint64_t[7]'.
+	r at: 0 put: (56 + len + n) << 32.
+	r at: 1 put: self perfNowNs.
+	r at: 2 put: posix getpid asUInt64 + (posix getpid asUInt64 << 32).
+	r at: 3 put: start.
+	r at: 4 put: start.
+	r at: 5 put: n.
+	r at: 6 put: jitDumpIndex.
+	jitDumpIndex := jitDumpIndex + 1.
+	libc fwrite: r size: 8 count: 7 file: jitDump.
+	libc fwrite: name size: 1 count: len file: jitDump.
+	libc fwrite: (self cCoerce: start to: 'void *') size: 1 count: n file: jitDump.
+	libc fflush: jitDump
+!
+perfNowNs
+	"CLOCK_MONOTONIC in nanoseconds, perf record -k mono's clock."
+	| ts |
+	ts := self local: 'Timespec'.
+	posix clockGettime: posix CLOCK_MONOTONIC into: ts.
+	^(ts tv_sec * 1000000000) asUInt64 + ts tv_nsec asUInt64
+!
+perfAppend: s size: size to: name at: n
+	"s (size bytes, or up to its NUL if size is negative) at name + n, cut at 255 bytes, NUL-terminated; answers the new length."
+	<function>
+	<var: #s type: 'const char *'>
+	<var: #name type: 'char *'>
+	<returns: 'int64_t'>
+	| k |
+	k := size < 0 ifTrue: [(libc strlen: s) asInt64] ifFalse: [size].
+	k > (255 - n) ifTrue: [k := 255 - n].
+	libc memcpy: name + n from: s size: k asUInt64.
+	name at: n + k put: 0.
+	^n + k
+!
+perfAppendSymbol: s to: name at: n
+	<function>
+	<var: #name type: 'char *'>
+	<returns: 'int64_t'>
+	((self isPtr: s) and: [(memory formatOf: s) >= F_BYTES]) ifFalse: [^self perfAppend: '?' size: -1 to: name at: n].
+	^self perfAppend: (self cCoerce: (self bytesOf: s) to: 'const char *') size: (memory byteSize: s) asInt64 to: name at: n
+!
+perfAppendClassName: aClass to: name at: n
+	"As Interpreter>>printClassName:on:."
+	<function>
+	<var: #name type: 'char *'>
+	<returns: 'int64_t'>
+	| t |
+	((self isPtr: aClass) not or: [aClass = memory nilOop]) ifTrue: [^self perfAppend: 'nil' size: -1 to: name at: n].
+	(((self numSlots: aClass) > CLS_NAME and: [self isPtr: (self loadRef: aClass at: CLS_NAME)])
+		and: [(memory formatOf: (self loadRef: aClass at: CLS_NAME)) >= F_BYTES
+		and: [(self rawClass: (self loadRef: aClass at: CLS_NAME)) = (memory special: SO_BYTESYMBOL)]]) ifTrue: [
+			^self perfAppendSymbol: (self loadRef: aClass at: CLS_NAME) to: name at: n].
+	((self numSlots: aClass) > META_THISCLASS and: [(self isPtr: (self loadRef: aClass at: META_THISCLASS)) and: [(self rawClass: aClass) ~= aClass]]) ifTrue: [
+		t := self loadRef: aClass at: META_THISCLASS.
+		(self numSlots: t) > CLS_NAME ifTrue: [
+			^self perfAppend: ' class' size: -1 to: name at: (self perfAppendClassName: t to: name at: n)]].
+	^self perfAppend: '?' size: -1 to: name at: n
 ! !
 
 !JitRuntime methodsFor: 'state'!

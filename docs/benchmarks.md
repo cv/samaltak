@@ -29,6 +29,7 @@ The suite for comparing JIT variants ([jit.md](jit.md)): the 14 [Are We Fast Yet
     vm/tests/bench/awfy.sh [--suite awfy|micro|workloads|realworld|all] [-n 30] [--vm-args '--jit none|baseline|opt'] [Bench[:inner] ...]
     vm/tests/bench/awfy.sh --pharo ...                  # $PHARO_VM, $PHARO_IMAGE (default ~/.cache/pharo14)
     vm/tests/bench/awfy.sh --summary results/*.csv      # median over invocations
+    vm/tests/bench/awfy.sh --cpus big ...               # pinned to the fastest cores (Linux, taskset)
 
 Output: `benchmark,iteration,microseconds` per iteration; `# stats` lines with the VM statistics delta over all iterations (every counter the VM answers, unnamed ones as `counterN`); a summary of first iteration, steady state (median of the last half) and total. `-o` saves all of it.
 
@@ -181,6 +182,45 @@ Pharo 12 collects old space when it has grown by a third since the last full GC 
 | all 39 | 0.39 | 0.41 | 0.62 | 0.65 |
 
 `--cpu` times Samaltak by its thread's clock too (`awfy/SamaltakCPU.st`, `Smalltalk vm threadCpuMicroseconds`: all Processes, GC, JIT and the profiler's sampling); the x86-64 Samaltak times above were taken with the benchmark Process's CPU time plus the JIT's compiling, which leaves out the profiler's sampling Process. The thread's clock reads 1.3 % more under `opt`, 1.5 % under `baseline` (geometric means of medians of 3 interleaved invocations; MicroAlloc +11 % under `opt`, BinaryTrees and Pidigits +8 %, Storage +6 %), so 0.39 and 0.62 of Pharo 12 become 0.40 and 0.63.
+
+### arm64 Linux: Cortex-X925
+
+The same benchmarks on an NVIDIA DGX Spark (GB10: 10 Cortex-X925 cores at 3.9 GHz, logical CPUs 5–9 and 15–19, and 10 Cortex-A725 at 2.8 GHz, 0–4 and 10–14; `/sys/devices/system/cpu/cpu*/regs/identification/midr_el1` 0x410fd851 and 0x410fd871), the VM built with gcc 13 -O2 and LTO, no profile. A VM the scheduler puts on an A725 runs half as fast (fib 32: 50 against 104 ms interpreted, 10 against 21 ms under `baseline`), and Linux places a new process on either kind, so unpinned timings alternate between two values; `--cpus big` pins every run to the X925s (`taskset`). CPU time (`--cpu`), steady state as above, median of 3 invocations interleaved `opt`, `baseline`, Pharo 12, then `none`; a shared machine, 1-minute load 1.6–4.1 (`vm/tests/bench/results/{samaltak-arm64-x925-{none,baseline,opt},pharo12-cog-arm64-x925}{,-micro}-2026-11-21-*.csv`). Spread: (largest − smallest) / median of the three invocations' steady states.
+
+| benchmark | `none` | `baseline` | `opt` | Pharo 12 | `baseline` / `none` | `opt` / `none` | `opt` / Pharo | `baseline` / Pharo | first `opt` / Pharo | first `baseline` / Pharo | spread `opt` | spread Pharo |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bounce | 85.1 | 15.9 | 6.5 | 37.1 | 0.19 | 0.08 | 0.18 | 0.43 | 0.24 | 0.51 | 0 % | 179 % |
+| CD | 272.2 | 69.1 | 31.4 | 344.2 | 0.25 | 0.12 | 0.09 | 0.20 | 0.08 | 0.12 | 11 % | 17 % |
+| DeltaBlue | 83.2 | 25.6 | 8.0 | 61.2 | 0.31 | 0.10 | 0.13 | 0.42 | 0.37 | 0.17 | 17 % | 44 % |
+| Havlak | 530.9 | 204.6 | 70.2 | 408.6 | 0.39 | 0.13 | 0.17 | 0.50 | 0.17 | 0.37 | 23 % | 26 % |
+| Json | 71.5 | 30.3 | 6.4 | 70.9 | 0.42 | 0.09 | 0.09 | 0.43 | 0.29 | 0.33 | 9 % | 50 % |
+| List | 88.9 | 17.9 | 6.6 | 20.6 | 0.20 | 0.07 | 0.32 | 0.87 | 0.33 | 0.85 | 1 % | 1 % |
+| Mandelbrot | 486.9 | 142.2 | 34.7 | 264.6 | 0.29 | 0.07 | 0.13 | 0.54 | 0.14 | 0.54 | 0 % | 83 % |
+| NBody | 627.0 | 284.8 | 51.0 | 325.6 | 0.45 | 0.08 | 0.16 | 0.87 | 0.16 | 0.85 | 0 % | 113 % |
+| Permute | 65.7 | 15.9 | 9.9 | 34.3 | 0.24 | 0.15 | 0.29 | 0.46 | 0.30 | 0.47 | 0 % | 2 % |
+| Queens | 69.4 | 14.2 | 8.1 | 31.5 | 0.21 | 0.12 | 0.26 | 0.45 | 0.18 | 0.28 | 5 % | 211 % |
+| Richards | 68.1 | 12.6 | 6.3 | 51.5 | 0.18 | 0.09 | 0.12 | 0.24 | 0.13 | 0.20 | 0 % | 39 % |
+| Sieve | 85.8 | 21.8 | 11.6 | 48.5 | 0.25 | 0.14 | 0.24 | 0.45 | 0.08 | 0.13 | 1 % | 4 % |
+| Storage | 83.0 | 23.3 | 11.0 | 116.0 | 0.28 | 0.13 | 0.09 | 0.20 | 0.14 | 0.21 | 30 % | 30 % |
+| Towers | 52.0 | 10.6 | 7.1 | 34.4 | 0.20 | 0.14 | 0.21 | 0.31 | 0.43 | 0.57 | 1 % | 56 % |
+| geometric mean | | | | | 0.27 | 0.10 | 0.16 | 0.41 | 0.19 | 0.33 | | |
+
+| benchmark | `none` | `baseline` | `opt` | Pharo 12 | `baseline` / `none` | `opt` / `none` | `opt` / Pharo | `baseline` / Pharo | first `opt` / Pharo | first `baseline` / Pharo | spread `opt` | spread Pharo |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| MicroFib | 16.7 | 4.8 | 3.9 | 9.2 | 0.29 | 0.24 | 0.43 | 0.52 | 0.39 | 0.47 | 28 % | 593 % |
+| MicroLoop | 104.6 | 25.2 | 23.7 | 58.7 | 0.24 | 0.23 | 0.40 | 0.43 | 0.04 | 0.05 | 0 % | 4 % |
+| MicroFloats | 29.2 | 17.2 | 4.1 | 113.6 | 0.59 | 0.14 | 0.04 | 0.15 | 0.04 | 0.16 | 0 % | 131 % |
+| MicroSends | 117.8 | 19.9 | 5.2 | 32.2 | 0.17 | 0.04 | 0.16 | 0.62 | 0.16 | 0.61 | 0 % | 0 % |
+| MicroBlocks | 150.2 | 21.5 | 6.1 | 30.7 | 0.14 | 0.04 | 0.20 | 0.70 | 0.20 | 0.68 | 33 % | 1 % |
+| MicroDict | 78.6 | 29.7 | 20.5 | 227.7 | 0.38 | 0.26 | 0.09 | 0.13 | 0.04 | 0.08 | 4 % | 54 % |
+| MicroStrings | 103.2 | 30.5 | 13.4 | 117.4 | 0.30 | 0.13 | 0.11 | 0.26 | 0.11 | 0.19 | 9 % | 39 % |
+| MicroAlloc | 67.0 | 15.9 | 11.4 | 40.4 | 0.24 | 0.17 | 0.28 | 0.39 | 0.42 | 0.42 | 37 % | 4 % |
+| MicroFactorial | 1.3 | 1.1 | 1.1 | 8.4 | 0.87 | 0.84 | 0.13 | 0.13 | 0.14 | 0.11 | 2 % | 16 % |
+| geometric mean | | | | | 0.30 | 0.16 | 0.16 | 0.31 | 0.12 | 0.22 | | |
+
+Over its interpreter `opt` gains more here than on the M2 Max (0.10 against 0.13), `baseline` a little less (0.27 against 0.24); the X925 runs the interpreter about 1.3× as fast as the M2 Max. Pharo 12: its newest VM for Linux on arm64, 10.2.1 (files.pharo.org, `pharo-spur64-headless/Linux-aarch64`; Pharo 14 needs a VM of at least 10.3.9, which is not published for it), with the Pharo 12 image, in `~/.cache/pharo12` (`PHARO_VM`, `PHARO_IMAGE`). Its Cog for arm64 Linux is slower than on macOS (CD 344 ms, 200 on the M2 Max) and erratic: an invocation keeps one speed, but the next may run at two to seven times another (MicroFib 9.1, 9.2 and 63.7 ms, NBody 688, 326 and 321 ms; Towers' first iteration 19 ms, the rest 37), so its ratios are uncertain by that much.
+
+Samaltak's times are stable within an invocation (iterations of the second half within 1–2 %) and differ between invocations by up to 37 % (MicroAlloc 9.4, 11.4, 13.7 ms; MicroFib 3.9, 3.9, 5.0; Havlak 75, 70, 59): not the core (every X925 runs fib 32 in 10.0 ms) nor the clock (`CLOCK_MONOTONIC`, microseconds), but where each run's code and objects land (code is compiled in an order that depends on when the profiler's sampling switches Processes). A comparison of two VMs needs several invocations of each, interleaved, as above, and medians.
 
 ## Real-world workloads
 

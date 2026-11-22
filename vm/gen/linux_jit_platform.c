@@ -33,4 +33,16 @@ void *map(void *near, uint64_t size)
     return mmap(near, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
 }
 
+/* LinuxJitPlatform>>mapForPerf: */
+void map_for_perf(const char *path)
+{
+    int fd;
+    fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        return;
+    }
+    mmap(NULL, 4096, PROT_READ | PROT_EXEC, MAP_PRIVATE, fd, 0);
+    close(fd);
+}
+
 #endif

@@ -10,14 +10,17 @@ NvMemory comment: 'I am memory an NvDevice allocated for the GPU and the CPU bot
 	m bytesAt: 16 put: #[1 2 3]; bytesAt: 16 count: 3
 	m gpuAddress                                     "what a kernel parameter or a QMD names"
 
-The GPU does not cache me (and the CPU maps me as RM maps system memory), so what one side writes the other sees after the GPU''s semaphore release (NvChannel) or the CPU''s barrier. free returns me to RM (the device frees what is left when it closes).'!
+The GPU does not cache me (and the CPU maps me as RM maps system memory), so what one side writes the other sees after the GPU''s semaphore release (NvChannel) or the CPU''s barrier; unless I was allocated gpuCached (NvDevice allocate:gpuCached:): then only the GPU may use me (a kernel''s scratch), as the GPU''s L2 keeps lines the CPU does not see and does not see the CPU''s writes. free returns me to RM (the device frees what is left when it closes).'!
 
 !NvMemory methodsFor: 'initialization'!
 device: anNvDevice size: n
+	self device: anNvDevice size: n gpuCached: false
+!
+device: anNvDevice size: n gpuCached: aBoolean
 	device := anNvDevice.
 	size := (n + 16rFFF) // 16r1000 * 16r1000.
 	handle := device alloc: NvRm classMemorySystem parent: device device
-		params: (NvRm memoryParams: size owner: device root type: NvRm typeNotifier alignment: 16r1000).
+		params: (NvRm memoryParams: size owner: device root type: NvRm typeNotifier alignment: 16r1000 gpuCached: aBoolean).
 	[cpuAddress := device mapToCpu: handle size: size file: '/dev/nvidiactl'.
 	gpuAddress := device mapToGpu: handle size: size]
 		ifCurtailed: [self free]

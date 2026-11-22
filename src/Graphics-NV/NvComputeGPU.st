@@ -1,5 +1,5 @@
 SoftwareGPU subclass: #NvComputeGPU
-	instanceVariableNames: 'gpu compute kernels memories fences lastFence scratch starts'
+	instanceVariableNames: 'gpu compute kernels memories fences lastFence scratch starts batch batchStarts batchSlots batchTarget batchClip batchUsed arena arenaOffset stamps stampCount recent blocks'
 	classVariableNames: ''
 	package: 'Graphics-NV'!
 
@@ -8,7 +8,7 @@ NvComputeGPU comment: 'I am a GPU device on an NVIDIA GPU (the GB10) without its
 	gpu := NvComputeGPU on: aDisplay.        "opens the GPU; an error where there is none"
 	GPUPlatform display: d device: gpu       "or --gpu nv (SAMALTAK_GPU=nv): GPUPlatform chooses me"
 
-Textures, buffers and back buffers are NvMemory (the addresses SoftwareGPU keeps are their CPU addresses). A clear is a raster_fill, a draw raster_prims then raster_tiles (the RasterDrawParams of the pass''s state, a scratch shared by the draws), a blit raster_blit; they are queued when called, in order, and run while the CPU goes on. The CPU waits only where it touches memory a queued launch uses: an upload, a download, a present, freeing; each memory remembers the fence of the last launch that used it. Fences are the channel''s: done when the GPU reached them, fenceElapsed the µs from the command buffer''s first launch to when I saw it done. shaderLanguage is ''raster'': not software (isSoftware is false), and no shader is compiled.
+Textures, buffers and back buffers are NvMemory (the addresses SoftwareGPU keeps are their CPU addresses). A clear is a raster_fill, a blit raster_blit. Draws are batched: consecutive draws into one target (a pass''s, or several passes'') collect their RasterDrawParams (the pass''s state), and are launched together as raster_batch_prims then raster_batch_tiles (the params in an arena of GPU memory reused as a ring, one scratch) when anything else comes: another target, a clear, a blit, a CPU access, a submit. Launches are queued in order and run while the CPU goes on. The CPU waits only where it touches memory a queued launch uses: an upload, a download, a present, freeing; each memory remembers the fence of the last launch that used it. Fences are the channel''s: done when the GPU reached them. fenceElapsed is the GPU''s time for the command buffer: the GPU''s clock written (a timestamp release) before its first clear, draw or blit and after its last, in a ring of 256 slots. shaderLanguage is ''raster'': not software (isSoftware is false), and no shader is compiled.
 
 My display presents the BGRA8 back buffer from its CPU address: hosted a HostFramePresenter (SDL_GPU, the VM''s window), on UEFI it would be FirmwareDisplay (the firmware''s screen) once System-NV runs there. close closes the GPU (everything I made goes with it).'!
 
@@ -20,11 +20,18 @@ setDisplay: aDisplay
 	fences := Dictionary new.
 	starts := Dictionary new.
 	lastFence := 0.
+	self resetBatch.
 	gpu := NvDevice open.
+	stampCount := 0.
+	recent := Array new: 64.
 	[compute := gpu newCompute.
+	stamps := gpu allocate: 256 * 32.
 	cubin := NvCubin on: NvRasterKernels cubin.
 	kernels := Dictionary new.
-	NvRasterKernels kernelNames do: [:name | kernels at: name put: (cubin kernelNamed: name)]]
+	blocks := Dictionary new.
+	NvRasterKernels kernelNames do: [:name |
+		kernels at: name put: (cubin kernelNamed: name).
+		blocks at: name put: ((NvRasterKernels kernel: name) at: #block)]]
 		ifCurtailed: [self close]
 ! !
 
@@ -40,7 +47,8 @@ close
 	"Close the GPU; every texture, buffer and back buffer goes with it. Safe to call twice."
 	gpu isNil ifTrue: [^self].
 	[gpu close] ensure: [
-		gpu := compute := scratch := nil.
+		gpu := compute := scratch := arena := stamps := nil.
+		self resetBatch.
 		memories := Dictionary new.
 		fences := Dictionary new]
 ! !
@@ -53,24 +61,35 @@ shaderLanguage: dev
 !
 waitIdle: dev
 	self device: dev for: 'gpuWaitIdle'.
+	self flush.
 	compute wait: lastFence
 ! !
 
 !NvComputeGPU methodsFor: 'commands'!
+beginPass: cmd target: texture clear: rgbaOrNil
+	self started: cmd.
+	^super beginPass: cmd target: texture clear: rgbaOrNil
+!
+blit: cmd source: src rect: srcRect destination: dst rect: dstRect linear: aBoolean
+	self started: cmd.
+	^super blit: cmd source: src rect: srcRect destination: dst rect: dstRect linear: aBoolean
+!
 submit: cmd fence: wantFence
 	"Present what cmd acquired (once the GPU drew it); a fence for what was launched so far, or nil."
-	| start f |
-	start := starts at: cmd ifAbsent: [nil].
+	| slot f |
+	self flush.
+	slot := starts at: cmd ifAbsent: [nil].
 	f := super submit: cmd fence: wantFence.
 	f isNil ifTrue: [^nil].
-	(self at: f) command: lastFence; address: start; size: nil.
+	(self at: f) command: lastFence; address: slot; size: nil.
+	slot isNil ifFalse: [(self at: f) width: (self stamp: slot * 32 + 16)].
 	^f
 !
 waitFence: fence
 	| f |
 	f := self at: fence kind: #fence for: 'gpuWaitFence'.
 	compute wait: f command.
-	self isDone: f
+	[self isDone: f] whileFalse
 !
 fenceDone: fence
 	^self isDone: (self at: fence kind: #fence for: 'gpuFenceDone')
@@ -84,28 +103,47 @@ fenceElapsed: fence
 
 !NvComputeGPU methodsFor: 'private'!
 isDone: aFence
-	"A fence object: command the channel's fence value, address its command buffer's first launch (µs, nil if none), size its elapsed µs once done."
+	"A fence object: command the channel's fence value, address its command buffer's stamp pair (nil if it did no GPU work), width the payload its end stamp carries, size its GPU µs once done."
+	| at |
 	aFence size notNil ifTrue: [^true].
 	compute channel completedValue >= aFence command ifFalse: [^false].
-	aFence size: (aFence address isNil ifTrue: [0] ifFalse: [Time microsecondClockValue - aFence address]).
+	aFence address isNil ifTrue: [aFence size: 0. ^true].
+	at := aFence address * 32.
+	(stamps uint64At: at + 16) = aFence width ifFalse: [^false].
+	aFence size: ((stamps uint64At: at + 24) - (stamps uint64At: at + 8) max: 0) // 1000.
 	^true
 !
-charge: cmd since: t0
-	starts at: cmd ifAbsent: [starts at: cmd put: t0].
-	super charge: cmd since: t0
+started: cmd
+	"Before cmd's first GPU work: the GPU's clock into the next stamp pair's first half."
+	starts at: cmd ifAbsent: [| slot |
+		self flush.
+		slot := stampCount \\ 256.
+		starts at: cmd put: slot.
+		self stamp: slot * 32]
+!
+stamp: offset
+	"The GPU's clock at offset in stamps once the work before is done; answer the payload that says it is there."
+	stampCount := stampCount + 1.
+	compute channel timestamp: stamps gpuAddress + offset payload: stampCount.
+	^stampCount
 !
 drop: h
 	starts removeKey: h ifAbsent: [].
 	super drop: h
+!
+launchFor: aFence
+	"{fence. kernel name. grid. parameter bytes} of the launch whose fence is aFence, if among the last 64; for diagnosis."
+	^(recent at: aFence \\ 64 + 1) ifNotNil: [:r | r first = aFence ifTrue: [r]]
 !
 gpuAddress: address
 	"The GPU address of the memory whose CPU address is address."
 	^(memories at: address) gpuAddress
 !
 launch: aName grid: grid parameters: bytes using: addresses
-	"Queue the raster kernel aName (256 threads a block) with its parameter struct; the memory at addresses waits for it."
+	"Queue the raster kernel aName (as many threads a block as it is written for) with its parameter struct; the memory at addresses waits for it."
 	| fence |
-	fence := compute launch: (kernels at: aName) grid: grid block: 256 arguments: (Array with: bytes).
+	fence := compute launch: (kernels at: aName) grid: grid block: (blocks at: aName) parameters: bytes.
+	recent at: fence \\ 64 + 1 put: (Array with: fence with: aName with: grid with: bytes).
 	addresses do: [:a | fences at: a put: fence].
 	lastFence := fence
 !
@@ -122,12 +160,65 @@ put32: anInteger at: offset in: bytes
 	v := anInteger == true ifTrue: [1] ifFalse: [anInteger == false ifTrue: [0] ifFalse: [anInteger]].
 	bytes uint32At: offset + 1 put: (v bitAnd: 16rFFFFFFFF)
 !
+resetBatch
+	batch := OrderedCollection new.
+	batchStarts := OrderedCollection new.
+	batchSlots := 0.
+	batchTarget := batchClip := nil.
+	batchUsed := Set new
+!
+flush
+	"Launch the batched draws: raster_batch_prims, raster_batch_tiles over the union of their clips."
+	| draws startsOf slots target clip used n bytes at p base |
+	batch isEmpty ifTrue: [^self].
+	draws := batch. startsOf := batchStarts. slots := batchSlots. target := batchTarget. clip := batchClip. used := batchUsed.
+	self resetBatch.
+	clip isNil ifTrue: [^self].
+	n := draws size.
+	bytes := ByteArray new: n * 200 + (n + 1 * 8).
+	draws doWithIndex: [:d :i | bytes replaceFrom: i - 1 * 200 + 1 to: i * 200 with: d startingAt: 1].
+	startsOf doWithIndex: [:s :i | self put: s at: n * 200 + (i - 1 * 8) in: bytes].
+	self put: slots at: n * 200 + (n * 8) in: bytes.
+	self ensureScratch: NvRasterKernels batchSlotBytes * slots.
+	at := self arenaFor: bytes size.
+	arena bytesAt: at put: bytes.
+	base := arena gpuAddress + at.
+	p := ByteArray new: (NvRasterKernels sizeOf: #RasterBatchParams).
+	self put: base at: 0 in: p.
+	self put: base + (n * 200) at: 8 in: p.
+	self put: scratch gpuAddress at: 16 in: p.
+	self put: n at: 24 in: p.
+	self put: slots at: 32 in: p.
+	1 to: 4 do: [:i | self put: (clip at: i) at: i * 8 + 32 in: p].
+	used := used asArray, (Array with: target with: scratch cpuAddress with: arena cpuAddress).
+	self launch: 'raster_batch_prims' grid: slots + NvRasterKernels batchChunk - 1 // NvRasterKernels batchChunk parameters: p using: used.
+	self launch: 'raster_batch_tiles' grid: ((clip at: 3) - (clip at: 1) + 15 // 16) * ((clip at: 4) - (clip at: 2) + 15 // 16)
+		parameters: p using: used
+!
+arenaFor: byteCount
+	"Where in the arena (GPU memory for batches' draws, used as a ring) byteCount bytes go; when it starts over, the GPU must be done with what it held."
+	| at |
+	(arena isNil or: [arena size < byteCount]) ifTrue: [
+		arena isNil ifFalse: [self free: arena cpuAddress].
+		arena := nil.
+		arena := memories at: (self allocate: (byteCount * 2 max: 16r100000)).
+		arenaOffset := 0].
+	arenaOffset + byteCount > arena size ifTrue: [
+		self touch: arena cpuAddress.
+		arenaOffset := 0].
+	at := arenaOffset.
+	arenaOffset := arenaOffset + byteCount + 7 // 8 * 8.
+	^at
+!
 ensureScratch: byteCount
 	"A draw's scratch (raster_prims writes it, raster_tiles reads it) of at least byteCount bytes."
 	(scratch notNil and: [scratch size >= byteCount]) ifTrue: [^scratch].
 	scratch notNil ifTrue: [self free: scratch cpuAddress].
 	scratch := nil.
-	^scratch := memories at: (self allocate: (byteCount * 2 max: 16r100000))
+	"only the kernels use it: the GPU may cache it"
+	scratch := gpu allocate: (byteCount * 2 max: 16r100000) gpuCached: true.
+	memories at: scratch cpuAddress put: scratch.
+	^scratch
 ! !
 
 !NvComputeGPU methodsFor: 'memory and pixels'!
@@ -144,14 +235,16 @@ free: address
 	m free
 !
 touch: address
-	"Wait for the launches that use the memory at address."
+	"Wait for the launches that use the memory at address (the batched draws launched first)."
 	| f |
+	self flush.
 	f := fences removeKey: address ifAbsent: [^self].
 	compute wait: f
 !
 fill: address count: n bytesPerPixel: bpp value: anInteger
 	| p |
 	n > 0 ifFalse: [^self].
+	self flush.
 	p := ByteArray new: (NvRasterKernels sizeOf: #RasterFillParams).
 	self put: (self gpuAddress: address) at: 0 in: p.
 	self put: n at: 8 in: p.
@@ -160,13 +253,15 @@ fill: address count: n bytesPerPixel: bpp value: anInteger
 	self launch: 'raster_fill' grid: (n + 255 // 256 min: 4096) parameters: p using: (Array with: address)
 !
 draw: st buffer: aBuffer offset: byteOffset first: first count: count
-	"RasterDrawParams from the state (SoftwareRaster's: target width height format blend, scissor, viewport, viewSize, translate, texture and its width height format, linear repeat), then raster_prims and raster_tiles."
-	| slots p target texture cw ch used |
+	"Batch the RasterDrawParams of the state (SoftwareRaster's: target width height format blend, scissor, viewport, viewSize, translate, texture and its width height format, linear repeat) and the vertices."
+	| slots p target texture x0 y0 x1 y1 |
 	slots := count // 3.
 	slots > 0 ifFalse: [^self].
-	self ensureScratch: (NvRasterKernels drawScratchBytes: count).
 	target := st at: 1.
 	texture := st at: 18.
+	batchTarget = target ifFalse: [
+		self flush.
+		batchTarget := target].
 	p := ByteArray new: (NvRasterKernels sizeOf: #RasterDrawParams).
 	self put: (self gpuAddress: target) at: 0 in: p.
 	self put: (st at: 2) at: 8 in: p.
@@ -179,24 +274,29 @@ draw: st buffer: aBuffer offset: byteOffset first: first count: count
 	self put: (self gpuAddress: aBuffer address) + byteOffset at: 144 in: p.
 	self put: first at: 152 in: p.
 	self put: count at: 160 in: p.
-	self put: scratch gpuAddress at: 168 in: p.
 	self put32: (st at: 4) at: 176 in: p.
 	self put32: (st at: 5) at: 180 in: p.
 	self put32: (st at: 21) at: 184 in: p.
 	self put32: (st at: 22) at: 188 in: p.
 	self put32: (st at: 23) at: 192 in: p.
-	used := texture = 0
-		ifTrue: [Array with: target with: aBuffer address with: scratch cpuAddress]
-		ifFalse: [Array with: target with: aBuffer address with: scratch cpuAddress with: texture].
-	self launch: 'raster_prims' grid: slots + 255 // 256 parameters: p using: used.
-	"Enough 16 x 16 tiles for the scissor within the target: the clip raster_prims writes is inside it."
-	cw := ((st at: 6) + (st at: 8) min: (st at: 2)) - ((st at: 6) max: 0).
-	ch := ((st at: 7) + (st at: 9) min: (st at: 3)) - ((st at: 7) max: 0).
-	(cw > 0 and: [ch > 0]) ifTrue: [
-		self launch: 'raster_tiles' grid: (cw + 15 // 16) * (ch + 15 // 16) parameters: p using: used]
+	batch add: p.
+	batchStarts add: batchSlots.
+	batchSlots := batchSlots + slots.
+	batchUsed add: aBuffer address.
+	texture = 0 ifFalse: [batchUsed add: texture].
+	"The scissor within the target holds the draw's clip; the batch's tiles cover the union."
+	x0 := (st at: 6) max: 0.
+	y0 := (st at: 7) max: 0.
+	x1 := (st at: 6) + (st at: 8) min: (st at: 2).
+	y1 := (st at: 7) + (st at: 9) min: (st at: 3).
+	(x0 < x1 and: [y0 < y1]) ifTrue: [
+		batchClip := batchClip isNil
+			ifTrue: [Array with: x0 with: y0 with: x1 with: y1]
+			ifFalse: [Array with: ((batchClip at: 1) min: x0) with: ((batchClip at: 2) min: y0) with: ((batchClip at: 3) max: x1) with: ((batchClip at: 4) max: y1)]]
 !
 blit: s rect: sr to: d rect: dr linear: aBoolean
 	| p |
+	self flush.
 	p := ByteArray new: (NvRasterKernels sizeOf: #RasterBlitParams).
 	self put: (self gpuAddress: s first) at: 0 in: p.
 	self put: (s at: 2) at: 8 in: p.

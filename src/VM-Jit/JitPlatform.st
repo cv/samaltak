@@ -36,6 +36,10 @@ endWriting
 invalidate: start size: size
 	"Code changed in [start, start + size): make the instruction cache current."
 	self subclassResponsibility
+!
+mapForPerf: path
+	"Map the file at path executable and keep it mapped, so that perf record notes it (the jitdump's marker; JitRuntime>>openPerfMap); nothing where there is no perf."
+	self subclassResponsibility
 ! !
 
 JitPlatform subclass: #DarwinJitPlatform
@@ -74,6 +78,10 @@ endWriting
 invalidate: start size: size
 	<export>
 	darwin sysIcacheInvalidate: start size: size
+!
+mapForPerf: path
+	<export>
+	<var: #path type: 'const char *'>
 ! !
 
 JitPlatform subclass: #LinuxJitPlatform
@@ -113,6 +121,15 @@ endWriting
 invalidate: start size: size
 	<export>
 	linux clearCache: start to: (self cCoerce: start to: 'char *') + size
+!
+mapForPerf: path
+	<export>
+	<var: #path type: 'const char *'>
+	| fd |
+	fd := linux open: path flags: linux O_RDONLY.
+	fd < 0 ifTrue: [^self].
+	posix mmap: self null length: 4096 protection: (posix PROT_READ bitOr: posix PROT_EXEC) flags: posix MAP_PRIVATE file: fd offset: 0.
+	linux close: fd
 ! !
 
 CLibrary subclass: #LinuxJit
@@ -120,9 +137,12 @@ CLibrary subclass: #LinuxJit
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-LinuxJit comment: 'The instruction cache maintenance of the code cache on Linux: the compiler''s builtin (dc cvau / ic ivau on arm64). Not simulated.'!
+LinuxJit comment: 'The instruction cache maintenance of the code cache on Linux: the compiler''s builtin (dc cvau / ic ivau on arm64); open and close for the jitdump''s marker mapping. Not simulated.'!
 
 !LinuxJit class methodsFor: 'declaring'!
+headers
+	^#('<fcntl.h>' '<unistd.h>')
+!
 targetOS
 	^#linux
 ! !
@@ -131,4 +151,16 @@ targetOS
 clearCache: begin to: end
 	<c: 'void __builtin___clear_cache(void *begin, void *end)'>
 	^self error: 'not simulated'
+!
+open: path flags: flags
+	<c: 'int open(const char *path, int flags)'>
+	^self error: 'not simulated'
+!
+close: fd
+	<c: 'int close(int fd)'>
+	^self error: 'not simulated'
+!
+O_RDONLY
+	<cMacro: 'int O_RDONLY'>
+	^0
 ! !

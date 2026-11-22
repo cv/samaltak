@@ -25,6 +25,16 @@ timeLimitMilliseconds
 ! !
 
 !NvGpuTest methodsFor: 'tests'!
+testFencesAcrossWrapsAndDrains
+	"Enough fences to start the pushbuffer over and drain the ring many times: each is the newest value (a wrap's or drain's own fence comes before it, so the semaphore never goes back), and the GPU reaches the last."
+	| ch f |
+	ch := self compute channel.
+	1 to: 5000 do: [:i |
+		f := ch fence.
+		f = ch lastFence ifFalse: [^self assert: false description: 'fence ', f printString, ' is not the newest, ', ch lastFence printString]].
+	ch wait: f.
+	self assert: ch completedValue equals: f
+!
 testOpen
 	self assert: gpu isOpen.
 	self assert: gpu smVersion >= 16rA00.

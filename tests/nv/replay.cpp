@@ -9,6 +9,8 @@
 //                                recorded ones; report the GPU time of each command buffer.
 //   fuzz <cubin> <cases> [seed]  random draws (every mode, format, blend, sampler, quads and triangles, scissors,
 //                                viewports), blits, copies and fills against the reference without contraction.
+//   fuzzbatch <cubin> <cases> [seed]  the same, with 1 to 40 draws of their own states into one target a case, launched
+//                                as one raster_batch_prims and raster_batch_tiles (RasterBatchParams).
 // Exit status 1 if the GPU differs from the reference without contraction anywhere, or a recorded frame matches
 // neither reference (the replay would not be faithful).
 #include <cuda.h>
@@ -42,7 +44,8 @@ static_assert(sizeof(raster_state) == 160, "RasterState as the VM lays it out");
 #define CK(x) do { CUresult r_ = (x); if (r_ != CUDA_SUCCESS) { const char *s_ = ""; cuGetErrorString(r_, &s_); \
 	fprintf(stderr, "%s:%d: %s: %s\n", __FILE__, __LINE__, #x, s_); exit(2); } } while (0)
 
-static CUfunction fPrims, fTiles, fFill, fCopy, fBlit;
+static CUfunction fPrims, fTiles, fFill, fCopy, fBlit, fBatchPrims, fBatchTiles;
+static bool batching = false;  // fuzzbatch
 static CUstream stream;
 static CUdeviceptr scratch;
 static size_t scratchBytes;
@@ -121,6 +124,39 @@ static void gpuDraw(RasterDrawParams p)
 	}
 }
 
+// Draws into one target as one batch: the draws and their slot starts uploaded, the tiles over the union of the
+// scissors within the target (as NvComputeGPU launches them).
+static void gpuBatch(const std::vector<RasterDrawParams> &draws)
+{
+	std::vector<int64_t> starts;
+	int64_t slots = 0, x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+	bool any = false;
+	for (const RasterDrawParams &p : draws) {
+		starts.push_back(slots);
+		slots += p.count / 3;
+		int64_t a = std::max<int64_t>(p.scissorX, 0), b = std::max<int64_t>(p.scissorY, 0);
+		int64_t c = std::min(p.scissorX + p.scissorW, p.width), d = std::min(p.scissorY + p.scissorH, p.height);
+		if (a < c && b < d) {
+			if (!any) { x0 = a; y0 = b; x1 = c; y1 = d; any = true; }
+			else { x0 = std::min(x0, a); y0 = std::min(y0, b); x1 = std::max(x1, c); y1 = std::max(y1, d); }
+		}
+	}
+	starts.push_back(slots);
+	if (!slots || !any) return;
+	CUdeviceptr dDraws, dStarts;
+	CK(cuMemAlloc(&dDraws, draws.size() * sizeof(RasterDrawParams)));
+	CK(cuMemcpyHtoD(dDraws, draws.data(), draws.size() * sizeof(RasterDrawParams)));
+	CK(cuMemAlloc(&dStarts, starts.size() * 8));
+	CK(cuMemcpyHtoD(dStarts, starts.data(), starts.size() * 8));
+	ensureScratch((size_t)slots * RASTER_BATCH_SLOT_BYTES);
+	RasterBatchParams b{dDraws, dStarts, scratch, (int64_t)draws.size(), slots, x0, y0, x1, y1};
+	launch(fBatchPrims, (unsigned)((slots + RASTER_BATCH_CHUNK - 1) / RASTER_BATCH_CHUNK), 1, RASTER_BATCH_CHUNK, &b);
+	launch(fBatchTiles, (unsigned)(((x1 - x0 + 15) / 16) * ((y1 - y0 + 15) / 16)), 1, RASTER_TILE_THREADS, &b);
+	CK(cuStreamSynchronize(stream));
+	CK(cuMemFree(dDraws));
+	CK(cuMemFree(dStarts));
+}
+
 static void gpuFill(CUdeviceptr px, int64_t n, int bpp, uint32_t v)
 {
 	RasterFillParams p{px, n, bpp, v};
@@ -182,6 +218,8 @@ static void loadModule(const char *path)
 	CK(cuModuleGetFunction(&fFill, m, "raster_fill"));
 	CK(cuModuleGetFunction(&fCopy, m, "raster_copy"));
 	CK(cuModuleGetFunction(&fBlit, m, "raster_blit"));
+	CK(cuModuleGetFunction(&fBatchPrims, m, "raster_batch_prims"));
+	CK(cuModuleGetFunction(&fBatchTiles, m, "raster_batch_tiles"));
 	CK(cuStreamCreate(&stream, CU_STREAM_DEFAULT));  // ordered after the (legacy-stream) copies
 }
 
@@ -402,7 +440,13 @@ static int fuzz(int cases)
 		CK(cuMemcpyHtoD(dTgt, tgt.data(), tgt.size()));
 		int kind = rint_(0, 9);
 		const char *what;
+		std::vector<RasterDrawParams> batch;
+		std::vector<CUdeviceptr> batchMemory;
+		int nd = batching ? (rint_(0, 3) ? rint_(1, 6) : rint_(7, 40)) : 1;  // several chunks of 256 slots
+		if (batching) kind = 0;
+		for (int di = 0; di < nd; di++)
 		if (kind <= 6) {
+			if (di > 0) dTex = 0;
 			what = "draw";
 			int tfmt = rint_(1, 3), TW = rint_(1, 48), TH = rint_(1, 48);
 			bool hasTex = rint_(0, 9) != 0;
@@ -462,7 +506,8 @@ static int fuzz(int cases)
 			if (hasTex) { p.texture = dTex; p.textureWidth = TW; p.textureHeight = TH; p.textureFormat = tfmt; }
 			p.linear = rint_(0, 1); p.repeat = rint_(0, 3) == 0;
 			p.vertices = dVtx; p.first = first; p.count = count;
-			gpuDraw(p);
+			if (batching) { batch.push_back(p); batchMemory.push_back(dVtx); if (dTex) batchMemory.push_back(dTex); }
+			else gpuDraw(p);
 			raster_state s{};
 			s.pixels = ref.data(); s.width = W; s.height = H; s.format = fmt; s.blend = p.blend;
 			s.scissor_x = p.scissorX; s.scissor_y = p.scissorY; s.scissor_w = p.scissorW; s.scissor_h = p.scissorH;
@@ -471,7 +516,7 @@ static int fuzz(int cases)
 			if (hasTex) { s.texture = tex.data(); s.texture_width = TW; s.texture_height = TH; s.texture_format = tfmt; }
 			s.linear = p.linear; s.wrap = p.repeat;
 			ref_off_rasterize(&s, (uint8_t *)v.data(), first, count);
-			CK(cuMemFree(dVtx));
+			if (!batching) CK(cuMemFree(dVtx));
 			drawn++;
 		} else if (kind <= 8) {
 			what = "blit";
@@ -512,6 +557,11 @@ static int fuzz(int cases)
 				ref_off_copy(ref.data(), (int64_t)W * 4, src.data(), (int64_t)w * bpp, w, h, bpp, mode);
 			}
 		}
+		if (batching) {
+			gpuBatch(batch);
+			for (CUdeviceptr m : batchMemory) CK(cuMemFree(m));
+			dTex = 0;
+		}
 		std::vector<uint8_t> g = download(dTgt, tgt.size());
 		Diff d = compare(g.data(), ref.data(), (int64_t)W * H, 4);
 		if (d.pixels) {
@@ -524,7 +574,7 @@ static int fuzz(int cases)
 		if (dTex) CK(cuMemFree(dTex));
 	}
 	printf("fuzz: %d cases (%lld draws): %lld differ (%lld pixels)\n", cases, (long long)drawn, (long long)bad, (long long)pixels);
-	printf("primitives by path: none %lld, solid %lld/%lld/%lld (store/alpha/over), pattern %lld, 1:1 glyph %lld, 1:1 image %lld, scaled %lld, shaded %lld, triangle %lld\n",
+	if (!batching) printf("primitives by path: none %lld, solid %lld/%lld/%lld (store/alpha/over), pattern %lld, 1:1 glyph %lld, 1:1 image %lld, scaled %lld, shaded %lld, triangle %lld\n",
 		(long long)kinds[0], (long long)kinds[1], (long long)kinds[2], (long long)kinds[3], (long long)kinds[4], (long long)kinds[5], (long long)kinds[6], (long long)kinds[7], (long long)kinds[8], (long long)kinds[9]);
 	return bad ? 1 : 0;
 }
@@ -541,11 +591,12 @@ int main(int argc, char **argv)
 		}
 		return status;
 	}
-	if (argc >= 4 && !strcmp(argv[1], "fuzz")) {
+	if (argc >= 4 && (!strcmp(argv[1], "fuzz") || !strcmp(argv[1], "fuzzbatch"))) {
 		loadModule(argv[2]);
+		batching = !strcmp(argv[1], "fuzzbatch");
 		if (argc >= 5) rng = strtoull(argv[4], nullptr, 10) * 2654435761ULL + 1;
 		return fuzz(atoi(argv[3]));
 	}
-	fprintf(stderr, "usage: replay replay <cubin> <record> [repeat] | replay fuzz <cubin> <cases> [seed]\n");
+	fprintf(stderr, "usage: replay replay <cubin> <record> [repeat] | replay fuzz|fuzzbatch <cubin> <cases> [seed]\n");
 	return 2;
 }

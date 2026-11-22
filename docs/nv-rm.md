@@ -60,9 +60,10 @@ A submit copies the pushbuffer's words into the pushbuffer memory, writes the GP
 method header is `type << 28 | count << 16 | subchannel << 13 | method >> 2` (type 2: incrementing); subchannel 0 is
 the channel class, 1 compute. Fences: host semaphore release (`SEM_ADDR_LO` 16r5C .. `SEM_EXECUTE`: release, WFI,
 64-bit payload) then `NON_STALL_INTERRUPT`; waiting polls the 64-bit semaphore (5 s timeout, an error naming
-GPGet/GPPut; while the semaphore stands still for 20 µs it rings the doorbell again: a doorbell sometimes arrives before
-the GB10 sees the GPPut stored before it, `Machine barrier` being `dmb ish`; docs/nv-gpu.md). USERD GPGet (16r88) is not kept up to date on the GB10, so the channel drains (waits for a fence) before
-the ring could overflow, and before the pushbuffer wraps.
+GPGet/GPPut and the error notifier; by the real clock). `timestamp:payload:` releases with RELEASE_TIMESTAMP: the payload,
+then the GPU's clock in ns. USERD GPGet (16r88) is not kept up to date on the GB10, so the channel drains (waits for a fence) before
+the ring could overflow, and before the pushbuffer wraps (`makeRoomFor:`), before a submission takes its fence value: the
+semaphore never goes back.
 
 ## Launching
 

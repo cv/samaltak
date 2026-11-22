@@ -139,6 +139,10 @@ memoryAttr2Uncached
 	"NVOS32 attr2: GPU cacheable no (2 << 2), prefer no ZBC (1)."
 	^(2 bitShift: 2) bitOr: 1
 !
+memoryAttr2Cached
+	"NVOS32 attr2: GPU cacheable yes (1 << 2), prefer no ZBC (1). Not coherent with the CPU on the GB10: memory only the GPU uses."
+	^(1 bitShift: 2) bitOr: 1
+!
 memoryAllocFlags
 	"NVOS32 alloc flags: map not required, alignment force, ignore bank placement."
 	^(16r8000 bitOr: 16r100) bitOr: 1
@@ -267,11 +271,15 @@ memoryVirtualParams: limit vaSpace: hVASpace
 	^(NvStruct new: 24) u64At: 8 put: limit; u32At: 16 put: hVASpace; yourself
 !
 memoryParams: size owner: hOwner type: type alignment: alignment
+	^self memoryParams: size owner: hOwner type: type alignment: alignment gpuCached: false
+!
+memoryParams: size owner: hOwner type: type alignment: alignment gpuCached: aBoolean
 	"NV_MEMORY_ALLOCATION_PARAMS for NV01_MEMORY_SYSTEM, 128 bytes: size bytes of noncontiguous system memory the GPU
-	does not cache. RM writes the size it allocated at 64."
+	does not cache (or does: aBoolean). RM writes the size it allocated at 64."
 	^(NvStruct new: 128)
 		u32At: 0 put: hOwner; u32At: 4 put: type; u32At: 8 put: self memoryAllocFlags;
-		u32At: 24 put: self memoryAttrNoncontiguousPci; u32At: 28 put: self memoryAttr2Uncached; u32At: 32 put: 6;
+		u32At: 24 put: self memoryAttrNoncontiguousPci;
+		u32At: 28 put: (aBoolean ifTrue: [self memoryAttr2Cached] ifFalse: [self memoryAttr2Uncached]); u32At: 32 put: 6;
 		u64At: 64 put: size; u64At: 72 put: alignment; u64At: 88 put: size - 1; yourself
 !
 channelGroupParams: engineType
