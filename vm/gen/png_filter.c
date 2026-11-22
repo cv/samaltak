@@ -5,7 +5,7 @@
 static void add_costs(uint8_t *r, uint8_t *q, int64_t e, int64_t n, uint64_t *sums);
 static void apply_filter(int64_t f, uint8_t *r, uint8_t *q, int64_t e, int64_t n);
 static uint8_t filter_row(uint8_t *r, uint8_t *q, int64_t stride, int64_t n);
-static void pack(uint8_t *s, int64_t w, int64_t n, uint8_t *d);
+static void png_filter_pack(uint8_t *s, int64_t w, int64_t n, uint8_t *d);
 
 /* PngFilter>>addCosts:prior:count:channels:into: */
 static void add_costs(uint8_t *r, uint8_t *q, int64_t e, int64_t n, uint64_t *sums)
@@ -155,14 +155,14 @@ void filter_png(uint8_t *rgba, int64_t w, int64_t h, int64_t n, uint8_t *raw)
     uint8_t *row;
     uint8_t *prior;
     stride = w * n;
-    pack(rgba + (h - 1) * w * 4, w, n, raw + (h - 1) * (stride + 1) + 1);
+    png_filter_pack(rgba + (h - 1) * w * 4, w, n, raw + (h - 1) * (stride + 1) + 1);
     y = h - 1;
     while (y >= 0) {
         row = raw + y * (stride + 1);
         prior = (uint8_t *)NULL;
         if (y > 0) {
             prior = row - stride;
-            pack(rgba + (y - 1) * w * 4, w, n, prior);
+            png_filter_pack(rgba + (y - 1) * w * 4, w, n, prior);
         }
         row[0] = filter_row(row + 1, prior, stride, n);
         y = y - 1;
@@ -593,7 +593,7 @@ static uint8_t filter_row(uint8_t *r, uint8_t *q, int64_t stride, int64_t n)
 
 #endif
 /* PngFilter>>pack:width:channels:into: */
-static void pack(uint8_t *s, int64_t w, int64_t n, uint8_t *d)
+static void png_filter_pack(uint8_t *s, int64_t w, int64_t n, uint8_t *d)
 {
     int64_t x;
     if (n == 4) {

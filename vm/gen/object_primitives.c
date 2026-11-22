@@ -1320,6 +1320,99 @@ void prim_is_immutable(void)
     prim_status = PS_OK;
 }
 
+/* ObjectPrimitives>>primPixelsPack */
+void prim_pixels_pack(void)
+{
+    oop o;
+    oop o_2;
+    oop o_3;
+    oop o_4;
+    oop o_5;
+    oop o_6;
+    oop o_7;
+    int64_t stride;
+    oop o_8;
+    int64_t x;
+    oop o_9;
+    int64_t y;
+    oop o_10;
+    int64_t w;
+    oop o_11;
+    int64_t h;
+    oop o_12;
+    int64_t swap;
+    oop src;
+    oop dst;
+    if (!(prim_nargs == 8)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o = prim_base[2];
+    if (!(((o & 1) != 0) && ({
+    o_2 = prim_base[3];
+    ((o_2 & 1) != 0) && ({
+    o_3 = prim_base[4];
+    ((o_3 & 1) != 0) && ({
+    o_4 = prim_base[5];
+    ((o_4 & 1) != 0) && ({
+    o_5 = prim_base[6];
+    ((o_5 & 1) != 0) && ({
+    o_6 = prim_base[7];
+    (o_6 & 1) != 0; }); }); }); }); }))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o_7 = prim_base[2];
+    stride = ((int64_t)o_7) >> 1;
+    o_8 = prim_base[3];
+    x = ((int64_t)o_8) >> 1;
+    o_9 = prim_base[4];
+    y = ((int64_t)o_9) >> 1;
+    o_10 = prim_base[5];
+    w = ((int64_t)o_10) >> 1;
+    o_11 = prim_base[6];
+    h = ((int64_t)o_11) >> 1;
+    o_12 = prim_base[7];
+    swap = ((int64_t)o_12) >> 1;
+    if (!((x >= 0) && (y >= 0) && ((w >= 0) && (w <= 0x400000) && ((h >= 0) && (h <= 0x400000) && (((swap == 0) || (swap == 1)) && (((x + w) * 4 <= stride) && (stride <= 0x4000000))))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    src = prim_base[1];
+    dst = prim_base[8];
+    if (!((src != dst) && (((src & 7) == 0) && (((dst & 7) == 0) && (!(((*(uint64_t *)dst) & H_IMMUTABLE) != 0)))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (!(((int32_t)(((*(uint64_t *)src) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) && (((int32_t)(((*(uint64_t *)src) >> H_FMT_SHIFT) & H_FMT_MASK) < 24) && (((int32_t)(((*(uint64_t *)dst) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) && ((int32_t)(((*(uint64_t *)dst) >> H_FMT_SHIFT) & H_FMT_MASK) < 24))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (!(w * h * 3 <= (int64_t)byte_size(dst))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (!((w > 0) && (h > 0))) {
+        prim_result = dst;
+        prim_status = PS_OK;
+        return;
+    }
+    if (!((y + h - 1) * stride + (x + w) * 4 <= (int64_t)byte_size(src))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    pixel_packer_pack((uint8_t *)(src + 16) + y * stride + x * 4, stride, w, h, swap, (uint8_t *)(dst + 16));
+    prim_result = dst;
+    prim_status = PS_OK;
+}
+
 /* ObjectPrimitives>>primPngFilter */
 void prim_png_filter(void)
 {

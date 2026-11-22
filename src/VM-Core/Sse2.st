@@ -98,6 +98,26 @@ slli32: a count: n
 	<c: '__m128i _mm_slli_epi32(__m128i a, int n)'>
 	^Sse2 bytesOfLanes: ((Sse2 lanes: a width: 4) collect: [:v | (v bitShift: n) bitAnd: 16rFFFFFFFF]) width: 4
 !
+srli64: a count: n
+	"Each 64-bit lane shifted right by n, zeros in."
+	<c: '__m128i _mm_srli_epi64(__m128i a, int n)'>
+	^Sse2 bytesOfLanes: ((Sse2 lanes: a width: 8) collect: [:v | v bitShift: n negated]) width: 8
+!
+slli64: a count: n
+	"Each 64-bit lane shifted left by n."
+	<c: '__m128i _mm_slli_epi64(__m128i a, int n)'>
+	^Sse2 bytesOfLanes: ((Sse2 lanes: a width: 8) collect: [:v | (v bitShift: n) bitAnd: 16rFFFFFFFFFFFFFFFF]) width: 8
+!
+srliBytes: a count: n
+	"The 16 bytes moved n places down (byte i is a's byte i + n), zeros in; n a literal."
+	<c: '__m128i _mm_srli_si128(__m128i a, int n)'>
+	^((1 to: 16) collect: [:i | i + n <= 16 ifTrue: [a at: i + n] ifFalse: [0]]) asByteArray
+!
+slliBytes: a count: n
+	"The 16 bytes moved n places up (byte i is a's byte i - n), zeros in; n a literal."
+	<c: '__m128i _mm_slli_si128(__m128i a, int n)'>
+	^((1 to: 16) collect: [:i | i - n >= 1 ifTrue: [a at: i - n] ifFalse: [0]]) asByteArray
+!
 srli16: a count: n
 	"Each 16-bit lane shifted right by n, zeros in."
 	<c: '__m128i _mm_srli_epi16(__m128i a, int n)'>

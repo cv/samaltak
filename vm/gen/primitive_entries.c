@@ -161,6 +161,7 @@ primitive_entry vm_primitive_table[] = {
     {210, 3, "zlibWriteTokens", prim_zlib_write_tokens},
     {211, 3, "zlibTokenCounts", prim_zlib_token_counts},
     {212, 3, "rawBytesReplace", prim_raw_bytes_replace},
+    {213, 3, "pixelsPack", prim_pixels_pack},
 #ifndef SAMALTAK_NO_PLATFORM
     {400, 2, "windowOpen", prim_window_open},
 #endif

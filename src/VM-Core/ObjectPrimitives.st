@@ -1,5 +1,5 @@
 VMPrimitiveModule subclass: #ObjectPrimitives
-	instanceVariableNames: 'instancesClass instancesResult instancesCount search png deflate coder'
+	instanceVariableNames: 'instancesClass instancesResult instancesCount search png deflate coder packer'
 	classVariableNames: ''
 	package: 'VM-Core'!
 
@@ -7,7 +7,7 @@ ObjectPrimitives comment: 'Object, string and byte-access primitives. Indices ar
 
 !ObjectPrimitives class methodsFor: 'declaring'!
 declarations
-	^#((instancesClass oop) (instancesResult oop) (instancesCount size_t) (search ByteSearch) (png PngFilter) (deflate DeflateMatcher) (coder DeflateCoder))
+	^#((instancesClass oop) (instancesResult oop) (instancesCount size_t) (search ByteSearch) (png PngFilter) (deflate DeflateMatcher) (coder DeflateCoder) (packer PixelPacker))
 ! !
 
 !ObjectPrimitives methodsFor: 'object'!
@@ -604,6 +604,30 @@ primPngFilter
 ! !
 
 !ObjectPrimitives methodsFor: 'images'!
+primPixelsPack
+	"(src, stride, x, y, w, h, swap, dst): dst's first w * h * 3 bytes := the w x h pixels of 4 bytes at x, y of src (rows of stride bytes), each as its bytes 0 1 2 (swap 0) or 2 1 0 (swap 1), alpha dropped: BGRA or RGBA rows as 3-byte pixels (RFB ZRLE's CPIXEL, Tight's TPIXEL, PNG's RGB), row after row (PixelPacker; PixelPack class>>pack:stride:x:y:width:height:swap:into:). Answers dst. src and dst are distinct byte objects, dst mutable and at least w * h * 3 bytes, the rectangle within src: 0 <= x, y; 0 <= w, h <= 2^22; (x + w) * 4 <= stride <= 2^26."
+	<vmPrimitive: 213 name: 'pixelsPack'>
+	<leaf>
+	| src dst stride x y w h swap |
+	self argCount = 8 ifFalse: [^self fail].
+	((self isInt: (self arg: 1)) and: [(self isInt: (self arg: 2)) and: [(self isInt: (self arg: 3)) and: [(self isInt: (self arg: 4)) and: [(self isInt: (self arg: 5)) and: [self isInt: (self arg: 6)]]]]]) ifFalse: [^self fail].
+	stride := self intVal: (self arg: 1).
+	x := self intVal: (self arg: 2).
+	y := self intVal: (self arg: 3).
+	w := self intVal: (self arg: 4).
+	h := self intVal: (self arg: 5).
+	swap := self intVal: (self arg: 6).
+	((x >= 0 and: [y >= 0]) and: [(w >= 0 and: [w <= 16r400000]) and: [(h >= 0 and: [h <= 16r400000]) and: [(swap = 0 or: [swap = 1]) and: [(x + w) * 4 <= stride and: [stride <= 16r4000000]]]]]) ifFalse: [^self fail].
+	src := self arg: 0.
+	dst := self arg: 7.
+	(src ~= dst and: [(self isPtr: src) and: [(self isPtr: dst) and: [(self isImmutable: dst) not]]]) ifFalse: [^self fail].
+	((self formatOf: src) >= F_BYTES and: [(self formatOf: src) < (F_BYTES + 8) and: [(self formatOf: dst) >= F_BYTES and: [(self formatOf: dst) < (F_BYTES + 8)]]]) ifFalse: [^self fail].
+	(w * h * 3) <= (memory byteSize: dst) asInt64 ifFalse: [^self fail].
+	(w > 0 and: [h > 0]) ifFalse: [^self answer: dst].
+	((y + h - 1) * stride + ((x + w) * 4)) <= (memory byteSize: src) asInt64 ifFalse: [^self fail].
+	packer pack: (self bytesOf: src) + (y * stride) + (x * 4) stride: stride width: w height: h swap: swap into: (self bytesOf: dst).
+	self answer: dst
+!
 isMutableBytes: o size: n
 	^(self isBytes: o size: n) and: [(self isImmutable: o) not]
 !
