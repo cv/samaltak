@@ -81,6 +81,7 @@
 #include <crt_externs.h>
 #endif
 #ifdef __linux__
+#include <dlfcn.h>
 #include <shaderc/shaderc.h>
 #endif
 #endif
@@ -88,6 +89,8 @@
 typedef uint64_t oop;
 typedef void (*prim_fn)(void);
 #ifndef SAMALTAK_NO_PLATFORM
+typedef int (*x_error_handler)(void *, void *);
+typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #endif
 
 #define ANA_BLOCK 32
@@ -2451,6 +2454,7 @@ char **environment(void);
 SDL_GPUShaderFormat shader_formats(void);
 void socket_opened(int fd);
 char *utf8_ctype(void);
+void video_started(void);
 bool vsync_start(void);
 void vsync_stop(void);
 #endif
@@ -2462,6 +2466,7 @@ char **environment(void);
 SDL_GPUShaderFormat shader_formats(void);
 void socket_opened(int fd);
 char *utf8_ctype(void);
+void video_started(void);
 bool vsync_start(void);
 void vsync_stop(void);
 #endif

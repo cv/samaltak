@@ -308,6 +308,7 @@ bool video_init(void)
     }
     video_ok = true;
     catch_quit_signals();
+    video_started();
     update_poll_interval();
     return true;
 }
