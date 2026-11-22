@@ -22,7 +22,7 @@ Check with `context.get().projectFunctions`.
 | `samaltak.crashLog` | why a VM died: a samaltak-ctl session's log (or any log): alive, the fatal line, exit status, the stack around it with repeated frames collapsed, the last test errors | `crashLog({ session: "vnc" })`, `crashLog({ file: "build/uefi-arm64/console.log" })` |
 | `samaltak.vncWorld` | the operator's screen-shared UEFI World (samaltak-ctl session `vnc`, `UEFI_VNC=1`, virtio-gpu 1920x1080): status, restart (log kept, build, open, agent and GitHub configs, Screen Sharing on the viewer's Mac), close; dryRun | `vncWorld()`, `vncWorld({ action: "restart", viewerHost: "192.168.86.56" })` (only when asked), `vncWorld({ action: "restart", session: "vnc-test", display: 7, configs: [] })` to try things |
 | `samaltak.syncUpstream` | merge upstream (schani/samaltak) into the fork: new commits, VM touched, overlap, a trial merge's conflicts; without dryRun the real merge commit on origin/main, conflicts left to resolve; the gate stages it needs | `syncUpstream()` (dry run), `syncUpstream({ dryRun: false })` in a clean worktree at origin/main |
-| `samaltak.mergePRs` | the in-image agent's pull requests: check combines them on origin/main (conflicts per PR) and can keep the combination on a branch to gate; merge rebase-merges them in order, rebasing a conflicting PR's branch with the gated resolution, and verifies main | `mergePRs()`, `mergePRs({ branch: "prs/combined" })`, then after the gate `mergePRs({ action: "merge", combined: "prs/combined" })` |
+| `samaltak.mergePRs` | the in-image agent's pull requests: check combines them on origin/main (conflicts per PR) and keeps the combination, or its conflict-free part plus the commands for the rest, on a branch to gate; merge lands each PR's own resolved commits (rebased onto the base as the previous merge left it, force-with-lease on its branch, rebase-merge) and verifies the base against the combination after each PR and at the end; `base` for a scratch branch; dryRun | `mergePRs()`, `mergePRs({ branch: "prs/combined" })`, after the gate `mergePRs({ action: "merge", combined: "prs/combined", dryRun: true })`, then without dryRun |
 
 ## Notes
 
@@ -54,5 +54,12 @@ Check with `context.get().projectFunctions`.
   to one big core; the machine is shared, so look at `loadBefore` and the spread, and rerun a regression alone.
 - Upstream (remote `upstream`, schani/samaltak) comes in by merge commits only (the fork's history is published);
   `push` pushes a merge on top of origin/main as it is. `gh` defaults to upstream in this clone: pass `-R cv/samaltak`.
+- Merging PRs: the combination is origin/main plus one segment of commits per PR, in merge order: commits made by
+  `git cherry-pick -x` of the PR's commits (the "cherry picked from" line ties them to it), or with a line `PR: #N`.
+  A conflict's resolution, and any edit it needs beyond the hunks (docs), goes into the segment of the PR being added:
+  that PR's branch gets exactly its segment, so an earlier PR never lands a later one's changes. Gate the
+  combination; `merge` refuses when main changed its files since (combine and gate again), accepts commits that
+  landed on other files, and can be run again after it stops half way (`build/merge-prs/` records the PRs' original
+  commits). Try changes to it with throwaway PRs on a scratch base: `base: "scratch/..."` (CI runs only on main).
 - A dead samaltak-ctl session's log is overwritten when the session opens again: `crashLog` it first (`vncWorld`
   restart copies it to `$TMPDIR/samaltak-ctl/<session>-<time>.log`).
