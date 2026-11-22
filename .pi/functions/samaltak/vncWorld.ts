@@ -1,10 +1,11 @@
-/** The UEFI World on a VNC server for the operator's screen sharing (a samaltak-ctl --uefi session with UEFI_VNC): status (VM alive, VNC port, why it died), restart (keep the old log, close, build, open at 1920x1080 on virtio-gpu with 4 vCPUs pinned to the big cores, send the agent and GitHub configs, optionally open Screen Sharing on the viewer's Mac), or close; dryRun shows the plan. */
+/** The UEFI World on a VNC server for the operator's screen sharing (a samaltak-ctl --uefi session with --vnc: QEMU's VNC server, or with server "image" the image's own RFB server): status (VM alive, VNC port, why it died), restart (keep the old log, close, build, open at 1920x1080 on virtio-gpu with 4 vCPUs pinned to the big cores, send the agent and GitHub configs, optionally open Screen Sharing on the viewer's Mac), or close; dryRun shows the plan. */
 async function vncWorld(
   { shell: { exec }, samaltak: { build, ctlSession, crashLog } },
   input: {
     action?: "status" | "restart" | "close";
     session?: string;
     display?: number;
+    server?: "qemu" | "image";
     gpu?: string;
     windowSize?: string;
     affinity?: string;
@@ -15,9 +16,11 @@ async function vncWorld(
     dryRun?: boolean;
   } = {},
 ) {
-  // The World the operator watches over VNC: tools/samaltak-ctl --session <session> open --uefi --window-size WxH with
-  // UEFI_VNC=<display> (QEMU's VNC server on 127.0.0.1:5900+display, password file ~/.samaltak-vnc, UEFI_VNC_PASSWORD)
-  // and UEFI_GPU=<gpu> (virtio-gpu-pci: 1920x1080; ramfb stops at 1024x768); docs/uefi.md. It runs from the current
+  // The World the operator watches over VNC: tools/samaltak-ctl --session <session> open --uefi --window-size WxH --vnc
+  // <display> --vnc-server <server> (on 127.0.0.1:5900+display; password file ~/.samaltak-vnc, UEFI_VNC_PASSWORD). server:
+  // "qemu" (default) QEMU's VNC server (UEFI_VNC); "image" the image's own RFB server (UEFI_DISPLAY: QEMU without a
+  // display, the guest's port 5900 forwarded; docs/remote.md, Remote display), with the same password file, so the
+  // viewer's saved password works for both. Ready: the port answers an RFB greeting. And UEFI_GPU=<gpu> (virtio-gpu-pci: 1920x1080; ramfb stops at 1024x768); docs/uefi.md. It runs from the current
   // directory's build (the operator's is the main checkout, session "vnc", display 1). Defaults: session "vnc", display 1,
   // gpu virtio-gpu-pci, windowSize 1920x1080, affinity "big", cpus 4, configs ["agent", "github"], build true.
   // affinity: QEMU's host CPUs (UEFI_AFFINITY, tools/qemu-pin.sh): "big" the cores of the highest maximum frequency (on
@@ -38,6 +41,8 @@ async function vncWorld(
   if (!Number.isInteger(display) || display < 0 || display > 99)
     throw new Error("vncWorld: display is 0-99");
   const port = 5900 + display;
+  const server = input.server ?? "qemu";
+  if (server !== "qemu" && server !== "image") throw new Error('vncWorld: server is "qemu" or "image"');
   const gpu = input.gpu ?? "virtio-gpu-pci";
   const windowSize = input.windowSize ?? "1920x1080";
   if (!/^[A-Za-z0-9_-]+$/.test(gpu) || !/^\d+x\d+$/.test(windowSize))
@@ -49,8 +54,13 @@ async function vncWorld(
   const configs = input.configs ?? ["agent", "github"];
   if (input.viewerHost && !/^[A-Za-z0-9_.@-]+$/.test(input.viewerHost))
     throw new Error("vncWorld: bad viewerHost");
+  // QEMU's hostfwd listens before the image's server does: ready is the server's RFB version greeting.
   const listening = async () =>
-    (await exec(`ss -ltn 2>/dev/null | grep -q '127.0.0.1:${port} '`)).code === 0;
+    (
+      await exec(
+        `timeout 3 bash -c 'exec 3<>/dev/tcp/127.0.0.1/${port} && head -c 4 <&3' 2>/dev/null | grep -q '^RFB'`,
+      )
+    ).code === 0;
   const state = async () => {
     const log = await crashLog({ session, contextLines: 8, tailLines: 6 }).catch(() => null);
     return {
@@ -84,11 +94,12 @@ async function vncWorld(
     });
     return c.stdout.trim().slice(-300);
   };
-  if (action === "status") return { action, session, port, ...(await state()) };
+  if (action === "status") return { action, session, server, port, ...(await state()) };
   const steps: string[][] = [];
   if (configs.includes("agent")) steps.push(["agent-config", "--from-pi"]);
   if (configs.includes("github")) steps.push(["github-config", "--from-gh"]);
-  const pw = (await exec('test -s "${UEFI_VNC_PASSWORD:-$HOME/.samaltak-vnc}"')).code === 0;
+  const pwFile = (await exec('printf %s "${UEFI_VNC_PASSWORD:-$HOME/.samaltak-vnc}"')).stdout;
+  const pw = (await exec(`test -s '${pwFile.replace(/'/g, "")}'`)).code === 0;
   if (input.dryRun)
     return {
       action,
@@ -102,7 +113,7 @@ async function vncWorld(
         ...(action === "restart"
           ? [
               ...((input.build ?? true) ? ['samaltak.build({ target: "all" })'] : []),
-              `UEFI_VNC=${display} UEFI_GPU=${gpu} UEFI_AFFINITY=${affinity} UEFI_CPUS=${cpus} tools/samaltak-ctl --session ${session} open --uefi --window-size ${windowSize}`,
+              `UEFI_GPU=${gpu} UEFI_AFFINITY=${affinity} UEFI_CPUS=${cpus} tools/samaltak-ctl --session ${session} open --uefi --window-size ${windowSize} --vnc ${display} --vnc-server ${server} --vnc-password-file <password file>`,
               ...steps.map((s) => s.join(" ")),
               `check 127.0.0.1:${port} listens`,
               ...(input.viewerHost
@@ -143,8 +154,8 @@ async function vncWorld(
   }
   const s = await ctlSession({
     session,
-    open: ["--uefi", "--window-size", windowSize],
-    env: { UEFI_VNC: String(display), UEFI_GPU: gpu, UEFI_AFFINITY: affinity, UEFI_CPUS: String(cpus) },
+    open: ["--uefi", "--window-size", windowSize, "--vnc", String(display), "--vnc-server", server, "--vnc-password-file", pwFile],
+    env: { UEFI_GPU: gpu, UEFI_AFFINITY: affinity, UEFI_CPUS: String(cpus) },
     keepOpen: true,
     continueOnError: true,
     openTimeoutS: 280,
@@ -172,6 +183,7 @@ async function vncWorld(
     action,
     ok: s.ok && up,
     session,
+    server,
     port,
     listening: up,
     keptLog: kept,
@@ -184,6 +196,6 @@ async function vncWorld(
     pinned,
     hint: up
       ? undefined
-      : "the VNC port does not listen: samaltak.crashLog({ session }) shows why the VM stopped",
+      : `127.0.0.1:${port} gives no RFB greeting: samaltak.crashLog({ session }) shows why the VM stopped${server === "image" ? " (or the image's display server did not start)" : ""}`,
   };
 }

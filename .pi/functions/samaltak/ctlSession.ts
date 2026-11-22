@@ -32,7 +32,7 @@ async function ctlSession(
   // the operator's approval: the operator is notified first, and a failure comes back with a hint. github-config --from-gh (gh auth token)
   // needs no approval. Output that looks like an API key or a GitHub token (ghp_, gho_, ghu_, ghs_, ghr_, github_pat_) is
   // redacted, as is the session's control token (in the session file, 0600; every request carries it, docs/remote.md)
-  // and a token an image made and showed (control: token ...). A session of an image this machine did not start (a
+  // and a token an image made and showed (control: token ...), and a remote display password (display: password ...). A session of an image this machine did not start (a
   // bare-metal Spark): a first step ["connect", "--host", H, "--port", P, "--token-file", F]; close then only forgets it.
   // In evals, print an AgentItem's text (item text), not its printString (cut short).
   const session = input.session ?? `pit-${Date.now().toString(36)}`;
@@ -94,6 +94,7 @@ async function ctlSession(
   const redact = (s: string) =>
     (token ? s.split(token).join("<redacted>").split(grouped(token)).join("<redacted>") : s)
       .replace(/(control: token )[0-9A-Fa-f-]{16,}/g, "$1<redacted>")
+      .replace(/(display: password |--display-password\s+)\S+/g, "$1<redacted>")
       .replace(/\b(sk-[A-Za-z0-9_-]{16,}|nvapi-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,})/g, "<redacted>")
       .replace(/("?(api[_-]?key|authorization|x-api-key|token)"?\s*[:=]\s*"?)(Bearer )?[^\s",}]{12,}/gi, "$1<redacted>");
   let display = "";

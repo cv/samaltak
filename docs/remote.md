@@ -1,4 +1,4 @@
-# Remote control and its token
+# Remote control and its token; the remote display
 
 The control service (`ControlServer`, System-Remote) lets a client evaluate any Smalltalk in the image, which holds the
 agent's API key and a GitHub token in memory (docs/agent.md, docs/github.md). So it runs only requests that carry its
@@ -64,6 +64,54 @@ drive it from another machine:
    network you trust (a direct cable, or an isolated VLAN), and reach it from elsewhere through an SSH tunnel to a machine
    beside it: `ssh -N -L 7341:<spark-address>:7341 <jump-host>`, then `connect --port 7341` (host 127.0.0.1); only the hop
    from the jump host to the Spark is then in clear. TLS for the control channel is not done.
+
+## Remote display (VNC)
+
+The image can serve its own screen and take input over RFB, the VNC protocol (`RfbServer`, System-Remote): the way to see
+the World on a bare-metal machine from another one, and under QEMU an alternative to QEMU's own VNC server. It is
+started by `--display`, listens on `--display-host` (`127.0.0.1` by default, like the control service) and
+`--display-port` (5900); `--display-vnc-auth` offers VNC authentication with the password from
+`--display-password-file`, else one it makes and shows once (`display: password …`, on the console and, on UEFI, on the
+screen). That password is 8 random characters of its own, never derived from the control token.
+
+**Starting it.**
+
+- UEFI in QEMU: `make uefi-ui UEFI_DISPLAY=1 UEFI_GPU=virtio-gpu-pci UEFI_SCREEN=1920x1080
+  UEFI_DISPLAY_PASSWORD_FILE=~/.samaltak-vnc` (or `uefi-control`) boots with `--display --display-host 0.0.0.0
+  --display-vnc-auth` and the password copied to the ESP (0600), and QEMU without a display (`-display none`) forwarding
+  the host's `127.0.0.1:5900+N` to the guest's port 5900. It replaces `UEFI_VNC=N` (QEMU's VNC server, which still
+  works) for these targets. The same file `~/.samaltak-vnc` as `UEFI_VNC`'s means a viewer's saved password works with
+  either server.
+- `samaltak-ctl open --uefi --vnc N --vnc-server image` does that (`--vnc-server qemu`, the default, is QEMU's server);
+  without `--vnc-password-file f` it makes a password for the session in `<session>.vnc-password` (0600) and prints
+  that file's name, never the password. `samaltak.vncWorld({ action: "restart", server: "image" })` opens the operator's
+  World that way (the default stays `"qemu"`).
+- A bare-metal machine: `make usb-image USB_DISPLAY=1 USB_DISPLAY_PASSWORD_FILE=f` listens on every address, port
+  5900, with VNC authentication (never without: without `f` the image makes a password at each boot and shows it on the
+  screen). Anyone who can read the stick can read `f`'s copy on its ESP.
+
+**Connecting**, through an SSH tunnel to the machine running QEMU (or to a jump host beside a bare-metal one):
+
+- macOS Screen Sharing: `ssh -N -L 5901:127.0.0.1:5901 <host>` (bare metal: `ssh -N -L 5901:<spark>:5900
+  <jump-host>`), then `open vnc://localhost:5901` and the password. Use a local port other than 5900, which a Mac with
+  Screen Sharing turned on keeps for itself. Screen Sharing speaks RFB 3.3 and VNC authentication only, in 32-bit BGRX,
+  the server's own format.
+- TigerVNC: the same tunnel, then `vncviewer localhost::5901` (two colons: a port). It picks VNC authentication; it
+  could also use VeNCrypt Plain with the control token as the password (user: anything).
+- Keys arrive as X keysyms and become the image's key codes and modifiers (`RfbInput`): Command is cmd whichever way a
+  viewer sends it (Screen Sharing: Meta_L; TigerVNC: Mode_switch), Option is alt, and the characters Option composes
+  (é) are typed as text; Control and Shift as usual. The pointer is drawn by the viewer; middle button and wheel work.
+- The clipboard goes both ways in Latin-1 (RFB's classic cut text): what a viewer sends becomes the image's clipboard,
+  and what the image copies is sent to the viewers, characters beyond Latin-1 as `?`. Screen Sharing sends no clipboard
+  to servers other than Apple's; TigerVNC does. Cut text goes only to authenticated viewers and is never logged.
+
+**Security.** VNC authentication is weak: DES of a challenge with an 8-character password, so anyone who records one
+exchange can search the password offline. And the session is not encrypted: the screen, every key typed (a password
+typed or a key pasted into the World too) and the clipboard cross the network in clear. So, as for the control service:
+keep the default `127.0.0.1` where an SSH tunnel can reach it (QEMU's forward is bound to the host's 127.0.0.1), and put
+a bare-metal machine on a network you trust (a direct cable, an isolated VLAN), reached from elsewhere only through an
+SSH tunnel to a machine beside it. Each failed authentication makes the next attempt wait longer (1 s, doubling).
+Encryption (an RSA-AES security type or VeNCrypt over a TLS server side) is not done.
 
 ## Tests
 

@@ -11,8 +11,8 @@ async function crashLog(
   // the lines before the first fatal line (contextLines, default 25) and the stack after it with consecutive repeats
   // collapsed ("StackOverflowTest>>depth: (x192418)"), the last ERROR/FAIL lines of tests, and the collapsed tail.
   // Escape sequences and carriage returns are stripped; the last 4 MB of a longer log are read. Nothing is sent anywhere.
-  // The session's control token (docs/remote.md) and a token an image showed (control: token ...) are redacted; meta never
-  // has the token. A connected session (samaltak-ctl connect: an image on another machine) has no log here.
+  // The session's control token (docs/remote.md), a token an image showed (control: token ...) and a remote display
+  // password (display: password ...) are redacted; meta never has the token. A connected session (samaltak-ctl connect: an image on another machine) has no log here.
   const session = input.session ?? "samaltak";
   if (!/^[A-Za-z0-9_-]+$/.test(session)) throw new Error("crashLog: bad session name");
   const ctx = Math.min(Math.max(input.contextLines ?? 25, 0), 200);
@@ -48,6 +48,7 @@ async function crashLog(
   const grouped = token.replace(/(.{4})(?!$)/g, "$1-");
   const lines = (token ? r.stdout.split(token).join("<redacted>").split(grouped).join("<redacted>") : r.stdout)
     .replace(/(control: token )[0-9A-Fa-f-]{16,}/g, "$1<redacted>")
+    .replace(/(display: password |--display-password\s+)\S+/g, "$1<redacted>")
     .split("\n");
   const collapse = (xs: string[]) => {
     const outL: string[] = [];

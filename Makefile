@@ -153,10 +153,25 @@ UEFI_SCREEN ?= 1024x768
 UEFI_VNC ?=
 UEFI_VNC_PASSWORD ?= $(HOME)/.samaltak-vnc
 UEFI_VNC_DISPLAY = -object secret,id=vncpw,file=$(UEFI_VNC_PASSWORD) -display vnc=127.0.0.1:$(UEFI_VNC),password-secret=vncpw
+# UEFI_DISPLAY=N: uefi-ui and uefi-control show the screen through the image's own remote display server (RFB, --display
+# on port 5900 in the guest) forwarded from 127.0.0.1:5900+N, and QEMU has no display (-display none; UEFI_DISPLAY wins
+# over UEFI_VNC). Its VNC password: the file UEFI_DISPLAY_PASSWORD_FILE (at most 8 characters; e.g. ~/.samaltak-vnc, so a
+# viewer's saved password works with both servers), copied to the ESP (0600) for --display-password-file, never on a
+# command line, else one the image makes and shows at start (display: password ...). docs/remote.md, Remote display.
+UEFI_DISPLAY ?=
+UEFI_DISPLAY_PASSWORD_FILE ?=
+UEFI_DISPLAY_PORT = $(shell expr 5900 + $(UEFI_DISPLAY))
+UEFI_DISPLAY_FWD = $(if $(UEFI_DISPLAY),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_DISPLAY_PORT)-:5900)
+UEFI_DISPLAY_ARGS = $(if $(UEFI_DISPLAY),--display --display-host 0.0.0.0 --display-port 5900 --display-vnc-auth)
+# The remote display's password file on an ESP: the directory $1 gets the password in the file $2 (blanks and newlines
+# dropped; 1 to 8 characters), mode 0600, and the samaltak.args $3 the option naming it; without $2 the file is removed.
+DISPLAY_PASSWORD = rm -f $(1)/samaltak-display-password$(if $(2), && p="$$(tr -d ' \n' < $(2))" && [ -n "$$p" ] && [ $$(printf %s "$$p" | wc -c) -le 8 ] || { echo "$(2): not a VNC password of 1 to 8 characters" >&2; exit 1; }; (umask 077 && printf '%s\n' "$$p" > $(1)/samaltak-display-password) && printf '%s\n' --display-password-file /esp/samaltak-display-password >> $(3))
 ifeq ($(shell uname -s),Darwin)
-UEFI_DISPLAY := -display cocoa,zoom-to-fit=on
+UEFI_WINDOW_DISPLAY := -display cocoa,zoom-to-fit=on
 UEFI_WINDOW := osascript tools/qemu-window.applescript $(subst x, ,$(UEFI_SCREEN)) &
 endif
+# QEMU's display: uefi-ui's window, or none with UEFI_DISPLAY, or its VNC server with UEFI_VNC.
+UEFI_QEMU_DISPLAY = $(if $(UEFI_DISPLAY),-display none,$(if $(UEFI_VNC),$(UEFI_VNC_DISPLAY),$(UEFI_WINDOW_DISPLAY)))
 UEFI_DISK_MB ?= 512
 UEFI_ACCEL := $(if $(filter $(UEFI_HOST_ARCH),$(UEFI_ARCH)),$(if $(wildcard /dev/kvm),-accel kvm -cpu host,$(if $(filter Darwin,$(shell uname -s)),-accel hvf -cpu host)))
 ifeq ($(UEFI_ARCH),arm64)
@@ -191,7 +206,7 @@ UEFI_CPUS ?= 4
 UEFI_PIN = $(UEFI_AFFINITY)
 uefi-ui uefi-control: UEFI_PIN = $(if $(filter undefined,$(origin UEFI_AFFINITY)),big,$(UEFI_AFFINITY))
 QEMU_UEFI = $(QEMU_UEFI_MACHINE) -smp $(UEFI_CPUS) -m $(UEFI_MEM) -no-reboot \
-	-nic user,model=$(UEFI_NIC)$(if $(UEFI_CONTROL_PORT),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_CONTROL_PORT)-:7341) -global $(UEFI_NIC).romfile= \
+	-nic user,model=$(UEFI_NIC)$(if $(UEFI_CONTROL_PORT),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_CONTROL_PORT)-:7341)$(UEFI_DISPLAY_FWD) -global $(UEFI_NIC).romfile= \
 	-device virtio-rng-pci -drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/vars.fd \
 	-drive format=raw,file=fat:rw:$(UEFI)/esp -drive format=raw,file=$(UEFI)/image.disk \
 	$(if $(filter %@usb-storage,$(UEFI_DISKS)),-device qemu-xhci$(comma)id=disks) $(foreach disk,$(UEFI_DISKS),$(call UEFI_DISK,$(disk)))
@@ -232,14 +247,16 @@ uefi-boot:
 	tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) -nographic | tee $(UEFI)/console.log
 	@grep -q 'samaltak: exit 0' $(UEFI)/console.log
 uefi-ui: uefi
-	printf '%s\n' --max-heap $(UEFI_HEAP) disk: --window-size $(UEFI_SCREEN) > $(UEFI)/esp/samaltak.args
+	rm -f $(UEFI)/esp/samaltak.args && umask 077 && printf '%s\n' --max-heap $(UEFI_HEAP) disk: --window-size $(UEFI_SCREEN) $(UEFI_DISPLAY_ARGS) > $(UEFI)/esp/samaltak.args
+	$(call DISPLAY_PASSWORD,$(UEFI)/esp,$(if $(UEFI_DISPLAY),$(UEFI_DISPLAY_PASSWORD_FILE)),$(UEFI)/esp/samaltak.args)
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
-	$(if $(UEFI_VNC),,$(UEFI_WINDOW)) tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) $(if $(UEFI_VNC),$(UEFI_VNC_DISPLAY),$(UEFI_DISPLAY)) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
+	$(if $(UEFI_DISPLAY)$(UEFI_VNC),,$(UEFI_WINDOW)) tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) $(UEFI_QEMU_DISPLAY) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 uefi-control: uefi
 	rm -f $(UEFI)/esp/samaltak.args && umask 077 && printf '%s\n' --max-heap $(UEFI_HEAP) disk: --control --control-host 0.0.0.0 --control-port 7341 \
-		$${UEFI_CONTROL_TOKEN:+--control-token "$$UEFI_CONTROL_TOKEN"} $(UEFI_CONTROL_ARGS) > $(UEFI)/esp/samaltak.args
+		$${UEFI_CONTROL_TOKEN:+--control-token "$$UEFI_CONTROL_TOKEN"} $(UEFI_DISPLAY_ARGS) $(UEFI_CONTROL_ARGS) > $(UEFI)/esp/samaltak.args
+	$(call DISPLAY_PASSWORD,$(UEFI)/esp,$(if $(UEFI_DISPLAY),$(UEFI_DISPLAY_PASSWORD_FILE)),$(UEFI)/esp/samaltak.args)
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
-	tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) $(if $(UEFI_VNC),$(UEFI_VNC_DISPLAY),-display none) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
+	tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) $(if $(UEFI_DISPLAY)$(UEFI_VNC),$(UEFI_QEMU_DISPLAY),-display none) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest ContextTest ExceptionTest FloatTest FractionTest \
 	HashingTest ImmutabilityTest IntegerTest LazyContextTest MarriedContextTest MessageNotUnderstoodTest ObjectTest ProcessTest \
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \
@@ -319,7 +336,8 @@ test-uefi-nic:
 # timer, RNG, GOP modes, PCI, disks, volumes, NICs, DHCP: on the console and in samaltak-diag.txt on the stick's ESP), then
 # the World after a key or 30 s; USB_DIAG=key powers off after a key instead, USB_DIAG=quit at once. usb-run boots
 # USB_IMAGE in QEMU as USB_DEVICE (usb-storage on xHCI, or nvme), its console on stdio (UEFI_VNC=N: its screen on VNC;
-# UEFI_CONTROL_PORT=N: host 127.0.0.1:N forwarded to its port 7341, for USB_CONTROL).
+# UEFI_CONTROL_PORT=N: host 127.0.0.1:N forwarded to its port 7341, for USB_CONTROL; UEFI_DISPLAY=N: 127.0.0.1:5900+N
+# forwarded to its port 5900, for USB_DISPLAY).
 # test-usb-image makes one (usb-test.img) and boots that very file as a USB stick and as NVMe: the diagnostics (the
 # store, the ext4 volume, DHCP, the file on the ESP), then a snapshot into the stick's store and its resume.
 USB_IMAGE ?= $(UEFI)/usb.img
@@ -340,11 +358,19 @@ USB_ARGS ?= $(if $(USB_SCREEN),--window-size $(USB_SCREEN)) $(if $(USB_DIAG),--e
 USB_CONTROL ?=
 USB_CONTROL_TOKEN_FILE ?=
 USB_CONTROL_ARGS = $(if $(USB_CONTROL),--control --control-host 0.0.0.0 --control-port 7341)
+# USB_DISPLAY=1: the image's remote display server (RFB) on every address, port 5900, for macOS Screen Sharing or TigerVNC
+# from another machine (docs/remote.md, Remote display), with VNC authentication (never none): its password the contents
+# of USB_DISPLAY_PASSWORD_FILE (at most 8 characters; copied to the stick's ESP, the stick's file made 0600), else one
+# the image makes at boot and shows on the screen and console. VNC authentication is weak and the session unencrypted:
+# a trusted network, or an SSH tunnel to a machine beside it.
+USB_DISPLAY ?=
+USB_DISPLAY_PASSWORD_FILE ?=
+USB_DISPLAY_ARGS = $(if $(USB_DISPLAY),--display --display-host 0.0.0.0 --display-port 5900 --display-vnc-auth)
 USB_DEVICE ?= usb-storage
 USB_STORE_TYPE := 5aa3a57f-0f7e-4c2b-9b5e-53414d53544f
 USB_PARTS = $(USB_IMAGE).parts
 MTOOLS := MTOOLS_SKIP_CHECK=1
-QEMU_USB = $(QEMU_UEFI_MACHINE) -m $(or $(UEFI_RAM_MB),$(USB_RAM_MB),2048) -no-reboot -nic user,model=$(UEFI_NIC)$(if $(UEFI_CONTROL_PORT),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_CONTROL_PORT)-:7341) -global $(UEFI_NIC).romfile= \
+QEMU_USB = $(QEMU_UEFI_MACHINE) -m $(or $(UEFI_RAM_MB),$(USB_RAM_MB),2048) -no-reboot -nic user,model=$(UEFI_NIC)$(if $(UEFI_CONTROL_PORT),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_CONTROL_PORT)-:7341)$(UEFI_DISPLAY_FWD) -global $(UEFI_NIC).romfile= \
 	-device virtio-rng-pci -drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/usb-vars.fd \
 	-device qemu-xhci -drive if=none,id=stick,format=raw,file=$(USB_IMAGE) \
 	$(if $(filter nvme,$(USB_DEVICE)),-device nvme$(comma)serial=stick$(comma)drive=stick,-device usb-storage$(comma)drive=stick)
@@ -352,11 +378,14 @@ usb-image: uefi
 	$(MAKE) usb-disk
 usb-disk: $(filter $(UEFI)/ext4-root,$(USB_FILES))
 	rm -rf $(USB_IMAGE) $(USB_PARTS) && mkdir -p $(USB_PARTS)
-	umask 077 && printf '%s\n' --max-heap $(USB_HEAP_MB) disk: $(USB_CONTROL_ARGS) $(USB_ARGS) > $(USB_PARTS)/samaltak.args
+	umask 077 && printf '%s\n' --max-heap $(USB_HEAP_MB) disk: $(USB_CONTROL_ARGS) $(USB_DISPLAY_ARGS) $(USB_ARGS) > $(USB_PARTS)/samaltak.args
 	$(if $(USB_CONTROL_TOKEN_FILE),printf '%s\n' --control-token "$$(tr -d ' \n' < $(USB_CONTROL_TOKEN_FILE))" >> $(USB_PARTS)/samaltak.args)
+	$(call DISPLAY_PASSWORD,$(USB_PARTS),$(if $(USB_DISPLAY),$(USB_DISPLAY_PASSWORD_FILE)),$(USB_PARTS)/samaltak.args)
+	$(if $(USB_DISPLAY),@echo "note: the remote display listens on every address with VNC authentication (weak, unencrypted): a trusted network or an SSH tunnel (docs/remote.md)")
 	truncate -s $(USB_ESP_MB)M $(USB_PARTS)/esp && $(MTOOLS) mformat -i $(USB_PARTS)/esp -F -v SAMALTAK :: \
 		&& $(MTOOLS) mmd -i $(USB_PARTS)/esp ::/EFI ::/EFI/BOOT && $(MTOOLS) mcopy -i $(USB_PARTS)/esp $(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT) ::/EFI/BOOT/ \
-		&& $(MTOOLS) mcopy -i $(USB_PARTS)/esp $(USB_PARTS)/samaltak.args ::/
+		&& $(MTOOLS) mcopy -i $(USB_PARTS)/esp $(USB_PARTS)/samaltak.args ::/ \
+		$(if $(USB_DISPLAY),$(if $(USB_DISPLAY_PASSWORD_FILE),&& $(MTOOLS) mcopy -i $(USB_PARTS)/esp $(USB_PARTS)/samaltak-display-password ::/))
 	$(VM) $(OUT)/samaltak.image --headless --eval "UefiImageDisk new write: '$(OUT)/samaltak.image' to: '$(USB_PARTS)/store'"
 	truncate -s $$(( 1 + 2 * $(USB_SLOT_FACTOR) * (($$(wc -c < $(OUT)/samaltak.image) + 1048575) / 1048576) ))M $(USB_PARTS)/store
 	$(if $(USB_FILES),truncate -s $(USB_FILES_MB)M $(USB_PARTS)/files && PATH=$$PATH:/sbin:/usr/sbin && mkfs.ext4 -q -F -L $(USB_FILES_LABEL) -d $(USB_FILES) $(USB_PARTS)/files)
@@ -368,12 +397,12 @@ usb-disk: $(filter $(UEFI)/ext4-root,$(USB_FILES))
 		&& dd if=$(USB_PARTS)/store of=$(USB_IMAGE) bs=1M seek=$$(( 1 + E )) conv=notrunc status=none \
 		$(if $(USB_FILES),&& dd if=$(USB_PARTS)/files of=$(USB_IMAGE) bs=1M seek=$$(( 1 + E + S )) conv=notrunc status=none)
 	@echo "$(USB_IMAGE): $$(( $$(wc -c < $(USB_IMAGE)) / 1048576 )) MB, samaltak.args: $$(awk 'p { print "<token>"; p = 0; next } /^--control-token$$/ { p = 1 } { print }' $(USB_PARTS)/samaltak.args | tr '\n' ' ')"
-	$(if $(USB_CONTROL_TOKEN_FILE),chmod 600 $(USB_IMAGE))
+	$(if $(USB_CONTROL_TOKEN_FILE)$(USB_DISPLAY_PASSWORD_FILE),chmod 600 $(USB_IMAGE))
 	rm -rf $(USB_PARTS)
 usb-run: USB_RAM_MB = $(shell expr $(USB_HEAP_MB) \* 4)
 usb-run:
 	cp $(OVMF_VARS) $(UEFI)/usb-vars.fd
-	$(QEMU_USB) $(if $(UEFI_VNC),$(UEFI_VNC_DISPLAY) -device usb-kbd -device virtio-tablet-pci -serial stdio,-nographic) | tee $(UEFI)/usb-console.log
+	$(QEMU_USB) $(if $(UEFI_DISPLAY)$(UEFI_VNC),$(if $(UEFI_DISPLAY),-display none,$(UEFI_VNC_DISPLAY)) -device usb-kbd -device virtio-tablet-pci -serial stdio,-nographic) | tee $(UEFI)/usb-console.log
 usb-boot:
 	cp $(OVMF_VARS) $(UEFI)/usb-vars.fd
 	$(QEMU_USB) -nographic | tee $(UEFI)/usb-console.log

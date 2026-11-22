@@ -15,6 +15,7 @@ const ROOT = path.resolve(__dirname, '..');
 const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
   open [--headless] [--hidden] [--work-clock] [--image path] [--port n] [--window-size WxH] [--source-dir d]   start an image with --control (--work-clock: on the recording clock from the start)
   open --uefi [--headless] [--port n] [--window-size WxH] [--affinity big|LIST|none] [--cpus n]   the VM on UEFI in QEMU (make uefi-control), its control port forwarded to n; its host CPUs (UEFI_AFFINITY, default big) and vCPUs (UEFI_CPUS)
+       [--vnc n [--vnc-server qemu|image] [--vnc-password-file f]]   its screen on VNC at 127.0.0.1:5900+n: QEMU's server (default; UEFI_VNC, password file ~/.samaltak-vnc) or the image's own (RFB; UEFI_DISPLAY: QEMU without a display), its password f's or, for the image's, one made for the session in <session>.vnc-password (0600)
   connect [--host h] --port n --token-file f   a session for an image someone else started (a bare-metal machine: the token it showed at boot, in f; - reads stdin); default host 127.0.0.1 (an SSH tunnel)
   snapshot [ref] [--depth n] [--bounds]    widget tree with stable @refs
   find <text>                              refs whose label/ref contains text
@@ -52,7 +53,7 @@ const pos = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--session') session = argv[++i];
-  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|affinity|cpus|settle|delay|source-dir|at|provider|model|thinking|token-command|repo|base|prefix|ref|host|token-file)$/.test(a)) flags[a.slice(2)] = argv[++i];
+  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|affinity|cpus|settle|delay|source-dir|at|provider|model|thinking|token-command|repo|base|prefix|ref|host|token-file|vnc|vnc-server|vnc-password-file)$/.test(a)) flags[a.slice(2)] = argv[++i];
   else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi|from-pi|from-gh|clear|dry-run|theirs|force|quit)$/.test(a)) flags[a.slice(2)] = true;
   else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
   else pos.push(a);
@@ -218,6 +219,8 @@ async function openUefi() {
   // QEMU's host CPUs (big by default, tools/qemu-pin.sh) and vCPUs; else UEFI_AFFINITY and UEFI_CPUS from the environment.
   if (flags.affinity !== undefined) makeArgs.push(`UEFI_AFFINITY=${flags.affinity}`);
   if (flags.cpus !== undefined) makeArgs.push(`UEFI_CPUS=${flags.cpus}`);
+  const vnc = vncOptions();
+  if (vnc) makeArgs.push(...vnc.makeArgs);
   const child = spawn('make', makeArgs,
     { cwd: ROOT, detached: true, stdio: ['ignore', log, log], env: { ...process.env, UEFI_CONTROL_TOKEN: token } });
   child.unref();
@@ -228,14 +231,44 @@ async function openUefi() {
     try {
       const r = await request(s, { cmd: 'ping' }, 2000);
       if (!r.ok) { killGroup(child.pid); die(`the image on UEFI refused the session's token: ${r.error}`); }
-      writeSession({ pid: child.pid, group: true, port: +port, token, uefi: true, log: logFile, started: new Date().toISOString() });
+      writeSession({ pid: child.pid, group: true, port: +port, token, uefi: true, log: logFile, started: new Date().toISOString(),
+        ...(vnc ? { vnc: vnc.session } : {}) });
       console.log(`opened the VM on UEFI (session ${session}, pid ${child.pid}, port ${port})`);
+      if (vnc) console.log(`its screen: vnc://localhost:${vnc.session.port} (${vnc.session.server === 'image' ? "the image's RFB server" : "QEMU's VNC server"}), password in ${vnc.session.passwordFile}`);
       return;
     } catch (_) { /* QEMU forwards the port before the image listens */ }
     if (exited !== null) die(`make uefi-control exited (${exited}) before the image listened; log ${logFile}:\n${fs.readFileSync(logFile, 'utf8').slice(-2000)}`);
     if (Date.now() - t0 > 900000) { killGroup(child.pid); die(`the image did not start listening within 15 min; log ${logFile}`); }
     await sleep(1000);
   }
+}
+
+// --vnc n: the screen on 127.0.0.1:5900+n, from QEMU's VNC server (UEFI_VNC) or the image's own RFB server (UEFI_DISPLAY,
+// docs/remote.md, Remote display); --vnc-server, else $SAMALTAK_VNC_SERVER, else qemu. The password reaches make as a
+// file name, never on a command line: --vnc-password-file f, else QEMU's ~/.samaltak-vnc (UEFI_VNC_PASSWORD) or, for the
+// image's server, 8 random characters made here into <session>.vnc-password (0600; close removes it). Never printed.
+function vncOptions() {
+  if (flags.vnc === undefined) return null;
+  const n = Number(flags.vnc);
+  if (!Number.isInteger(n) || n < 0 || n > 99) die('open --uefi --vnc n: n is 0-99 (port 5900+n)');
+  const server = flags['vnc-server'] || process.env.SAMALTAK_VNC_SERVER || 'qemu';
+  if (server !== 'qemu' && server !== 'image') die('--vnc-server is qemu or image');
+  let passwordFile = flags['vnc-password-file'] && path.resolve(flags['vnc-password-file']);
+  let made = false;
+  if (!passwordFile && server === 'qemu') passwordFile = process.env.UEFI_VNC_PASSWORD || path.join(os.homedir(), '.samaltak-vnc');
+  if (!passwordFile) {
+    // VNC authentication takes 8 characters: about 47 bits from this alphabet (no look-alikes).
+    const abc = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const pw = Array.from(crypto.randomBytes(8), b => abc[b % abc.length]).join('');
+    passwordFile = path.join(DIR, `${session}.vnc-password`);
+    fs.rmSync(passwordFile, { force: true });
+    fs.writeFileSync(passwordFile, pw + '\n', { mode: 0o600, flag: 'wx' });
+    made = true;
+  }
+  const makeArgs = server === 'image'
+    ? [`UEFI_DISPLAY=${n}`, `UEFI_DISPLAY_PASSWORD_FILE=${passwordFile}`]
+    : [`UEFI_VNC=${n}`, `UEFI_VNC_PASSWORD=${passwordFile}`];
+  return { makeArgs, session: { server, port: 5900 + n, passwordFile, made } };
 }
 
 function writeTokenFile(token) {
@@ -293,6 +326,7 @@ async function close() {
   if (alive(s.pid)) { if (s.group) killGroup(s.pid); else { try { process.kill(s.pid, 'SIGKILL'); } catch (_) {} } }
   fs.rmSync(SESSION_FILE, { force: true });
   if (s.tokenFile) fs.rmSync(s.tokenFile, { force: true });
+  if (s.vnc?.made) fs.rmSync(s.vnc.passwordFile, { force: true });
   console.log(`closed session ${session}`);
 }
 
