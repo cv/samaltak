@@ -2041,6 +2041,7 @@ void prim_inst_var_at(void);
 void prim_inst_var_at_put(void);
 void prim_is_immutable(void);
 void prim_png_filter(void);
+void prim_raw_bytes_replace(void);
 void prim_replace_from_to(void);
 void prim_set_immutable(void);
 void prim_shallow_copy(void);

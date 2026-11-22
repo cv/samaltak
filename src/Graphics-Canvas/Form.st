@@ -85,6 +85,7 @@ asByteArray
 	"Answer my pixels as RGBA bytes."
 	| bytes |
 	bytes := ByteArray new: width * height * 4.
+	(bytes replaceFrom: 1 to: bytes size withRawBytesOf: bits startingAt: 1) isNil ifFalse: [^bytes].
 	1 to: bits size do: [:i | bytes uint32At: i * 4 - 3 put: (bits at: i)].
 	^bytes
 ! !

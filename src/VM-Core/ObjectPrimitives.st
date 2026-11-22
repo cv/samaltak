@@ -703,3 +703,23 @@ primZlibTokenCounts
 	r < 0 ifTrue: [^self fail].
 	self answer: (self intOop: r)
 ! !
+
+!ObjectPrimitives methodsFor: 'bytes'!
+primRawBytesReplace
+	"ByteArray>>replaceFrom:to:withRawBytesOf:startingAt:: the receiver's bytes start to stop (1-based) := the memory of a non-pointer object (bytes, or 32- or 64-bit words as the CPU stores them) from its byte index; answers the receiver. Fails unless the receiver is a mutable byte object and both ranges are inside."
+	<vmPrimitive: 212 name: 'rawBytesReplace'>
+	<leaf>
+	| r src start stop s n |
+	self argCount = 4 ifFalse: [^self fail].
+	r := self receiver.
+	src := self arg: 2.
+	((self isPtr: r) and: [(self isPtr: src) and: [(self isInt: (self arg: 0)) and: [(self isInt: (self arg: 1)) and: [self isInt: (self arg: 3)]]]]) ifFalse: [^self fail].
+	((self formatOf: r) >= F_BYTES and: [(self formatOf: r) < (F_BYTES + 8) and: [(self isImmutable: r) not]]) ifFalse: [^self fail].
+	start := self intVal: (self arg: 0).
+	stop := self intVal: (self arg: 1).
+	s := self intVal: (self arg: 3).
+	n := stop - start + 1.
+	(start >= 1 and: [n >= 0 and: [stop <= (memory byteSize: r) asInt64 and: [s >= 1 and: [s + n - 1 <= (self rawByteSize: src) asInt64]]]]) ifFalse: [^self fail].
+	libc memmove: (self bytesOf: r) + start - 1 from: (self bytesOf: src) + s - 1 size: n asUInt64.
+	self answer: r
+! !

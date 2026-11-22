@@ -51,6 +51,20 @@ testFilterPrimitiveMatchesSmalltalk
 	self assertFilterOf: (self gradient: 300 by: 200 alpha: [:x :y | x + y \\ 256]) asByteArray width: 300 height: 200.
 	self assertFilterOf: self screenForm asByteArray width: 1920 height: 1080
 !
+testAsByteArrayCopiesRawWords
+	"Form>>asByteArray (ByteArray>>replaceFrom:to:withRawBytesOf:startingAt:) gives each pixel's little-endian word; the primitive refuses ranges outside and pointer objects."
+	| form bytes |
+	form := self gradient: 37 by: 11 alpha: [:x :y | x * 7 \\ 256].
+	bytes := form asByteArray.
+	self assert: bytes size equals: 37 * 11 * 4.
+	1 to: form bits size do: [:i | self assert: (bytes uint32At: i * 4 - 3) equals: (form bits at: i)].
+	bytes := ByteArray new: 10.
+	self assert: (bytes replaceFrom: 3 to: 6 withRawBytesOf: form bits startingAt: 5) == bytes.
+	self assert: (bytes copyFrom: 3 to: 6) equals: ((ByteArray new: 4) uint32At: 1 put: (form bits at: 2); yourself).
+	self assert: (bytes replaceFrom: 3 to: 11 withRawBytesOf: form bits startingAt: 1) isNil.
+	self assert: (bytes replaceFrom: 1 to: 4 withRawBytesOf: form bits startingAt: form bits size * 4 - 2) isNil.
+	self assert: (bytes replaceFrom: 1 to: 4 withRawBytesOf: #(1 2 3) startingAt: 1) isNil
+!
 testCorruptPNGIsRefused
 	| png |
 	png := (self gradient: 20 by: 10 alpha: [:x :y | 255]) pngBytes.

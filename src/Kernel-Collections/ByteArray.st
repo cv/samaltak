@@ -72,6 +72,11 @@ uint16At: byteOffset put: anInteger
 	self at: byteOffset put: (anInteger bitAnd: 255).
 	self at: byteOffset + 1 put: ((anInteger bitShift: -8) bitAnd: 255).
 	^anInteger
+!
+replaceFrom: start to: stop withRawBytesOf: anObject startingAt: byteIndex
+	"My bytes start to stop := the memory of anObject, bytes or words (a Bitmap's as the CPU stores them: little-endian on every CPU the VM runs on), from its byte byteIndex; answer me, or nil if the VM cannot (an older VM, anObject has pointers)."
+	<primitive: 'rawBytesReplace'>
+	^nil
 ! !
 
 !ByteArray methodsFor: 'converting'!
