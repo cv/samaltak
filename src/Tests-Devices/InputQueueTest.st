@@ -69,6 +69,29 @@ testThePointer
 		{1. nil. 99.0. 0.0. 0. 0. nil. 1}.
 		{2. nil. 99.0. 0.0. 3. 0. 1. 1}}
 !
+testKeysPressedAndReleasedSeparately
+	"A remote display's keys: down (or a repeat), text and up on their own."
+	queue keyDown: 97 modifiers: 1 repeat: false.
+	queue keyDown: 97 modifiers: 1 repeat: true.
+	queue text: 'A' modifiers: 1.
+	queue keyUp: 97 modifiers: 0.
+	self assert: (self events collect: [:e | {e first. e at: 5. e at: 6. e at: 7}]) equals: #(#(5 97 1 false) #(5 97 1 true) #(7 0 1 'A') #(6 97 0 false))
+!
+testTheMiddleButtonAndHorizontalWheel
+	queue pointerAt: 50 @ 40 buttons: 2 wheel: 0.
+	queue pointerAt: 50 @ 40 buttons: 0 wheel: -1 @ 0.
+	queue pointerAt: 50 @ 40 buttons: 0 wheel: 0 @ 0.
+	self assert: (self events collect: [:e | {e first. e at: 5. e at: 7}]) equals: {{2. 2. 1}. {3. 2. 1}. {4. 0. -1.0 @ 0.0}}
+!
+testForwarding
+	"A forwarding queue hands its events to a block and keeps none."
+	| got |
+	got := OrderedCollection new.
+	queue forwardTo: [:e | got add: e].
+	self key: 0 char: $a value shift: 0.
+	self assert: (got collect: [:e | e first]) asArray equals: #(5 7 6).
+	self assert: queue isEmpty
+!
 testClicksCount
 	"Presses of one button within 400 ms and 4 pixels count up; another button, or farther, starts again."
 	queue pointerAt: 10 @ 10 buttons: 1 wheel: 0.

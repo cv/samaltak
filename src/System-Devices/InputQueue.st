@@ -1,9 +1,9 @@
 Object subclass: #InputQueue
-	instanceVariableNames: 'events lock semaphoreIndex armed dropped extent position buttons clicks downButton downTime downPosition'
+	instanceVariableNames: 'events lock semaphoreIndex armed dropped extent position buttons clicks downButton downTime downPosition forward'
 	classVariableNames: 'Current MaxEvents'
 	package: 'System-Devices'!
 
-InputQueue comment: 'I am the event queue where the image drives the input devices itself (UEFI): what the VM''s queue is elsewhere (docs/platform.md, Events), with the same 8-slot Arrays, the same FIFO of at most MaxEvents (more are dropped and counted) and the same semaphore, signaled once when events are pending and armed again by next:. The drivers report key strokes and the pointer; I make the events: a key stroke is a keyDown, its textInput (a character without ctrl or cmd) and a keyUp; the pointer is a move, then the buttons that changed (clicks within 400 ms and 4 pixels count up), then the wheel; injected events (remote control) join the same queue. InputQueue current is the running one (nil on an operating system).'!
+InputQueue comment: 'I am the event queue where the image drives the input devices itself (UEFI): what the VM''s queue is elsewhere (docs/platform.md, Events), with the same 8-slot Arrays, the same FIFO of at most MaxEvents (more are dropped and counted) and the same semaphore, signaled once when events are pending and armed again by next:. The drivers report key strokes and the pointer; I make the events: a key stroke is a keyDown, its textInput (a character without ctrl or cmd) and a keyUp; the pointer is a move, then the buttons that changed (clicks within 400 ms and 4 pixels count up), then the wheel; injected events (remote control) join the same queue. A remote display (RfbInput) reports keys pressed and released separately (keyDown:modifiers:repeat:, text:modifiers:, keyUp:modifiers:). On an operating system an InputQueue that forwards (forwardTo:) only makes the events, for a block that injects them (RemoteInputDevice). InputQueue current is the running one (nil on an operating system).'!
 
 !InputQueue methodsFor: 'initialization'!
 initialize
@@ -23,8 +23,9 @@ initialize
 
 !InputQueue methodsFor: 'queue'!
 push: anArray
-	"Queue anArray (8 slots); signal the semaphore if armed."
+	"Queue anArray (8 slots); signal the semaphore if armed. Forwarding: hand it to the block instead."
 	| index |
+	forward isNil ifFalse: [^forward value: anArray].
 	index := lock critical: [
 		events size >= MaxEvents
 			ifTrue: [dropped := dropped + 1. 0]
@@ -69,6 +70,10 @@ semaphoreIndex: anInteger
 		(events notEmpty and: [anInteger ~= 0]) ifTrue: [armed := false. anInteger] ifFalse: [0]].
 	index ~= 0 ifTrue: [self signal: index]
 !
+forwardTo: aBlockOrNil
+	"Hand the events I make to aBlock (value: anEvent) instead of queueing them (nil: queue them)."
+	forward := aBlockOrNil
+!
 dropped
 	"Events dropped because the queue was full."
 	^dropped
@@ -91,12 +96,24 @@ event: type key: keyOrButton modifiers: mods extra: extra
 !
 keyStroke: keycode modifiers: mods text: aStringOrNil
 	"A key pressed and released (the firmware reports no releases), with the text it typed."
-	self push: (self event: 5 key: keycode modifiers: mods extra: false).
-	aStringOrNil isNil ifFalse: [self push: (self event: 7 key: 0 modifiers: mods extra: aStringOrNil)].
+	self keyDown: keycode modifiers: mods repeat: false.
+	aStringOrNil isNil ifFalse: [self text: aStringOrNil modifiers: mods].
+	self keyUp: keycode modifiers: mods
+!
+keyDown: keycode modifiers: mods repeat: aBoolean
+	"A key pressed (aBoolean: again, held down)."
+	self push: (self event: 5 key: keycode modifiers: mods extra: aBoolean)
+!
+keyUp: keycode modifiers: mods
+	"A key released."
 	self push: (self event: 6 key: keycode modifiers: mods extra: false)
 !
+text: aString modifiers: mods
+	"Text typed."
+	self push: (self event: 7 key: 0 modifiers: mods extra: aString)
+!
 pointerAt: aPoint buttons: mask wheel: dy
-	"The pointer is at aPoint (pixels; clamped to the screen), with buttons (1 left, 4 right) held, and the wheel turned by dy; answer whether it moved."
+	"The pointer is at aPoint (pixels; clamped to the screen), with buttons (1 left, 2 middle, 4 right) held, and the wheel turned by dy (or a Point dx@dy: +x right, +y up); answer whether it moved."
 	| p moved |
 	p := (aPoint x max: 0) @ (aPoint y max: 0).
 	p := (p x min: extent x - 1) @ (p y min: extent y - 1).
@@ -105,13 +122,16 @@ pointerAt: aPoint buttons: mask wheel: dy
 		position := p.
 		self push: (self event: 1 key: buttons modifiers: 0 extra: nil)].
 	self button: 1 mask: 1 held: mask.
+	self button: 2 mask: 2 held: mask.
 	self button: 3 mask: 4 held: mask.
 	buttons := mask.
-	dy ~= 0 ifTrue: [self push: (self event: 4 key: 0 modifiers: 0 extra: 0.0 @ dy asFloat)].
+	dy isPoint
+		ifTrue: [dy = (0 @ 0) ifFalse: [self push: (self event: 4 key: 0 modifiers: 0 extra: dy x asFloat @ dy y asFloat)]]
+		ifFalse: [dy ~= 0 ifTrue: [self push: (self event: 4 key: 0 modifiers: 0 extra: 0.0 @ dy asFloat)]].
 	^moved
 !
 button: button mask: mask held: held
-	"A down or up event if button (1 left, 3 right) changed."
+	"A down or up event if button (1 left, 2 middle, 3 right) changed."
 	| down now |
 	(held bitAnd: mask) = (buttons bitAnd: mask) ifTrue: [^self].
 	down := (held bitAnd: mask) ~= 0.

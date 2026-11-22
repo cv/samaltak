@@ -332,8 +332,10 @@ clipboard
 	^[DisplayWindow clipboard] on: Error do: [:e | e return: clipboardText]
 !
 clipboard: aString
+	"Copy aString; remote clients (a remote display's viewers) are told."
 	clipboardText := aString.
-	[DisplayWindow clipboard: aString] on: Error do: [:e | e return: nil]
+	[DisplayWindow clipboard: aString] on: Error do: [:e | e return: nil].
+	RemoteClipboard changed: aString
 !
 clipboardData: mime
 	"The clipboard's contents as mime type mime (a ByteArray), or nil."
