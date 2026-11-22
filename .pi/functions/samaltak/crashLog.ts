@@ -49,6 +49,7 @@ async function crashLog(
   const lines = (token ? r.stdout.split(token).join("<redacted>").split(grouped).join("<redacted>") : r.stdout)
     .replace(/(control: token )[0-9A-Fa-f-]{16,}/g, "$1<redacted>")
     .replace(/(display: password |--display-password\s+)\S+/g, "$1<redacted>")
+    .replace(/(display password:? )[^\s'",}]+/gi, "$1<redacted>")
     .split("\n");
   const collapse = (xs: string[]) => {
     const outL: string[] = [];

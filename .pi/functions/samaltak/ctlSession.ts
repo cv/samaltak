@@ -95,6 +95,7 @@ async function ctlSession(
     (token ? s.split(token).join("<redacted>").split(grouped(token)).join("<redacted>") : s)
       .replace(/(control: token )[0-9A-Fa-f-]{16,}/g, "$1<redacted>")
       .replace(/(display: password |--display-password\s+)\S+/g, "$1<redacted>")
+      .replace(/(display password:? )[^\s'",}]+/gi, "$1<redacted>")
       .replace(/\b(sk-[A-Za-z0-9_-]{16,}|nvapi-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,})/g, "<redacted>")
       .replace(/("?(api[_-]?key|authorization|x-api-key|token)"?\s*[:=]\s*"?)(Bearer )?[^\s",}]{12,}/gi, "$1<redacted>");
   let display = "";

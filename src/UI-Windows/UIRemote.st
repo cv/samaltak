@@ -30,6 +30,9 @@ installOn: aWorld
 	"A token the control service made at start, once, for an operator at the screen (on a firmware console the World draws over it): five minutes."
 	ControlServer takeAnnouncement ifNotNil: [:t |
 		aWorld toast: 'Remote control token: ', t, ' (samaltak-ctl connect --token-file)' duration: 300000].
+	"Beside it, a display password the remote display made for VNC authentication (never derived from the token)."
+	SessionToken takeDisplayPasswordAnnouncement ifNotNil: [:p |
+		aWorld toast: 'Display password: ', p, ' (VNC authentication)' duration: 300000].
 	RemoteInputDevice default
 		windowId: aWorld displayWindow windowId;
 		timeScaleBlock: [Animation timeScale];

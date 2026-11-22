@@ -1,11 +1,11 @@
 Object subclass: #ControlServer
 	instanceVariableNames: 'socket port process connections lock ready readyIndex ownReady ownIndex host wakeAt token'
-	classVariableNames: 'Current HoldClock Announcement'
+	classVariableNames: 'Current HoldClock'
 	package: 'System-Remote'!
 
 ControlServer comment: 'I am the remote-control service: a TCP server on 127.0.0.1 speaking JSON lines. Each request is one JSON object on one line, {"id": 1, "cmd": "eval", "source": "3 + 4", "auth": "<token>"}; each response is one line, {"id": 1, "ok": true, "printString": "7", ...} or {"id": 1, "ok": false, "error": "...", "code": 2}. Commands are RemoteControl''s.
 
-Every request must carry my token, a per-session secret, as auth: one without it or with another gets {"ok": false, "code": 4, "error": "unauthorized: ..."} and runs nothing (authorizes: compares in constant time; ControlConnection takes auth out of the request before any command sees it, and nothing logs it). From the command line the token comes from --control-token-file path (samaltak-ctl open writes one, mode 0600), else $SAMALTAK_CONTROL_TOKEN, else --control-token (samaltak.args on UEFI, where no ps shows a command line); without one I make one (SecureRandom) and show it once: on the console, and in the World as a toast (UIRemote), for samaltak-ctl connect --token-file (docs/remote.md).
+Every request must carry my token, a per-session secret (SessionToken current when started from the command line: the remote display takes the same), as auth: one without it or with another gets {"ok": false, "code": 4, "error": "unauthorized: ..."} and runs nothing (authorizes: compares in constant time; ControlConnection takes auth out of the request before any command sees it, and nothing logs it). From the command line the token comes from --control-token-file path (samaltak-ctl open writes one, mode 0600), else $SAMALTAK_CONTROL_TOKEN, else --control-token (samaltak.args on UEFI, where no ps shows a command line); without one I make one (SecureRandom) and show it once: on the console, and in the World as a toast (UIRemote), for samaltak-ctl connect --token-file (docs/remote.md).
 
 I start when the image is started with --control (from the startup list): port from --control-port N, else $SAMALTAK_CONTROL_PORT, else 7341 (0 picks a free one); address from --control-host, else 127.0.0.1; --control-port-file path receives the port number. The listening socket and every client socket (ControlConnection) signal one Semaphore when they become readable. Without a UI my own Process, ''remote control'' (priority 50), waits on it; with one, remote control is an input device: hostOn: makes the sockets signal the input dispatcher''s Semaphore and the dispatcher calls service when it wakes, so no Process of mine exists. Each request runs in a transient Process (''remote request'') while it is handled. My Processes do not count as busy for wait idle. If no UI set a main action, the image keeps running until a quit command.'!
 
@@ -123,15 +123,9 @@ token
 	^token
 !
 authorizes: aString
-	"Whether aString is my token (blanks and dashes aside), compared in constant time: the work is the same whatever aString holds, so its timing tells nothing about how much of it was right."
-	| given diff |
-	(token isNil or: [token isEmpty or: [aString isString not]]) ifTrue: [^false].
-	given := self class normalizedToken: aString.
-	diff := given size bitXor: token size.
-	1 to: token size do: [:i | | c |
-		c := given isEmpty ifTrue: [0] ifFalse: [(given at: i - 1 \\ given size + 1) value].
-		diff := diff bitOr: ((token at: i) value bitXor: c)].
-	^diff = 0
+	"Whether aString is my token (blanks and dashes aside), compared in constant time (SessionToken>>authorizes:)."
+	token isNil ifTrue: [^false].
+	^(SessionToken value: token) authorizes: aString
 ! !
 
 !ControlServer methodsFor: 'accessing'!
@@ -163,13 +157,12 @@ shutDown: quitting
 	quitting ifTrue: [self stop]
 !
 startFromCommandLine
-	| server file token generated |
+	| server file token |
 	server := [
-		token := self configuredToken.
-		(generated := token isNil) ifTrue: [token := self newToken].
-		(self normalizedToken: token) size < self minimumTokenSize ifTrue: [
+		token := SessionToken current.
+		token isTooShort ifTrue: [
 			self error: 'the token has fewer than ', self minimumTokenSize printString, ' characters: not listening'].
-		self startOn: self configuredPort token: token] on: Error do: [:e |
+		self startOn: self configuredPort token: token value] on: Error do: [:e |
 		Smalltalk vm stderrWrite: 'control: ', e messageText, (String with: Character lf).
 		e return: nil].
 	server isNil ifTrue: [^self].
@@ -179,55 +172,32 @@ startFromCommandLine
 	file := Smalltalk argumentAfter: '--control-port-file'.
 	file isNil ifFalse: [server writePortTo: file].
 	Smalltalk vm stdoutWrite: 'control: listening on ', self configuredHost, ':', server port printString, (String with: Character lf).
-	generated ifTrue: [self announce: token].
+	token announceIfMade.
 	self keepImageRunning
 !
 configuredToken
-	"The token from --control-token-file path (its contents, blanks aside), else $SAMALTAK_CONTROL_TOKEN, else --control-token (on UEFI only: elsewhere ps shows a command line to everyone); nil: none."
-	| file value |
-	file := Smalltalk argumentAfter: '--control-token-file'.
-	file isNil ifFalse: [
-		value := [File readText: file] on: Error do: [:e | self error: 'cannot read the token file ', file].
-		^self normalizedToken: value].
-	value := Smalltalk vm getenv: 'SAMALTAK_CONTROL_TOKEN'.
-	(value notNil and: [value notEmpty]) ifTrue: [^value].
-	value := Smalltalk argumentAfter: '--control-token'.
-	(value notNil and: [Machine hasFirmware not]) ifTrue: [
-		Smalltalk vm stderrWrite: 'control: warning: --control-token is on the command line, which ps shows to everyone here: use --control-token-file', (String with: Character lf)].
-	^value
+	"The token from --control-token-file, $SAMALTAK_CONTROL_TOKEN or --control-token (SessionToken configuredValue); nil: none."
+	^SessionToken configuredValue
 !
 newToken
-	"128 bits from SecureRandom (System-Crypto, loaded after me) as 32 hexadecimal digits."
-	^((Smalltalk at: #SecureRandom) default nextBytes: 16) hex asLowercase
+	^SessionToken newValue
 !
 normalizedToken: aString
-	"aString without blanks and dashes: a token typed from the screen, in groups, is the same token."
-	^aString asString reject: [:c | c isSeparator or: [c = $-]]
+	^SessionToken normalized: aString
 !
 minimumTokenSize
-	^16
+	^SessionToken minimumSize
 !
 grouped: aToken
-	"aToken in groups of four, for reading off a screen."
-	^String new: aToken size * 5 // 4 streamContents: [:s |
-		aToken doWithIndex: [:c :i |
-			(i > 1 and: [i - 1 \\ 4 = 0]) ifTrue: [s nextPut: $-].
-			s nextPut: c]]
+	^SessionToken grouped: aToken
 !
 announce: aToken
-	"A token I made: show it once, on the console, on the firmware's screen too where the console is a serial port, and, when a World opens, as a toast (takeAnnouncement)."
-	| text |
-	text := 'control: token ', (self grouped: aToken), ' (made at start, shown once: samaltak-ctl connect --token-file F with it in F)'.
-	Smalltalk vm stdoutWrite: text, (String with: Character lf).
-	Machine hasFirmware ifTrue: [[FirmwareDiagnostics new echoOnScreen: text] on: Error do: [:e | e return: nil]].
-	Announcement := aToken
+	"Show a token made here once (SessionToken announce:)."
+	SessionToken announce: aToken
 !
 takeAnnouncement
-	"The token announce: showed, once (the World shows it), else nil."
-	| t |
-	t := Announcement.
-	Announcement := nil.
-	^t ifNotNil: [:x | self grouped: x]
+	"The token announce: showed, grouped, once (the World shows it), else nil."
+	^SessionToken takeAnnouncement
 !
 configuredHost
 	"--control-host address, else 127.0.0.1. 0.0.0.0 lets everyone on the network reach me (a VM with no loopback, UEFI, through a forwarded port; a bare-metal machine): only requests with my token run, but nothing is encrypted (docs/remote.md: an SSH tunnel)."

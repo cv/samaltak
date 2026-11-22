@@ -24,6 +24,13 @@ lines over TCP, every request with `"auth": "<token>"`.
   `control: token 1a2b-3c4d-… (made at start, shown once: …)` (on UEFI also on the firmware's screen when the console is a
   serial port), and when the World opens as a toast for five minutes. That is how an operator at a bare-metal machine
   learns it. A token the service was given is never printed.
+- **One token a session** (`SessionToken`, System-Remote): the control service and the remote display take the same
+  token, read or made once (`SessionToken current`) and shown once, so either works without the other; an image resumed
+  from a snapshot reads or makes it again.
+- **The display password**, for VNC authentication (RFB security type 2: at most 8 characters, DES, weak: whoever sees
+  one exchange can find it offline), is a separate secret, **never derived from the token**: `--display-password-file
+  path` (its first line), else 8 characters made with `SecureRandom` (`SessionToken displayPassword`) and shown once
+  beside the token, `display: password …` on the console and a toast. ctlSession and crashLog redact it like the token.
 
 ## samaltak-ctl
 
