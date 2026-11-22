@@ -1,5 +1,5 @@
 Object subclass: #AnthropicProvider
-	instanceVariableNames: 'account client cancelled wake finished rawUsage stopReason blocks messageId emitted streamError customTools retries retryDelay caching'
+	instanceVariableNames: 'account client cancelled wake finished rawUsage stopReason blocks messageId emitted streamError customTools retries retryDelay caching imageSources'
 	classVariableNames: ''
 	package: 'System-Agent'!
 
@@ -13,7 +13,7 @@ The conversation speaks the Responses API''s items; I translate. The developer m
 
 From the stream (message_start, content_block_start/delta/stop, message_delta, message_stop, ping, error) itemBlock gets, at each block''s end: a message item for text (textBlock got its deltas), a reasoning item for thinking or redacted_thinking, a custom_tool_call or function_call for tool_use; each keeps its Anthropic block under ''anthropic'' and the message id under ''response''. The usage answered is the Responses API''s: input_tokens (cache reads and writes included), output_tokens, total_tokens, input_tokens_details cached_tokens.
 
-AgentError when the account has no key; for an HTTP error (with the body''s message), an error event, a cut-off stream, a response stopped by max_tokens, a refusal or the context window; and ''Cancelled'' after cancel. HTTP 408, 409, 429 and 5xx (529 overloaded) and overloaded, rate-limit and api error events that come before any output are retried, at most retries times, after retry-after or retryDelay ms doubling each time; cancel ends the wait. My connection is kept between sends.'!
+AgentError when the account has no key; for an HTTP error (with the body''s message), an error event, a cut-off stream, a response stopped by max_tokens, a refusal or the context window; and ''Cancelled'' after cancel. An HTTP 400 or 413 that says an image or the request is too large is an AgentImageRefused naming the input_image parts of the image blocks it names (messages.N.content.M), else all of them. HTTP 408, 409, 429 and 5xx (529 overloaded) and overloaded, rate-limit and api error events that come before any output are retried, at most retries times, after retry-after or retryDelay ms doubling each time; cancel ends the wait. My connection is kept between sends.'!
 
 !AnthropicProvider methodsFor: 'initialization'!
 initialize
@@ -62,7 +62,7 @@ send: inputItems tools: toolSpecs onText: textBlock onItem: itemBlock
 		attempt := attempt + 1.
 		self pause: (self delayBefore: attempt after: response)].
 	response == #retry ifTrue: [^AgentError signal: self serviceName, ': ', (self messageIn: streamError)].
-	response isSuccess ifFalse: [^AgentError signal: (self refusal: response)].
+	response isSuccess ifFalse: [^self refuse: response body: body].
 	finished ifFalse: [^AgentError signal: 'The response from ', self serviceName, ' ended early'].
 	stopReason = 'max_tokens' ifTrue: [^AgentError signal: 'The model stopped at max_tokens (', self account maxTokens printString, ') before it finished'].
 	stopReason = 'refusal' ifTrue: [^AgentError signal: 'The model declined to answer'].
@@ -80,6 +80,7 @@ cancel
 bodyFor: inputItems tools: toolSpecs
 	"The Messages request for the Responses-API inputItems and toolSpecs."
 	| system body |
+	imageSources := IdentityDictionary new.
 	body := Dictionary new
 		at: 'model' put: self account model;
 		at: 'max_tokens' put: self account maxTokens;
@@ -175,7 +176,10 @@ userBlocksOf: aUserMessage
 	(aUserMessage at: 'content' ifAbsent: [#()]) do: [:part | | type |
 		type := part at: 'type' ifAbsent: [nil].
 		(type = 'input_text' and: [(part at: 'text' ifAbsent: ['']) notEmpty]) ifTrue: [blocks add: (self textBlock: (part at: 'text'))].
-		type = 'input_image' ifTrue: [blocks add: (self imageBlock: (part at: 'image_url' ifAbsent: ['']))]].
+		type = 'input_image' ifTrue: [ | block |
+			block := self imageBlock: (part at: 'image_url' ifAbsent: ['']).
+			imageSources ifNotNil: [imageSources at: (block at: 'source') put: part].
+			blocks add: block]].
 	^blocks asArray
 !
 textBlock: aString
@@ -384,6 +388,19 @@ pause: milliseconds
 	"Wait before a retry; cancel ends the wait with AgentError."
 	milliseconds > 0 ifTrue: [wake waitTimeoutMSecs: milliseconds].
 	cancelled ifTrue: [AgentError signal: 'Cancelled']
+!
+refuse: aResponse body: aBody
+	"Signal why aResponse is not a stream: AgentImageRefused when an image or the request is too large, else AgentError."
+	| text indices block parts |
+	text := [aResponse string] on: Error do: [:e | e return: ''].
+	(AgentImage isSizeRefusal: text status: aResponse status) ifFalse: [^AgentError signal: (self refusal: aResponse)].
+	parts := imageSources values asArray.
+	indices := AgentImage indicesIn: text after: 'messages.'.
+	indices notNil ifTrue: [
+		block := [(((aBody at: 'messages') at: indices first + 1) at: 'content') at: indices last + 1] on: Error do: [:e | e return: nil].
+		(block isKindOf: Dictionary) ifTrue: [
+			(imageSources at: (block at: 'source' ifAbsent: [nil]) ifAbsent: [nil]) ifNotNil: [:part | parts := Array with: part]]].
+	^(AgentImageRefused new parts: parts) signal: (self refusal: aResponse)
 !
 refusal: aResponse
 	"For the user: why aResponse is not a stream."

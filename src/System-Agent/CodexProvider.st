@@ -52,7 +52,7 @@ send: inputItems tools: toolSpecs onText: textBlock onItem: itemBlock
 	response status = 401 ifTrue: [
 		self account refresh.
 		response := self post: body onText: textBlock onItem: itemBlock].
-	response isSuccess ifFalse: [^AgentError signal: 'ChatGPT refused the request: ', (OpenAIAccount describe: response)].
+	response isSuccess ifFalse: [^self refuse: response input: inputItems].
 	finished ifFalse: [^AgentError signal: 'The response from ChatGPT ended early'].
 	^usage
 !
@@ -127,6 +127,18 @@ handle: event onText: textBlock onItem: itemBlock
 		^AgentError signal: 'ChatGPT stopped: ', (((response at: 'incomplete_details' ifAbsent: [nil]) ifNil: [Dictionary new]) at: 'reason' ifAbsent: ['incomplete'])].
 	type = 'error' ifTrue: [
 		^AgentError signal: 'ChatGPT: ', (self messageIn: ((event includesKey: 'message') ifTrue: [event] ifFalse: [event at: 'error' ifAbsent: [nil]]))]
+!
+refuse: aResponse input: inputItems
+	"Signal why aResponse is not a stream: AgentImageRefused (the input_image part named by input[N].content[M], else all of them) when an image or the request is too large, else AgentError."
+	| message text indices part |
+	message := 'ChatGPT refused the request: ', (OpenAIAccount describe: aResponse).
+	text := [aResponse string] on: Error do: [:e | e return: ''].
+	(AgentImage isSizeRefusal: text status: aResponse status) ifFalse: [^AgentError signal: message].
+	indices := AgentImage indicesIn: text after: 'input['.
+	part := indices ifNotNil: [[((inputItems at: indices first + 1) at: 'content') at: indices last + 1] on: Error do: [:e | e return: nil]].
+	^(AgentImageRefused new parts: ((AgentImage isImage: part)
+		ifTrue: [Array with: part]
+		ifFalse: [AgentImage imagesIn: inputItems])) signal: message
 !
 messageIn: anErrorDictionary
 	(anErrorDictionary isKindOf: Dictionary) ifFalse: [^'unknown error'].

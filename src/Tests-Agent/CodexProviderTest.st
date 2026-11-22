@@ -245,3 +245,36 @@ testStablePromptCacheKey
 	other := CodexProvider new bodyFor: #() tools: #().
 	self deny: (other at: 'prompt_cache_key') = (first at: 'prompt_cache_key')
 ! !
+
+!CodexProviderTest methodsFor: 'tests: images'!
+testLargeImageIsSentWithinBudget
+	| conversation form url input |
+	self reply: '/codex/responses' with: {self stream: self textStream}.
+	conversation := AgentConversation new provider: provider; yourself.
+	form := (Smalltalk at: #Form) width: 1920 height: 1080.
+	url := 'data:image/png;base64,', (Base64 encode: ((Smalltalk at: #PNGWriter) storedBytesFor: form asByteArray width: 1920 height: 1080)).
+	conversation add: (AgentItem user: 'Image shown from object o1' images: {AgentImage imagePart: url}).
+	conversation ask: 'What is it?'; wait.
+	input := self responsesRequests first json at: 'input'.
+	self assert: (((input at: 2) at: 'content') last at: 'type') equals: 'input_image'.
+	self assert: (((input at: 2) at: 'content') last at: 'image_url') size <= AgentImage maxURLSize
+!
+testImageTooLargeIsSentAgainWithoutIt
+	| conversation input |
+	self reply: '/codex/responses' with: {[:r | HTTPTestServer response: 400 body: self imageTooLargeBody]. self stream: self textStream}.
+	conversation := AgentConversation new provider: provider; yourself.
+	conversation ask: 'look' images: {AgentImage imagePart: 'data:image/png;base64,AQID'}; wait.
+	self assert: self responsesRequests size equals: 2.
+	self assert: conversation items last kind equals: #assistant.
+	input := self responsesRequests last json at: 'input'.
+	self assert: ((input at: 2) at: 'content') last equals: (JSON parse: '{"type":"input_text","text":"[image omitted: the model''s API refused it as too large]"}')
+! !
+
+!CodexProviderTest methodsFor: 'fixtures: images'!
+responsesRequests
+	^(server requests select: [:each | each path = '/codex/responses']) asArray
+!
+imageTooLargeBody
+	"A refusal in the Responses API's error shape naming the image (made up, not recorded)."
+	^'{"error":{"message":"Invalid ''input[1].content[1].image_url'': image exceeds the maximum size.","type":"invalid_request_error","param":"input[1].content[1].image_url","code":"invalid_value"}}'
+! !

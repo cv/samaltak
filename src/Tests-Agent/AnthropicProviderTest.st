@@ -516,3 +516,46 @@ testCancelWhileWaitingToRetry
 	self assert: outcome equals: 'Cancelled'.
 	self assert: self requests size equals: 1
 ! !
+
+!AnthropicProviderTest methodsFor: 'tests: images'!
+testLargeImageIsSentWithinBudget
+	"An image stored in the history as PNGWriter wrote it before it compressed (11 MB of base64) goes out encoded again."
+	| conversation image |
+	self reply: {self stream: self textStream}.
+	conversation := AgentConversation new provider: provider; yourself.
+	conversation add: (AgentItem user: 'Image shown from object o1' images: {AgentImage imagePart: self storedScreenURL}).
+	conversation ask: 'What is it?'; wait.
+	image := ((self requests first json at: 'messages') first at: 'content') detect: [:each | (each at: 'type') = 'image'].
+	self assert: ((image at: 'source') at: 'media_type') equals: 'image/png'.
+	self assert: ((image at: 'source') at: 'data') size + 22 <= AgentImage maxURLSize
+!
+testImageTooLargeIsSentAgainWithoutIt
+	| conversation |
+	self reply: {self status: 400 body: self imageTooLargeBody. self stream: self textStream}.
+	conversation := AgentConversation new provider: provider; yourself.
+	self assert: (conversation ask: 'look' images: {AgentImage imagePart: 'data:image/png;base64,AQID'}; wait) equals: 'Touché: 3 + 4 = 7.'.
+	self assert: self requests size equals: 2.
+	self assert: (((self requests first json at: 'messages') first at: 'content') last at: 'type') equals: 'image'.
+	self assert: ((self requests last json at: 'messages') first at: 'content') equals: (JSON parse: '[{"type":"text","text":"look"},{"type":"text","text":"[image omitted: the model''s API refused it as too large]","cache_control":{"type":"ephemeral"}}]')
+!
+testImageTooLargeTwiceIsAnError
+	| conversation |
+	self reply: {self status: 400 body: self imageTooLargeBody}.
+	conversation := AgentConversation new provider: provider; yourself.
+	conversation ask: 'look' images: {AgentImage imagePart: 'data:image/png;base64,AQID'}; wait.
+	self assert: self requests size equals: 2.
+	self assert: conversation items last kind equals: #error.
+	self assert: (conversation items last text includesSubstring: 'image exceeds')
+! !
+
+!AnthropicProviderTest methodsFor: 'fixtures: images'!
+imageTooLargeBody
+	"The refusal recorded through LiteLLM (azure/anthropic/claude-opus-5-5), its message index pointed at the first message's image."
+	^'{"error":{"message":"litellm.BadRequestError: Azure_aiException - {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"messages.0.content.1.image.source.base64: image exceeds 10 MB maximum: 11061572 bytes > 10485760 bytes\"}}","type":null,"param":null,"code":"400"}}'
+!
+storedScreenURL
+	"A 1920x1080 Form as a data URL of the PNG PNGWriter wrote before it compressed (stored deflate blocks)."
+	| form |
+	form := (Smalltalk at: #Form) width: 1920 height: 1080.
+	^'data:image/png;base64,', (Base64 encode: ((Smalltalk at: #PNGWriter) storedBytesFor: form asByteArray width: 1920 height: 1080))
+! !

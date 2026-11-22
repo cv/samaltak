@@ -139,4 +139,58 @@ croppedTo: aRectangle
 !Form methodsFor: 'converting'!
 pngBytes
 	^PNGWriter bytesForForm: self
+!
+pngBytesScaledToFit: maxEdge pixels: maxPixels
+	"PNG bytes of me, scaled down to at most maxEdge pixels on the longer side and maxPixels in area (scaledToFit:pixels:)."
+	^(self scaledToFit: maxEdge pixels: maxPixels) pngBytes
+! !
+
+!Form methodsFor: 'scaling'!
+scaledToFit: maxEdge pixels: maxPixels
+	"A copy of me scaled down (aspect kept, scaledTo:) so that my longer side is at most maxEdge pixels and my area at most maxPixels; myself when I fit already."
+	| scale |
+	(width max: height) <= maxEdge & (width * height <= maxPixels) ifTrue: [^self].
+	scale := (maxEdge / (width max: height)) asFloat min: (maxPixels / (width * height)) asFloat sqrt.
+	^self scaledTo: ((width * scale) floor max: 1) @ ((height * scale) floor max: 1)
+!
+scaledTo: anExtent
+	"A copy of me of anExtent, each new pixel the area-weighted average of the pixels it covers (a box filter: legible text when shrinking). Two passes, each scaling rows and transposing."
+	| once twice result |
+	once := self class boxScale: self asByteArray width: width height: height to: anExtent x.
+	twice := self class boxScale: once width: height height: anExtent x to: anExtent y.
+	result := Form extent: anExtent.
+	1 to: anExtent x * anExtent y do: [:i | result bits at: i put: (twice uint32At: i * 4 - 3)].
+	^result
+! !
+
+!Form class methodsFor: 'scaling'!
+boxScale: rgba width: w height: h to: newWidth
+	"Scale every row of an RGBA image w x h to newWidth pixels by area averaging (integer weights: a new pixel covers w units, each old one newWidth units); answer the result transposed (width h, height newWidth)."
+	| spans out half |
+	spans := (0 to: newWidth - 1) asArray collect: [:d | | lo hi first last |
+		lo := d * w.
+		hi := lo + w.
+		first := lo // newWidth.
+		last := hi - 1 // newWidth.
+		Array with: first with: ((first to: last) asArray collect: [:i | (hi min: i + 1 * newWidth) - (lo max: i * newWidth)])].
+	out := ByteArray new: rgba size // w * newWidth.
+	half := w // 2.
+	0 to: h - 1 do: [:y | | row |
+		row := y * w * 4.
+		1 to: newWidth do: [:x | | span s r g b a o |
+			span := spans at: x.
+			s := row + ((span at: 1) * 4).
+			r := g := b := a := 0.
+			(span at: 2) do: [:weight |
+				r := r + ((rgba at: s + 1) * weight).
+				g := g + ((rgba at: s + 2) * weight).
+				b := b + ((rgba at: s + 3) * weight).
+				a := a + ((rgba at: s + 4) * weight).
+				s := s + 4].
+			o := (x - 1 * h + y) * 4.
+			out at: o + 1 put: r + half // w.
+			out at: o + 2 put: g + half // w.
+			out at: o + 3 put: b + half // w.
+			out at: o + 4 put: a + half // w]].
+	^out
 ! !

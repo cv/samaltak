@@ -55,6 +55,22 @@ wire: anArray
 	wire := anArray
 ! !
 
+!AgentItem methodsFor: 'images'!
+mapImages: aBlock
+	"Replace each input_image part of my wire's messages by what aBlock answers for it; answer whether any changed."
+	| changed |
+	changed := false.
+	wire do: [:each | | content mapped |
+		content := (each isKindOf: Dictionary) ifTrue: [each at: 'content' ifAbsent: [nil]].
+		(content isKindOf: Array) ifTrue: [
+			mapped := content collect: [:part | (AgentImage isImage: part) ifTrue: [aBlock value: part] ifFalse: [part]].
+			(1 to: content size) do: [:i |
+				(mapped at: i) == (content at: i) ifFalse: [
+					each at: 'content' put: mapped.
+					changed := true]]]].
+	^changed
+! !
+
 !AgentItem methodsFor: 'tool calls'!
 call
 	"The tool call I stand for, or nil."

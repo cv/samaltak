@@ -3,7 +3,7 @@ GraphicsTestCase subclass: #PNGWriterTest
 	classVariableNames: ''
 	package: 'Tests-Graphics'!
 
-PNGWriterTest comment: 'I check the PNG encoder: checksums against known values, and a written file decoded by Python''s zlib (stdlib only) with every chunk CRC verified.'!
+PNGWriterTest comment: 'I check the PNG encoder: checksums against known values, and written files (a rendered scene; indexed, RGB and RGBA Forms) decoded by Python''s zlib (stdlib only, the filters undone in Python) with every chunk CRC verified. PNGCodecTest checks the encodings against PNGReader without a GPU.'!
 
 !PNGWriterTest methodsFor: 'tests'!
 testCRC32
@@ -33,6 +33,25 @@ testRoundTripThroughPython
 	status := self python: self decoderScript arguments: {path. '120'. '600'. '5,5,27,58,140,255'. '119,599,255,255,255,255'}.
 	self assert: status equals: 0
 !
+testCompressedFormsThroughPython
+	"Indexed (with a translucent color), RGB and RGBA Forms, written compressed, decoded by python3."
+	| indexed rgb rgba path |
+	indexed := Form width: 40 height: 30.
+	1 to: indexed bits size do: [:i | indexed bits at: i put: (#(16rFF0000FF 16rFFFFFFFF 16r80402010) at: i \\ 3 + 1)].
+	rgb := Form width: 300 height: 200.
+	rgba := Form width: 300 height: 200.
+	0 to: 199 do: [:y | 0 to: 299 do: [:x | | v |
+		v := (x \\ 256) + (y bitShift: 8) + (x * y \\ 256 bitShift: 16).
+		rgb bits at: y * 300 + x + 1 put: v + (255 bitShift: 24).
+		rgba bits at: y * 300 + x + 1 put: v + (x + y \\ 256 bitShift: 24)]].
+	path := self scratchPath: 'compressed.png'.
+	PNGWriter write: indexed to: path.
+	self assert: (self python: self decoderScript arguments: {path. '40'. '30'. '0,0,255,255,255,255'. '1,0,16,32,64,128'. '2,0,255,0,0,255'. '39,29,255,0,0,255'}) equals: 0.
+	PNGWriter write: rgb to: path.
+	self assert: (self python: self decoderScript arguments: {path. '300'. '200'. '0,0,0,0,0,255'. '299,199,43,199,109,255'. '17,5,17,5,85,255'}) equals: 0.
+	PNGWriter write: rgba to: path.
+	self assert: (self python: self decoderScript arguments: {path. '300'. '200'. '0,0,0,0,0,0'. '299,199,43,199,109,242'. '17,5,17,5,85,22'}) equals: 0
+!
 testCropForm
 	| form crop |
 	form := Form width: 4 height: 3.
@@ -59,22 +78,40 @@ decoderScript
 	^'import sys, zlib, struct
 d = open(sys.argv[1], "rb").read()
 assert d[:8] == b"\x89PNG\r\n\x1a\n"
-p = 8; idat = b""; w = h = None
+p = 8; idat = b""; w = h = None; plte = b""; trns = b""
 while p < len(d):
     n, = struct.unpack(">I", d[p:p+4]); t = d[p+4:p+8]; body = d[p+8:p+8+n]
     crc, = struct.unpack(">I", d[p+8+n:p+12+n])
     assert zlib.crc32(t + body) & 0xffffffff == crc, t
-    if t == b"IHDR": w, h, depth, ctype = struct.unpack(">IIBB", body[:10]); assert depth == 8 and ctype == 6
+    if t == b"IHDR": w, h, depth, ctype = struct.unpack(">IIBB", body[:10]); assert depth == 8 and ctype in (2, 3, 6)
+    if t == b"PLTE": plte = body
+    if t == b"tRNS": trns = body
     if t == b"IDAT": idat += body
     p += 12 + n
 assert (w, h) == (int(sys.argv[2]), int(sys.argv[3])), (w, h)
+n = {2: 3, 3: 1, 6: 4}[ctype]
 raw = zlib.decompress(idat)
-assert len(raw) == h * (1 + 4 * w)
+assert len(raw) == h * (1 + n * w)
+rows = []; prior = bytearray(n * w)
+for y in range(h):
+    f = raw[y * (1 + n * w)]; line = bytearray(raw[y * (1 + n * w) + 1:(y + 1) * (1 + n * w)])
+    for i in range(len(line)):
+        a = line[i - n] if i >= n else 0; b = prior[i]; c = prior[i - n] if i >= n else 0
+        if f == 1: line[i] = (line[i] + a) & 255
+        elif f == 2: line[i] = (line[i] + b) & 255
+        elif f == 3: line[i] = (line[i] + (a + b) // 2) & 255
+        elif f == 4:
+            q = a + b - c; pa, pb, pc = abs(q - a), abs(q - b), abs(q - c)
+            line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        else: assert f == 0, f
+    rows.append(line); prior = line
+def px(x, y):
+    o = rows[y][n * x:n * x + n]
+    if ctype == 3: i = o[0]; return tuple(plte[3 * i:3 * i + 3]) + ((trns[i] if i < len(trns) else 255),)
+    return tuple(o) + ((255,) if n == 3 else ())
 for spec in sys.argv[4:]:
     x, y, r, g, b, a = map(int, spec.split(","))
-    o = y * (1 + 4 * w) + 1 + 4 * x
-    assert raw[y * (1 + 4 * w)] == 0
-    assert tuple(raw[o:o+4]) == (r, g, b, a), (spec, tuple(raw[o:o+4]))
+    assert px(x, y) == (r, g, b, a), (spec, px(x, y))
 '
 !
 python: script arguments: anArray

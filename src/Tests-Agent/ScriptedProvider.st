@@ -3,7 +3,7 @@ Object subclass: #ScriptedProvider
 	classVariableNames: ''
 	package: 'Tests-Agent'!
 
-ScriptedProvider comment: 'I am a provider for AgentConversation tests: each send:tools:onText:onItem: replays the next response of my script (text deltas, then completed output items), fails with an AgentError, or blocks until cancel. I keep the input of every request.'!
+ScriptedProvider comment: 'I am a provider for AgentConversation tests: each send:tools:onText:onItem: replays the next response of my script (text deltas, then completed output items), fails with an AgentError, refuses the request''s images as too large (AgentImageRefused naming all of them), or blocks until cancel. I keep the input of every request.'!
 
 !ScriptedProvider methodsFor: 'initialization'!
 initialize
@@ -24,6 +24,10 @@ fail: aString
 block
 	"The next send waits until cancel, then fails."
 	script add: #block
+!
+refuseImages
+	"The next send fails as an API does for images too large."
+	script add: #refuseImages
 ! !
 
 !ScriptedProvider methodsFor: 'accessing'!
@@ -48,6 +52,7 @@ send: inputItems tools: toolSpecArray onText: textBlock onItem: itemBlock
 		cancelled := Semaphore new.
 		cancelled wait.
 		^AgentError signal: 'Cancelled'].
+	step == #refuseImages ifTrue: [^(AgentImageRefused new parts: (AgentImage imagesIn: inputItems)) signal: 'HTTP 400: image exceeds 5 MB maximum'].
 	step isString ifTrue: [^AgentError signal: step].
 	step first do: [:each | textBlock value: each].
 	step last do: [:each | itemBlock value: each].

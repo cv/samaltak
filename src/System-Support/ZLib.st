@@ -1,0 +1,511 @@
+Object subclass: #ZLib
+	instanceVariableNames: 'input output size bits bitCount position maxChain'
+	classVariableNames: 'CodeLengthOrder DistanceBase DistanceCodes DistanceExtra FixedDistanceLengths FixedLiteralLengths LengthBase LengthCodes LengthExtra'
+	package: 'System-Support'!
+
+ZLib comment: 'I compress and decompress zlib streams (RFC 1950) of deflate data (RFC 1951), in Smalltalk.
+
+	ZLib compress: aByteArray       "a zlib stream"
+	ZLib decompress: aByteArray     "the bytes again; an Error when the stream is corrupt"
+	ZLib deflate: aByteArray / ZLib inflate: aByteArray   "raw deflate data, without the zlib header and checksum"
+
+Compressing: LZ77 over a 32 KB window (hash chains on three bytes, greedy, at most maxChain candidates per position; positions inside a long match are not hashed), then each block of up to 65535 tokens (so that a block of literals fits one stored block) is written as dynamic Huffman (code lengths limited to 15 bits, 7 for the code-length code), fixed Huffman or stored, whichever is shortest. Decompressing reads all three block types (canonical Huffman decoding, one bit at a time). An instance is one coder: its input, its output and the bit buffer between them.'!
+
+!ZLib class methodsFor: 'compressing'!
+compress: bytes
+	"A zlib stream of bytes: header 78 9C, deflate data, Adler-32 (big-endian)."
+	| deflated out adler |
+	deflated := self deflate: bytes.
+	out := ByteArray new: deflated size + 6.
+	out at: 1 put: 16r78.
+	out at: 2 put: 16r9C.
+	out replaceFrom: 3 to: deflated size + 2 with: deflated startingAt: 1.
+	adler := self adler32Of: bytes.
+	0 to: 3 do: [:i | out at: deflated size + 3 + i put: ((adler bitShift: (3 - i) * -8) bitAnd: 255)].
+	^out
+!
+deflate: bytes
+	^self new deflate: bytes
+!
+decompress: bytes
+	"The bytes of a zlib stream; an Error if its header, data or checksum is wrong."
+	| coder result p adler |
+	bytes size < 6 ifTrue: [^self error: 'zlib stream too short'].
+	(((bytes at: 1) bitAnd: 15) = 8 and: [((bytes at: 1) * 256 + (bytes at: 2)) \\ 31 = 0]) ifFalse: [^self error: 'not a zlib stream'].
+	((bytes at: 2) bitAnd: 32) = 0 ifFalse: [^self error: 'zlib preset dictionaries are not supported'].
+	coder := self new.
+	result := coder inflate: bytes from: 3.
+	p := coder position.
+	p + 3 > bytes size ifTrue: [^self error: 'zlib stream without its checksum'].
+	adler := 0.
+	0 to: 3 do: [:i | adler := (adler bitShift: 8) + (bytes at: p + i)].
+	adler = (self adler32Of: result) ifFalse: [^self error: 'zlib checksum mismatch'].
+	^result
+!
+inflate: bytes
+	^self new inflate: bytes from: 1
+!
+adler32Of: bytes
+	"Sums are reduced modulo 65521 every 5552 bytes."
+	| a b i n stop |
+	a := 1.
+	b := 0.
+	i := 1.
+	n := bytes size.
+	[i <= n] whileTrue: [
+		stop := i + 5551 min: n.
+		i to: stop do: [:k |
+			a := a + (bytes at: k).
+			b := b + a].
+		a := a \\ 65521.
+		b := b \\ 65521.
+		i := stop + 1].
+	^(b bitShift: 16) + a
+! !
+
+!ZLib class methodsFor: 'tables'!
+tables
+	"Build the deflate tables once."
+	LengthCodes isNil ifFalse: [^self].
+	LengthBase := #(3 4 5 6 7 8 9 10 11 13 15 17 19 23 27 31 35 43 51 59 67 83 99 115 131 163 195 227 258).
+	LengthExtra := #(0 0 0 0 0 0 0 0 1 1 1 1 2 2 2 2 3 3 3 3 4 4 4 4 5 5 5 5 0).
+	DistanceBase := #(1 2 3 4 5 7 9 13 17 25 33 49 65 97 129 193 257 385 513 769 1025 1537 2049 3073 4097 6145 8193 12289 16385 24577).
+	DistanceExtra := #(0 0 0 0 1 1 2 2 3 3 4 4 5 5 6 6 7 7 8 8 9 9 10 10 11 11 12 12 13 13).
+	CodeLengthOrder := #(16 17 18 0 8 7 9 6 10 5 11 4 12 3 13 2 14 1 15).
+	FixedLiteralLengths := (1 to: 288) asArray collect: [:i |
+		i <= 144 ifTrue: [8] ifFalse: [i <= 256 ifTrue: [9] ifFalse: [i <= 280 ifTrue: [7] ifFalse: [8]]]].
+	FixedDistanceLengths := Array new: 30 withAll: 5.
+	DistanceCodes := ByteArray new: 32768.
+	0 to: 29 do: [:c | | base |
+		base := DistanceBase at: c + 1.
+		base to: (base + (1 bitShift: (DistanceExtra at: c + 1)) - 1 min: 32768) do: [:d | DistanceCodes at: d put: c]].
+	LengthCodes := ByteArray new: 258.
+	0 to: 28 do: [:c | | base |
+		base := LengthBase at: c + 1.
+		base to: (base + (1 bitShift: (LengthExtra at: c + 1)) - 1 min: 258) do: [:len | LengthCodes at: len put: c]]
+!
+lengthsFor: freqs limit: maxBits
+	"Huffman code lengths for the frequencies, none longer than maxBits (frequencies are flattened until they fit). At least two symbols get a code, so that every code is complete."
+	| f lengths |
+	f := freqs copy.
+	(f count: [:each | each > 0]) < 2 ifTrue: [
+		(f at: 1) = 0 ifTrue: [f at: 1 put: 1].
+		(f count: [:each | each > 0]) < 2 ifTrue: [f at: 2 put: 1]].
+	[lengths := self huffmanLengths: f.
+	 (lengths inject: 0 into: [:a :b | a max: b]) > maxBits] whileTrue: [
+		f := f collect: [:each | each = 0 ifTrue: [0] ifFalse: [each + 1 // 2]]].
+	^lengths
+!
+huffmanLengths: freqs
+	"Unlimited Huffman code lengths: merge the two lightest nodes until one is left; a leaf's length is its depth."
+	| used m weights parents active next a b lengths |
+	lengths := Array new: freqs size withAll: 0.
+	used := (1 to: freqs size) select: [:i | (freqs at: i) > 0].
+	m := used size.
+	weights := Array new: 2 * m.
+	parents := Array new: 2 * m withAll: 0.
+	1 to: m do: [:i | weights at: i put: (freqs at: (used at: i))].
+	active := (1 to: m) asOrderedCollection.
+	next := m.
+	[active size > 1] whileTrue: [
+		a := self removeLightest: active weights: weights.
+		b := self removeLightest: active weights: weights.
+		next := next + 1.
+		weights at: next put: (weights at: a) + (weights at: b).
+		parents at: a put: next.
+		parents at: b put: next.
+		active add: next].
+	1 to: m do: [:i | | depth node |
+		depth := 0.
+		node := i.
+		[(parents at: node) > 0] whileTrue: [depth := depth + 1. node := parents at: node].
+		lengths at: (used at: i) put: depth].
+	^lengths
+!
+removeLightest: nodes weights: weights
+	| best index |
+	index := 1.
+	best := weights at: nodes first.
+	2 to: nodes size do: [:i | (weights at: (nodes at: i)) < best ifTrue: [index := i. best := weights at: (nodes at: i)]].
+	^nodes removeIndex: index
+!
+codesFor: lengths
+	"Canonical Huffman codes for the lengths, bit-reversed (deflate sends them most significant bit first into a least significant first stream)."
+	| counts next code codes |
+	counts := Array new: 16 withAll: 0.
+	lengths do: [:each | each > 0 ifTrue: [counts at: each + 1 put: (counts at: each + 1) + 1]].
+	next := Array new: 16 withAll: 0.
+	code := 0.
+	1 to: 15 do: [:n |
+		code := code + (counts at: n) bitShift: 1.
+		next at: n + 1 put: code].
+	codes := Array new: lengths size withAll: 0.
+	1 to: lengths size do: [:i | | n |
+		n := lengths at: i.
+		n > 0 ifTrue: [
+			codes at: i put: (self reverse: (next at: n + 1) bits: n).
+			next at: n + 1 put: (next at: n + 1) + 1]].
+	^codes
+!
+reverse: anInteger bits: n
+	| r c |
+	r := 0.
+	c := anInteger.
+	n timesRepeat: [
+		r := (r bitShift: 1) bitOr: (c bitAnd: 1).
+		c := c bitShift: -1].
+	^r
+! !
+
+!ZLib methodsFor: 'initialization'!
+initialize
+	maxChain := 16.
+	bits := 0.
+	bitCount := 0.
+	size := 0
+!
+maxChain: anInteger
+	"How many earlier positions with the same hash are tried for each match (16 by default)."
+	maxChain := anInteger
+!
+position
+	"After inflating: the index of the first input byte after the deflate data."
+	^position
+! !
+
+!ZLib methodsFor: 'compressing'!
+deflate: bytes
+	"The raw deflate data of bytes."
+	| n head prev litLens distances count blockStart pos best bestDistance candidate chain limit length hash final |
+	self class tables.
+	input := bytes.
+	n := bytes size.
+	output := ByteArray new: n // 4 + 1024.
+	head := Array new: 32768 withAll: 0.
+	prev := Array new: 32768 withAll: 0.
+	litLens := Array new: 65535.
+	distances := Array new: 65535.
+	count := 0.
+	blockStart := 1.
+	final := false.
+	pos := 1.
+	[pos <= n] whileTrue: [
+		best := 0.
+		pos + 2 <= n ifTrue: [
+			hash := (((input at: pos) bitShift: 7) bitXor: (((input at: pos + 1) bitShift: 4) bitXor: (input at: pos + 2))) + 1.
+			candidate := head at: hash.
+			prev at: (pos bitAnd: 32767) + 1 put: candidate.
+			head at: hash put: pos.
+			limit := n - pos + 1 min: 258.
+			chain := maxChain.
+			[candidate > 0 and: [chain > 0 and: [pos - candidate < 32768]]] whileTrue: [
+				(input at: candidate + best) = (input at: pos + best) ifTrue: [
+					length := 0.
+					[length < limit and: [(input at: candidate + length) = (input at: pos + length)]] whileTrue: [length := length + 1].
+					length > best ifTrue: [
+						best := length.
+						bestDistance := pos - candidate.
+						best = limit ifTrue: [chain := 1]]].
+				candidate := prev at: (candidate bitAnd: 32767) + 1.
+				chain := chain - 1]].
+		count := count + 1.
+		best >= 3
+			ifTrue: [
+				litLens at: count put: 256 + best.
+				distances at: count put: bestDistance.
+				best <= 16 ifTrue: [
+					pos + 1 to: (pos + best - 1 min: n - 2) do: [:p |
+						hash := (((input at: p) bitShift: 7) bitXor: (((input at: p + 1) bitShift: 4) bitXor: (input at: p + 2))) + 1.
+						prev at: (p bitAnd: 32767) + 1 put: (head at: hash).
+						head at: hash put: p]].
+				pos := pos + best]
+			ifFalse: [
+				litLens at: count put: (input at: pos).
+				distances at: count put: 0.
+				pos := pos + 1].
+		count = litLens size ifTrue: [
+			final := pos > n.
+			self writeBlock: litLens distances: distances count: count from: blockStart to: pos - 1 final: final.
+			count := 0.
+			blockStart := pos]].
+	final ifFalse: [self writeBlock: litLens distances: distances count: count from: blockStart to: n final: true].
+	bitCount > 0 ifTrue: [self putByte: (bits bitAnd: 255)].
+	^output copyFrom: 1 to: size
+!
+writeBlock: litLens distances: distances count: count from: start to: stop final: final
+	"Write count tokens (input bytes start to stop) as the shortest of a dynamic, fixed or stored block."
+	| litFreq distFreq extraBits litLengths distLengths header dynamicBits fixedBits storedBits |
+	litFreq := Array new: 286 withAll: 0.
+	distFreq := Array new: 30 withAll: 0.
+	extraBits := 0.
+	1 to: count do: [:i | | v c d |
+		v := litLens at: i.
+		v < 256
+			ifTrue: [litFreq at: v + 1 put: (litFreq at: v + 1) + 1]
+			ifFalse: [
+				c := LengthCodes at: v - 256.
+				litFreq at: c + 258 put: (litFreq at: c + 258) + 1.
+				d := DistanceCodes at: (distances at: i).
+				distFreq at: d + 1 put: (distFreq at: d + 1) + 1.
+				extraBits := extraBits + (LengthExtra at: c + 1) + (DistanceExtra at: d + 1)]].
+	litFreq at: 257 put: 1.
+	litLengths := self class lengthsFor: litFreq limit: 15.
+	distLengths := self class lengthsFor: distFreq limit: 15.
+	header := self headerFor: litLengths distances: distLengths.
+	dynamicBits := 3 + (header at: 4) + (self cost: litFreq lengths: litLengths) + (self cost: distFreq lengths: distLengths) + extraBits.
+	fixedBits := 3 + (self cost: litFreq lengths: FixedLiteralLengths) + (self cost: distFreq lengths: FixedDistanceLengths) + extraBits.
+	storedBits := (stop - start + 1) * 8 + (40 * ((stop - start + 65535) // 65535 max: 1)).
+	(storedBits < dynamicBits and: [storedBits < fixedBits]) ifTrue: [^self writeStoredFrom: start to: stop final: final].
+	self writeBits: (final ifTrue: [1] ifFalse: [0]) count: 1.
+	fixedBits <= dynamicBits
+		ifTrue: [
+			self writeBits: 1 count: 2.
+			self writeTokens: litLens distances: distances count: count literals: FixedLiteralLengths distances: FixedDistanceLengths]
+		ifFalse: [
+			self writeBits: 2 count: 2.
+			self writeHeader: header.
+			self writeTokens: litLens distances: distances count: count literals: litLengths distances: distLengths]
+!
+cost: freqs lengths: lengths
+	| sum |
+	sum := 0.
+	1 to: freqs size do: [:i | sum := sum + ((freqs at: i) * (lengths at: i))].
+	^sum
+!
+headerFor: litLengths distances: distLengths
+	"{the code-length symbols (symbol, extra value). code-length code lengths. HCLEN. header bits after the block type} for a dynamic block."
+	| hlit hdist all symbols i freqs clLengths hclen headerBits |
+	hlit := 257.
+	257 to: 286 do: [:k | (litLengths at: k) > 0 ifTrue: [hlit := k]].
+	hdist := 1.
+	1 to: 30 do: [:k | (distLengths at: k) > 0 ifTrue: [hdist := k]].
+	all := (litLengths copyFrom: 1 to: hlit), (distLengths copyFrom: 1 to: hdist).
+	symbols := OrderedCollection new.
+	i := 1.
+	[i <= all size] whileTrue: [ | len run r k |
+		len := all at: i.
+		run := 1.
+		[i + run <= all size and: [(all at: i + run) = len]] whileTrue: [run := run + 1].
+		len = 0
+			ifTrue: [
+				r := run.
+				[r >= 11] whileTrue: [k := r min: 138. symbols add: 18; add: k - 11. r := r - k].
+				r >= 3 ifTrue: [symbols add: 17; add: r - 3. r := 0].
+				r timesRepeat: [symbols add: 0; add: 0]]
+			ifFalse: [
+				symbols add: len; add: 0.
+				r := run - 1.
+				[r >= 3] whileTrue: [k := r min: 6. symbols add: 16; add: k - 3. r := r - k].
+				r timesRepeat: [symbols add: len; add: 0]].
+		i := i + run].
+	freqs := Array new: 19 withAll: 0.
+	1 to: symbols size by: 2 do: [:k | freqs at: (symbols at: k) + 1 put: (freqs at: (symbols at: k) + 1) + 1].
+	clLengths := self class lengthsFor: freqs limit: 7.
+	hclen := 4.
+	1 to: 19 do: [:k | (clLengths at: (CodeLengthOrder at: k) + 1) > 0 ifTrue: [hclen := k max: 4]].
+	headerBits := 14 + (3 * hclen) + (self cost: freqs lengths: clLengths)
+		+ (2 * (freqs at: 17)) + (3 * (freqs at: 18)) + (7 * (freqs at: 19)).
+	^Array with: symbols with: clLengths with: (Array with: hlit with: hdist with: hclen) with: headerBits
+!
+writeHeader: header
+	| symbols clLengths counts codes |
+	symbols := header at: 1.
+	clLengths := header at: 2.
+	counts := header at: 3.
+	self writeBits: (counts at: 1) - 257 count: 5.
+	self writeBits: (counts at: 2) - 1 count: 5.
+	self writeBits: (counts at: 3) - 4 count: 4.
+	1 to: (counts at: 3) do: [:k | self writeBits: (clLengths at: (CodeLengthOrder at: k) + 1) count: 3].
+	codes := self class codesFor: clLengths.
+	1 to: symbols size by: 2 do: [:k | | s |
+		s := symbols at: k.
+		self writeBits: (codes at: s + 1) count: (clLengths at: s + 1).
+		s = 16 ifTrue: [self writeBits: (symbols at: k + 1) count: 2].
+		s = 17 ifTrue: [self writeBits: (symbols at: k + 1) count: 3].
+		s = 18 ifTrue: [self writeBits: (symbols at: k + 1) count: 7]]
+!
+writeTokens: litLens distances: distances count: count literals: litLengths distances: distLengths
+	| litCodes distCodes |
+	litCodes := self class codesFor: litLengths.
+	distCodes := self class codesFor: distLengths.
+	1 to: count do: [:i | | v len c e d dc |
+		v := litLens at: i.
+		v < 256
+			ifTrue: [self writeBits: (litCodes at: v + 1) count: (litLengths at: v + 1)]
+			ifFalse: [
+				len := v - 256.
+				c := LengthCodes at: len.
+				self writeBits: (litCodes at: c + 258) count: (litLengths at: c + 258).
+				e := LengthExtra at: c + 1.
+				e > 0 ifTrue: [self writeBits: len - (LengthBase at: c + 1) count: e].
+				d := distances at: i.
+				dc := DistanceCodes at: d.
+				self writeBits: (distCodes at: dc + 1) count: (distLengths at: dc + 1).
+				e := DistanceExtra at: dc + 1.
+				e > 0 ifTrue: [self writeBits: d - (DistanceBase at: dc + 1) count: e]]].
+	self writeBits: (litCodes at: 257) count: (litLengths at: 257)
+!
+writeStoredFrom: start to: stop final: final
+	"Stored blocks of at most 65535 bytes; only the last one of a final block is marked final."
+	| p n |
+	p := start.
+	[n := stop - p + 1 min: 65535.
+	 self writeBits: ((final and: [p + n > stop]) ifTrue: [1] ifFalse: [0]) count: 3.
+	 bitCount > 0 ifTrue: [self putByte: (bits bitAnd: 255)].
+	 bits := 0.
+	 bitCount := 0.
+	 self putByte: (n bitAnd: 255); putByte: (n bitShift: -8); putByte: ((n bitXor: 16rFFFF) bitAnd: 255); putByte: ((n bitXor: 16rFFFF) bitShift: -8).
+	 self ensure: n.
+	 output replaceFrom: size + 1 to: size + n with: input startingAt: p.
+	 size := size + n.
+	 p := p + n.
+	 p <= stop] whileTrue
+!
+writeBits: anInteger count: n
+	"Append the n low bits of anInteger, least significant first."
+	bits := bits bitOr: (anInteger bitShift: bitCount).
+	bitCount := bitCount + n.
+	[bitCount >= 8] whileTrue: [
+		self putByte: (bits bitAnd: 255).
+		bits := bits bitShift: -8.
+		bitCount := bitCount - 8]
+!
+putByte: aByte
+	size = output size ifTrue: [self ensure: 1].
+	size := size + 1.
+	output at: size put: aByte
+!
+ensure: n
+	"Room for n more output bytes."
+	| grown |
+	size + n <= output size ifTrue: [^self].
+	grown := ByteArray new: (output size * 2 max: size + n + 1024).
+	grown replaceFrom: 1 to: size with: output startingAt: 1.
+	output := grown
+! !
+
+!ZLib methodsFor: 'decompressing'!
+inflate: bytes from: start
+	"The bytes of the deflate data in bytes from index start; afterwards position is the index after it."
+	| final type |
+	self class tables.
+	input := bytes.
+	position := start.
+	bits := 0.
+	bitCount := 0.
+	size := 0.
+	output := ByteArray new: (bytes size * 4 max: 1024).
+	[final := self readBits: 1.
+	 type := self readBits: 2.
+	 type = 0 ifTrue: [self inflateStored].
+	 type = 1 ifTrue: [self inflateWith: (self decoderFor: FixedLiteralLengths) distances: (self decoderFor: FixedDistanceLengths)].
+	 type = 2 ifTrue: [self inflateDynamic].
+	 type = 3 ifTrue: [self error: 'invalid deflate block type'].
+	 final = 1] whileFalse.
+	^output copyFrom: 1 to: size
+!
+inflateStored
+	| n |
+	bits := 0.
+	bitCount := 0.
+	position + 3 > input size ifTrue: [^self error: 'deflate data ends early'].
+	n := (input at: position) + ((input at: position + 1) bitShift: 8).
+	(n bitXor: 16rFFFF) = ((input at: position + 2) + ((input at: position + 3) bitShift: 8)) ifFalse: [^self error: 'corrupt stored block length'].
+	position := position + 4.
+	position + n - 1 > input size ifTrue: [^self error: 'deflate data ends early'].
+	self ensure: n.
+	output replaceFrom: size + 1 to: size + n with: input startingAt: position.
+	size := size + n.
+	position := position + n
+!
+inflateDynamic
+	| hlit hdist hclen cl clDecoder lengths i |
+	hlit := (self readBits: 5) + 257.
+	hdist := (self readBits: 5) + 1.
+	hclen := (self readBits: 4) + 4.
+	cl := Array new: 19 withAll: 0.
+	1 to: hclen do: [:k | cl at: (CodeLengthOrder at: k) + 1 put: (self readBits: 3)].
+	clDecoder := self decoderFor: cl.
+	lengths := Array new: hlit + hdist withAll: 0.
+	i := 0.
+	[i < (hlit + hdist)] whileTrue: [ | sym value repeat |
+		sym := self decode: clDecoder.
+		sym < 16
+			ifTrue: [i := i + 1. lengths at: i put: sym]
+			ifFalse: [
+				sym = 16 ifTrue: [
+					i = 0 ifTrue: [^self error: 'invalid code length repeat'].
+					value := lengths at: i.
+					repeat := 3 + (self readBits: 2)].
+				sym = 17 ifTrue: [value := 0. repeat := 3 + (self readBits: 3)].
+				sym = 18 ifTrue: [value := 0. repeat := 11 + (self readBits: 7)].
+				i + repeat > (hlit + hdist) ifTrue: [^self error: 'too many code lengths'].
+				repeat timesRepeat: [i := i + 1. lengths at: i put: value]]].
+	self
+		inflateWith: (self decoderFor: (lengths copyFrom: 1 to: hlit))
+		distances: (self decoderFor: (lengths copyFrom: hlit + 1 to: hlit + hdist))
+!
+inflateWith: literals distances: distances
+	| sym len d from |
+	[sym := self decode: literals.
+	 sym = 256] whileFalse: [
+		sym < 256
+			ifTrue: [self putByte: sym]
+			ifFalse: [
+				sym := sym - 257.
+				sym >= 29 ifTrue: [^self error: 'invalid length code'].
+				len := (LengthBase at: sym + 1) + (self readBits: (LengthExtra at: sym + 1)).
+				sym := self decode: distances.
+				sym >= 30 ifTrue: [^self error: 'invalid distance code'].
+				d := (DistanceBase at: sym + 1) + (self readBits: (DistanceExtra at: sym + 1)).
+				d > size ifTrue: [^self error: 'distance too far back'].
+				self ensure: len.
+				from := size - d.
+				1 to: len do: [:k | output at: size + k put: (output at: from + k)].
+				size := size + len]]
+!
+decoderFor: lengths
+	"{counts of codes per length (index length + 1). symbols in canonical order}."
+	| counts offsets symbols |
+	counts := Array new: 16 withAll: 0.
+	lengths do: [:each | counts at: each + 1 put: (counts at: each + 1) + 1].
+	counts at: 1 put: 0.
+	offsets := Array new: 16 withAll: 0.
+	2 to: 15 do: [:n | offsets at: n + 1 put: (offsets at: n) + (counts at: n)].
+	symbols := Array new: lengths size withAll: 0.
+	1 to: lengths size do: [:i | | n |
+		n := lengths at: i.
+		n > 0 ifTrue: [
+			symbols at: (offsets at: n + 1) + 1 put: i - 1.
+			offsets at: n + 1 put: (offsets at: n + 1) + 1]].
+	^Array with: counts with: symbols
+!
+decode: aDecoder
+	"The next symbol: read one bit at a time until the code is one of aDecoder's."
+	| counts symbols code first index count |
+	counts := aDecoder at: 1.
+	symbols := aDecoder at: 2.
+	code := 0.
+	first := 0.
+	index := 0.
+	1 to: 15 do: [:len |
+		code := code bitOr: (self readBits: 1).
+		count := counts at: len + 1.
+		code - count < first ifTrue: [^symbols at: index + (code - first) + 1].
+		index := index + count.
+		first := first + count bitShift: 1.
+		code := code bitShift: 1].
+	^self error: 'invalid Huffman code'
+!
+readBits: n
+	| value |
+	[bitCount < n] whileTrue: [
+		position > input size ifTrue: [^self error: 'deflate data ends early'].
+		bits := bits bitOr: ((input at: position) bitShift: bitCount).
+		position := position + 1.
+		bitCount := bitCount + 8].
+	value := bits bitAnd: (1 bitShift: n) - 1.
+	bits := bits bitShift: n negated.
+	bitCount := bitCount - n.
+	^value
+! !

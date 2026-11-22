@@ -7,6 +7,8 @@ AgentConversation comment: 'I am a conversation with the coding agent (docs/agen
 
 	(AgentConversation new ask: ''how many classes are in UI-Widgets?'') wait
 
+Images (docs/agent.md, Images): what is sent stays within AgentImage''s limits. Before each request an image over the per-image budget is encoded again smaller, or replaced by a placeholder, in its item for good; images beyond the newest ten or 10 MB are sent as placeholders. When the API still refuses a request for an image''s or the request''s size (AgentImageRefused), the images it names become placeholders and the request is sent once more.
+
 ask: runs a turn in a Process of its own (''agent turn''): send the developer instructions and every item''s wire to the provider, show the streamed text, record the completed output items in order and run each tool call; while there were tool calls, send again. Any error ends the turn with an #error item. ask: while a turn runs is an error; I am busy (isBusy) from before the turn''s user message is among my items. stop ends a turn from another Process: the provider is cancelled, the turn''s Process and its running cell terminated, every tool call left without output answered ''error: stopped by the user'', so the next request is valid.
 
 The provider (provider:, else a default one: an AnthropicProvider while ApiKeyAccount default isConfigured, else a CodexProvider, chosen again when that changes) answers send:tools:onText:onItem: (blocking; the usage Dictionary or nil; AgentError on failure), cancel and modelName. My onChange: block is evaluated after every visible change: an item added, streaming text grown, a turn begun or ended.'!
@@ -188,7 +190,7 @@ ask: aString images: images
 	"Add a user message with image content and start a turn. I am busy before the message is there: another Process that sees it and sees me not busy sees a turn that is over."
 	| message |
 	self isBusy ifTrue: [^self error: 'The agent is busy: wait for it or stop it first'].
-	message := AgentItem user: aString images: images.
+	message := AgentItem user: aString images: (images collect: [:each | AgentImage fit: each]).
 	done := Semaphore new.
 	process := [self runTurn. self endTurn] newProcess.
 	process priority: Processor userSchedulingPriority; name: 'agent turn'.
@@ -217,29 +219,53 @@ accumulateUsage: answer
 
 !
 request
-	"Send everything so far, then record the response's items and run its tool calls; answer whether there were any."
-	| received called answer |
+	"Send everything so far, then record the response's items and run its tool calls; answer whether there were any. A refusal for images too large is answered by replacing them and sending once more."
+	| received called answer refused |
 	received := OrderedCollection new.
-	streaming := nil.
-	answer := self provider
-		send: self input
-		tools: (tools collect: [:each | each spec])
-		onText: [:delta | self grow: delta]
-		onItem: [:item | received add: item].
+	refused := false.
+	answer := [self send: received] on: AgentImageRefused do: [:e |
+		refused := true.
+		self omitImages: e parts.
+		e return: nil].
+	refused ifTrue: [
+		received := OrderedCollection new.
+		answer := self send: received].
 	answer ifNotNil: [self accumulateUsage: answer].
 	called := false.
 	received do: [:item | (self record: item) ifTrue: [called := true]].
 	^called
 !
+send: received
+	"One request to the provider; the completed output items go to received."
+	streaming := nil.
+	^self provider
+		send: self input
+		tools: (tools collect: [:each | each spec])
+		onText: [:delta | self grow: delta]
+		onItem: [:item | received add: item]
+!
+omitImages: parts
+	"Replace the image parts the API refused by placeholders, in their items for good."
+	| changed |
+	changed := false.
+	items do: [:each |
+		(each mapImages: [:part |
+			(parts anySatisfy: [:refused | refused == part])
+				ifTrue: [AgentImage omitted: 'the model''s API refused it as too large']
+				ifFalse: [part]]) ifTrue: [changed := true]].
+	changed ifTrue: [self changed]
+!
 input
-	"Snapshot initial instructions once. Never rewrite the prefix from live context."
+	"Snapshot initial instructions once. Never rewrite the prefix from live context. Images over budget are fitted in their items; the newest within AgentImage's limits are sent."
 	| input |
 	initialInstructions ifNil: [
 		initialInstructions := AgentItem message: 'developer' text: (AgentInstructions textFor: context)].
 	input := OrderedCollection new.
 	input add: initialInstructions.
-	items do: [:each | input addAll: each wire].
-	^input asArray
+	items do: [:each |
+		each mapImages: [:part | AgentImage fit: part].
+		input addAll: each wire].
+	^AgentImage limit: input asArray
 ! !
 
 !AgentConversation methodsFor: 'actions'!
