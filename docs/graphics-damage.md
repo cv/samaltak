@@ -32,6 +32,116 @@ server sends. Measured on the DGX Spark (GB10), November 2026.
   ≈ −90 % of the UEFI CPU spent presenting while typing or streaming; hosted, skipping undamaged frames removes 65–97 % of
   the presents in all but the streaming scenario; NV uploads drop from 8.1 MB to a few KB per frame.
 
+## Point 1 as built: before and after
+
+Point 1 is built (12dadfa, 3633337, be98070, c3b8faa). The sections after this one describe and measure the composition
+before it ("today" there means then); this one says what changed and measures the same nine scenarios again.
+
+| Stage | Now |
+| --- | --- |
+| Damage | A `DamageRegion` (Graphics-Canvas): device-pixel rectangles clipped to the target, merged when they overlap or lie within 16 px and their union wastes at most a quarter of itself (a typed word joins, a dragged window keeps its old and new rectangle), at most 8 (the cheapest pair merges), full past half the target. |
+| Where damage comes from | From the display lists, not from `View>>invalidate`: `DisplayListDiff` compares a new list with the one drawn (64-quad byte compares through the `stringCompare` primitive, `ByteArray>>compareBytes:`; equal prefix and suffix skipped; equal counts compared place by place) and damages the old and new bounds of the quads that differ, with their batch's move and clip. A `Form` changed in place damages its image and glyph quads (`Form>>contentVersion`); a `Surface` in a content list always damages its quads. Every vertex byte is now written (solid, pattern and line quads left some), so equal drawings in a reused buffer compare equal. About 55 µs for a 1,500-quad list with one change. |
+| Layer render | The surface is kept; a changed layer fills only the damage with its clear color and draws its lists scissored to it (`Renderer>>render:into:clear:commandBuffer:within:`, `fill:color:into:commandBuffer:`), pixel-identical to drawing everything. Whole after `markNeedsRender` (new pipeline), at a new size, on a new surface, with a clear color that is not opaque, or past half. `Layer>>lastDamage` says what it changed. |
+| Composite | The compositor notes each item it draws (desk, every window with its shadow and decorations, top bar, overlays, toasts, tooltip, curtain, pointer) and diffs it with the same item of the previous frame; a layer rendered in part adds its damage where it lands (1:1, a pixel around), else the window's bounds; items whose order changed damage both bounds. The composite list goes into two buffers in turn, so the previous frame's stays to compare. |
+| When to present | Only frames with damage (`Compositor>>presentedCount`; `frameCount` counts every frame composed, for `World>>waitForFrames:`). `World presentsContinuously: true` presents every tick again (measurements). The top bar's readout and sparkline refresh at most twice a second, and a frame made only for them is not counted in them, so they settle. |
+| DisplayWindow>>show:clear:damage: | The surface keeps the last frame; the damage is filled and rendered scissored. SDL_GPU's swapchain does not keep its images: the whole surface is blitted (on the GPU). A software GPU's back buffer does (`GPUSwapchain>>keepsContents`): only the rectangles are blitted and `GPUCommandBuffer>>presentDamage:` hands them to the present. |
+| NV | Composite and blit only the damage (raster kernels); `HostFramePresenter` uploads only the rectangles into the texture that holds the last frame. |
+| UEFI | SoftwareGPU renders and blits only the damage; `FirmwareScreen>>present:width:height:rects:` copies only the rectangles into the shadow copy and Blts each. |
+| Vertex buffer | The Renderer's vertex buffer is a ring (4 MB): uploads into ranges a submitted command buffer still reads raced on the GB10's Vulkan (whole frames hid it; kept pixels do not). |
+
+**Correctness.** `DamageCheck start` (UI-Windows) renders every frame drawn in part whole into a scratch surface and
+compares the pixels, likewise every layer rendered in part, and the presents: HostFramePresenter's texture and
+FirmwareScreen's shadow copy against the whole frame. `DamageCheck forcesFull: true` turns damage off (debugging).
+DamageCompositionTest (streamed text, dragging and raising, menus, toasts, closing) passes with no mismatch on SDL_GPU,
+`--gpu software` and `--gpu nv` (29–43 partial frames, as many presents, per test); the UEFI World (virtio-gpu, KVM)
+typing, dragging and printing: 126 frames, 45 layer renders, 126 presents, no mismatch. On the GB10's Vulkan driver
+under Xvfb the first readback of a texture can show what it held before the frame; DamageCheck reads a difference again
+before it counts it (`staleReadbacks`).
+
+**How measured.** The nine scenarios again (samaltak-ctl, session functions: Workspace and System Browser opened as
+before, hover over the browser's first 16 method items, the Agent's 150 deltas 30 ms apart from a ScriptedProvider);
+hosted on a private Xvfb, 1920x1080. *Before*, hosted: the image of origin/main 6002297 on the same VM. *Before*, UEFI:
+the same build with `DamageCheck forcesFull: true` (whole composite and present each frame, the same presenting
+policy), because the multi-CPU raster (2104b1d) changed the UEFI times since the tables below. Columns: frames presented
+and compositor ticks; µs of `DisplayWindow>>show:` a frame (composite, blit, present; on Xvfb mostly its present);
+present ms per second; KB a frame rendered into the composite, blitted, uploaded or Blt; µs a frame of `layer.render`.
+
+(a) Hosted, SDL_GPU:
+
+| scenario | frames/ticks | show µs/frame | present ms/s | composite KB/frame | blit KB/frame | layer.render µs/frame |
+| --- | --- | --- | --- | --- | --- | --- |
+| idle-caret | 185/185 → 53/186 | 3067 → 2937 | 183 → 50 | 8100 → 185 | 8100 → 8100 | 12 → 115 |
+| typing | 287/287 → 103/285 | 2511 → 2572 | 150 → 56 | 8100 → 143 | 8100 → 8100 | 35 → 206 |
+| idle-after | 65/65 → 11/66 | 2326 → 3440 | 137 → 34 | 8100 → 115 | 8100 → 8100 | 11 → 191 |
+| scroll-list | 64/64 → 29/76 | 2764 → 2763 | 161 → 62 | 8100 → 696 | 8100 → 8100 | 43 → 626 |
+| hover | 93/93 → 29/100 | 2927 → 2746 | 181 → 47 | 8100 → 343 | 8100 → 8100 | 36 → 442 |
+| drag-window | 84/84 → 88/91 | 2200 → 2707 | 132 → 159 | 8100 → 1328 | 8100 → 8100 | 18 → 84 |
+| agent-open | 100/100 → 22/104 | 2849 → 3482 | 168 → 45 | 8100 → 1162 | 8100 → 8100 | 26 → 327 |
+| agent-stream | 397/397 → 210/399 | 2555 → 4099 | 154 → 128 | 8100 → 170 | 8100 → 8100 | 32 → 265 |
+| idle-end | 126/126 → 18/128 | 2389 → 2759 | 143 → 24 | 8100 → 406 | 8100 → 8100 | 22 → 152 |
+
+(b) Hosted, `--gpu nv`:
+
+| scenario | frames/ticks | show µs/frame | present ms/s | composite KB/frame | blit KB/frame | host.upload KB/frame | layer.render µs/frame |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| idle-caret | 186/186 → 48/184 | 4066 → 2884 | 244 → 45 | 8100 → 154 | 8100 → 154 | 8100 → 154 | 33 → 187 |
+| typing | 286/286 → 95/283 | 4040 → 3083 | 241 → 62 | 8100 → 182 | 8100 → 182 | 8100 → 182 | 115 → 473 |
+| idle-after | 65/65 → 11/65 | 3714 → 3821 | 219 → 38 | 8100 → 113 | 8100 → 113 | 8100 → 113 | 28 → 217 |
+| scroll-list | 63/63 → 28/57 | 3845 → 3403 | 220 → 95 | 8100 → 227 | 8100 → 227 | 8100 → 227 | 136 → 694 |
+| hover | 91/91 → 30/92 | 4234 → 2993 | 257 → 60 | 8100 → 331 | 8100 → 331 | 8100 → 331 | 86 → 519 |
+| drag-window | 88/88 → 86/88 | 3816 → 3442 | 224 → 197 | 8100 → 1240 | 8100 → 1240 | 8100 → 1240 | 35 → 53 |
+| agent-open | 101/101 → 23/101 | 3966 → 3638 | 236 → 49 | 8100 → 957 | 8100 → 957 | 8100 → 957 | 87 → 380 |
+| agent-stream | 392/392 → 204/391 | 3958 → 3535 | 239 → 111 | 8100 → 163 | 8100 → 163 | 8100 → 163 | 147 → 332 |
+| idle-end | 125/125 → 17/124 | 4432 → 3036 | 264 → 25 | 8100 → 4 | 8100 → 4 | 8100 → 4 | 32 → 341 |
+
+Over the whole run: host.upload 529 → 35 ms, nv.wait 646 → 43 ms, host.blit (SDL acquire, blit, present to Xvfb)
+4,255 → 1,550 ms.
+
+(c) UEFI World, QEMU/KVM, virtio-gpu 1920x1080 (whole frames → damage, same build):
+
+| scenario | frames/ticks | show µs/frame | present ms/s | composite KB/frame | blit KB/frame | screen.blt KB/frame | layer.render µs/frame |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| idle-caret | 39/186 → 39/187 | 3219 → 524 | 40 → 7 | 8100 → 74 | 8100 → 74 | 8100 → 74 | 169 → 154 |
+| typing | 330/429 → 115/406 | 3111 → 640 | 145 → 11 | 8100 → 122 | 8100 → 122 | 8100 → 122 | 73 → 255 |
+| idle-after | 11/66 → 11/65 | 3339 → 544 | 33 → 5 | 8100 → 237 | 8100 → 237 | 8100 → 237 | 246 → 189 |
+| scroll-list | 478/1741 → 318/1966 | 3240 → 640 | 53 → 6 | 8100 → 184 | 8100 → 184 | 8100 → 184 | 143 → 222 |
+| hover | 257/1310 → 270/1656 | 3731 → 587 | 44 → 6 | 8100 → 180 | 8100 → 180 | 8100 → 180 | 217 → 209 |
+| drag-window | 122/253 → 116/258 | 3271 → 945 | 95 → 25 | 8100 → 946 | 8100 → 946 | 8100 → 946 | 74 → 72 |
+| agent-open | 24/101 → 23/103 | 3687 → 1172 | 52 → 16 | 8100 → 861 | 8100 → 861 | 8100 → 861 | 271 → 257 |
+| agent-stream | 262/627 → 243/627 | 3316 → 480 | 84 → 11 | 8100 → 162 | 8100 → 162 | 8100 → 162 | 230 → 195 |
+| idle-end | 21/126 → 18/125 | 3284 → 577 | 33 → 5 | 8100 → 279 | 8100 → 279 | 8100 → 279 | 311 → 194 |
+
+Over the whole run: composite.render 1,962 → 173 ms, composite.blit 616 → 42 ms, screen.shadow 545 → 20 ms, screen.blt
+1,725 → 466 ms. A damaged frame's Blts (up to 8 rectangles at ≈ 44 µs a call) are now most of its present.
+
+(d) QEMU's VNC server during (c), whole frames → damage (QEMU's CPU includes its vCPUs, now more than one):
+
+| scenario | s | updates/s | rects/update | changed px/update (% of screen) | KB/update | KB/s | QEMU CPU, % of a core |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| idle-caret | 3.1 → 3.1 | 9.5 → 8.4 | 1.8 → 1.8 | 434 → 434 (0.02 %) | 0.2 → 0.1 | 1 → 1 | 158 → 57 |
+| typing | 7.2 → 6.8 | 13.6 → 12.3 | 1.2 → 0.9 | 513 → 469 (0.02 %) | 0.1 → 0.1 | 2 → 1 | 270 → 53 |
+| idle-after | 1.1 → 1.1 | 6.2 → 6.4 | 0.3 → 1.1 | 91 → 505 (0.02 %) | 0.0 → 0.0 | 0 → 0 | 156 → 30 |
+| scroll-list | 24.6 → 26.2 | 8.1 → 7.4 | 1.1 → 0.5 | 429 → 208 (0.01 %) | 0.0 → 0.0 | 0 → 0 | 162 → 38 |
+| hover | 22.5 → 24.0 | 7.6 → 7.4 | 0.7 → 0.4 | 277 → 147 (0.01 %) | 0.0 → 0.0 | 0 → 0 | 138 → 28 |
+| drag-window | 4.2 → 6.4 | 13.9 → 11.8 | 34.6 → 21.4 | 238,003 → 185,923 (9 %) | 8.1 → 5.7 | 113 → 67 | 223 → 84 |
+| agent-open | 1.7 → 1.9 | 9.7 → 4.8 | 1.8 → 2.4 | 121,457 → 115,788 (5.6 %) | 3.5 → 4.5 | 34 → 21 | 166 → 26 |
+| agent-stream | 9.5 → 10.6 | 16.8 → 15.2 | 4.2 → 4.0 | 1,023 → 978 (0.05 %) | 0.5 → 0.5 | 8 → 7 | 249 → 43 |
+| idle-end | 2.1 → 2.1 | 8.0 → 4.7 | 0.5 → 0.4 | 139 → 115 (0.01 %) | 0.0 → 0.0 | 0 → 0 | 160 → 19 |
+
+**In short.** Hosted, 45–86 % fewer frames are presented in every scenario but dragging, and each renders 0.1–1.3 MB
+instead of 8.1 MB; the present path's CPU per second drops 2.5–6x (SDL_GPU) and 2–10x (NV, whose uploads shrink from
+8.1 MB to the damage). On UEFI a frame's present path costs 0.5–0.6 ms instead of 3.1–3.7 (drag 0.95, a window opening
+1.2), and QEMU's CPU drops 3–8x; the bytes on the wire hardly change (QEMU already sent only what changed). The price is
+CPU in `layer.render` hosted: 85–690 µs a frame instead of 10–150, the display list diffs in Smalltalk and drawing in
+pieces, where the GPU would have drawn the whole layer for less; on UEFI the two balance.
+
+**Left.** A primitive comparing byte ranges in place (the diff copies 64-quad chunks into scratch ByteArrays to compare
+them); damage from the views themselves (Window>>redraw knows which views drew anew) instead of diffing whole lists;
+culling the batches outside a damage rectangle on the CPU before encoding them once per rectangle; fewer, larger Blts on
+UEFI (merge to ≈ 4); subtracting opaque windows above a damaged one; SDL_GPU offers no partial present
+(VK_KHR_incremental_present), so its blit stays whole.
+
+
 ## What is damage-limited today, and what is not
 
 Read from UI-Windows (World, Compositor, Layer, Window, View), Graphics-Canvas (Canvas, DisplayList, Renderer,
