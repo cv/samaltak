@@ -70,10 +70,16 @@ kernelNamed: aString
 	shared notNil ifTrue: [kernel sharedSize: shared size].
 	bank0 := self section: '.nv.constant0.', aString.
 	bank0 notNil ifTrue: [kernel constantBanks at: 0 put: bank0 data].
-	sections do: [:s | | n |
-		((s name beginsWith: '.nv.constant') and: [(s name includes: $.) and: [(s name occurrencesOf: $.) = 2]]) ifTrue: [
-			n := (s name copyFrom: 13 to: s name size) asNumber.
-			(n notNil and: [n > 0]) ifTrue: [kernel constantBanks at: n put: s data]]].
+	"The other banks: .nv.constantN, the cubin's (__constant__ data, shared by its kernels), and .nv.constantN.<kernel>,
+	the kernel's own (constants the compiler placed there: a switch's jump table)."
+	sections do: [:s | | rest dot n |
+		(s name beginsWith: '.nv.constant') ifTrue: [
+			rest := s name copyFrom: 13 to: s name size.
+			dot := rest indexOf: $..
+			n := dot = 0
+				ifTrue: [rest asNumber]
+				ifFalse: [(rest copyFrom: dot + 1 to: rest size) = aString ifTrue: [(rest copyFrom: 1 to: dot - 1) asNumber]].
+			(n isInteger and: [n > 0]) ifTrue: [kernel constantBanks at: n put: s data]]].
 	relocs := OrderedCollection new.
 	#('.rela.text.' '.rel.text.') do: [:prefix | | r |
 		r := self section: prefix, aString.

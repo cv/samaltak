@@ -60,7 +60,8 @@ A submit copies the pushbuffer's words into the pushbuffer memory, writes the GP
 method header is `type << 28 | count << 16 | subchannel << 13 | method >> 2` (type 2: incrementing); subchannel 0 is
 the channel class, 1 compute. Fences: host semaphore release (`SEM_ADDR_LO` 16r5C .. `SEM_EXECUTE`: release, WFI,
 64-bit payload) then `NON_STALL_INTERRUPT`; waiting polls the 64-bit semaphore (5 s timeout, an error naming
-GPGet/GPPut). USERD GPGet (16r88) is not kept up to date on the GB10, so the channel drains (waits for a fence) before
+GPGet/GPPut; while the semaphore stands still for 20 µs it rings the doorbell again: a doorbell sometimes arrives before
+the GB10 sees the GPPut stored before it, `Machine barrier` being `dmb ish`; docs/nv-gpu.md). USERD GPGet (16r88) is not kept up to date on the GB10, so the channel drains (waits for a fence) before
 the ring could overflow, and before the pushbuffer wraps.
 
 ## Launching
@@ -73,8 +74,11 @@ Per kernel, on first launch: its code (plus 4 KB of slack: the GPU prefetches pa
 other than 0 (`__constant__` data: bank 3) are uploaded, and a QMD template and a constant bank 0 template made.
 
 Per launch (one of 64 slots of 4 KB, reused after their fence): QMD at the slot, constant bank 0 at slot + 16r200;
-pushbuffer `INVALIDATE_SHADER_CACHES_NO_WFI` (16r1698), `SEND_PCAS_A` (16r2B4, QMD address >> 8),
-`SEND_SIGNALING_PCAS2_B` (16r2C0, 9: prefetch and schedule), then a fence.
+pushbuffer `SEND_PCAS_A` (16r2B4, QMD address >> 8), `SEND_SIGNALING_PCAS2_B` (16r2C0, 9: prefetch and schedule),
+then a fence without the interrupt. The templates are copied and patched at offsets found once and the pushbuffer is
+made once (`launch:grid:block:parameters:`, `NvChannel>>submitBytes:fenceAt:`): about 1.2 µs of CPU and 3 µs of GPU a
+launch. `INVALIDATE_SHADER_CACHES_NO_WFI` (16r1698) goes out once, when a kernel's code is uploaded; the QMD invalidates
+constant bank 0.
 
 Constant bank 0 (sm_120/121; what the CUDA driver fills and nvcc's code reads): 16r16C shared memory size, 16r2F0
 shared window, 16r2F8 local window, 16r358 a 64-bit memory descriptor (0 works), 16r360/364/368 blockDim,
@@ -90,7 +94,7 @@ buffers (address >> 6, size, valid), cache invalidations.
 
 `NvCubin on: bytes` reads the ELF (docs/nv.md, Cubins for sm_121) into NvKernels: code, registers, frame and stack
 sizes, static shared memory, parameters (KPARAM_INFO), the parameter area in bank 0 (PARAM_CBANK), MAX_THREADS, exit
-offsets, bank 0 and the cubin's other constant banks, relocations (read; NvCompute refuses kernels that have any).
+offsets, bank 0, the kernel's own other banks (`.nv.constantN.<kernel>`) and the cubin's, relocations (read; NvCompute refuses kernels that have any).
 Test kernels: `tests/nv/test-kernels.cu` → `tools/nv-test-kernels.sh` (nvcc 13.0, `-cubin -arch=sm_121`) →
 `src/Tests-NV/NvTestKernels.st` (Base64), so building the image never needs nvcc. NvRm's parameter blocks follow
 docs/nv.md's Struct layouts; NvEncodingTest checks their offsets.

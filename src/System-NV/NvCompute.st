@@ -1,6 +1,6 @@
 Object subclass: #NvCompute
-	instanceVariableNames: 'channel device localMemory localPerTpc qmds slotFences nextSlot programs'
-	classVariableNames: ''
+	instanceVariableNames: 'channel device localMemory localPerTpc qmds slotFences nextSlot programs launchWords qmdWord payloadOffset'
+	classVariableNames: 'LaunchFields'
 	package: 'System-NV'!
 
 NvCompute comment: 'I launch compute kernels (NvKernel, from an NvCubin) on an NvChannel: I bind the compute class, give it local memory (the shader stack) and its shared and local memory windows, upload each kernel''s code and constant banks on its first launch, and launch a grid by a QMD (NvQmd, version 5 for Blackwell) with constant bank 0 after it, sent with SEND_PCAS_A.
@@ -12,7 +12,7 @@ NvCompute comment: 'I launch compute kernels (NvKernel, from an NvCubin) on an N
 		compute run: kernel grid: 4 block: 256 arguments: {a gpuAddress. 7. 1024}.
 		a uint32At: 4092]                                          "7"
 
-launch:grid:block:arguments: is asynchronous and answers the channel''s fence value for it (wait: it); run:... waits. grid and block are an Integer or 1 to 3 Integers; arguments are as NvKernel parameterBytes: takes them (GPU addresses and counts as Integers, Floats). Up to 64 launches are in flight; a 65th waits for the oldest. Constant bank 0 holds what the CUDA driver puts there and the kernel reads: the shared and local memory windows (16r2F0), the shared memory size (16r16C), blockDim (16r360), gridDim (16r370), the stack pointer (16r37C), then the parameters (16r380 on sm_120 and sm_121).
+launch:grid:block:arguments: is asynchronous and answers the channel''s fence value for it (wait: it); run:... waits; launch:grid:block:parameters: takes the parameter area as bytes (a struct by value). A launch copies the kernel''s QMD and constant bank 0 templates, patches the grid, the block, the bank''s address and the parameters into them at offsets found once, and submits a pushbuffer made once (its QMD address and fence value patched). grid and block are an Integer or 1 to 3 Integers; arguments are as NvKernel parameterBytes: takes them (GPU addresses and counts as Integers, Floats). Up to 64 launches are in flight; a 65th waits for the oldest. Constant bank 0 holds what the CUDA driver puts there and the kernel reads: the shared and local memory windows (16r2F0), the shared memory size (16r16C), blockDim (16r360), gridDim (16r370), the stack pointer (16r37C), then the parameters (16r380 on sm_120 and sm_121).
 
 close frees my memory and the channel (or leave it to NvDevice close).'!
 
@@ -35,7 +35,17 @@ channel: anNvChannel
 	pb method: 16r2A0 subchannel: 1 address: self class sharedWindow.
 	pb method: 16r790 subchannel: 1 address: localMemory gpuAddress.
 	pb method: 16r2E4 subchannel: 1 data: (Array with: (localPerTpc bitShift: -32) with: (localPerTpc bitAnd: 16rFFFFFFFF) with: 16rFF).
-	channel submitAndWait: pb]
+	channel submitAndWait: pb.
+	"A launch's pushbuffer: send the QMD (its address >> 8 at qmdWord), schedule it, then the fence (its payload at
+	payloadOffset; no interrupt: waits poll). The shader caches are invalidated when a kernel's code arrives
+	(programFor:), the QMD invalidates constant bank 0."
+	pb := NvPushBuffer new.
+	pb method: 16r2B4 subchannel: 1 value: 0.
+	qmdWord := pb size - 1 * 4 + 1.
+	pb method: 16r2C0 subchannel: 1 value: 9.
+	payloadOffset := pb size + 3 * 4.
+	pb semaphoreRelease: channel semaphoreAddress payload: 0.
+	launchWords := pb bytes copyFrom: 1 to: pb bytes size - 8]
 		ifCurtailed: [self close]
 ! !
 
@@ -60,7 +70,11 @@ wait: aFence
 !
 launch: aKernel grid: grid block: block arguments: values
 	"Queue a launch of aKernel; answer its fence value."
-	| g b program params cbuf slot qmdOffset q pb fence |
+	^self launch: aKernel grid: grid block: block parameters: (aKernel parameterBytes: values)
+!
+launch: aKernel grid: grid block: block parameters: params
+	"Queue a launch of aKernel with params as its parameter area (parameterBytes:'s bytes); answer its fence value."
+	| g b program cbuf slot qmdOffset q fence |
 	g := self triple: grid.
 	b := self triple: block.
 	(b inject: 1 into: [:p :x | p * x]) > (aKernel maxThreads ifNil: [1024])
@@ -69,7 +83,7 @@ launch: aKernel grid: grid block: block arguments: values
 		ifFalse: [^self error: 'bad grid ', g printString].
 	(aKernel relocations isEmpty) ifFalse: [^self error: aKernel name, ' has relocations, which I cannot apply'].
 	program := self programFor: aKernel.
-	params := aKernel parameterBytes: values.
+	params size > aKernel parameterSize ifTrue: [^self error: aKernel name, ' takes ', aKernel parameterSize printString, ' bytes of parameters'].
 	cbuf := (program at: 4) copy.
 	1 to: 3 do: [:i |
 		cbuf uint32At: 16r360 + (i * 4) - 3 put: (b at: i).
@@ -80,22 +94,28 @@ launch: aKernel grid: grid block: block arguments: values
 	channel wait: (slotFences at: slot + 1).
 	qmdOffset := slot * 16r1000.
 	q := NvQmd fromBytes: (program at: 3) copy.
-	q grid: g block: b.
-	q constantBuffer: 0 address: qmds gpuAddress + qmdOffset + 16r200 size: cbuf size.
+	self qmd: q grid: g block: b bank0: qmds gpuAddress + qmdOffset + 16r200.
 	qmds bytesAt: qmdOffset put: q bytes.
 	qmds bytesAt: qmdOffset + 16r200 put: cbuf.
-	pb := NvPushBuffer new.
-	pb method: 16r1698 subchannel: 1 value: 16r1011.
-	pb method: 16r2B4 subchannel: 1 value: (qmds gpuAddress + qmdOffset bitShift: -8).
-	pb method: 16r2C0 subchannel: 1 value: 9.
-	fence := channel submitWithFence: pb.
+	launchWords uint32At: qmdWord put: (qmds gpuAddress + qmdOffset bitShift: -8).
+	fence := channel submitBytes: launchWords fenceAt: payloadOffset.
 	slotFences at: slot + 1 put: fence.
 	^fence
+!
+qmd: q grid: g block: b bank0: address
+	"Patch a QMD template (its constant bank 0 size and valid bit set already) for a launch."
+	| f |
+	f := self class launchFields.
+	1 to: 3 do: [:i |
+		q bitsFrom: ((f at: i) at: 2) to: ((f at: i) at: 1) put: (g at: i).
+		q bitsFrom: ((f at: i + 3) at: 2) to: ((f at: i + 3) at: 1) put: (b at: i)].
+	q bitsFrom: ((f at: 7) at: 2) to: ((f at: 7) at: 1) put: ((address bitShift: -6) bitAnd: 16rFFFFFFFF).
+	q bitsFrom: ((f at: 8) at: 2) to: ((f at: 8) at: 1) put: (address bitShift: -38)
 !
 programFor: aKernel
 	"(code memory, bank index -> memory, QMD template, constant bank 0 template) of aKernel, made on first use; a
 	launch copies the templates and fills in its grid, block, parameters and constant bank 0 address."
-	^programs at: aKernel ifAbsentPut: [| code banks shared bank0 cbuf smemConfig q |
+	^programs at: aKernel ifAbsentPut: [| code banks shared bank0 cbuf smemConfig q pb |
 		code := device allocate: aKernel code size + 16r1000.
 		code bytesAt: 0 put: aKernel code.
 		banks := Dictionary new.
@@ -128,7 +148,11 @@ programFor: aKernel
 			at: 'shader_local_memory_high_size_shifted4' put: 16r240 // 16;
 			at: 'program_prefetch_size' put: (aKernel code size // 256 min: 16r1FF);
 			at: 'constant_buffer_invalidate_0' put: 1.
+		pb := NvPushBuffer new.
+		pb method: 16r1698 subchannel: 1 value: 16r1011.
+		channel submit: pb.
 		q programAddress: code gpuAddress.
+		q at: 'constant_buffer_size_shifted4_0' put: cbuf size; at: 'constant_buffer_valid_0' put: 1.
 		banks keysAndValuesDo: [:index :memory |
 			q constantBuffer: index address: memory gpuAddress size: (aKernel constantBanks at: index) size].
 		Array with: code with: banks with: q bytes with: cbuf]
@@ -157,6 +181,10 @@ close
 ! !
 
 !NvCompute class methodsFor: 'constants'!
+launchFields
+	"(hi lo) of the QMD fields a launch sets: grid (3), block (3), constant bank 0's address (lower, upper)."
+	^LaunchFields ifNil: [LaunchFields := #('grid_width' 'grid_height' 'grid_depth' 'cta_thread_dimension0' 'cta_thread_dimension1' 'cta_thread_dimension2' 'constant_buffer_addr_lower_shifted6_0' 'constant_buffer_addr_upper_shifted6_0') collect: [:n | NvQmd field: n]]
+!
 sharedWindow
 	"Where shared memory appears in a kernel''s generic address space (as tinygrad places it)."
 	^16r729400000000
