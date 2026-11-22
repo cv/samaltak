@@ -570,6 +570,18 @@ testClearAndAFence
 	gpu release: f.
 	self failure: [gpu fenceDone: f] is: 'bad fence handle ' , f printString
 !
+testFirmwareBltsMerge
+	"FirmwareScreen merges a frame's damaged rectangles into at most four Blts: near ones always, far ones by least waste."
+	| near far merged |
+	near := FirmwareScreen mergeBlts: {10 @ 10 extent: 20 @ 16. 40 @ 10 extent: 20 @ 16}.
+	self assert: near size equals: 1.
+	self assert: near first equals: (10 @ 10 corner: 60 @ 26).
+	far := (0 to: 5) collect: [:i | (i * 300) @ (i * 150) extent: 20 @ 20].
+	merged := FirmwareScreen mergeBlts: far.
+	self assert: merged size equals: 4.
+	far do: [:r | self assert: (merged anySatisfy: [:m | m containsRect: r])].
+	self assert: (FirmwareScreen mergeBlts: {0 @ 0 extent: 10 @ 10. 1000 @ 900 extent: 10 @ 10}) size equals: 2
+!
 testPresentDamageKeepsTheBackBuffer
 	"The back buffer keeps the last frame: a frame that blits and presents only its damage hands the display those rectangles."
 	| cmd sw tex |

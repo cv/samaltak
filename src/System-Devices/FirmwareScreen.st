@@ -83,7 +83,7 @@ present: pixels width: w height: h
 		self drawCursor]
 !
 present: pixels width: w height: h rects: anArray
-	"Only the rectangles anArray ({x. y. width. height} pixels) of the frame at pixels changed since the last one presented: copy them into the shadow copy and onto the screen, the pointer again over them where it was."
+	"Only the rectangles anArray ({x. y. width. height} pixels) of the frame at pixels changed since the last one presented: copy them into the shadow copy and onto the screen, the pointer again over them where it was. They go as a few Blts (mergeBlts:): the frame at pixels is whole, so a merged rectangle copies pixels that did not change, which is cheaper than another call."
 	| s t area rects |
 	width isNil ifTrue: [^self].
 	s := StageTimes current.
@@ -93,13 +93,14 @@ present: pixels width: w height: h rects: anArray
 		rects := OrderedCollection new.
 		anArray do: [:each | | r |
 			r := ((each at: 1) @ (each at: 2) extent: (each at: 3) @ (each at: 4)) intersect: (0 @ 0 extent: (w min: width) @ (h min: height)).
-			(r width > 0 and: [r height > 0]) ifTrue: [
+			(r width > 0 and: [r height > 0]) ifTrue: [rects add: r]].
+		rects := self class mergeBlts: rects.
+		rects do: [:r |
 				SoftwareRaster
 					copy: shadow + ((r top * width + r left) * 4) stride: width * 4
 					from: pixels + ((r top * w + r left) * 4) stride: w * 4
 					width: r width height: r height bytesPerPixel: 4 mode: 0.
-				area := area + r area.
-				rects add: r]].
+				area := area + r area].
 		s isNil ifFalse: [t := s add: #'screen.shadow' since: t bytes: area * 4].
 		rects do: [:r | self copyToScreen: r].
 		s isNil ifFalse: [s add: #'screen.blt' since: t bytes: area * 4].
@@ -174,4 +175,23 @@ initialize
 !FirmwareScreen class methodsFor: 'instance creation'!
 firmware: aFirmware
 	^self new setFirmware: aFirmware
+! !
+!FirmwareScreen class methodsFor: 'damage'!
+mergeBlts: rects
+	"rects (pixel Rectangles that do not overlap much) as at most four, merged by the waste of their union: a Blt costs about 44 µs a call and 0.6 ns a pixel under QEMU (docs/graphics-damage.md), so two rectangles whose union adds fewer than 40,000 pixels go as one anyway, and beyond four the pair that wastes least merges."
+	| result |
+	result := rects asOrderedCollection.
+	[result size > 1] whileTrue: [| best bestWaste i j |
+		1 to: result size - 1 do: [:a |
+			a + 1 to: result size do: [:b | | ra rb waste ow oh |
+				ra := result at: a.
+				rb := result at: b.
+				ow := (ra right min: rb right) - (ra left max: rb left).
+				oh := (ra bottom min: rb bottom) - (ra top max: rb top).
+				waste := (ra merge: rb) area - ra area - rb area + ((ow > 0 and: [oh > 0]) ifTrue: [ow * oh] ifFalse: [0]).
+				(bestWaste isNil or: [waste < bestWaste]) ifTrue: [bestWaste := waste. i := a. j := b]]].
+		(result size > 4 or: [bestWaste < 40000]) ifFalse: [^result].
+		result at: i put: ((result at: i) merge: (result at: j)).
+		result removeIndex: j].
+	^result
 ! !
