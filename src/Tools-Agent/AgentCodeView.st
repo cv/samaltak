@@ -95,6 +95,8 @@ drawResultAt: aPoint on: aCanvas
 		y := y + font lineHeight]
 !
 title
-	"The header: the tool that ran me."
-	^item kind == #tests ifTrue: ['Run-tests'] ifFalse: ['Code-mode']
+	"The header: the tool that ran me, and what replaced me in the context."
+	| title |
+	title := item kind == #tests ifTrue: ['Run-tests'] ifFalse: ['Code-mode'].
+	^item isEdited ifTrue: [title, ' · ', item edit] ifFalse: [title]
 ! !

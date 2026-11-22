@@ -515,6 +515,14 @@ testCancelWhileWaitingToRetry
 	self assert: (self waitFor: [outcome notNil]).
 	self assert: outcome equals: 'Cancelled'.
 	self assert: self requests size equals: 1
+!
+testSummaryJoinsTheAssistantMessageAfterIt
+	"A summary the agent wrote (no response id) and the next response's blocks make one assistant message: roles still alternate."
+	| next messages |
+	next := (AgentItem assistant: 'Then this.') at: 'response' put: 'msg_2'; yourself.
+	messages := (provider bodyFor: {AgentItem message: 'user' text: 'Go'. AgentItem assistant: '[Summary] Did that.'. next} tools: #()) at: 'messages'.
+	self assert: (messages collect: [:each | each at: 'role']) equals: #('user' 'assistant').
+	self assert: (((messages last at: 'content') collect: [:each | each at: 'text']) first: 2) equals: #('[Summary] Did that.' 'Then this.')
 ! !
 
 !AnthropicProviderTest methodsFor: 'tests: images'!

@@ -404,6 +404,118 @@ testRunTestsReportsFailuresAndErrors
 	self assert: ((tool output: result id: 'o3' timedOut: true) lines first endsWith: '(stopped after 300 s; the rest did not run)').
 	tool limit: 20.
 	self assert: ((tool output: result id: 'o3' timedOut: false) endsWith: 'characters in all; o3 failures and o3 errors hold every one]')
+!
+testThisConversationIsBound
+	provider reply: (Array with: (self code: 'thisConversation items size' call: 'c1')).
+	provider reply: (Array with: (self code: 'thisConversation outline' call: 'c2')).
+	provider reply: (Array with: (self message: 'ok')).
+	conversation ask: 'how big?'; wait.
+	self assert: (conversation items at: 2) result equals: 'o1 2'.
+	self assert: ((conversation items at: 3) object lines first beginsWith: '1 user ~').
+	self assert: ((conversation items at: 3) object includesSubstring: '2 code ~')
+!
+testElideAppliesWhenTheTurnEnds
+	| item output |
+	provider reply: (Array with: (self code: '(1 to: 300) asArray' call: 'c1')).
+	provider reply: (Array with: (self message: 'Counted.')).
+	conversation ask: 'count'; wait.
+	provider reply: (Array with: (self code: 'thisConversation elide: 2 reason: ''long list''' call: 'c2')).
+	provider reply: (Array with: (self message: 'Elided.')).
+	conversation ask: 'tidy up'; wait.
+	item := conversation items at: 2.
+	"Staged during the turn: its last request still had the original."
+	self assert: (((provider requests last at: 4) at: 'output') beginsWith: 'o1 #(1 2 3').
+	self assert: ((conversation items at: 5) result includesSubstring: 'staged').
+	self assert: item isEdited.
+	self assert: item edit equals: 'elided'.
+	self assert: (item result beginsWith: 'o1 #(1 2 3').
+	self assert: (item original at: 2) ~~ (item wire at: 2).
+	self assert: (item wire first at: 'input') equals: '"elided: the source is (thisConversation items at: 2) text"'.
+	output := (item wire at: 2) at: 'output'.
+	self assert: (output beginsWith: '[elided (long list) · ~').
+	self assert: (output endsWith: 'the output was (thisConversation items at: 2) result; o1 is still bound]').
+	provider reply: (Array with: (self message: 'Hi.')).
+	conversation ask: 'next'; wait.
+	self assert: ((provider requests last at: 4) at: 'output') equals: output.
+	self assert: (conversation objectAt: 'o1') size equals: 300.
+	item restore.
+	self deny: item isEdited.
+	self assert: (((item wire at: 2) at: 'output') beginsWith: 'o1 #(1 2 3')
+!
+testApplyNowAppliesBeforeTheNextRequest
+	provider reply: (Array with: (self code: '(1 to: 300) asArray' call: 'c1')).
+	provider reply: (Array with: (self code: 'thisConversation elide: #(2) reason: nil. thisConversation applyNow' call: 'c2')).
+	provider reply: (Array with: (self message: 'Done.')).
+	conversation ask: 'count, then tidy up'; wait.
+	self assert: (((provider requests last at: 4) at: 'output') beginsWith: '[elided · ~')
+!
+testElideRefusesWhatItCannotElide
+	provider reply: (Array with: (self code: 'thisConversation elide: 2 reason: nil' call: 'c1')).
+	provider reply: (Array with: (self message: 'ok')).
+	conversation ask: 'elide yourself'; wait.
+	self assert: ((conversation items at: 2) result includesSubstring: 'belongs to the response being run').
+	self should: [conversation elide: 1 reason: nil] raise: Error.
+	self should: [conversation elide: 3 reason: nil] raise: Error.
+	self should: [conversation elide: 9 reason: nil] raise: Error.
+	self deny: (conversation items anySatisfy: [:each | each isEdited])
+!
+testSummarizeReplacesAFinishedTurn
+	| input receipt |
+	provider reply: (Array with: (self code: '(1 to: 300) asArray' call: 'c1')).
+	provider reply: (Array with: (self code: '(301 to: 600) asArray' call: 'c2')).
+	provider reply: (Array with: (self message: 'Two lists.')).
+	conversation ask: 'make lists'; wait.
+	self should: [conversation summarize: 1 to: 4 as: 'x'] raise: Error.
+	self should: [conversation summarize: 2 to: 3 as: (String new: 20000 withAll: $x)] raise: Error.
+	receipt := conversation summarize: 2 to: 4 as: 'Made two lists: o1 and o2.'.
+	self assert: (receipt beginsWith: 'summarize items 2 to 4: ~').
+	self assert: (receipt endsWith: 'tokens, applied').
+	self assert: (conversation items at: 2) edit equals: 'summary of 2–4'.
+	self assert: ((conversation items at: 3) edit) equals: 'summarized'.
+	self assert: (conversation items at: 3) wire isEmpty.
+	self assert: (conversation items at: 4) wire isEmpty.
+	input := conversation input.
+	self assert: (input collect: [:each | each at: 'type']) equals: #('message' 'message' 'message').
+	self assert: ((input at: 3) at: 'role') equals: 'assistant'.
+	self assert: ((AgentItem textOf: (input at: 3)) endsWith: 'Made two lists: o1 and o2.').
+	self assert: (conversation items at: 4) text equals: 'Two lists.'
+!
+testNotes
+	| first second |
+	self assert: (conversation note: #plan put: 'step 1') equals: 'note plan: added'.
+	first := conversation items last.
+	self assert: first kind equals: #note.
+	self assert: conversation notes equals: (Dictionary new at: 'plan' put: 'step 1'; yourself).
+	conversation note: #plan put: 'step 2'.
+	second := conversation items last.
+	self assert: first edit equals: 'superseded'.
+	self deny: first wire isEmpty.
+	self assert: (((second wire first at: 'content') first at: 'text') beginsWith: '<note key="plan" version="2" replaces="earlier">').
+	self assert: conversation notes equals: (Dictionary new at: 'plan' put: 'step 2'; yourself).
+	conversation dropNotes: true.
+	self assert: first wire isEmpty.
+	self deny: second wire isEmpty.
+	conversation note: #plan put: nil.
+	self assert: conversation notes isEmpty.
+	conversation dropNotes: true.
+	self assert: (conversation items allSatisfy: [:each | each wire isEmpty]).
+	self should: [conversation note: 'no spaces' put: 'x'] raise: Error
+!
+testPressureNotice
+	conversation contextWindow: 150.
+	provider reply: (Array with: (self message: 'One.')).
+	conversation ask: 'one'; wait.
+	self assert: (conversation items collect: [:each | each kind]) asArray equals: #(#user #assistant #notice).
+	self assert: (conversation items last text beginsWith: 'Context: 66% of the 0K-token window (100 tokens).').
+	self assert: conversation lastText equals: 'One.'.
+	provider reply: (Array with: (self message: 'Two.')).
+	conversation ask: 'two'; wait.
+	self assert: (conversation items count: [:each | each kind == #notice]) equals: 1.
+	conversation contextWindow: 120.
+	provider reply: (Array with: (self message: 'Three.')).
+	conversation ask: 'three'; wait.
+	self assert: (conversation items last text beginsWith: 'Context: 83%').
+	self assert: (((provider requests last) last at: 'role') = 'user')
 ! !
 
 !AgentConversationTest methodsFor: 'tests - contexts'!
