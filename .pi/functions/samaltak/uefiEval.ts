@@ -79,6 +79,7 @@ async function uefiEval(
   // $1 UEFI_ARGS, $2 timeout, $3 OUT, $4 UEFI_DISKS, then more make variables
   const script = `A=$1; T=$2; O=$3; K=$4; shift 4
 arch=$(uname -m); case $arch in x86_64|amd64) arch=x86_64;; *) arch=arm64;; esac
+for v in "$@"; do case $v in UEFI_ARCH=*) arch=\${v#UEFI_ARCH=};; esac; done
 dir="$O/uefi-$arch"; log=$(mktemp)
 mine() { for p in $(pgrep -f "fat:rw:$dir/esp" 2>/dev/null); do case "$(cat /proc/$p/comm 2>/dev/null)" in qemu-system*) [ "$(readlink /proc/$p/cwd)" = "$PWD" ] && echo $p;; esac; done; }
 before=$(mine)
