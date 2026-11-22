@@ -1,5 +1,5 @@
 Object subclass: #ZLib
-	instanceVariableNames: 'input output size bits bitCount position maxChain'
+	instanceVariableNames: 'input output size bits bitCount position maxChain head prev litLens distances adler'
 	classVariableNames: 'CodeLengthOrder DistanceBase DistanceCodes DistanceExtra FixedDistanceLengths FixedLiteralLengths LengthBase LengthCodes LengthExtra'
 	package: 'System-Support'!
 
@@ -9,7 +9,13 @@ ZLib comment: 'I compress and decompress zlib streams (RFC 1950) of deflate data
 	ZLib decompress: aByteArray     "the bytes again; an Error when the stream is corrupt"
 	ZLib deflate: aByteArray / ZLib inflate: aByteArray   "raw deflate data, without the zlib header and checksum"
 
-Compressing: LZ77 over a 32 KB window (hash chains on three bytes, greedy, at most maxChain candidates per position; positions inside a long match are not hashed; the VM''s primitive finds the matches, ZLib>>matchesFrom:head:prev:literals:distances:), then each block of up to 65535 tokens (so that a block of literals fits one stored block) is written as dynamic Huffman (code lengths limited to 15 bits, 7 for the code-length code), fixed Huffman or stored, whichever is shortest. Decompressing reads all three block types (canonical Huffman decoding, one bit at a time). An instance is one coder: its input, its output and the bit buffer between them.'!
+Compressing: LZ77 over a 32 KB window (hash chains on three bytes, greedy, at most maxChain candidates per position; positions inside a long match are not hashed; the VM''s primitive finds the matches, ZLib>>matchesFrom:head:prev:literals:distances:), then each block of up to 65535 tokens (so that a block of literals fits one stored block) is written as dynamic Huffman (code lengths limited to 15 bits, 7 for the code-length code), fixed Huffman or stored, whichever is shortest. Decompressing reads all three block types (canonical Huffman decoding, one bit at a time). An instance is one coder: its input, its output and the bit buffer between them.
+
+An instance is also one stream over many calls (an RFB connection''s ZRLE stream, which the viewer inflates as it comes): deflate:final: answers the next piece of raw deflate data, compress:final: of a zlib stream (its header before the first piece, its Adler-32 after the final one). A piece that is not final ends with a sync flush (an empty stored block: 00 00 FF FF), so it is byte-aligned and a reader can inflate all of it before the next arrives; matches reach back into the bytes of earlier calls (the 32 KB window and the hash chains are kept).
+
+	| z |
+	z := ZLib new.
+	(z compress: first final: false), (z compress: second final: false), (z compress: #[] final: true)   "one zlib stream"'!
 
 !ZLib class methodsFor: 'compressing'!
 compress: bytes
@@ -67,6 +73,17 @@ primMatches: input from: start head: head prev: prev literals: litLens distances
 	"ZLib>>matchesFrom:head:prev:literals:distances: in the VM; nil if it cannot (an older VM, maxChain beyond 1 to 4096)."
 	<primitive: 'zlibMatches'>
 	^nil
+!
+adler32: a1 then: a2 length: n
+	"The Adler-32 of two byte sequences one after the other, from the first's (a1), the second's (a2) and the second's size n."
+	| s1 s2 |
+	s1 := (a1 bitAnd: 65535) + (a2 bitAnd: 65535) - 1 \\ 65521.
+	s2 := (a1 bitShift: -16) + (a2 bitShift: -16) + (n \\ 65521 * ((a1 bitAnd: 65535) - 1)) \\ 65521.
+	^(s2 bitShift: 16) + s1
+!
+historyLimit
+	"The most bytes a stream keeps of its earlier pieces and the next together before it drops all but the window (deflate:final:): 96 KB, copied once a piece."
+	^98304
 !
 adler32InSmalltalkOf: bytes
 	"Sums are reduced modulo 65521 every 5552 bytes."
@@ -452,6 +469,90 @@ ensure: n
 	grown := ByteArray new: (output size * 2 max: size + n + 1024).
 	grown replaceFrom: 1 to: size with: output startingAt: 1.
 	output := grown
+! !
+
+!ZLib methodsFor: 'streaming'!
+deflate: bytes final: aBoolean
+	"The next piece of my raw deflate stream: bytes as blocks that may refer back 32 KB into the bytes of my earlier pieces, then a sync flush (aBoolean false: an empty stored block, so the piece ends byte-aligned) or the final block (true: the stream ends; the next call starts another)."
+	| n pos r count blockStart final |
+	self class tables.
+	self startStream.
+	self append: bytes.
+	n := input size.
+	output := ByteArray new: bytes size // 4 + 64.
+	size := 0.
+	pos := n - bytes size + 1.
+	blockStart := pos.
+	final := false.
+	[pos <= n] whileTrue: [
+		r := self matchesFrom: pos head: head prev: prev literals: litLens distances: distances.
+		pos := r bitShift: -16.
+		count := r bitAnd: 65535.
+		final := aBoolean and: [pos > n].
+		self writeBlock: litLens distances: distances count: count from: blockStart to: pos - 1 final: final.
+		blockStart := pos].
+	aBoolean
+		ifTrue: [
+			final ifFalse: [self writeBlock: litLens distances: distances count: 0 from: n + 1 to: n final: true].
+			bitCount > 0 ifTrue: [self putByte: (bits bitAnd: 255)].
+			self endStream]
+		ifFalse: [self syncFlush].
+	^output copyFrom: 1 to: size
+!
+compress: bytes final: aBoolean
+	"The next piece of my zlib stream: deflate:final:'s, after the header (78 9C) the first time and before the Adler-32 of all the bytes of the stream the last (aBoolean)."
+	| first sum body out |
+	first := adler isNil.
+	sum := self class adler32: (first ifTrue: [1] ifFalse: [adler]) then: (self class adler32Of: bytes) length: bytes size.
+	body := self deflate: bytes final: aBoolean.
+	adler := aBoolean ifFalse: [sum].
+	out := WriteStream on: (ByteArray new: body size + 6).
+	first ifTrue: [out nextPut: 16r78; nextPut: 16r9C].
+	out nextPutAll: body.
+	aBoolean ifTrue: [0 to: 3 do: [:i | out nextPut: ((sum bitShift: (3 - i) * -8) bitAnd: 255)]].
+	^out contents
+!
+startStream
+	"The tables of a stream, the first time."
+	head isNil ifFalse: [^self].
+	head := ByteArray new: 131072.
+	prev := ByteArray new: 131072.
+	litLens := ByteArray new: 131070.
+	distances := ByteArray new: 131070.
+	input := ByteArray new: 0.
+	bits := 0.
+	bitCount := 0
+!
+endStream
+	head := prev := litLens := distances := nil.
+	input := nil.
+	bits := 0.
+	bitCount := 0
+!
+append: bytes
+	"input := what is kept of the earlier pieces (at least the last 32 KB, the window), then bytes. When that would pass historyLimit, the bytes before the window are dropped in steps of 32768, so that the hash chains' positions only move by that (prev is indexed by the position modulo 32768)."
+	| shift |
+	input size + bytes size > self class historyLimit ifTrue: [
+		shift := input size - 32768 // 32768 * 32768.
+		shift > 0 ifTrue: [
+			input := input copyFrom: shift + 1 to: input size.
+			self rebase: head by: shift.
+			self rebase: prev by: shift]].
+	input := input , bytes
+!
+rebase: aTable by: shift
+	"The positions (uint32, 0 none) in aTable moved back by shift; those dropped become none."
+	0 to: aTable size - 4 by: 4 do: [:i | | v |
+		v := aTable uint32At: i + 1.
+		v > 0 ifTrue: [aTable uint32At: i + 1 put: (v > shift ifTrue: [v - shift] ifFalse: [0])]]
+!
+syncFlush
+	"An empty stored block, not final: up to the byte boundary, then 00 00 FF FF."
+	self writeBits: 0 count: 3.
+	bitCount > 0 ifTrue: [self putByte: (bits bitAnd: 255)].
+	bits := 0.
+	bitCount := 0.
+	self putByte: 0; putByte: 0; putByte: 255; putByte: 255
 ! !
 
 !ZLib methodsFor: 'decompressing'!

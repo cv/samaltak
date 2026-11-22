@@ -188,3 +188,73 @@ randomBytes: n seed: anInteger
 	1 to: n do: [:i | bytes at: i put: (random nextInt: 256) - 1].
 	^bytes
 ! !
+
+!ZLibTest methodsFor: 'streaming'!
+inflatePieces: pieces
+	"The bytes of raw deflate pieces that are not final, ended here with an empty final stored block."
+	^ZLib new inflate: (pieces inject: #[] into: [:all :each | all , each]) , #[1 0 0 255 255] from: 1
+!
+testStreamPiecesEndWithASyncFlush
+	| z pieces data |
+	z := ZLib new.
+	data := #('hello ' 'world, ' '' 'hello again, world' 'x') collect: [:s | s asByteArray].
+	pieces := data collect: [:d | z deflate: d final: false].
+	pieces do: [:each | self assert: (each last: 4) equals: #[0 0 255 255]].
+	self assert: (pieces at: 3) = (#[0 0 0 255 255]) description: 'an empty piece is the flush alone (3 bits, then the byte boundary)'.
+	self assert: (self inflatePieces: pieces) equals: (data inject: #[] into: [:a :b | a , b]).
+	"Each prefix of the pieces inflates by itself: a viewer decodes a rectangle before the next arrives."
+	1 to: pieces size do: [:k |
+		self assert: (self inflatePieces: (pieces first: k)) equals: ((data first: k) inject: #[] into: [:a :b | a , b])]
+!
+testStreamReachesBackIntoEarlierPieces
+	| z chunk first second |
+	z := ZLib new.
+	chunk := self randomBytes: 2000 seed: 7.
+	first := z deflate: chunk final: false.
+	second := z deflate: chunk final: false.
+	self assert: first size > 2000.
+	self assert: second size < 40 description: 'the second copy is a match into the first piece'.
+	self assert: (self inflatePieces: (Array with: first with: second)) equals: chunk , chunk
+!
+testStreamKeepsOnlyAWindow
+	"Many pieces: what is kept stays bounded and matches still decode (positions moved by multiples of 32768)."
+	| z pieces all |
+	z := ZLib new.
+	pieces := OrderedCollection new.
+	all := #[].
+	1 to: 40 do: [:i | | d |
+		d := (self randomBytes: 3000 + (i * 97) seed: i \\ 5) , (self randomBytes: 500 seed: 99).
+		all := all , d.
+		pieces add: (z deflate: d final: false).
+		self assert: (z instVarNamed: 'input') size <= (ZLib historyLimit + d size)].
+	self assert: (self inflatePieces: pieces) equals: all.
+	self assert: (pieces inject: 0 into: [:s :p | s + p size]) < (all size * 9 // 10) description: 'repeats across pieces were found'
+!
+testCompressFinalIsOneZlibStream
+	| z pieces data stream |
+	z := ZLib new.
+	data := Array with: 'abcabcabc' asByteArray with: (self randomBytes: 70000 seed: 3) with: 'abcabc' asByteArray.
+	pieces := OrderedCollection new.
+	data doWithIndex: [:d :i | pieces add: (z compress: d final: i = data size)].
+	self assert: (pieces first first: 2) equals: #[16r78 16r9C].
+	self deny: ((pieces at: 2) first: 2) = #[16r78 16r9C].
+	stream := pieces inject: #[] into: [:a :b | a , b].
+	self assert: (ZLib decompress: stream) equals: (data inject: #[] into: [:a :b | a , b]).
+	"After the final piece a new stream begins."
+	self assert: (ZLib decompress: (z compress: 'again' asByteArray final: true)) equals: 'again' asByteArray
+!
+testDeflateFinalEndsTheStream
+	| z a b |
+	z := ZLib new.
+	a := z deflate: 'one two one two' asByteArray final: false.
+	b := z deflate: #[] final: true.
+	self assert: (ZLib inflate: a , b) equals: 'one two one two' asByteArray
+!
+testAdlerOfTwoParts
+	| a b |
+	a := self randomBytes: 7000 seed: 11.
+	b := self randomBytes: 70000 seed: 12.
+	self assert: (ZLib adler32: (ZLib adler32Of: a) then: (ZLib adler32Of: b) length: b size) equals: (ZLib adler32Of: a , b).
+	self assert: (ZLib adler32: (ZLib adler32Of: a) then: (ZLib adler32Of: #[]) length: 0) equals: (ZLib adler32Of: a).
+	self assert: (ZLib adler32: 1 then: (ZLib adler32Of: b) length: b size) equals: (ZLib adler32Of: b)
+! !
