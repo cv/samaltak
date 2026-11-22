@@ -11,6 +11,7 @@ int32_t ps_loop_outer[2048];
 #else
 static int32_t ps_loop_outer[2048];
 #endif
+static int32_t ps_mem_out[2048];
 int32_t ps_order[2048];
 int32_t ps_order_count;
 static int32_t ps_post[2048];
@@ -379,6 +380,10 @@ void cleanup(int32_t entry)
         hoist_guards();
         drop_int_checks();
         resolve_operands();
+        if ((jit_flags & JIT_FLAG_GVN) != 0) {
+            value_numbers();
+            resolve_operands();
+        }
     }
     if (opt_full) {
         return;
@@ -3309,9 +3314,15 @@ static void value_numbers(void)
     int32_t *stores;
     int i_2;
     int64_t stamp;
+    int64_t last_store;
     int32_t i_3;
     int32_t b;
     int32_t e;
+    int64_t r_mem_left_at;
+    int64_t m_2;
+    int32_t e_2;
+    int32_t p;
+    int64_t same;
     int64_t mem;
     int32_t n;
     opt_node *nd;
@@ -3337,13 +3348,38 @@ static void value_numbers(void)
         fields[i_2] = 0;
     }
     stamp = 0;
+    last_store = 0;
     for (i_3 = 0; i_3 <= ps_order_count - 1; i_3++) {
         b = ps_order[i_3];
         if (!(((opt_blocks + b)->npreds == 1) && ((i_3 > 0) && ({
     e = (opt_blocks + b)->preds;
     (opt_edges + e)->from == ps_order[i_3 - 1]; })))) {
-            stamp = stamp + 1;
-            mem = stamp;
+            same = ({
+    m_2 = -1;
+    e_2 = (opt_blocks + b)->preds;
+    while (e_2 >= 0) {
+        p = (opt_edges + e_2)->from;
+        if ((opt_blocks + p)->rpo >= (opt_blocks + b)->rpo) {
+            r_mem_left_at = -1;
+            goto exit_mem_left_at;
+        }
+        if (m_2 < 0) {
+            m_2 = ps_mem_out[p];
+        } else if (!(ps_mem_out[p] == m_2)) {
+            r_mem_left_at = -1;
+            goto exit_mem_left_at;
+        }
+        e_2 = (opt_edges + e_2)->next;
+    }
+    r_mem_left_at = m_2;
+exit_mem_left_at:;
+    r_mem_left_at; });
+            if (same > last_store) {
+                mem = same;
+            } else {
+                stamp = stamp + 1;
+                mem = stamp;
+            }
         }
         n = (opt_blocks + b)->first;
         while (n >= 0) {
@@ -3362,6 +3398,7 @@ static void value_numbers(void)
                 if (((int32_t)nd->op == O_STOREFIELD) && ((nd->aux >= 0) && (nd->aux < 64))) {
                     fields[nd->aux] = stamp;
                     stores[nd->aux] = n;
+                    last_store = stamp;
                 } else {
                     mem = stamp;
                 }
@@ -3411,6 +3448,7 @@ exit_is_numbered:;
                 n = nd->next;
             }
         }
+        ps_mem_out[b] = mem;
     }
 }
 

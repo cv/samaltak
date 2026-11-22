@@ -1,5 +1,5 @@
 OptModule subclass: #OptPasses
-	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter'
+	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter psMemOut'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -10,7 +10,7 @@ declarations
 	^#((ir OptIR) (psOrder 'int32_t[OPT_MAX_BLOCKS]') (psOrderCount int32_t) (psVisitMark 'uint8_t[OPT_MAX_BLOCKS]') (psWorkList 'int32_t[OPT_MAX_NODES]')
 		(psIdom 'int32_t[OPT_MAX_BLOCKS]') (psPre 'int32_t[OPT_MAX_BLOCKS]') (psPost 'int32_t[OPT_MAX_BLOCKS]') (psChild 'int32_t[OPT_MAX_BLOCKS]') (psSibling 'int32_t[OPT_MAX_BLOCKS]')
 		(psHeads 'int32_t[4096]') (psChain 'int32_t[OPT_MAX_NODES]') (psUnboxOff bool) (psUnboxed bool)
-		(psTwin 'int32_t[OPT_MAX_NODES]') (psLoopOuter 'int32_t[OPT_MAX_BLOCKS]'))
+		(psTwin 'int32_t[OPT_MAX_NODES]') (psLoopOuter 'int32_t[OPT_MAX_BLOCKS]') (psMemOut 'int32_t[OPT_MAX_BLOCKS]'))
 ! !
 
 !OptPasses methodsFor: 'accessing'!
@@ -68,7 +68,11 @@ cleanup: entry
 		self hoistGuards.
 		"what loops' phis replaced, and the guards of SmallIntegers that leaves"
 		self dropIntChecks.
-		self resolveOperands].
+		self resolveOperands.
+		"what moved before a loop may be what was there (an invariant load and its guard)"
+		(runtime flag: runtime gvnFlag) ifTrue: [
+			self valueNumbers.
+			self resolveOperands]].
 	ir full ifTrue: [^self].
 	self unboxStates.
 	self countUses.
@@ -700,20 +704,26 @@ dominates: x block: y
 	^(psPre at: x) <= (psPre at: y) and: [(psPost at: y) <= (psPost at: x)]
 !
 valueNumbers
-	"Global value numbering over the dominator tree: a deterministic node (arithmetic, comparisons, guards, conversions, constants) with the same operation and operands as one in a dominating position is that one; a field load only within its block, or blocks in a line, with no safepoint between, nor a store but into another field (the first 64)."
+	"Global value numbering over the dominator tree: a deterministic node (arithmetic, comparisons, guards, conversions, constants) with the same operation and operands as one in a dominating position is that one; a field load only where no safepoint between, nor a store but into another field (the first 64): within its block, or blocks in a line, or past a merge whose ways in all left memory as it was (a type switch) with no field stored since."
 	<function>
-	| b n nd h m md mem found stamp fields stores st |
+	| b n nd h m md mem found stamp fields stores st lastStore same |
 	0 to: 4095 do: [:i | psHeads at: i put: -1].
 	fields := self local: 'int32_t[64]'.
 	stores := self local: 'int32_t[64]'.
 	0 to: 63 do: [:i | fields at: i put: 0].
 	stamp := 0.
+	lastStore := 0.
 	0 to: psOrderCount - 1 do: [:i |
 		b := psOrder at: i.
 		"what the block before left holds on if only it leads here (an inlined method's blocks)"
 		((ir block: b) npreds = 1 and: [i > 0 and: [(ir edge: (ir block: b) preds) from = (psOrder at: i - 1)]]) ifFalse: [
-			stamp := stamp + 1.
-			mem := stamp].
+			"else what all the ways in left, if they left the same and no field was stored since (anywhere: the fields' last stores are on no way here then)"
+			same := self memLeftAt: b.
+			same > lastStore
+				ifTrue: [mem := same]
+				ifFalse: [
+					stamp := stamp + 1.
+					mem := stamp]].
 		n := (ir block: b) first.
 		[n >= 0] whileTrue: [
 			nd := ir node: n.
@@ -725,7 +735,8 @@ valueNumbers
 				(nd op asInt32 = O_STOREFIELD and: [nd aux >= 0 and: [nd aux < 64]])
 					ifTrue: [
 						fields at: nd aux put: stamp.
-						stores at: nd aux put: n]
+						stores at: nd aux put: n.
+						lastStore := stamp]
 					ifFalse: [mem := stamp]].
 			(self isNumbered: nd) ifTrue: [
 				"loads: only since the last safepoint or store that may have written the field"
@@ -752,7 +763,22 @@ valueNumbers
 						psChain at: n put: (psHeads at: h).
 						psHeads at: h put: n.
 						n := nd next]]
-				ifFalse: [n := nd next]]]
+				ifFalse: [n := nd next]].
+		psMemOut at: b put: mem]
+!
+memLeftAt: b
+	"The memory stamp all of b's predecessors left (valueNumbers), -1 if they left different ones or one comes after b (a backward edge)."
+	| e p m |
+	m := -1.
+	e := (ir block: b) preds.
+	[e >= 0] whileTrue: [
+		p := (ir edge: e) from.
+		(ir block: p) rpo >= (ir block: b) rpo ifTrue: [^-1].
+		m < 0
+			ifTrue: [m := psMemOut at: p]
+			ifFalse: [(psMemOut at: p) = m ifFalse: [^-1]].
+		e := (ir edge: e) next].
+	^m
 !
 hoistGuards
 	"Innermost loops first: a guard that leaves a loop may leave the one around it too."
