@@ -116,6 +116,10 @@ trustStore
 trustStore: aTrustStoreOrNil
 	"Trust just these roots with the Smalltalk TLS (nil: TrustStore default again)."
 	Roots := aTrustStoreOrNil
+!
+trustStoreSetting
+	"What trustStore: set: a TrustStore, or nil for TrustStore default (tests put it back)."
+	^Roots
 ! !
 
 !TLSSocket class methodsFor: 'primitives'!

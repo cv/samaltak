@@ -7,13 +7,16 @@ TLSOpenSSLTest comment: 'I check the Smalltalk TLS client against OpenSSL''s tes
 
 !TLSOpenSSLTest methodsFor: 'running'!
 setUp
+	| roots |
+	self keep: #useSmalltalkTLS of: TLSSocket.
+	roots := TLSSocket trustStoreSetting.
+	self addCleanup: [TLSSocket trustStore: roots].
 	servers := OrderedCollection new.
 	trust := TrustStore new.
 	trust add: (X509Certificate fromPem: (File readText: self fixtures, '/ca.pem'))
 !
 tearDown
-	servers do: [:each | OSProcess run: 'kill $(cat ', self fixtures, '/pid-', each printString, ') 2>/dev/null'].
-	TLSSocket useSmalltalkTLS: false; trustStore: nil
+	servers do: [:each | OSProcess run: 'kill $(cat ', self fixtures, '/pid-', each printString, ') 2>/dev/null']
 ! !
 
 !TLSOpenSSLTest methodsFor: 'support'!

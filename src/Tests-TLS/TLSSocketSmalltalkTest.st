@@ -8,11 +8,7 @@ TLSSocketSmalltalkTest comment: 'I am TLSSocketTest with the Smalltalk TLS force
 !TLSSocketSmalltalkTest methodsFor: 'running'!
 setUp
 	super setUp.
-	TLSSocket useSmalltalkTLS: true
-!
-tearDown
-	TLSSocket useSmalltalkTLS: false.
-	super tearDown
+	self replace: #useSmalltalkTLS of: TLSSocket with: true
 ! !
 
 !TLSSocketSmalltalkTest methodsFor: 'tests'!
