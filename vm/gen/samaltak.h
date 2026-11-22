@@ -365,6 +365,7 @@ typedef void (*prim_fn)(void);
 #define NF_ALLOC 8
 #define NF_BLOCKCALL 16
 #define NF_DEAD 2
+#define NF_EQONLY 8192
 #define NF_GUARD 4
 #define NF_HOISTED 64
 #define NF_INRANGE 2048
@@ -1390,6 +1391,7 @@ extern uint64_t bl_remember;
 extern uint64_t bl_return_slow;
 extern uint64_t bl_sent;
 extern uint64_t bl_str_cmp;
+extern uint64_t bl_str_eq;
 extern uint64_t bl_str_hash;
 extern uint64_t closure_stub;
 extern uint64_t context_field_stub;

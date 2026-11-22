@@ -442,11 +442,12 @@ testLeafPrimitives
 
 !JitRuntimeTest methodsFor: 'tests: primitives'!
 testStringHashAndCompare
-	"String>>hash, compareWith: and = in compiled code answer what their definitions in Smalltalk do: Strings of every size to 40, each with its first, middle or last byte changed up or down or to one above 127 (compared unsigned), against each other and against Symbols, a WideString and a ByteArray (bytes: the primitive takes them)."
+	"String>>hash, compareWith: (also where only = 0 uses it) and = in compiled code answer what their definitions in Smalltalk do: Strings of every size to 40, each with its first, middle or last byte changed up or down or to one above 127 (compared unsigned), against each other and against Symbols, a WideString and a ByteArray (bytes: the primitive takes them)."
 	| strings others o fnv cmp |
 	self define: 'hashOf: s ^s hash'.
 	self define: 'compare: a with: b ^a compareWith: b'.
 	self define: 'equal: a to: b ^a = b'.
+	self define: 'bytes: a equal: b ^(a compareWith: b) = 0'.
 	fnv := [:s | | h | h := 2166136261. s do: [:c | h := ((h bitXor: c asInteger) * 16777619) bitAnd: 16rFFFFFFFF]. h bitAnd: 16r3FFFFFFF].
 	cmp := [:a :b | | r |
 		r := nil.
@@ -469,6 +470,7 @@ testStringHashAndCompare
 		(strings , others) do: [:b |
 			(a size - b size) abs <= 1 ifTrue: [
 				self assert: (o compare: a with: b) equals: (cmp value: a value: b).
+				self assert: (o bytes: a equal: b) equals: (cmp value: a value: b) = 0.
 				self assert: (o equal: a to: b) equals: (b isString and: [(cmp value: a value: b) = 0])]]].
 	others do: [:a | a isString ifTrue: [self assert: (o hashOf: a) equals: (fnv value: a)]].
 	self assert: (o compare: #abc with: 'abc') equals: 0.

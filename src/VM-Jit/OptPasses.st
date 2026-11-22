@@ -31,7 +31,7 @@ orderAt: i
 
 !OptPasses methodsFor: 'cleanup'!
 cleanup: entry
-	"After building: resolve, simplify phis, split critical edges, number values, hoist guards out of loops, drop what is unreachable or unused, order the blocks."
+	"After building: resolve, simplify phis, split critical edges, number values, hoist guards out of loops, drop what is unreachable or unused, order the blocks, mark the compares only equality uses."
 	<function>
 	self computeOrder: entry.
 	self removeUnreachable.
@@ -73,7 +73,23 @@ cleanup: entry
 	self unboxStates.
 	self countUses.
 	self removeDead.
-	self countUses
+	self countUses.
+	self equalityCompares
+!
+equalityCompares
+	"A compareWith: of bytes (O_STRCMP) that only = 0 or ~= 0 uses (String>>=): whether the bytes are equal is all it answers (NF_EQONLY)."
+	<function>
+	| nd x y |
+	0 to: ir nodeCount - 1 do: [:n |
+		nd := ir node: n.
+		(nd block >= 0 and: [nd op asInt32 = O_ICMP and: [nd aux = 6 or: [nd aux = 7]]]) ifTrue: [
+			x := ir node: (ir resolve: nd a).
+			y := ir node: (ir resolve: nd b).
+			x op asInt32 = O_STRCMP ifFalse: [
+				y := x.
+				x := ir node: (ir resolve: nd b)].
+			(x op asInt32 = O_STRCMP and: [x uses = 1 and: [y op asInt32 = O_CONST and: [y aux = (self intOop: 0) asInt64]]]) ifTrue: [
+				x flags: (x flags bitOr: NF_EQONLY)]]]
 !
 simplifyPhis
 	"A phi whose operands are all one value (or itself) is that value; repeat until none is left."
