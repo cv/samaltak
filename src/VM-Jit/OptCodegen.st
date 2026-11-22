@@ -1,6 +1,6 @@
 OptModule subclass: #OptCodegen
 	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgRawBase cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced ffi'
-	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_HELD CG_MAX_SITES CG_MAX_SP OUT_ARRAY OUT_BARRIER OUT_BOTTOM OUT_BOUND_FILL OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_NOTMADE OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW'
+	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_HELD CG_MAX_SITES CG_MAX_SP OUT_ARRAY OUT_BARRIER OUT_BOTTOM OUT_BOUND_FILL OUT_BOX OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_NOTMADE OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_UNBOX OUT_WIDOW'
 	package: 'VM-Jit'!
 
 OptCodegen comment: 'Emits arm64 code for the allocated IR (OptRegalloc) in block order, then the out-of-line paths (guard failures, interrupt checks, brace Arrays the runtime makes, store barriers, deoptimization after a call, resumption after a call, the stack check), then the oop pool the code loads constants from (pc-relative; GC roots) and the inline caches'' literals. Records for every safepoint and guard the deoptimization metadata (OptRuntime decodes it): kind, continuation, the send, and for each activation its method, closure, receiver, pc and where each slot''s value is (LOC_*).
@@ -46,7 +46,9 @@ initialize
 	OUT_SENT := 10.
 	OUT_NOTMADE := 11.
 	OUT_ARRAY := 12.
-	OUT_BOUND_FILL := 13
+	OUT_BOUND_FILL := 13.
+	OUT_UNBOX := 14.
+	OUT_BOX := 15
 ! !
 
 !OptCodegen methodsFor: 'accessing'!
@@ -181,6 +183,7 @@ generate: m act: a
 		b := cgOrder at: i.
 		self bindBlock: b after: (i > 0 ifTrue: [cgOrder at: i - 1] ifFalse: [-1]).
 		self emitBlock: b next: (self nextWithCode: i + 1)].
+	asm failed ifTrue: [^false].
 	(self emitOuts) ifFalse: [^false].
 	cgDepCount := (builder depCount min: 256) asInt32.
 	0 to: cgDepCount - 1 do: [:i | cgDeps at: i put: (self poolIndexOf: (builder depAt: i))].
@@ -933,7 +936,7 @@ ddef: n from: d
 !
 emitFloat: n
 	"Unboxing (a SmallFloat64 or BoxedFloat64 decoded, a SmallInteger converted), boxing (as a SmallFloat64), arithmetic and sqrt on doubles; what does not fit deoptimizes. Doubles in raw slots are loaded into D0 and D1, results computed in D0 and stored."
-	| nd op s x y r int boxed done zero store k |
+	| nd op s x y r done slow k small |
 	nd := ir node: n.
 	op := nd op asInt32.
 	op = O_UNBOXF ifTrue: [
@@ -947,61 +950,46 @@ emitFloat: n
 			asm asr: X16 with: x imm: 1.
 			asm scvtf: r with: X16.
 			^self ddef: n from: r].
-		(ir node: nd a) tkind asInt32 ~= T_FLOAT ifTrue: [
-			s := self deoptLabelFor: n.
-			int := asm newLabel.
-			boxed := asm newLabel.
-			done := asm newLabel.
-			asm tbnz: x bit: 0 to: int.
+		"a SmallFloat64 other than zero inline: its IEEE bits are its bits rotated right by 4 less 2^59 (the tag 4 and the exponent's offset); zero, a BoxedFloat64 or a SmallInteger out of line, anything else deoptimizes"
+		small := (ir node: nd a) tkind asInt32 = T_FLOAT.
+		s := small ifTrue: [-1] ifFalse: [self deoptLabelFor: n].
+		slow := self out: OUT_UNBOX node: n index: (x bitOr: r * 256).
+		asm failed ifTrue: [^self].
+		(cgOuts + (cgOutCount - 1)) aux: s.
+		done := asm newLabel.
+		(cgOuts + (cgOutCount - 1)) resume: done.
+		asm comment: 'a SmallFloat64''s double'.
+		small ifFalse: [
 			asm and: X16 with: x imm: 7.
 			asm cmp: X16 imm: 4.
-			asm b: boxed if: COND_NE].
-		asm comment: 'a SmallFloat64''s double'.
-		asm lsr: X16 with: x imm: 3.
-		asm mov: X17 imm: 16r7000000000000000.
-		asm add: X17 with: X16 with: X17.
-		asm cmp: X16 imm: 1.
-		asm csel: X16 with: X16 with: X17 cond: COND_LS.
-		asm ror: X16 with: X16 imm: 1.
+			asm b: slow if: COND_NE].
+		asm cmp: x imm: 12.
+		asm b: slow if: COND_LS.
+		asm ror: X16 with: x imm: 4.
+		asm mov: X17 imm: 16r0800000000000000.
+		asm sub: X16 with: X16 with: X17.
 		asm fmov: r with: X16.
-		(ir node: nd a) tkind asInt32 ~= T_FLOAT ifTrue: [
-			asm b: done.
-			asm bind: boxed.
-			asm comment: 'a BoxedFloat64''s double (anything else deoptimizes)'.
-			asm cbnz: X16 to: s.
-			asm ldr: X16 base: x offset: 8.
-			asm ldr: X17 base: X22 offset: self boxedFloatClassOffset.
-			asm cmp: X16 with: X17.
-			asm b: s if: COND_NE.
-			asm ldr: r base: x offset: 16.
-			asm b: done.
-			asm bind: int.
-			asm asr: X16 with: x imm: 1.
-			asm scvtf: r with: X16.
-			asm bind: done].
+		asm bind: done.
 		^self ddef: n from: r].
 	op = O_BOXF ifTrue: [
+		"the inverse of the decoding: (bits + 2^59) rotated left by 4 where the exponent fits (zero out of line, anything else deoptimizes)"
 		s := self deoptLabelFor: n.
-		zero := asm newLabel.
-		store := asm newLabel.
+		r := self dst: n.
+		slow := self out: OUT_BOX node: n index: r.
+		asm failed ifTrue: [^self].
+		(cgOuts + (cgOutCount - 1)) aux: s.
+		done := asm newLabel.
+		(cgOuts + (cgOutCount - 1)) resume: done.
 		asm comment: 'as a SmallFloat64 (out of its exponent range: deoptimize)'.
 		asm fmov: X16 with: (self dsrc: nd a into: D0).
-		asm lsl: X17 with: X16 imm: 1.
-		asm cbz: X17 to: zero.
-		asm ubfx: self scratchB with: X16 lsb: 52 width: 11.
-		asm sub: self scratchB with: self scratchB imm: 897.
-		asm cmp: self scratchB imm: 253.
-		asm b: s if: COND_HI.
-		asm ror: X17 with: X16 imm: 63.
-		asm mov: self scratchB imm: 16r7000000000000000.
-		asm sub: X17 with: X17 with: self scratchB.
-		asm b: store.
-		asm bind: zero.
-		asm lsr: X17 with: X16 imm: 63.
-		asm bind: store.
-		r := self dst: n.
-		asm lsl: r with: X17 imm: 3.
-		asm orr: r with: r imm: 4.
+		asm ubfx: X17 with: X16 lsb: 52 width: 11.
+		asm sub: X17 with: X17 imm: 897.
+		asm cmp: X17 imm: 253.
+		asm b: slow if: COND_HI.
+		asm mov: X17 imm: 16r0800000000000000.
+		asm add: X16 with: X16 with: X17.
+		asm ror: r with: X16 imm: 60.
+		asm bind: done.
 		^self def: n from: r].
 	op = O_FSQRT ifTrue: [
 		x := self dsrc: nd a into: D0.
@@ -2485,6 +2473,7 @@ out: kind node: n index: i
 	o index: i.
 	o label: asm newLabel.
 	o resume: -1.
+	o aux: -1.
 	o pos: (n >= 0 ifTrue: [(ir node: n) pos] ifFalse: [0]).
 	cgOutCount := cgOutCount + 1.
 	^o label
@@ -2517,6 +2506,8 @@ emitOuts
 			self reloadAcross: o node.
 			asm b: o resume].
 		o kind = OUT_ARRAY ifTrue: [self emitMakeArraySlow: o].
+		o kind = OUT_UNBOX ifTrue: [self emitUnboxSlow: o].
+		o kind = OUT_BOX ifTrue: [self emitBoxSlow: o].
 		o kind = OUT_BARRIER ifTrue: [
 			asm comment: 'remember the old object: call the runtime'.
 			self emitBarrierCall: o].
@@ -2569,6 +2560,52 @@ emitOuts
 			asm mov: W17 imm: (self recordGuard: o node).
 			asm b: cgReturnLabel]].
 	^true
+!
+emitUnboxSlow: o
+	"A SmallFloat64 zero, a BoxedFloat64 or a SmallInteger as a double (o index: the value's register, the d register << 8; o aux: the deoptimization label, -1 if the value surely is a SmallFloat64)."
+	| x r s int boxed |
+	x := o index bitAnd: 255.
+	r := o index >> 8.
+	s := o aux.
+	s >= 0 ifTrue: [
+		int := asm newLabel.
+		boxed := asm newLabel.
+		asm tbnz: x bit: 0 to: int.
+		asm and: X16 with: x imm: 7.
+		asm cmp: X16 imm: 4.
+		asm b: boxed if: COND_NE].
+	asm comment: 'a SmallFloat64 zero: its sign'.
+	asm lsr: X16 with: x imm: 3.
+	asm ror: X16 with: X16 imm: 1.
+	asm fmov: r with: X16.
+	asm b: o resume.
+	s < 0 ifTrue: [^self].
+	asm bind: boxed.
+	asm comment: 'a BoxedFloat64''s double (anything else deoptimizes)'.
+	asm cbnz: X16 to: s.
+	asm ldr: X16 base: x offset: 8.
+	asm ldr: X17 base: X22 offset: self boxedFloatClassOffset.
+	asm cmp: X16 with: X17.
+	asm b: s if: COND_NE.
+	asm ldr: r base: x offset: 16.
+	asm b: o resume.
+	asm bind: int.
+	asm comment: 'a SmallInteger''s double'.
+	asm asr: X16 with: x imm: 1.
+	asm scvtf: r with: X16.
+	asm b: o resume
+!
+emitBoxSlow: o
+	"Zero as a SmallFloat64 (its IEEE bits in X16; o index: the register of the result, o aux: the deoptimization label for anything else)."
+	| r |
+	r := o index.
+	asm comment: 'a zero as a SmallFloat64, else deoptimize'.
+	asm lsl: X17 with: X16 imm: 1.
+	asm cbnz: X17 to: o aux.
+	asm lsr: X16 with: X16 imm: 63.
+	asm lsl: r with: X16 imm: 3.
+	asm orr: r with: r imm: 4.
+	asm b: o resume
 !
 emitMakeArraySlow: o
 	"Eden is full (or the Array is big): the runtime makes it from the operands at slotTop (it may collect; values live after it reloaded from their home slots)."
@@ -2743,5 +2780,5 @@ OptOut comment: 'An out-of-line path of optimized code (OptCodegen): its kind, t
 
 !OptOut class methodsFor: 'declaring'!
 fields
-	^#((kind int32_t) (node int32_t) (index int32_t) (label int32_t) (resume int32_t) (pos int32_t) (ffiSiteAddr uint64_t))
+	^#((kind int32_t) (node int32_t) (index int32_t) (label int32_t) (resume int32_t) (pos int32_t) (ffiSiteAddr uint64_t) (aux int32_t))
 ! !
