@@ -27,8 +27,10 @@ testTheParametersAreTheirStructs
 		self assert: (k at: #entry) equals: each.
 		self assert: (k at: #paramBytes) equals: (NvRasterKernels sizeOf: (k at: #params) asSymbol).
 		self assert: (k at: #paramOffset) + (k at: #paramBytes) <= (k at: #constantBank0Bytes).
-		self assert: (k at: #block) equals: 256].
+		self assert: (k at: #block) equals: (each = 'raster_batch_prims' ifTrue: [NvRasterKernels batchChunk] ifFalse: [256]).
+		self assert: (k at: #frameBytes) equals: 0].
 	self assert: ((NvRasterKernels kernel: 'raster_tiles') at: #params) equals: ((NvRasterKernels kernel: 'raster_prims') at: #params).
+	self assert: ((NvRasterKernels kernel: 'raster_batch_tiles') at: #params) equals: ((NvRasterKernels kernel: 'raster_batch_prims') at: #params).
 	self assert: (NvRasterKernels drawScratchBytes: 7) equals: NvRasterKernels scratchHeader + (2 * NvRasterKernels primBytes)
 !
 testParamsLaysOutAStruct

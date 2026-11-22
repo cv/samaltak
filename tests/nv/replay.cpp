@@ -9,7 +9,7 @@
 //                                recorded ones; report the GPU time of each command buffer.
 //   fuzz <cubin> <cases> [seed]  random draws (every mode, format, blend, sampler, quads and triangles, scissors,
 //                                viewports), blits, copies and fills against the reference without contraction.
-//   fuzzbatch <cubin> <cases> [seed]  the same, with 1 to 6 draws of their own states into one target a case, launched
+//   fuzzbatch <cubin> <cases> [seed]  the same, with 1 to 40 draws of their own states into one target a case, launched
 //                                as one raster_batch_prims and raster_batch_tiles (RasterBatchParams).
 // Exit status 1 if the GPU differs from the reference without contraction anywhere, or a recorded frame matches
 // neither reference (the replay would not be faithful).
@@ -150,7 +150,7 @@ static void gpuBatch(const std::vector<RasterDrawParams> &draws)
 	CK(cuMemcpyHtoD(dStarts, starts.data(), starts.size() * 8));
 	ensureScratch((size_t)slots * RASTER_BATCH_SLOT_BYTES);
 	RasterBatchParams b{dDraws, dStarts, scratch, (int64_t)draws.size(), slots, x0, y0, x1, y1};
-	launch(fBatchPrims, (unsigned)((slots + 255) / 256), 1, 256, &b);
+	launch(fBatchPrims, (unsigned)((slots + RASTER_BATCH_CHUNK - 1) / RASTER_BATCH_CHUNK), 1, RASTER_BATCH_CHUNK, &b);
 	launch(fBatchTiles, (unsigned)(((x1 - x0 + 15) / 16) * ((y1 - y0 + 15) / 16)), 1, RASTER_TILE_THREADS, &b);
 	CK(cuStreamSynchronize(stream));
 	CK(cuMemFree(dDraws));
@@ -442,7 +442,7 @@ static int fuzz(int cases)
 		const char *what;
 		std::vector<RasterDrawParams> batch;
 		std::vector<CUdeviceptr> batchMemory;
-		int nd = batching ? rint_(1, 6) : 1;
+		int nd = batching ? (rint_(0, 3) ? rint_(1, 6) : rint_(7, 40)) : 1;  // several chunks of 256 slots
 		if (batching) kind = 0;
 		for (int di = 0; di < nd; di++)
 		if (kind <= 6) {

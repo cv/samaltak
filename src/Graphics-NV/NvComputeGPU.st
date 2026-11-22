@@ -1,5 +1,5 @@
 SoftwareGPU subclass: #NvComputeGPU
-	instanceVariableNames: 'gpu compute kernels memories fences lastFence scratch starts batch batchStarts batchSlots batchTarget batchClip batchUsed arena arenaOffset stamps stampCount recent'
+	instanceVariableNames: 'gpu compute kernels memories fences lastFence scratch starts batch batchStarts batchSlots batchTarget batchClip batchUsed arena arenaOffset stamps stampCount recent blocks'
 	classVariableNames: ''
 	package: 'Graphics-NV'!
 
@@ -28,7 +28,10 @@ setDisplay: aDisplay
 	stamps := gpu allocate: 256 * 32.
 	cubin := NvCubin on: NvRasterKernels cubin.
 	kernels := Dictionary new.
-	NvRasterKernels kernelNames do: [:name | kernels at: name put: (cubin kernelNamed: name)]]
+	blocks := Dictionary new.
+	NvRasterKernels kernelNames do: [:name |
+		kernels at: name put: (cubin kernelNamed: name).
+		blocks at: name put: ((NvRasterKernels kernel: name) at: #block)]]
 		ifCurtailed: [self close]
 ! !
 
@@ -137,9 +140,9 @@ gpuAddress: address
 	^(memories at: address) gpuAddress
 !
 launch: aName grid: grid parameters: bytes using: addresses
-	"Queue the raster kernel aName (256 threads a block) with its parameter struct; the memory at addresses waits for it."
+	"Queue the raster kernel aName (as many threads a block as it is written for) with its parameter struct; the memory at addresses waits for it."
 	| fence |
-	fence := compute launch: (kernels at: aName) grid: grid block: 256 parameters: bytes.
+	fence := compute launch: (kernels at: aName) grid: grid block: (blocks at: aName) parameters: bytes.
 	recent at: fence \\ 64 + 1 put: (Array with: fence with: aName with: grid with: bytes).
 	addresses do: [:a | fences at: a put: fence].
 	lastFence := fence
@@ -188,7 +191,7 @@ flush
 	self put: slots at: 32 in: p.
 	1 to: 4 do: [:i | self put: (clip at: i) at: i * 8 + 32 in: p].
 	used := used asArray, (Array with: target with: scratch cpuAddress with: arena cpuAddress).
-	self launch: 'raster_batch_prims' grid: slots + 255 // 256 parameters: p using: used.
+	self launch: 'raster_batch_prims' grid: slots + NvRasterKernels batchChunk - 1 // NvRasterKernels batchChunk parameters: p using: used.
 	self launch: 'raster_batch_tiles' grid: ((clip at: 3) - (clip at: 1) + 15 // 16) * ((clip at: 4) - (clip at: 2) + 15 // 16)
 		parameters: p using: used
 !
@@ -212,7 +215,10 @@ ensureScratch: byteCount
 	(scratch notNil and: [scratch size >= byteCount]) ifTrue: [^scratch].
 	scratch notNil ifTrue: [self free: scratch cpuAddress].
 	scratch := nil.
-	^scratch := memories at: (self allocate: (byteCount * 2 max: 16r100000))
+	"only the kernels use it: the GPU may cache it"
+	scratch := gpu allocate: (byteCount * 2 max: 16r100000) gpuCached: true.
+	memories at: scratch cpuAddress put: scratch.
+	^scratch
 ! !
 
 !NvComputeGPU methodsFor: 'memory and pixels'!

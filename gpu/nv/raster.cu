@@ -489,7 +489,12 @@ __device__ __forceinline__ int4 *batch_boxes(const RasterBatchParams &b) { retur
 __device__ __forceinline__ int *batch_draws(const RasterBatchParams &b) { return (int *)((u8 *)b.prims + b.slots * 16); }
 __device__ __forceinline__ Prim *batch_prim(const RasterBatchParams &b, i64 n)
 {
-	return (Prim *)((u8 *)b.prims + b.slots * 16 + ((b.slots * 4 + 7) & ~7LL) + n * PRIM_RECORD_BYTES);
+	return (Prim *)((u8 *)b.prims + b.slots * 16 + ((b.slots * 4 + 15) & ~15LL) + n * PRIM_RECORD_BYTES);
+}
+/* each chunk of RASTER_BATCH_CHUNK slots' bounding box (all 0: nothing), after the records */
+__device__ __forceinline__ int4 *batch_chunks(const RasterBatchParams &b)
+{
+	return (int4 *)((u8 *)b.prims + b.slots * 16 + ((b.slots * 4 + 15) & ~15LL) + b.slots * PRIM_RECORD_BYTES);
 }
 
 /* The draw slot n belongs to: the last d with slotStarts[d] <= n (draws without slots start where the next does). */
@@ -503,21 +508,36 @@ __device__ __forceinline__ i64 draw_of_slot(const i64 *starts, i64 drawCount, i6
 	return lo;
 }
 
-extern "C" __global__ void __launch_bounds__(256) raster_batch_prims(const RasterBatchParams b)
+/* A block of RASTER_BATCH_CHUNK threads a chunk (small blocks: a slot's setup is long, in doubles, and the chunks
+ * spread over every SM). */
+extern "C" __global__ void __launch_bounds__(RASTER_BATCH_CHUNK) raster_batch_prims(const RasterBatchParams b)
 {
+	__shared__ int bx0, by0, bx1, by1;
 	const RasterDrawParams *draws = (const RasterDrawParams *)b.draws;
 	const i64 *starts = (const i64 *)b.slotStarts;
-	for (i64 n = (i64)blockIdx.x * blockDim.x + threadIdx.x; n < b.slots; n += (i64)gridDim.x * blockDim.x) {
-		i64 d = draw_of_slot(starts, b.drawCount, n);
-		const RasterDrawParams st = draws[d];
-		Ctx c;
-		Prim p;
-		p.kind = K_NONE;
-		int4 box = make_int4(0, 0, 0, 0);
-		if (prepare(st, c)) box = prim_slot(st, c, n - starts[d], p);
-		batch_boxes(b)[n] = box;
-		batch_draws(b)[n] = (int)d;
-		*batch_prim(b, n) = p;
+	i64 chunks = (b.slots + RASTER_BATCH_CHUNK - 1) / RASTER_BATCH_CHUNK;
+	for (i64 chunk = blockIdx.x; chunk < chunks; chunk += gridDim.x) {
+		if (threadIdx.x == 0) { bx0 = by0 = 0x7FFFFFFF; bx1 = by1 = -0x7FFFFFFF; }
+		__syncthreads();
+		i64 n = chunk * RASTER_BATCH_CHUNK + threadIdx.x;
+		if (n < b.slots) {
+			i64 d = draw_of_slot(starts, b.drawCount, n);
+			const RasterDrawParams st = draws[d];
+			Ctx c;
+			Prim p;
+			p.kind = K_NONE;
+			int4 box = make_int4(0, 0, 0, 0);
+			if (prepare(st, c)) box = prim_slot(st, c, n - starts[d], p);
+			batch_boxes(b)[n] = box;
+			batch_draws(b)[n] = (int)d;
+			*batch_prim(b, n) = p;
+			if (box.x < box.z) {
+				atomicMin(&bx0, box.x); atomicMin(&by0, box.y); atomicMax(&bx1, box.z); atomicMax(&by1, box.w);
+			}
+		}
+		__syncthreads();
+		if (threadIdx.x == 0) batch_chunks(b)[chunk] = bx0 < bx1 ? make_int4(bx0, by0, bx1, by1) : make_int4(0, 0, 0, 0);
+		__syncthreads();
 	}
 }
 
@@ -718,6 +738,7 @@ extern "C" __global__ void __maxnreg__(128) raster_batch_tiles(const RasterBatch
 	i64 tilesX = (b.clipX1 - b.clipX0 + RASTER_TILE - 1) / RASTER_TILE, tilesY = (b.clipY1 - b.clipY0 + RASTER_TILE - 1) / RASTER_TILE;
 	const int4 *slotBoxes = batch_boxes(b);
 	const int *slotDraws = batch_draws(b);
+	const int4 *chunkBoxes = batch_chunks(b);
 	for (i64 tile = blockIdx.x; tile < tilesX * tilesY; tile += gridDim.x) {
 		int tx0 = (int)(b.clipX0 + (tile % tilesX) * RASTER_TILE), ty0 = (int)(b.clipY0 + (tile / tilesX) * RASTER_TILE);
 		int tx1 = min(tx0 + RASTER_TILE, (int)b.clipX1), ty1 = min(ty0 + RASTER_TILE, (int)b.clipY1);
@@ -727,6 +748,13 @@ extern "C" __global__ void __maxnreg__(128) raster_batch_tiles(const RasterBatch
 		u32 d = 0;
 		bool touched = false;
 		for (i64 base = 0; base < nslots; base += RASTER_TILE_THREADS) {
+			/* skip the slots if no chunk of them meets the tile (the same for the whole block) */
+			bool near = false;
+			for (i64 q = base / RASTER_BATCH_CHUNK; q < (base + RASTER_TILE_THREADS) / RASTER_BATCH_CHUNK && q * RASTER_BATCH_CHUNK < nslots; q++) {
+				int4 cb = chunkBoxes[q];
+				near = near || (cb.x < tx1 && cb.z > tx0 && cb.y < ty1 && cb.w > ty0);
+			}
+			if (!near) continue;
 			i64 s = base + tid;
 			int4 bx = make_int4(0, 0, 0, 0);
 			bool hit = false;

@@ -41,8 +41,12 @@ present) or freeing it, and nowhere else.
 its target. The batch goes out when anything else comes (a draw into another target, a clear, a blit, a CPU access, a
 submit): the params and each draw's first slot are written into an arena (GPU memory used as a ring, the GPU done with
 its start before it is reused), then `raster_batch_prims` (a thread per slot of all the draws, each with its draw's
-state) and `raster_batch_tiles` (16 x 16 tiles over the union of the draws' scissors within the target; each tile
-lists the slots over it in order and applies each with its own draw's blend, texture and sampler). A pixel sees the
+state, 64 threads a block) and `raster_batch_tiles` (16 x 16 tiles over the union of the draws' scissors within the
+target; a tile skips each 256 slots none of whose chunks' bounding boxes meets it, lists the slots over it in order and
+applies each with its own draw's blend, texture and sampler). The scratch is memory the GPU caches (`NvDevice
+allocate:gpuCached:`): only the kernels touch it; everything the CPU writes or reads stays uncached, as on the GB10 the
+GPU's L2 is not coherent with the CPU for system memory (all memory cached, the channel hangs: the GPU reads stale
+QMDs). A pixel sees the
 draws in order, so the pixels are the same as draw by draw (docs/nv-kernels.md). A layer is two launches, not two a draw.
 
 **Fences** keep the channel's value of the last launch when submitted; `fenceElapsed:` is the GPU's time for the command
@@ -86,7 +90,7 @@ hung under NvCompute: its local memory window is not right yet. `raster_batch_ti
 - `NvComputeGPUTest`: every SoftwareGPUTest (coverage, blends, patterns, lines, blits, regions, swapchain, handles, the
   Renderer through GPUPlatform) on an NvComputeGPU.
 - `NvGpuTest>>testFencesAcrossWrapsAndDrains`, `NvComputeGPUTest>>testFenceElapsedIsTheGPUsTime`.
-- `replay fuzzbatch`: 20000 cases of 1 to 6 random draws (every path, blend, format, sampler, texture, scissor and
+- `replay fuzzbatch`: 20000 cases of 1 to 40 random draws (every path, blend, format, sampler, texture, scissor and
   viewport of the fuzz) into one target as one batch, against the C reference applying them one after another.
 - `tests/nv/replay.st`: the World's first frames recorded at 1920x1080 by a SoftwareGPURecorder replayed through the gpu
   protocol (`SoftwareGPUReplay`, Tests-Graphics) on an NvComputeGPU and on a SoftwareGPU: every pass's target and every
@@ -109,12 +113,15 @@ the Compositor's own frames over 5 s (FrameRecord end - start, its CPU share).
 
 | | composite | redraw | live frame | compositor CPU |
 | --- | --- | --- | --- | --- |
-| NvComputeGPU | 0.46 ms (CPU 0.46) | 2.3-3.3 ms (CPU 2.1) | 4.2-4.5 ms, 60 fps | 16-19 % (2.8 ms a frame) |
+| NvComputeGPU | 0.43 ms (CPU 0.43) | 2.8-2.9 ms (CPU 1.7) | 4.4-4.6 ms, 60 fps | 17-20 % (3 ms a frame) |
 | NvComputeGPU, a draw at a time | 1.1 ms (CPU 1.1) | 8.3 ms (CPU 7.7) | 5.5 ms, 60 fps | 28 % (4.7 ms) |
-| SoftwareGPU | 3.9 ms (CPU 3.7) | 5.7-5.9 ms (CPU 5.5) | 11 ms, on change only | 6 % (rests) |
+| SoftwareGPU (main's NEON raster) | 1.7 ms (CPU 1.5) | 3.2 ms (CPU 2.9) | 7.4 ms, on change only | 5 % (rests) |
+| SoftwareGPU before it | 3.9 ms (CPU 3.7) | 5.7-5.9 ms (CPU 5.5) | 11 ms, on change only | 6 % (rests) |
 | SDL_GPU, Vulkan | 0.21-0.25 ms (CPU 0.10-0.16) | 0.44-0.57 ms (CPU 0.21-0.31) | 3.3 ms, 60 fps | 10 % (1.7 ms) |
 
 The CPU time of NvComputeGPU includes its waits, which poll. A redraw is about 210 draws: batched, 2 launches a window's
-layer instead of 2 a draw; what is left is the CPU's (the Renderer, a draw's 200 bytes of params in Smalltalk) and
-`raster_batch_tiles` going over every slot of the batch in each tile of the union (no binning). The live frame is mostly
-SDL's present to the X server (3 ms, as for SDL_GPU's own frames).
+layer instead of 2 a draw. Its GPU time (timestamp releases around each launch, 13 batches): `raster_batch_tiles` 1.08
+ms, `raster_batch_prims` 0.43 ms (0.73 with the scratch uncached), the clears 0.13 ms; the kernels wait on uncached
+system memory (the targets' and textures' pixels, the vertices) more than they compute. The live frame is mostly SDL's
+present to the X server (3 ms, as for SDL_GPU's own frames). Textures and targets in GPU-cached memory, with the CPU's
+accesses through uncached staging copies (or the L2 flushed and invalidated around them), would be next.
