@@ -41,6 +41,9 @@
 #include <sys/timerfd.h>
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
+#if !defined(__x86_64__)
+#include <arm_neon.h>
+#endif
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/x509.h>
