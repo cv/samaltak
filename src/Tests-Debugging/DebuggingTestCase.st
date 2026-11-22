@@ -1,22 +1,37 @@
 TestCase subclass: #DebuggingTestCase
-	instanceVariableNames: 'sessions arrived savedOpener'
+	instanceVariableNames: 'sessions arrived savedOpener breakpoints watchpoints'
 	classVariableNames: ''
 	package: 'Tests-Debugging'!
 
-DebuggingTestCase comment: 'I install a DebugSession opener that queues the sessions, fork the code under test in its own processes and clean up breakpoints, watchpoints and processes afterwards.'!
+DebuggingTestCase comment: 'I install a DebugSession opener that queues the sessions, fork the code under test in its own processes and clean up breakpoints, watchpoints and processes afterwards: only the breakpoints and watchpoints the test set (removeBreakpoints), not the image''s own; the breakpoints'' process filter is nil during the test and set back after it.'!
 
 !DebuggingTestCase methodsFor: 'running'!
 setUp
 	sessions := OrderedCollection new.
 	arrived := Semaphore new.
 	savedOpener := DebugSession openerBlock.
-	DebugSession openerBlock: [:session | sessions add: session. arrived signal]
+	DebugSession openerBlock: [:session | sessions add: session. arrived signal].
+	breakpoints := Breakpoint all.
+	watchpoints := Watchpoint all.
+	self replace: #processFilter of: Breakpoint with: nil
 !
 tearDown
 	DebugSession openerBlock: savedOpener.
 	self terminateForkedProcesses.
-	Breakpoint removeAll.
-	Watchpoint removeAll
+	self removeBreakpoints
+!
+ownBreakpoints
+	"The breakpoints this test set, oldest first (Breakpoint all less those the image had)."
+	^Breakpoint all reject: [:each | breakpoints includes: each]
+!
+ownWatchpoints
+	"The watchpoints this test set."
+	^Watchpoint all reject: [:each | watchpoints includes: each]
+!
+removeBreakpoints
+	"Remove the breakpoints and watchpoints this test set; those the image had before it stay."
+	self ownBreakpoints do: [:each | each remove].
+	self ownWatchpoints do: [:each | each unwatch]
 ! !
 
 !DebuggingTestCase methodsFor: 'helpers'!

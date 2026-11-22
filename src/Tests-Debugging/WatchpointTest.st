@@ -5,12 +5,6 @@ DebuggingTestCase subclass: #WatchpointTest
 
 WatchpointTest comment: 'Tests of watchpoints: a forked process storing into a watched field stops; proceeding performs the store; a watchpoint removed by another process while a store into its object is under way leaves the store performed and the object writable.'!
 
-!WatchpointTest methodsFor: 'running'!
-tearDown
-	Breakpoint processFilter: nil.
-	super tearDown
-! !
-
 !WatchpointTest methodsFor: 'tests'!
 testProcessFilter
 	| p wp mover |
@@ -117,7 +111,7 @@ testAnyWriteWatchpoint
 	mover := self fork: [array at: 1 put: #a].
 	session := self waitForSession.
 	self assert: session label equals: 'watchpoint on any write'.
-	Watchpoint removeAll.
+	self removeBreakpoints.
 	session proceed.
 	self waitUntilTerminated: mover.
 	self assert: (array at: 1) equals: #a
@@ -152,7 +146,7 @@ testUnwatchRestoresReadOnlyState
 	wp := Watchpoint on: literal.
 	wp unwatch.
 	self assert: literal isReadOnlyObject.
-	self assert: Watchpoint all isEmpty
+	self assert: self ownWatchpoints isEmpty
 !
 testUnwatchedBetweenTheRefusedStoreAndItsDiversion
 	"A process's store into a watched object is refused; before the signal hook has looked for the watchpoint, another process removes it (the Debugger's Unwatch while the watched window's Process handles events): the store is performed, not reported as an error."
@@ -190,7 +184,7 @@ testUnwatchedWhileTheRefusedStoreIsPerformed
 	self waitUntilTerminated: unwatcher.
 	self assert: p equals: 3 @ 10.
 	self deny: p isReadOnlyObject description: 'the unwatched object stayed read-only'.
-	self assert: Watchpoint all isEmpty
+	self assert: self ownWatchpoints isEmpty
 !
 testAStoreThatFailsWhileWatched
 	"A store into a watched object that fails for another reason (an index out of bounds) is that error in the storing process; the object stays watched and its next store is performed."
