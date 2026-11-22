@@ -25,6 +25,18 @@ timeLimitMilliseconds
 ! !
 
 !NvComputeGPUTest methodsFor: 'tests'!
+testTheL2AndTheCPUAgree
+	"Textures are memory the GPU caches: what the CPU uploads over pixels a kernel read before is what the next kernel reads, and what kernels write is what a download reads, round after round."
+	| src dst |
+	src := self textureWidth: 64 height: 64 format: 2.
+	dst := self textureWidth: 64 height: 64 format: 2.
+	1 to: 6 do: [:i | | w |
+		w := self word: i * 40 g: 255 - i b: i a: 255.
+		gpu uploadTexture: src bytes: (self wordBytes: (Array new: 64 * 64 withAll: w)) x: 0 y: 0 width: 64 height: 64 bytesPerRow: 256.
+		self blit: src rect: #(0 0 64 64) to: dst rect: #(0 0 64 64) linear: false.
+		self assert: (self pixelsOf: dst) asSet asArray equals: (Array with: w).
+		self assert: (self pixelsOf: src) asSet asArray equals: (Array with: w)]
+!
 testFenceElapsedIsTheGPUsTime
 	"The GPU's clock around the command buffer's work: more than nothing for ten clears of 1920 x 1080, at most the wall time; nothing for a command buffer without GPU work."
 	| tex cmd f t0 wall |

@@ -137,6 +137,25 @@ semaphoreAddress
 	"The GPU address of the 64-bit word fence values are written to."
 	^semaphore gpuAddress
 !
+flushL2
+	"After the work submitted so far, the GPU's L2 writes its dirty lines of system memory back (sysmembar,
+	MEM_OP L2_FLUSH_DIRTY, sysmembar): then the CPU sees what kernels wrote to memory allocated gpuCached. Returns at
+	once; a fence after it says when."
+	self submit: (self l2Operations: #(16r10))
+!
+flushAndInvalidateL2
+	"flushL2, then the L2 drops its lines of system memory (L2_SYSMEM_NCOH_INVALIDATE): then kernels see what the CPU
+	wrote to memory allocated gpuCached. UVM's sequence on an integrated GPU (uvm_blackwell_host.c, l2_invalidate)."
+	self submit: (self l2Operations: #(16r10 16r11))
+!
+l2Operations: operations
+	"Host MEM_OPs (MEM_OP_D's operation, bits 31:27) between two sysmembars (operation 5, MEM_OP_C 0: SYS_MEMBAR)."
+	| pb |
+	pb := NvPushBuffer new.
+	(#(5), operations, #(5)) do: [:op |
+		pb method: 16r28 subchannel: 0 data: (Array with: 0 with: 0 with: 0 with: (op bitShift: 27))].
+	^pb
+!
 timestamp: gpuAddress payload: value
 	"Once the work before it is done, the GPU writes value (64 bits) to gpuAddress and its clock (ns, 64 bits) after it (SEM_EXECUTE with RELEASE_TIMESTAMP); no fence, no interrupt."
 	| pb |

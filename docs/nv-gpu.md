@@ -22,7 +22,7 @@ cannot be made (no Graphics-NV, no `/dev/nvidiactl`, `NvDevice open` fails) the 
 
 | | SoftwareGPU | NvComputeGPU |
 | --- | --- | --- |
-| textures, buffers, back buffers | `Machine allocate:` | `NvMemory` (system memory mapped for both; SoftwareGPU keeps its CPU address) |
+| textures, buffers, back buffers | `Machine allocate:` | `NvMemory` (system memory mapped for both; SoftwareGPU keeps its CPU address): textures in the GPU's L2, buffers and back buffers not |
 | clear | `rasterFill` | `raster_fill` |
 | draw | `rasterDraw` | batched: a target's consecutive draws as one `raster_batch_prims` and one `raster_batch_tiles` |
 | blit | `rasterBlit` | `raster_blit` |
@@ -43,11 +43,20 @@ submit): the params and each draw's first slot are written into an arena (GPU me
 its start before it is reused), then `raster_batch_prims` (a thread per slot of all the draws, each with its draw's
 state, 64 threads a block) and `raster_batch_tiles` (16 x 16 tiles over the union of the draws' scissors within the
 target; a tile skips each 256 slots none of whose chunks' bounding boxes meets it, lists the slots over it in order and
-applies each with its own draw's blend, texture and sampler). The scratch is memory the GPU caches (`NvDevice
-allocate:gpuCached:`): only the kernels touch it; everything the CPU writes or reads stays uncached, as on the GB10 the
-GPU's L2 is not coherent with the CPU for system memory (all memory cached, the channel hangs: the GPU reads stale
-QMDs). A pixel sees the
+applies each with its own draw's blend, texture and sampler). A pixel sees the
 draws in order, so the pixels are the same as draw by draw (docs/nv-kernels.md). A layer is two launches, not two a draw.
+
+**Memory and the L2.** On the GB10 the GPU's L2 is not coherent with the CPU for system memory: memory allocated
+`gpuCached` (`NvDevice allocate:gpuCached:`) is fast for kernels, but the CPU does not see their writes until the L2
+writes its dirty lines back, nor do kernels see the CPU's writes while the L2 holds older lines (all memory cached, the
+channel hangs: the GPU reads stale QMDs). NvComputeGPU caches what kernels use most and the CPU touches least: textures
+(layer surfaces, glyph atlases, images) and the draws' scratch. Buffers (vertices, uniforms, a batch's params), written by
+the CPU for nearly every draw, and back buffers, which the CPU reads every frame, stay uncached. It keeps them in step
+as UVM does on an integrated GPU (uvm_blackwell_host.c): after a launch the L2 may hold dirty lines, so before the CPU
+reads or writes cached memory (a download, an upload, freeing) the channel runs sysmembar, L2_FLUSH_DIRTY, sysmembar
+(`NvChannel>>flushL2`) and the CPU waits for it; after the CPU wrote cached memory (an upload, a new allocation's
+zeroes) the next launch is preceded by the flush and an L2_SYSMEM_NCOH_INVALIDATE (`flushAndInvalidateL2`).
+`NvComputeGPUTest>>testTheL2AndTheCPUAgree` fails without either.
 
 **Fences** keep the channel's value of the last launch when submitted; `fenceElapsed:` is the GPU's time for the command
 buffer: before its first clear, draw or blit and after its last, a semaphore release with RELEASE_TIMESTAMP writes the
@@ -116,15 +125,20 @@ the Compositor's own frames over 5 s (FrameRecord end - start, its CPU share).
 
 | | composite | redraw | live frame | compositor CPU |
 | --- | --- | --- | --- | --- |
-| NvComputeGPU | 0.43 ms (CPU 0.43) | 2.8-2.9 ms (CPU 1.7) | 4.4-4.6 ms, 60 fps | 17-20 % (3 ms a frame) |
+| NvComputeGPU | 0.39 ms (CPU 0.37) | 2.5-2.7 ms (CPU 1.4) | 4.6-4.9 ms, 60 fps | 20-25 % |
+| NvComputeGPU, textures uncached | 0.43-0.47 ms (CPU 0.43-0.46) | 2.8 ms (CPU 1.75) | 4.9-5.3 ms, 60 fps | 21-23 % |
 | NvComputeGPU, a draw at a time | 1.1 ms (CPU 1.1) | 8.3 ms (CPU 7.7) | 5.5 ms, 60 fps | 28 % (4.7 ms) |
 | SoftwareGPU (main's NEON raster) | 1.7 ms (CPU 1.5) | 3.2 ms (CPU 2.9) | 7.4 ms, on change only | 5 % (rests) |
 | SoftwareGPU before it | 3.9 ms (CPU 3.7) | 5.7-5.9 ms (CPU 5.5) | 11 ms, on change only | 6 % (rests) |
 | SDL_GPU, Vulkan | 0.21-0.25 ms (CPU 0.10-0.16) | 0.44-0.57 ms (CPU 0.21-0.31) | 3.3 ms, 60 fps | 10 % (1.7 ms) |
 
 The CPU time of NvComputeGPU includes its waits, which poll. A redraw is about 210 draws: batched, 2 launches a window's
-layer instead of 2 a draw. Its GPU time (timestamp releases around each launch, 13 batches): `raster_batch_tiles` 1.08
-ms, `raster_batch_prims` 0.43 ms (0.73 with the scratch uncached), the clears 0.13 ms; the kernels wait on uncached
-system memory (the targets' and textures' pixels, the vertices) more than they compute. The live frame is mostly SDL's
-present to the X server (3 ms, as for SDL_GPU's own frames). Textures and targets in GPU-cached memory, with the CPU's
-accesses through uncached staging copies (or the L2 flushed and invalidated around them), would be next.
+layer instead of 2 a draw. Its GPU time (timestamp releases around each launch, 13 batches): `raster_batch_tiles` 0.74
+ms (1.08 with textures uncached), `raster_batch_prims` 0.43-0.59 ms (0.73 with the scratch uncached too), the clears
+0.09 ms; what is left waits on the vertices and params, uncached. The live frame is mostly SDL's present to the X
+server (3 ms, as for SDL_GPU's own frames): within its noise either way. Back buffers cached made it worse (5.1 ms: 8 MB
+written back every frame), buffers cached too (an invalidate after each upload) the redraw (3.0 ms).
+
+World interaction (samaltak-ctl under Xvfb: eight drags of the System Browser, then typing 38 characters into the Workspace,
+about 3.8 s of frames; two runs each): textures cached, frames 4.8-4.9 ms on average, 95th percentile 8.0-8.2 ms, the
+longest 35 ms, compositor 21-22 %; uncached, 5.1-5.2 ms, 8.1-8.4 ms, 36-39 ms, 21-24 %.

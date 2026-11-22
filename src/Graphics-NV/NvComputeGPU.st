@@ -1,5 +1,5 @@
 SoftwareGPU subclass: #NvComputeGPU
-	instanceVariableNames: 'gpu compute kernels memories fences lastFence scratch starts batch batchStarts batchSlots batchTarget batchClip batchUsed arena arenaOffset stamps stampCount recent blocks'
+	instanceVariableNames: 'gpu compute kernels memories fences lastFence scratch starts batch batchStarts batchSlots batchTarget batchClip batchUsed arena arenaOffset stamps stampCount recent blocks cached gpuDirty l2Stale'
 	classVariableNames: ''
 	package: 'Graphics-NV'!
 
@@ -24,6 +24,8 @@ setDisplay: aDisplay
 	gpu := NvDevice open.
 	stampCount := 0.
 	recent := Array new: 64.
+	cached := Set new.
+	gpuDirty := l2Stale := false.
 	[compute := gpu newCompute.
 	stamps := gpu allocate: 256 * 32.
 	cubin := NvCubin on: NvRasterKernels cubin.
@@ -46,10 +48,12 @@ compute
 close
 	"Close the GPU; every texture, buffer and back buffer goes with it. Safe to call twice."
 	gpu isNil ifTrue: [^self].
-	[gpu close] ensure: [
+	[[self flush. gpuDirty ifTrue: [self writeBackL2]] on: Error do: [:e | ].
+	gpu close] ensure: [
 		gpu := compute := scratch := arena := stamps := nil.
 		self resetBatch.
 		memories := Dictionary new.
+		cached := Set new.
 		fences := Dictionary new]
 ! !
 
@@ -142,7 +146,11 @@ gpuAddress: address
 launch: aName grid: grid parameters: bytes using: addresses
 	"Queue the raster kernel aName (as many threads a block as it is written for) with its parameter struct; the memory at addresses waits for it."
 	| fence |
+	l2Stale ifTrue: [
+		compute channel flushAndInvalidateL2.
+		l2Stale := false].
 	fence := compute launch: (kernels at: aName) grid: grid block: (blocks at: aName) parameters: bytes.
+	gpuDirty := true.
 	recent at: fence \\ 64 + 1 put: (Array with: fence with: aName with: grid with: bytes).
 	addresses do: [:a | fences at: a put: fence].
 	lastFence := fence
@@ -201,7 +209,7 @@ arenaFor: byteCount
 	(arena isNil or: [arena size < byteCount]) ifTrue: [
 		arena isNil ifFalse: [self free: arena cpuAddress].
 		arena := nil.
-		arena := memories at: (self allocate: (byteCount * 2 max: 16r100000)).
+		arena := memories at: (self allocateBuffer: (byteCount * 2 max: 16r100000)).
 		arenaOffset := 0].
 	arenaOffset + byteCount > arena size ifTrue: [
 		self touch: arena cpuAddress.
@@ -215,14 +223,25 @@ ensureScratch: byteCount
 	(scratch notNil and: [scratch size >= byteCount]) ifTrue: [^scratch].
 	scratch notNil ifTrue: [self free: scratch cpuAddress].
 	scratch := nil.
-	"only the kernels use it: the GPU may cache it"
-	scratch := gpu allocate: (byteCount * 2 max: 16r100000) gpuCached: true.
-	memories at: scratch cpuAddress put: scratch.
-	^scratch
+	^scratch := memories at: (self allocate: (byteCount * 2 max: 16r100000))
 ! !
 
 !NvComputeGPU methodsFor: 'memory and pixels'!
 allocate: byteCount
+	"Textures and back buffers (and the scratch): memory the GPU caches. RM's zeroes are the CPU's: the L2 is invalidated before the next launch."
+	| m |
+	m := gpu allocate: (byteCount max: 1) gpuCached: true.
+	memories at: m cpuAddress put: m.
+	cached add: m cpuAddress.
+	l2Stale := true.
+	^m cpuAddress
+!
+allocateBackBuffer: byteCount
+	"A back buffer: the CPU reads every frame of it (present), so not cached (the L2 would write 8 MB back a frame)."
+	^self allocateBuffer: byteCount
+!
+allocateBuffer: byteCount
+	"Buffers (vertices, uniforms, a batch's params): written by the CPU for nearly every draw, so not cached."
 	| m |
 	m := gpu allocate: (byteCount max: 1).
 	memories at: m cpuAddress put: m.
@@ -232,14 +251,31 @@ free: address
 	| m |
 	self touch: address.
 	m := memories removeKey: address ifAbsent: [^self].
+	cached remove: address ifAbsent: [].
 	m free
 !
 touch: address
-	"Wait for the launches that use the memory at address (the batched draws launched first)."
+	"The CPU is about to read or write the memory at address: wait for the launches that use it (the batched draws launched first), and if the GPU caches it, have the L2 write what kernels wrote back (the CPU reads it, or would be overwritten by it later)."
 	| f |
 	self flush.
-	f := fences removeKey: address ifAbsent: [^self].
-	compute wait: f
+	f := fences removeKey: address ifAbsent: [nil].
+	f isNil ifFalse: [compute wait: f].
+	((cached includes: address) and: [gpuDirty]) ifTrue: [self writeBackL2]
+!
+writeBackL2
+	"Wait until the L2 has written every dirty line back (NvChannel>>flushL2 and a fence)."
+	| ch |
+	ch := compute channel.
+	ch flushL2.
+	ch wait: ch fence.
+	gpuDirty := false
+!
+uploadTexture: t bytes: bytes x: x y: y width: w height: h bytesPerRow: bytesPerRow
+	"The CPU wrote it: the L2 drops its lines before the next launch."
+	| r |
+	r := super uploadTexture: t bytes: bytes x: x y: y width: w height: h bytesPerRow: bytesPerRow.
+	l2Stale := true.
+	^r
 !
 fill: address count: n bytesPerPixel: bpp value: anInteger
 	| p |

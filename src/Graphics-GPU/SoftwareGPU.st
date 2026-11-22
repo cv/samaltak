@@ -7,7 +7,7 @@ SoftwareGPU comment: 'I am a GPU in software: GPUPlatform''s device where the VM
 
 Everything executes when it is called: uploads, clears, draws, blits and downloads; a command buffer only groups them (its vertex uniforms, the swapchain textures it acquired, the time its work took); fences are done when they are made (fenceElapsed: that time, µs). Textures and buffers are memory outside the heap (Machine allocate:), freed when released: R8, RGBA8 or BGRA8 rows, tightly packed. A claimed window has a back buffer (BGRA8, the window''s pixel size), the swapchain texture acquireSwapchain:window: answers; submitting the command buffer that acquired it presents it on my display (presentWindow:pixels:width:height:).
 
-A subclass on other memory or another rasterizer (NvComputeGPU: GPU memory, the raster kernels) overrides the methods of ''memory and pixels'': allocate: and free:, touch: (the CPU is about to read or write that memory), fill/draw/blit, present:.'!
+A subclass on other memory or another rasterizer (NvComputeGPU: GPU memory, the raster kernels) overrides the methods of ''memory and pixels'': allocate:, allocateBuffer:, allocateBackBuffer: and free:, touch: (the CPU is about to read or write that memory), fill/draw/blit, present:.'!
 
 !SoftwareGPU methodsFor: 'initialization'!
 setDisplay: aDisplay
@@ -185,7 +185,7 @@ createSampler: dev linear: linear repeat: repeat
 createBuffer: dev usage: usage size: size
 	self device: dev for: 'gpuCreateBuffer'.
 	(usage = 1 and: [size > 0]) ifFalse: [^self fail: 'gpuCreateBuffer' because: 'bad buffer parameters'].
-	^self add: ((SoftwareGPUObject kind: #buffer) device: dev; size: size; address: (self allocate: size); yourself)
+	^self add: ((SoftwareGPUObject kind: #buffer) device: dev; size: size; address: (self allocateBuffer: size); yourself)
 !
 uploadBuffer: buffer bytes: bytes count: byteCount offset: dstOffset
 	| b |
@@ -242,7 +242,7 @@ acquireSwapchain: cmd window: window
 	(w > 0 and: [h > 0]) ifFalse: [^nil].
 	(claim address isNil or: [claim width ~= w or: [claim height ~= h]]) ifTrue: [
 		self unclaim: claim.
-		claim address: (self allocate: w * h * 4); width: w; height: h].
+		claim address: (self allocateBackBuffer: w * h * 4); width: w; height: h].
 	^{self add: ((SoftwareGPUObject kind: #swapchain) device: c device; address: claim address; width: w; height: h; format: 3; command: cmd; extra: window; yourself) ownedBy: cmd.
 		w. h}
 !
@@ -362,8 +362,16 @@ fenceElapsed: fence
 
 !SoftwareGPU methodsFor: 'memory and pixels'!
 allocate: byteCount
-	"The address of byteCount bytes of zeroed memory for a texture, a buffer or a back buffer."
+	"The address of byteCount bytes of zeroed memory for a texture or a back buffer."
 	^Machine allocate: byteCount
+!
+allocateBuffer: byteCount
+	"The address of byteCount bytes of zeroed memory for a buffer (allocate:'s, here)."
+	^self allocate: byteCount
+!
+allocateBackBuffer: byteCount
+	"The address of byteCount bytes of zeroed memory for a window's back buffer (allocate:'s, here)."
+	^self allocate: byteCount
 !
 free: address
 	Machine free: address
