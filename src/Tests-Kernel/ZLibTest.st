@@ -52,6 +52,42 @@ testAdler32
 	self assert: (ZLib adler32Of: 'Wikipedia' asByteArray) equals: 16r11E60398.
 	self assert: (ZLib adler32Of: ByteArray new) equals: 1
 !
+testMatchesPrimitiveMatchesSmalltalk
+	"The VM's LZ77 (zlibMatches) makes ZLib>>matchesInSmalltalkFrom:head:prev:literals:distances:'s tokens, chains and positions: on empty, short, run, few-valued, random and mixed data, from the start and part way, with chains of 1, 16 and 300, and with chains holding garbage (positions at or after the current one are not candidates)."
+	| random inputs |
+	random := Random seed: 99.
+	inputs := {ByteArray new. #[7]. #[1 2 3]. #[1 2 3 1 2 3 1 2 3 1 2 3]. ByteArray new: 70000 withAll: 9.
+		((1 to: 70000) collect: [:i | random nextInt: 3]) asByteArray.
+		self randomBytes: 3000 seed: 5.
+		((1 to: 140000) collect: [:i | i \\ 1000 < 500 ifTrue: [i \\ 7] ifFalse: [(random nextInt: 256) - 1]]) asByteArray}.
+	inputs do: [:data | #(1 16 300) do: [:chain | {1. data size // 3 + 1} do: [:start |
+		#(false true) do: [:garbage | | a b |
+			a := self matchesOf: data from: start chain: chain garbage: garbage primitive: true.
+			b := self matchesOf: data from: start chain: chain garbage: garbage primitive: false.
+			self deny: (a at: 1) isNil.
+			self assert: a equals: b]]]]
+!
+testMatchesPrimitiveRefusesBadArguments
+	| head prev lits dists |
+	head := ByteArray new: 131072.
+	prev := ByteArray new: 131072.
+	lits := ByteArray new: 131070.
+	dists := ByteArray new: 131070.
+	self assert: (ZLib primMatches: #[1 2 3] from: 1 head: head prev: prev literals: lits distances: dists chain: 16) notNil.
+	self assert: (ZLib primMatches: #[1 2 3] from: 5 head: head prev: prev literals: lits distances: dists chain: 16) isNil.
+	self assert: (ZLib primMatches: #[1 2 3] from: 1 head: head prev: prev literals: lits distances: dists chain: 0) isNil.
+	self assert: (ZLib primMatches: #[1 2 3] from: 1 head: head prev: head literals: lits distances: dists chain: 16) isNil.
+	self assert: (ZLib primMatches: #[1 2 3] from: 1 head: head prev: prev literals: (ByteArray new: 100) distances: dists chain: 16) isNil.
+	self assert: (ZLib primMatches: #(1 2 3) from: 1 head: head prev: prev literals: lits distances: dists chain: 16) isNil
+!
+testAdler32Primitive
+	"The VM's Adler-32 is the Smalltalk one's, across its 5552-byte reductions."
+	#(0 1 3 4 5 5551 5552 5553 11104 100001) do: [:n | | data |
+		data := self randomBytes: n seed: n.
+		self assert: (ZLib primAdler32Of: data) equals: (ZLib adler32InSmalltalkOf: data).
+		data := ByteArray new: n withAll: 255.
+		self assert: (ZLib primAdler32Of: data) equals: (ZLib adler32InSmalltalkOf: data)]
+!
 testCorruptStreamsAreRefused
 	| z |
 	z := ZLib compress: 'hello hello hello hello' asByteArray.
@@ -62,6 +98,21 @@ testCorruptStreamsAreRefused
 ! !
 
 !ZLibTest methodsFor: 'support'!
+matchesOf: data from: start chain: chain garbage: garbage primitive: aBoolean
+	"{the answer. head. prev. literals. distances} of a block of tokens of data from start, the chains first filled with a pattern (garbage) or empty."
+	| z head prev lits dists r |
+	head := ByteArray new: 131072.
+	prev := ByteArray new: 131072.
+	garbage ifTrue: [1 to: 32768 do: [:i | head uint32At: i * 4 - 3 put: i * 7919 \\ (data size + 50000). prev uint32At: i * 4 - 3 put: i * 104729 \\ (data size + 3)]].
+	lits := ByteArray new: 131070.
+	dists := ByteArray new: 131070.
+	z := ZLib new maxChain: chain; yourself.
+	z instVarNamed: 'input' put: data.
+	r := aBoolean
+		ifTrue: [ZLib primMatches: data from: start head: head prev: prev literals: lits distances: dists chain: chain]
+		ifFalse: [z matchesInSmalltalkFrom: start head: head prev: prev literals: lits distances: dists].
+	^{r. head. prev. lits. dists}
+!
 randomBytes: n seed: anInteger
 	| random bytes |
 	random := Random seed: anInteger.

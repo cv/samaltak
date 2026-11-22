@@ -1936,3 +1936,132 @@ exit_is_string_like:;
     prim_status = PS_OK;
 }
 
+/* ObjectPrimitives>>primZlibAdler32 */
+void prim_zlib_adler32(void)
+{
+    oop o;
+    int64_t v;
+    uint64_t v_2;
+    if (!(prim_nargs == 1)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o = prim_base[1];
+    if (!(((o & 7) == 0) && (((int32_t)(((*(uint64_t *)o) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) && ((int32_t)(((*(uint64_t *)o) >> H_FMT_SHIFT) & H_FMT_MASK) < 24)))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = (int64_t)adler32((uint8_t *)(o + 16), (int64_t)byte_size(o));
+    v_2 = (uint64_t)((v << 1) | 1);
+    prim_result = v_2;
+    prim_status = PS_OK;
+}
+
+/* ObjectPrimitives>>primZlibMatches */
+void prim_zlib_matches(void)
+{
+    oop input;
+    int64_t n;
+    oop o;
+    oop o_2;
+    oop o_3;
+    int64_t start;
+    oop o_4;
+    int64_t chain;
+    oop head;
+    oop prev;
+    oop lits;
+    oop dists;
+    bool r_is_bytes;
+    int32_t f;
+    bool r_is_bytes_2;
+    int32_t f_2;
+    bool r_is_bytes_3;
+    int32_t f_3;
+    bool r_is_bytes_4;
+    int32_t f_4;
+    int64_t v;
+    uint64_t v_2;
+    if (!(prim_nargs == 7)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    input = prim_base[1];
+    if (!(((input & 7) == 0) && (((int32_t)(((*(uint64_t *)input) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) && ((int32_t)(((*(uint64_t *)input) >> H_FMT_SHIFT) & H_FMT_MASK) < 24)))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    n = (int64_t)byte_size(input);
+    o = prim_base[2];
+    if (!(((o & 1) != 0) && ({
+    o_2 = prim_base[7];
+    (o_2 & 1) != 0; }))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o_3 = prim_base[2];
+    start = ((int64_t)o_3) >> 1;
+    o_4 = prim_base[7];
+    chain = ((int64_t)o_4) >> 1;
+    if (!((start >= 1) && (start <= n + 1) && ((chain >= 1) && (chain <= 4096)))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    head = prim_base[3];
+    prev = prim_base[4];
+    lits = prim_base[5];
+    dists = prim_base[6];
+    if (!(({
+    if (!((head & 7) == 0)) {
+        r_is_bytes = false;
+        goto exit_is_bytes;
+    }
+    f = (int32_t)(((*(uint64_t *)head) >> H_FMT_SHIFT) & H_FMT_MASK);
+    r_is_bytes = (f >= F_BYTES) && ((f < 24) && (byte_size(head) == 131072ULL));
+exit_is_bytes:;
+    r_is_bytes; }) && (!(((*(uint64_t *)head) & H_IMMUTABLE) != 0)) && (({
+    if (!((prev & 7) == 0)) {
+        r_is_bytes_2 = false;
+        goto exit_is_bytes_2;
+    }
+    f_2 = (int32_t)(((*(uint64_t *)prev) >> H_FMT_SHIFT) & H_FMT_MASK);
+    r_is_bytes_2 = (f_2 >= F_BYTES) && ((f_2 < 24) && (byte_size(prev) == 131072ULL));
+exit_is_bytes_2:;
+    r_is_bytes_2; }) && (!(((*(uint64_t *)prev) & H_IMMUTABLE) != 0)) && (({
+    if (!((lits & 7) == 0)) {
+        r_is_bytes_3 = false;
+        goto exit_is_bytes_3;
+    }
+    f_3 = (int32_t)(((*(uint64_t *)lits) >> H_FMT_SHIFT) & H_FMT_MASK);
+    r_is_bytes_3 = (f_3 >= F_BYTES) && ((f_3 < 24) && (byte_size(lits) == 131070ULL));
+exit_is_bytes_3:;
+    r_is_bytes_3; }) && (!(((*(uint64_t *)lits) & H_IMMUTABLE) != 0)) && (({
+    if (!((dists & 7) == 0)) {
+        r_is_bytes_4 = false;
+        goto exit_is_bytes_4;
+    }
+    f_4 = (int32_t)(((*(uint64_t *)dists) >> H_FMT_SHIFT) & H_FMT_MASK);
+    r_is_bytes_4 = (f_4 >= F_BYTES) && ((f_4 < 24) && (byte_size(dists) == 131070ULL));
+exit_is_bytes_4:;
+    r_is_bytes_4; }) && (!(((*(uint64_t *)dists) & H_IMMUTABLE) != 0))))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (!((head != prev) && (lits != dists))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = matches((uint8_t *)(input + 16), n, start, (uint32_t *)(head + 16), (uint32_t *)(prev + 16), (uint16_t *)(uint8_t *)(lits + 16), (uint16_t *)(uint8_t *)(dists + 16), 65535, chain);
+    v_2 = (uint64_t)((v << 1) | 1);
+    prim_result = v_2;
+    prim_status = PS_OK;
+}
+

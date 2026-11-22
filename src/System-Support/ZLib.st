@@ -9,7 +9,7 @@ ZLib comment: 'I compress and decompress zlib streams (RFC 1950) of deflate data
 	ZLib decompress: aByteArray     "the bytes again; an Error when the stream is corrupt"
 	ZLib deflate: aByteArray / ZLib inflate: aByteArray   "raw deflate data, without the zlib header and checksum"
 
-Compressing: LZ77 over a 32 KB window (hash chains on three bytes, greedy, at most maxChain candidates per position; positions inside a long match are not hashed), then each block of up to 65535 tokens (so that a block of literals fits one stored block) is written as dynamic Huffman (code lengths limited to 15 bits, 7 for the code-length code), fixed Huffman or stored, whichever is shortest. Decompressing reads all three block types (canonical Huffman decoding, one bit at a time). An instance is one coder: its input, its output and the bit buffer between them.'!
+Compressing: LZ77 over a 32 KB window (hash chains on three bytes, greedy, at most maxChain candidates per position; positions inside a long match are not hashed; the VM''s primitive finds the matches, ZLib>>matchesFrom:head:prev:literals:distances:), then each block of up to 65535 tokens (so that a block of literals fits one stored block) is written as dynamic Huffman (code lengths limited to 15 bits, 7 for the code-length code), fixed Huffman or stored, whichever is shortest. Decompressing reads all three block types (canonical Huffman decoding, one bit at a time). An instance is one coder: its input, its output and the bit buffer between them.'!
 
 !ZLib class methodsFor: 'compressing'!
 compress: bytes
@@ -46,6 +46,19 @@ inflate: bytes
 	^self new inflate: bytes from: 1
 !
 adler32Of: bytes
+	"The VM's primitive (DeflateMatcher), else adler32InSmalltalkOf:."
+	^(self primAdler32Of: bytes) ifNil: [self adler32InSmalltalkOf: bytes]
+!
+primAdler32Of: bytes
+	<primitive: 'zlibAdler32'>
+	^nil
+!
+primMatches: input from: start head: head prev: prev literals: litLens distances: distances chain: maxChain
+	"ZLib>>matchesFrom:head:prev:literals:distances: in the VM; nil if it cannot (an older VM, maxChain beyond 1 to 4096)."
+	<primitive: 'zlibMatches'>
+	^nil
+!
+adler32InSmalltalkOf: bytes
 	"Sums are reduced modulo 65521 every 5552 bytes."
 	| a b i n stop |
 	a := 1.
@@ -175,30 +188,52 @@ position
 
 !ZLib methodsFor: 'compressing'!
 deflate: bytes
-	"The raw deflate data of bytes."
-	| n head prev litLens distances count blockStart pos best bestDistance candidate chain limit length hash final |
+	"The raw deflate data of bytes: blocks of the tokens of matchesFrom:head:prev:literals:distances:."
+	| n head prev litLens distances count blockStart pos r final |
 	self class tables.
 	input := bytes.
 	n := bytes size.
 	output := ByteArray new: n // 4 + 1024.
-	head := Array new: 32768 withAll: 0.
-	prev := Array new: 32768 withAll: 0.
-	litLens := Array new: 65535.
-	distances := Array new: 65535.
-	count := 0.
+	head := ByteArray new: 131072.
+	prev := ByteArray new: 131072.
+	litLens := ByteArray new: 131070.
+	distances := ByteArray new: 131070.
 	blockStart := 1.
 	final := false.
 	pos := 1.
 	[pos <= n] whileTrue: [
+		r := self matchesFrom: pos head: head prev: prev literals: litLens distances: distances.
+		pos := r bitShift: -16.
+		count := r bitAnd: 65535.
+		final := pos > n.
+		self writeBlock: litLens distances: distances count: count from: blockStart to: pos - 1 final: final.
+		blockStart := pos].
+	final ifFalse: [self writeBlock: litLens distances: distances count: 0 from: blockStart to: n final: true].
+	bitCount > 0 ifTrue: [self putByte: (bits bitAnd: 255)].
+	^output copyFrom: 1 to: size
+!
+matchesFrom: start head: head prev: prev literals: litLens distances: distances
+	"The LZ77 tokens of a block from start, until there are 65535 or the input ends: token i (0-based) is the uint16 at 2i + 1 of litLens (a literal byte, or 256 + a match's length) and of distances (the match's distance, 0 for a literal); head and prev are the hash chains, 32768 uint32 each (positions, 0 for none). Answer the position after the tokens times 65536 plus their count. The VM's primitive (DeflateMatcher), else matchesInSmalltalkFrom:head:prev:literals:distances:."
+	^(self class primMatches: input from: start head: head prev: prev literals: litLens distances: distances chain: maxChain)
+		ifNil: [self matchesInSmalltalkFrom: start head: head prev: prev literals: litLens distances: distances]
+!
+matchesInSmalltalkFrom: start head: head prev: prev literals: litLens distances: distances
+	"matchesFrom:head:prev:literals:distances: in Smalltalk: greedy, at most maxChain candidates a position (each before it, nearer than 32768); the positions inside a match of at most 16 bytes are hashed too."
+	| n pos count best bestDistance candidate chain limit length hash |
+	n := input size.
+	pos := start.
+	count := 0.
+	[pos <= n and: [count < 65535]] whileTrue: [
 		best := 0.
+		bestDistance := 0.
 		pos + 2 <= n ifTrue: [
-			hash := (((input at: pos) bitShift: 7) bitXor: (((input at: pos + 1) bitShift: 4) bitXor: (input at: pos + 2))) + 1.
-			candidate := head at: hash.
-			prev at: (pos bitAnd: 32767) + 1 put: candidate.
-			head at: hash put: pos.
+			hash := self hashAt: pos.
+			candidate := head uint32At: hash * 4 + 1.
+			prev uint32At: (pos bitAnd: 32767) * 4 + 1 put: candidate.
+			head uint32At: hash * 4 + 1 put: pos.
 			limit := n - pos + 1 min: 258.
 			chain := maxChain.
-			[candidate > 0 and: [chain > 0 and: [pos - candidate < 32768]]] whileTrue: [
+			[candidate > 0 and: [candidate < pos and: [chain > 0 and: [pos - candidate < 32768]]]] whileTrue: [
 				(input at: candidate + best) = (input at: pos + best) ifTrue: [
 					length := 0.
 					[length < limit and: [(input at: candidate + length) = (input at: pos + length)]] whileTrue: [length := length + 1].
@@ -206,31 +241,28 @@ deflate: bytes
 						best := length.
 						bestDistance := pos - candidate.
 						best = limit ifTrue: [chain := 1]]].
-				candidate := prev at: (candidate bitAnd: 32767) + 1.
+				candidate := prev uint32At: (candidate bitAnd: 32767) * 4 + 1.
 				chain := chain - 1]].
-		count := count + 1.
 		best >= 3
 			ifTrue: [
-				litLens at: count put: 256 + best.
-				distances at: count put: bestDistance.
+				litLens uint16At: count * 2 + 1 put: 256 + best.
+				distances uint16At: count * 2 + 1 put: bestDistance.
 				best <= 16 ifTrue: [
 					pos + 1 to: (pos + best - 1 min: n - 2) do: [:p |
-						hash := (((input at: p) bitShift: 7) bitXor: (((input at: p + 1) bitShift: 4) bitXor: (input at: p + 2))) + 1.
-						prev at: (p bitAnd: 32767) + 1 put: (head at: hash).
-						head at: hash put: p]].
+						hash := self hashAt: p.
+						prev uint32At: (p bitAnd: 32767) * 4 + 1 put: (head uint32At: hash * 4 + 1).
+						head uint32At: hash * 4 + 1 put: p]].
 				pos := pos + best]
 			ifFalse: [
-				litLens at: count put: (input at: pos).
-				distances at: count put: 0.
+				litLens uint16At: count * 2 + 1 put: (input at: pos).
+				distances uint16At: count * 2 + 1 put: 0.
 				pos := pos + 1].
-		count = litLens size ifTrue: [
-			final := pos > n.
-			self writeBlock: litLens distances: distances count: count from: blockStart to: pos - 1 final: final.
-			count := 0.
-			blockStart := pos]].
-	final ifFalse: [self writeBlock: litLens distances: distances count: count from: blockStart to: n final: true].
-	bitCount > 0 ifTrue: [self putByte: (bits bitAnd: 255)].
-	^output copyFrom: 1 to: size
+		count := count + 1].
+	^(pos bitShift: 16) + count
+!
+hashAt: p
+	"The hash (0 to 32767) of the three bytes at p."
+	^((input at: p) bitShift: 7) bitXor: (((input at: p + 1) bitShift: 4) bitXor: (input at: p + 2))
 !
 writeBlock: litLens distances: distances count: count from: start to: stop final: final
 	"Write count tokens (input bytes start to stop) as the shortest of a dynamic, fixed or stored block."
@@ -239,13 +271,13 @@ writeBlock: litLens distances: distances count: count from: start to: stop final
 	distFreq := Array new: 30 withAll: 0.
 	extraBits := 0.
 	1 to: count do: [:i | | v c d |
-		v := litLens at: i.
+		v := litLens uint16At: 2 * i - 1.
 		v < 256
 			ifTrue: [litFreq at: v + 1 put: (litFreq at: v + 1) + 1]
 			ifFalse: [
 				c := LengthCodes at: v - 256.
 				litFreq at: c + 258 put: (litFreq at: c + 258) + 1.
-				d := DistanceCodes at: (distances at: i).
+				d := DistanceCodes at: (distances uint16At: 2 * i - 1).
 				distFreq at: d + 1 put: (distFreq at: d + 1) + 1.
 				extraBits := extraBits + (LengthExtra at: c + 1) + (DistanceExtra at: d + 1)]].
 	litFreq at: 257 put: 1.
@@ -329,7 +361,7 @@ writeTokens: litLens distances: distances count: count literals: litLengths dist
 	litCodes := self class codesFor: litLengths.
 	distCodes := self class codesFor: distLengths.
 	1 to: count do: [:i | | v len c e d dc |
-		v := litLens at: i.
+		v := litLens uint16At: 2 * i - 1.
 		v < 256
 			ifTrue: [self writeBits: (litCodes at: v + 1) count: (litLengths at: v + 1)]
 			ifFalse: [
@@ -338,7 +370,7 @@ writeTokens: litLens distances: distances count: count literals: litLengths dist
 				self writeBits: (litCodes at: c + 258) count: (litLengths at: c + 258).
 				e := LengthExtra at: c + 1.
 				e > 0 ifTrue: [self writeBits: len - (LengthBase at: c + 1) count: e].
-				d := distances at: i.
+				d := distances uint16At: 2 * i - 1.
 				dc := DistanceCodes at: d.
 				self writeBits: (distCodes at: dc + 1) count: (distLengths at: dc + 1).
 				e := DistanceExtra at: dc + 1.

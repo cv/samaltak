@@ -1,5 +1,5 @@
 VMPrimitiveModule subclass: #ObjectPrimitives
-	instanceVariableNames: 'instancesClass instancesResult instancesCount search png'
+	instanceVariableNames: 'instancesClass instancesResult instancesCount search png deflate'
 	classVariableNames: ''
 	package: 'VM-Core'!
 
@@ -7,7 +7,7 @@ ObjectPrimitives comment: 'Object, string and byte-access primitives. Indices ar
 
 !ObjectPrimitives class methodsFor: 'declaring'!
 declarations
-	^#((instancesClass oop) (instancesResult oop) (instancesCount size_t) (search ByteSearch) (png PngFilter))
+	^#((instancesClass oop) (instancesResult oop) (instancesCount size_t) (search ByteSearch) (png PngFilter) (deflate DeflateMatcher))
 ! !
 
 !ObjectPrimitives methodsFor: 'object'!
@@ -601,4 +601,49 @@ primPngFilter
 	(rgba ~= raw and: [(self isBytes: rgba size: w * h * 4) and: [(self isBytes: raw size: (w * n + 1) * h) and: [(self isImmutable: raw) not]]]) ifFalse: [^self fail].
 	png filterPng: (self bytesOf: rgba) width: w height: h channels: n into: (self bytesOf: raw).
 	self answer: raw
+! !
+
+!ObjectPrimitives methodsFor: 'images'!
+isMutableBytes: o size: n
+	^(self isBytes: o size: n) and: [(self isImmutable: o) not]
+!
+primZlibMatches
+	"(input, start, head, prev, literals, distances, chain): the LZ77 tokens of a deflate block of the byte object input from the 1-based start, as ZLib>>matchesFrom: makes them (DeflateMatcher): head and prev the hash chains, 32768 uint32 each; literals and distances the tokens, 65535 uint16 each (the most a block has); chain the candidates tried a position, 1 to 4096. Answers the position after the tokens times 65536 plus their count. Fails unless input is a byte object, 1 <= start <= its size + 1, and the four tables distinct mutable byte objects of those sizes."
+	<vmPrimitive: 208 name: 'zlibMatches'>
+	<leaf>
+	| input n start chain head prev lits dists |
+	self argCount = 7 ifFalse: [^self fail].
+	input := self arg: 0.
+	((self isPtr: input) and: [(self formatOf: input) >= F_BYTES and: [(self formatOf: input) < (F_BYTES + 8)]]) ifFalse: [^self fail].
+	n := (memory byteSize: input) asInt64.
+	((self isInt: (self arg: 1)) and: [self isInt: (self arg: 6)]) ifFalse: [^self fail].
+	start := self intVal: (self arg: 1).
+	chain := self intVal: (self arg: 6).
+	((start >= 1 and: [start <= (n + 1)]) and: [chain >= 1 and: [chain <= 4096]]) ifFalse: [^self fail].
+	head := self arg: 2.
+	prev := self arg: 3.
+	lits := self arg: 4.
+	dists := self arg: 5.
+	((self isMutableBytes: head size: 131072) and: [(self isMutableBytes: prev size: 131072) and: [(self isMutableBytes: lits size: 131070) and: [self isMutableBytes: dists size: 131070]]]) ifFalse: [^self fail].
+	(head ~= prev and: [lits ~= dists]) ifFalse: [^self fail].
+	self answer: (self intOop: (deflate
+		matches: (self bytesOf: input)
+		size: n
+		from: start
+		head: (self words32Of: head)
+		prev: (self words32Of: prev)
+		literals: (self cCoerce: (self bytesOf: lits) to: 'uint16_t *')
+		distances: (self cCoerce: (self bytesOf: dists) to: 'uint16_t *')
+		max: 65535
+		chain: chain))
+!
+primZlibAdler32
+	"(bytes): the Adler-32 of a byte object (ZLib class>>adler32Of:)."
+	<vmPrimitive: 209 name: 'zlibAdler32'>
+	<leaf>
+	| o |
+	self argCount = 1 ifFalse: [^self fail].
+	o := self arg: 0.
+	((self isPtr: o) and: [(self formatOf: o) >= F_BYTES and: [(self formatOf: o) < (F_BYTES + 8)]]) ifFalse: [^self fail].
+	self answer: (self intOop: (deflate adler32: (self bytesOf: o) size: (memory byteSize: o) asInt64) asInt64)
 ! !
