@@ -130,6 +130,7 @@ testCollectedTerminalIsClosed
 !
 testDeadAfterRestart
 	| handle |
+	self needsThrowawayImage: 'PseudoTerminal startUp: forgets every open pty, the Terminal windows'' too'.
 	self spawn: #('sh' '-c' 'exit 0').
 	handle := pty instVarNamed: 'handle'.
 	PseudoTerminal startUp: true.

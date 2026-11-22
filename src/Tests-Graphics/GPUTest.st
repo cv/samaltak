@@ -54,6 +54,7 @@ testBadArgumentsSignalGPUError
 testNewSessionRecreatesHandles
 	"After an image restart every handle is stale: objects re-create themselves on first use, textures report a new generation, and Forms and atlas pages upload their contents again."
 	| tex generation form result |
+	self needsThrowawayImage: 'GPUDevice startUp: makes every GPU handle of the image stale, its World''s too'.
 	tex := GPUDevice default textureWidth: 2 height: 2 format: #rgba8 usage: #(#sampler).
 	generation := tex generation.
 	form := Form width: 2 height: 2.
