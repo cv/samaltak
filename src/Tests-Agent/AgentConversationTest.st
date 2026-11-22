@@ -146,10 +146,10 @@ testPrintStringFails
 !
 testLongPrintStringIsCut
 	| outputs |
-	outputs := self run: #('String new: 25000 withAll: $a' 'String new: 3998 withAll: $a').
-	self assert: (outputs at: 1) size < 4200.
-	self assert: ((outputs at: 1) endsWith: '... [cut: 25002 characters in all; the next part: o1 printString copyFrom: 4001 to: 8000]').
-	self assert: (outputs at: 2) size equals: 4003
+	outputs := self run: #('String new: 25000 withAll: $a' 'String new: 9998 withAll: $a').
+	self assert: (outputs at: 1) size < 10200.
+	self assert: ((outputs at: 1) endsWith: '... [cut: 25002 characters in all; the next part: o1 printString copyFrom: 10001 to: 20000]').
+	self assert: (outputs at: 2) size equals: 10003
 !
 testTimeout
 	| outputs |
@@ -335,11 +335,11 @@ testRetryAfterProviderError
 !
 testLongElementsAreCutEach
 	| outputs |
-	outputs := self run: #('Array with: (String new: 10000 withAll: $a) with: ''short'' with: 42' '(1 to: 2000) asArray').
-	self assert: (outputs at: 1) size <= 4003.
+	outputs := self run: #('Array with: (String new: 25000 withAll: $a) with: ''short'' with: 42' '(1 to: 5000) asArray').
+	self assert: (outputs at: 1) size <= 10003.
 	self assert: ((outputs at: 1) beginsWith: 'o1 #(''aaa').
-	self assert: ((outputs at: 1) endsWith: '... [cut: 10002 characters; o1 at: 1] ''short'' 42)').
-	self assert: ((outputs at: 2) endsWith: 'the next part: o2 printString copyFrom: 4001 to: 8000]')
+	self assert: ((outputs at: 1) endsWith: '... [cut: 25002 characters; o1 at: 1] ''short'' 42)').
+	self assert: ((outputs at: 2) endsWith: 'the next part: o2 printString copyFrom: 10001 to: 20000]')
 ! !
 
 !AgentConversationTest methodsFor: 'tests - contexts'!

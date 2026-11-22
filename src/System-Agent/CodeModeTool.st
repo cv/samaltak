@@ -5,12 +5,12 @@ AgentTool subclass: #CodeModeTool
 
 CodeModeTool comment: 'I am the code-mode tool: the call''s input is Smalltalk source, run as a do-it against the conversation''s AgentContext with the conversation''s objects bound as o1 … oN. It runs in a fresh Process (''agent code-mode'', the priority of a Workspace do-it); the turn waits for it at most timeout seconds (default 60), then terminates it.
 
-The output is the value''s id and printString, e.g. ''o2 an Array(3 4)''; a printString longer than limit (default 4,000 characters) is cut and ends with ''... [cut: <size> characters in all; the next part: o2 printString copyFrom: 4001 to: 8000]'', except a sequenceable collection''s whose elements can share the limit: the longest elements are cut each to what the shorter ones leave, each ending ''... [cut: <size> characters; o2 at: <index>]''; ''syntax error: <message>''; ''error: <class>: <messageText>'' and the top 10 frames of the signaling stack (an unhandled error, halt or breakpoint ends the cell''s Process, no debugger opens); or ''error: terminated after 60 s''.'!
+The output is the value''s id and printString, e.g. ''o2 an Array(3 4)''; a printString longer than limit (default 10,000 characters) is cut and ends with ''... [cut: <size> characters in all; the next part: o2 printString copyFrom: 10001 to: 20000]'', except a sequenceable collection''s whose elements can share the limit: the longest elements are cut each to what the shorter ones leave, each ending ''... [cut: <size> characters; o2 at: <index>]''; ''syntax error: <message>''; ''error: <class>: <messageText>'' and the top 10 frames of the signaling stack (an unhandled error, halt or breakpoint ends the cell''s Process, no debugger opens); or ''error: terminated after 60 s''.'!
 
 !CodeModeTool methodsFor: 'initialization'!
 initialize
 	timeout := 60.
-	limit := 4000
+	limit := 10000
 ! !
 
 !CodeModeTool methodsFor: 'accessing'!
@@ -56,7 +56,7 @@ evaluate: anAgentItem in: anAgentConversation
 	[process := [
 		[[[value := anAgentConversation context evaluate: anAgentItem text bindings: anAgentConversation objectBindings.
 		   text := self printStringOf: value.
-		   text size > limit ifTrue: [parts := self partsOf: value]]
+		   text size > self limit ifTrue: [parts := self partsOf: value]]
 			on: SyntaxError do: [:e | error := 'syntax error: ', e messageText asString. e return: nil]]
 			on: UnhandledError do: [:e | error := self describeError: e exception. e return: nil]]
 				ensure: [done signal]] newProcess.
@@ -104,7 +104,7 @@ partsOf: anObject
 	"How anObject's printString opens and its elements' printStrings, when it is a sequenceable collection (not a String) with few enough elements to share limit; else nil."
 	| open |
 	((anObject isKindOf: SequenceableCollection) and: [anObject isString not]) ifFalse: [^nil].
-	(anObject isEmpty or: [anObject size > (limit // 150)]) ifTrue: [^nil].
+	(anObject isEmpty or: [anObject size > (self limit // 150)]) ifTrue: [^nil].
 	open := (anObject isMemberOf: Array)
 		ifTrue: ['#(']
 		ifFalse: [(String streamContents: [:s | anObject printNameOn: s]), '('].
@@ -122,13 +122,14 @@ capFor: sizes within: budget
 !
 output: aString parts: partsOrNil id: anId
 	"anId and aString; when aString is too long and partsOrNil (partsOf:) are there, the elements are cut each, the shorter ones kept whole, each cut saying how to read it (oN at: i); else aString is cut as a whole (output:id:)."
-	| elements cap text |
-	(aString size <= limit or: [partsOrNil isNil]) ifTrue: [^self output: aString id: anId].
+	| max elements cap text |
+	max := self limit.
+	(aString size <= max or: [partsOrNil isNil]) ifTrue: [^self output: aString id: anId].
 	elements := partsOrNil at: 2.
-	cap := self capFor: (elements collect: [:each | each size]) within: limit - (partsOrNil at: 1) size - elements size - 1.
+	cap := self capFor: (elements collect: [:each | each size]) within: max - (partsOrNil at: 1) size - elements size - 1.
 	(cap isNil or: [cap < 150]) ifTrue: [^self output: aString id: anId].
 	cap := cap - 50.
-	text := String new: limit streamContents: [:s |
+	text := String new: max streamContents: [:s |
 		s nextPutAll: (partsOrNil at: 1).
 		elements doWithIndex: [:each :i |
 			i > 1 ifTrue: [s space].
@@ -136,6 +137,6 @@ output: aString parts: partsOrNil id: anId
 				ifTrue: [s nextPutAll: each]
 				ifFalse: [s nextPutAll: (each copyFrom: 1 to: cap); nextPutAll: '... [cut: '; print: each size; nextPutAll: ' characters; '; nextPutAll: anId; nextPutAll: ' at: '; print: i; nextPut: $]]].
 		s nextPut: $)].
-	text size > limit ifTrue: [^self output: aString id: anId].
+	text size > max ifTrue: [^self output: aString id: anId].
 	^anId, ' ', text
 ! !
