@@ -1,5 +1,5 @@
 Object subclass: #Compositor
-	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder lastFrameWork onWorkClock ownsWorkClock gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn tickCount compositeBytes restMs differ items previousList previousStamps previousItems fullNext presentedCount countsFrame lastDamage'
+	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder lastFrameWork onWorkClock ownsWorkClock gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn tickCount compositeBytes restMs differ items previousList previousStamps previousItems fullNext presentedCount countsFrame lastDamage frameTap'
 	classVariableNames: 'Probe Running'
 	package: 'UI-Windows'!
 
@@ -51,6 +51,11 @@ presentedCount
 lastDamage
 	"The damage of the last frame composed (a DamageRegion of device pixels; empty: it was not presented)."
 	^lastDamage
+!
+frameTap
+	"The FrameTap that hears each frame's damage after it was presented (FrameTap current where no firmware screen draws): its pixels are my window's surface, RGBA8, read back in my Process."
+	frameTap isNil ifTrue: [frameTap := FrameTap source: self extent: ((displayWindow isNil or: [previousList isNil]) ifFalse: [displayWindow surface pixelExtent])].
+	^frameTap
 !
 redrawAll
 	"Draw and present the whole screen at the next frame (my Process, or between frames)."
@@ -354,6 +359,21 @@ runRequests
 	[(request := requests nextOrNil) notNil] whileTrue: [request cull: self]
 ! !
 
+!Compositor methodsFor: 'frame tap'!
+frameTapPixelOrder
+	"My surface's pixels: Red Green Blue Alpha."
+	^#rgba
+!
+frameTapRead: rects into: buffers
+	"The pixels of each of rects (Rectangles within the last frame) of my window's surface, the last frame presented, into the matching ByteArray of buffers: read back in my Process, between frames."
+	self sync: [
+		| texture |
+		texture := displayWindow surface texture.
+		rects with: buffers do: [:r :bytes |
+			(r area > 0 and: [r right <= texture width and: [r bottom <= texture height]]) ifTrue: [
+				texture downloadX: r left y: r top width: r width height: r height into: bytes]]]
+! !
+
 !Compositor methodsFor: 'readback'!
 screenshotScale: aNumber
 	"A Form of the whole screen (without the remote pointer) at aNumber pixels per point. My Process only."
@@ -641,7 +661,7 @@ checkDamage: aDamageRegion list: aDisplayList previous: olderList rendered: toRe
 
 !Compositor methodsFor: 'private'!
 present: t0 now: now
-	| scale toRender drawUs rasterUs t cmd list stats0 stats1 t1 shown gpuStart fence fenceAt probe before layerUs showUs newItems damage older s d |
+	| scale toRender drawUs rasterUs t cmd list stats0 stats1 t1 shown gpuStart fence fenceAt probe before layerUs showUs newItems damage older s d whole |
 	scale := world displayScale.
 	stats0 := Smalltalk vm statistics.
 	t := self frameClock.
@@ -687,7 +707,10 @@ present: t0 now: now
 		^self].
 	t := self frameClock.
 	gpuStart isNil ifTrue: [gpuStart := t].
+	whole := damage isFull or: [displayWindow needsFullFrame].
 	shown := displayWindow show: list clear: Color desk damage: damage.
+	"The surface's size, what is read back (a hidden window's may be smaller than the list's)."
+	frameTap isNil ifFalse: [frameTap presented: (whole ifTrue: [#full] ifFalse: [damage rects]) extent: displayWindow surface pixelExtent].
 	showUs := self frameClock - t.
 	"The upload has copied these bytes; the next frame draws into the other buffer: these stay to compare it with (screenshots use independently owned lists)."
 	compositeBytes := previousList isNil ifFalse: [previousList vertices].

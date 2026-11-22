@@ -1,9 +1,9 @@
 Object subclass: #FirmwareScreen
-	instanceVariableNames: 'firmware gop frameBuffer blt width height stride rgb shadow sprite scratch cursor lock'
+	instanceVariableNames: 'firmware gop frameBuffer blt width height stride rgb shadow sprite scratch cursor lock tap'
 	classVariableNames: 'Arrow'
 	package: 'System-Devices'!
 
-FirmwareScreen comment: 'I am the screen: the firmware''s graphics output (EFI_GRAPHICS_OUTPUT_PROTOCOL, UEFI 2.10, 12.9) in its mode of the size the window is opened with, else the mode it booted with, written straight into its linear framebuffer, or, where the mode has none (PixelBltOnly, as edk2''s VirtioGpuDxe on QEMU''s virtio-gpu, which has the large modes such as 1920x1080), through the protocol''s Blt (EfiBltBufferToVideo) from the shadow copy. present:width:height: takes a whole frame (BGRA8 rows), keeps it in a shadow copy and draws the pointer, an arrow, over it (present:width:height:rects: only the rectangles that changed since the last frame: copies them into the shadow copy and Blts each, the firmware then transfers only them); moving the pointer restores what was under it from the shadow copy, so it moves without a new frame. Once I draw, the firmware''s text console is silenced (its OutputString is its TestString): it would draw over me.'!
+FirmwareScreen comment: 'I am the screen: the firmware''s graphics output (EFI_GRAPHICS_OUTPUT_PROTOCOL, UEFI 2.10, 12.9) in its mode of the size the window is opened with, else the mode it booted with, written straight into its linear framebuffer, or, where the mode has none (PixelBltOnly, as edk2''s VirtioGpuDxe on QEMU''s virtio-gpu, which has the large modes such as 1920x1080), through the protocol''s Blt (EfiBltBufferToVideo) from the shadow copy. present:width:height: takes a whole frame (BGRA8 rows), keeps it in a shadow copy and draws the pointer, an arrow, over it (present:width:height:rects: only the rectangles that changed since the last frame: copies them into the shadow copy and Blts each, the firmware then transfers only them); moving the pointer restores what was under it from the shadow copy, so it moves without a new frame. Once I draw, the firmware''s text console is silenced (its OutputString is its TestString): it would draw over me. After each present my FrameTap (frameTap) hears which rectangles changed, and reads them from the shadow copy, without the pointer.'!
 
 !FirmwareScreen methodsFor: 'starting'!
 setFirmware: aFirmware
@@ -26,15 +26,36 @@ start: anExtent
 	height := Machine uint32At: info + 8.
 	stride := (Machine uint32At: info + 32) * 4.
 	blt ifFalse: [frameBuffer := Machine uint64At: mode + 24].
+	self allocateShadow.
+	self silenceConsole.
+	^true
+!
+allocateShadow
+	"The shadow copy of my width and height, the pointer's sprite and its scratch, the pointer in the middle."
 	shadow := Machine allocate: width * height * 4.
 	sprite := Machine allocate: Arrow first size * Arrow size * 4.
 	scratch := Machine allocate: Arrow first size * Arrow size * 4.
 	Arrow doWithIndex: [:row :y |
 		row doWithIndex: [:c :x |
 			c = $. ifFalse: [Machine uint32At: sprite + ((y - 1) * row size + x - 1 * 4) put: (c = $X ifTrue: [16rFF000000] ifFalse: [16rFFFFFFFF])]]].
-	cursor := (width // 2) @ (height // 2).
-	self silenceConsole.
-	^true
+	cursor := (width // 2) @ (height // 2)
+!
+setOffscreen: anExtent
+	"No firmware: a framebuffer of anExtent BGRA8 pixels in memory (tests)."
+	lock := Semaphore forMutualExclusion.
+	width := anExtent x.
+	height := anExtent y.
+	stride := width * 4.
+	blt := false.
+	rgb := false.
+	frameBuffer := Machine allocate: width * height * 4.
+	self allocateShadow
+!
+freeOffscreen
+	"Free the memory of a screen made with offscreen:."
+	lock critical: [
+		frameBuffer isNil ifFalse: [Machine free: frameBuffer. Machine free: shadow. Machine free: sprite. Machine free: scratch].
+		frameBuffer := shadow := sprite := scratch := width := height := nil]
 !
 setMode: anExtent
 	"The first mode of anExtent, if there is one."
@@ -66,6 +87,33 @@ extent
 !
 isStarted
 	^width notNil
+!
+frameBuffer
+	"The address of the linear framebuffer (nil when the mode has none: Blt)."
+	^frameBuffer
+!
+cursor
+	^cursor
+! !
+
+!FirmwareScreen methodsFor: 'frame tap'!
+frameTap
+	"The FrameTap that hears what each present changes (FrameTap current while I draw)."
+	tap isNil ifTrue: [tap := FrameTap source: self extent: (width isNil ifFalse: [width @ height])].
+	^tap
+!
+frameTapPixelOrder
+	"The shadow copy's pixels: Blue Green Red Reserved."
+	^#bgra
+!
+frameTapRead: rects into: buffers
+	"The shadow copy's pixels of each of rects (Rectangles within my extent) into the matching ByteArray of buffers, rows of width * 4 bytes, all under my lock (no present in between): what is on the screen, without the pointer."
+	lock critical: [
+		width isNil ifFalse: [
+			rects with: buffers do: [:r :bytes |
+				(r area > 0 and: [r right <= width and: [r bottom <= height]]) ifTrue: [
+					SoftwareRaster copy: bytes stride: r width * 4 from: shadow + ((r top * width + r left) * 4) stride: width * 4
+						width: r width height: r height bytesPerPixel: 4 mode: 0]]]]
 ! !
 
 !FirmwareScreen methodsFor: 'drawing'!
@@ -80,7 +128,8 @@ present: pixels width: w height: h
 		s isNil ifFalse: [t := s add: #'screen.shadow' since: t bytes: (w min: width) * (h min: height) * 4].
 		self copyToScreen: (0 @ 0 extent: width @ height).
 		s isNil ifFalse: [s add: #'screen.blt' since: t bytes: width * height * 4].
-		self drawCursor]
+		self drawCursor].
+	tap isNil ifFalse: [tap presented: #full extent: width @ height]
 !
 present: pixels width: w height: h rects: anArray
 	"Only the rectangles anArray ({x. y. width. height} pixels) of the frame at pixels changed since the last one presented: copy them into the shadow copy and onto the screen, the pointer again over them where it was. They go as a few Blts (mergeBlts:): the frame at pixels is whole, so a merged rectangle copies pixels that did not change, which is cheaper than another call."
@@ -105,7 +154,9 @@ present: pixels width: w height: h rects: anArray
 		rects do: [:r | self copyToScreen: r].
 		s isNil ifFalse: [s add: #'screen.blt' since: t bytes: area * 4].
 		(rects anySatisfy: [:r | r intersects: (cursor extent: Arrow first size @ Arrow size)]) ifTrue: [self drawCursor].
-		self checkShadowAgainst: pixels width: w height: h]
+		self checkShadowAgainst: pixels width: w height: h].
+	"What the caller damaged, however the Blts went."
+	tap isNil ifFalse: [tap presented: anArray extent: width @ height]
 !
 checkShadowAgainst: pixels width: w height: h
 	"While a DamageCheck runs (UI-Windows): the shadow copy, which took only the damaged rectangles, must be the whole frame."
@@ -175,6 +226,10 @@ initialize
 !FirmwareScreen class methodsFor: 'instance creation'!
 firmware: aFirmware
 	^self new setFirmware: aFirmware
+!
+offscreen: anExtent
+	"A screen without firmware, its framebuffer in memory (tests); freeOffscreen frees it."
+	^self new setOffscreen: anExtent
 ! !
 !FirmwareScreen class methodsFor: 'damage'!
 mergeBlts: rects

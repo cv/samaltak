@@ -1,7 +1,7 @@
 Object subclass: #DamageRegion
 	instanceVariableNames: 'bounds rects full maxRects fullFraction'
 	classVariableNames: ''
-	package: 'Graphics-Canvas'!
+	package: 'System-Devices'!
 
 DamageRegion comment: 'I am what changed in a frame of a target (a layer''s surface, the screen): a few rectangles of device pixels (integer Rectangles within my bounds), or all of it (full). Rectangles added are clipped to my bounds and merged with one they overlap, touch or nearly touch (16 pixels apart: the glyphs of a word) when their union wastes little (at most a quarter of it covers neither), so the glyphs of a typed line become one rectangle while a window dragged far keeps its old and its new rectangle instead of their bounding box. Beyond maxRects (8) the two whose union wastes least are merged; once the rectangles cover more than fullFraction (one half) of my bounds I am full: drawing that much in pieces would cost more than drawing it whole.
 

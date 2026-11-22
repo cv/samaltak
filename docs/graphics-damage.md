@@ -39,7 +39,7 @@ before it ("today" there means then); this one says what changed and measures th
 
 | Stage | Now |
 | --- | --- |
-| Damage | A `DamageRegion` (Graphics-Canvas): device-pixel rectangles clipped to the target, merged when they overlap or lie within 16 px and their union wastes at most a quarter of itself (a typed word joins, a dragged window keeps its old and new rectangle), at most 8 (the cheapest pair merges), full past half the target. |
+| Damage | A `DamageRegion` (System-Devices): device-pixel rectangles clipped to the target, merged when they overlap or lie within 16 px and their union wastes at most a quarter of itself (a typed word joins, a dragged window keeps its old and new rectangle), at most 8 (the cheapest pair merges), full past half the target. |
 | Where damage comes from | From the display lists, not from `View>>invalidate`: `DisplayListDiff` compares a new list with the one drawn (byte ranges compared in place by the `bytesMismatch` primitives, see Refinements; equal prefix and suffix skipped; equal counts compared place by place) and damages the old and new bounds of the quads that differ, with their batch's move and clip. A `Form` changed in place damages its image and glyph quads (`Form>>contentVersion`); a `Surface` in a content list always damages its quads. Every vertex byte is now written (solid, pattern and line quads left some), so equal drawings in a reused buffer compare equal. About 55 µs for a 1,500-quad list with one change at first, 12–17 µs since the refinements. |
 | Layer render | The surface is kept; a changed layer fills only the damage with its clear color and draws its lists scissored to it (`Renderer>>render:into:clear:commandBuffer:within:`, `fill:color:into:commandBuffer:`), pixel-identical to drawing everything. Whole after `markNeedsRender` (new pipeline), at a new size, on a new surface, with a clear color that is not opaque, or past half. `Layer>>lastDamage` says what it changed. |
 | Composite | The compositor notes each item it draws (desk, every window with its shadow and decorations, top bar, overlays, toasts, tooltip, curtain, pointer) and diffs it with the same item of the previous frame; a layer rendered in part adds its damage where it lands (1:1, a pixel around), else the window's bounds; items whose order changed damage both bounds. The composite list goes into two buffers in turn, so the previous frame's stays to compare. |
@@ -262,6 +262,14 @@ and care where it is not enough (a Form changed in place, a view drawing outside
 costs more now is composite.diff, 65–125 µs a frame: the composite list is new each frame and every item is diffed
 (runs found and allocated, damage regions per occluded item); keeping the items' runs and comparing only items whose
 bytes moved would be the next step.
+
+**The frame tap** (`FrameTap`, System-Devices) passes each presented frame's damage on, for a remote display:
+`FrameTap current` is the firmware screen's tap on UEFI (told by `present:width:height:rects:` the rectangles its caller
+gave, however the Blts are merged, and `#full` by the whole-frame present; pixels read from the cursor-free BGRA shadow
+copy under its lock) and hosted the Compositor's (told after `show:clear:damage:`, `#full` for whole frames; pixels the
+surface's RGBA, read back in the compositor's Process). Each `FrameTapListener` (one per client) gathers up to 32
+rectangles until it takes them, full on a whole frame or a new size, and its semaphore is signalled when its damage stops
+being empty. FrameTapTest and FrameTapCompositionTest rebuild the screen from the damage and the pixels read.
 
 
 ## What is damage-limited today, and what is not
