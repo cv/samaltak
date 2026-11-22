@@ -34,7 +34,7 @@ server sends. Measured on the DGX Spark (GB10), November 2026.
 
 ## Point 1 as built: before and after
 
-Point 1 is built (12dadfa, 3633337, be98070, c3b8faa). The sections after this one describe and measure the composition
+Point 1 is built (12dadfa, 3633337, be98070, 75fe3cf). The sections after this one describe and measure the composition
 before it ("today" there means then); this one says what changed and measures the same nine scenarios again.
 
 | Stage | Now |
