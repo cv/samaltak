@@ -196,6 +196,113 @@ initialized
 	^Initialized
 !! !!
 '
+!
+filesAt99cfe6d: aBoolean
+	"String>>hash and ObjectMemory>>stringHash: (src/VM-Core) as 99cfe6d (true) and its parent (false) have them: the image's hash, its primitive's C and the image header's hash flag changed together (an image at the parent runs a VM that hashes as FNV-1a)."
+	^aBoolean
+		ifTrue: [Dictionary new
+		at: 'src/Kernel-Collections/String.st' put: '!!String methodsFor: ''comparing''!!
+hash
+	"The same for equal Strings and Symbols. Of more than 8 code points all below 256: them as bytes in 64-bit little-endian words, the last zero-padded; from h := the size, h := (h bitXor: word) * 16r5851F42D4C957F2D for each word, then h := h bitXor: h >> 32, h := h * 16r2545F4914F6CDD1D, h := h bitXor: h >> 29 (modulo 2^64), the low 30 bits. Else (up to 8, or code points above 255) FNV-1a over the code points, the low 30 bits."
+	<primitive: ''stringHash''>
+	| m h w k |
+	(self size <= 8 or: [self anySatisfy: [:c | c value > 255]]) ifTrue: [
+		h := 2166136261.
+		self do: [:c | h := ((h bitXor: c value) * 16777619) bitAnd: 16rFFFFFFFF].
+		^h bitAnd: 16r3FFFFFFF].
+	m := 16rFFFFFFFFFFFFFFFF.
+	h := self size.
+	w := 0.
+	k := 0.
+	self do: [:c |
+		w := w bitOr: (c value bitShift: 8 * k).
+		k := k + 1.
+		k = 8 ifTrue: [
+			h := ((h bitXor: w) * 16r5851F42D4C957F2D) bitAnd: m.
+			w := 0.
+			k := 0]].
+	k > 0 ifTrue: [h := ((h bitXor: w) * 16r5851F42D4C957F2D) bitAnd: m].
+	h := h bitXor: (h bitShift: -32).
+	h := (h * 16r2545F4914F6CDD1D) bitAnd: m.
+	h := h bitXor: (h bitShift: -29).
+	^h bitAnd: 16r3FFFFFFF
+!! !!
+';
+		at: 'src/VM-Core/ObjectMemory.st' put: '!!ObjectMemory methodsFor: ''strings''!!
+stringHash: s
+	"String>>hash, the same for equal Strings and Symbols. Of more than 8 code points all below 256 (bytes, or 32-bit units that hold none above): them as bytes in 64-bit little-endian words, the last zero-padded; from h := their count, h := (h bitXor: word) * 16r5851F42D4C957F2D for each word, then h := h bitXor: h >> 32, h := h * 16r2545F4914F6CDD1D, h := h bitXor: h >> 29 (modulo 2^64), the low 30 bits. Else (up to 8, one word: a byte at a time keeps keys that differ in their last code point''s low bits apart in small tables; code points above 255, which no byte string has; an image saved before this hash, wordHash false) FNV-1a over them, the low 30 bits. The optimizing tier''s string hash stub does the same for bytes, String>>hash''s fallback and ImageBuilder>>stringHash: in Smalltalk."
+	<function>
+	<returns: ''uint32_t''>
+	<var: #n type: ''uint64_t''>
+	<var: #i type: ''uint64_t''>
+	<var: #h type: ''uint64_t''>
+	<var: #w type: ''uint64_t''>
+	| n i h w |
+	n := self stringSize: s.
+	(wordHash not or: [n <= 8]) ifTrue: [^self fnvHash: s].
+	i := 0.
+	h := n.
+	(self formatOf: s) >= F_BYTES
+		ifTrue: [
+			[i + 8 <= n] whileTrue: [
+				h := ((h bitXor: (self uint64At: s + 16 + i)) * 16r5851F42D4C957F2D) asUInt64.
+				i := i + 8]]
+		ifFalse: [
+			0 to: n asInt64 - 1 do: [:j |
+				(self stringCharAt: s index: j asUInt64) > 255 ifTrue: [^self fnvHash: s]]].
+	"what is left (bytes after the whole words, or 32-bit units below 256): up to 8 a word"
+	w := 0.
+	[i < n] whileTrue: [
+		w := w bitOr: ((self stringCharAt: s index: i) asUInt64 << (8 * (i bitAnd: 7))).
+		i := i + 1.
+		((i bitAnd: 7) = 0 or: [i = n]) ifTrue: [
+			h := ((h bitXor: w) * 16r5851F42D4C957F2D) asUInt64.
+			w := 0]].
+	h := h bitXor: h >> 32.
+	h := (h * 16r2545F4914F6CDD1D) asUInt64.
+	h := h bitXor: h >> 29.
+	^(h bitAnd: 16r3FFFFFFF) asUInt32
+!! !!
+';
+		yourself]
+		ifFalse: [Dictionary new
+		at: 'src/Kernel-Collections/String.st' put: '!!String methodsFor: ''comparing''!!
+hash
+	"FNV-1a over the code points, the same function as Symbol>>hash."
+	<primitive: ''stringHash''>
+	| h |
+	h := 2166136261.
+	self do: [:c | h := ((h bitXor: c value) * 16777619) bitAnd: 16rFFFFFFFF].
+	^h bitAnd: 16r3FFFFFFF
+!! !!
+';
+		at: 'src/VM-Core/ObjectMemory.st' put: '!!ObjectMemory methodsFor: ''strings''!!
+stringHash: s
+	<function>
+	<returns: ''uint32_t''>
+	| h n |
+	h := 2166136261 asUInt32.
+	n := self stringSize: s.
+	0 to: n asInt64 - 1 do: [:i | h := ((h bitXor: (self stringCharAt: s index: i asUInt64)) * 16777619) asUInt32].
+	^h bitAnd: 16r3FFFFFFF
+!! !!
+';
+		yourself]
+!
+useImageAt99cfe6dParent
+	"A fake GitHub whose main is 99cfe6d's parent, then 99cfe6d; String>>hash as the parent has it (the same primitive: Strings hash as before) until the test ends."
+	| method text |
+	server stop.
+	server := GitHubTestServer token: self token files: (self filesAt99cfe6d: false).
+	account configure: (Dictionary new at: 'apiUrl' put: server url; yourself).
+	base := server refs at: 'main'.
+	head := server commit: (self filesAt99cfe6d: true) message: 'VM: String hash 8 bytes a multiply past 8 bytes; images say which hash'.
+	method := String >> #hash.
+	text := method sourceCode.
+	self addCleanup: [String compile: text classified: method category].
+	String
+		compile: ((ChunkFile on: ((self filesAt99cfe6d: false) at: 'src/Kernel-Collections/String.st')) sourceOf: #hash className: 'String' meta: false)
+		classified: method category
 ! !
 
 !SourceUpdateTest methodsFor: 'tests'!
@@ -211,6 +318,7 @@ testUpdateAppliesTheChanges
 	self assert: fixture class == class.
 	self assert: fixture a equals: 3.
 	self assert: fixture b isNil.
+	self assert: (update notes anySatisfy: [:n | n beginsWith: 'SourceUpdateFixture: b nil in its']).
 	self assert: fixture sum equals: 3.
 	self assert: fixture changed equals: 2.
 	self assert: fixture local equals: #theirs.
@@ -372,6 +480,69 @@ testUpdateCommand
 	self assert: (response at: 'head') equals: head.
 	self assert: (response at: 'needsRestart') asArray equals: #('src/VM-Core/Posix.st' 'vm/platform/posix.c').
 	self assert: SourceFiler baseCommit equals: base
+!
+testAddedInstanceVariablesSetAsInitializeSets
+	"The head gives SourceUpdateFixture an initialize that sets b and lets a live update use it (initializesAddedInstanceVariables): the instances the image has get b as a new one does, each its own; a stays."
+	| other update |
+	other := (self classNamed: 'SourceUpdateFixture') withA: 5.
+	server commit: (Dictionary new
+		at: self fixturePath put: (self headFixture
+			copyReplaceAll: '!!SourceUpdateFixture class methodsFor: ''instance creation''!!'
+			with: '!!SourceUpdateFixture methodsFor: ''initialization''!!
+initialize
+	b := OrderedCollection new
+!! !!
+
+!!SourceUpdateFixture class methodsFor: ''live update''!!
+initializesAddedInstanceVariables
+	^true
+!! !!
+
+!!SourceUpdateFixture class methodsFor: ''instance creation''!!');
+		yourself) message: 'b initialized'.
+	update := self update.
+	self assert: update state equals: #applied.
+	self assert: fixture a equals: 3.
+	self assert: fixture b class equals: OrderedCollection.
+	self assert: fixture b isEmpty.
+	self assert: other b class equals: OrderedCollection.
+	self deny: fixture b == other b.
+	self assert: (update notes anySatisfy: [:n | n beginsWith: 'SourceUpdateFixture: b set in its'])
+!
+testVMDependentChangeRefused
+	"An image at 99cfe6d's parent updated across it: String>>hash's new definition goes with the VM's new stringHash, which this image's VM does not have; nothing is applied unless forced."
+	| update |
+	self useImageAt99cfe6dParent.
+	update := self update.
+	self assert: update state equals: #failed.
+	self assert: update vmDependent size equals: 1.
+	self assert: (update vmDependent first beginsWith: 'String>>hash (named by ObjectMemory>>stringHash: in src/VM-Core/ObjectMemory.st').
+	self assert: (update summary beginsWith: 'nothing applied: image changes that depend on VM changes in the same range').
+	self assert: (update summary includesSubstring: 'samaltak-ctl update --force').
+	self assert: update needsRestart equals: #('src/VM-Core/ObjectMemory.st').
+	self assert: (String >> #hash) sourceCode equals: ((ChunkFile on: ((self filesAt99cfe6d: false) at: 'src/Kernel-Collections/String.st')) sourceOf: #hash className: 'String' meta: false)
+!
+testVMDependentChangeForced
+	| update |
+	self useImageAt99cfe6dParent.
+	update := self updateWith: [:u | u force: true].
+	self assert: update state equals: #applied.
+	self assert: (update applied collect: [:c | c label]) asArray equals: #('String>>hash').
+	self assert: (update notes anySatisfy: [:n | n beginsWith: 'forced past the VM changes these depend on: String>>hash']).
+	self assert: (String >> #hash) sourceCode equals: ((ChunkFile on: ((self filesAt99cfe6d: true) at: 'src/Kernel-Collections/String.st')) sourceOf: #hash className: 'String' meta: false).
+	self assert: 'abcdefghijklmnop' hash equals: 'abcdefghijklmnop' copy hash
+!
+testVMRelations
+	"What SourceUpdate reads in VM and image methods: primitive names and numbers, methods named as Class>>selector, the VM's C sources."
+	self assert: (SourceUpdate primitivesIn: '	<vmPrimitive: 102 name: ''stringHash''>') asArray equals: #('102' 'stringHash').
+	self assert: (SourceUpdate primitivesIn: 'hash
+	<primitive: ''stringHash''>
+	^0') asArray equals: #('stringHash').
+	self assert: (SourceUpdate primitivesIn: '<primitive: 60>') asArray equals: #('60').
+	self assert: (SourceUpdate methodsNamedIn: '"String>>hash, and Foo class>>bar: baz; x >> 2"') asArray equals: #('String>>hash' 'Foo class>>bar:' 'Foo class>>bar').
+	self assert: (SourceUpdate isVMSource: 'vm/platform/posix.c').
+	self deny: (SourceUpdate isVMSource: 'vm/gen/object_memory.c').
+	self deny: (SourceUpdate isVMSource: 'src/VM-Core/Posix.st')
 !
 testTheImageKnowsItsCommit
 	"make image passes git rev-parse HEAD to stage 2."

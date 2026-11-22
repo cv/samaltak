@@ -36,7 +36,7 @@ const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
   agent-config [--clear]                   the agent's configuration (hasKey, never the key), or forget it
   github-config [--from-gh | --token-command 'cmd'] [--repo owner/name] [--base main] [--prefix agent/]   the GitHub repository and token the image commits through (docs/github.md): the token from gh auth token or cmd's stdout, never printed; repo: origin's, by default
   github-config [--clear]                  the GitHub configuration (hasToken, never the token), or forget it
-  update [--dry-run] [--ref main] [--theirs]   bring the running image up to the branch on GitHub without a restart (docs/github.md): applies the source changes since the image's commit, reports conflicts and what needs a restart; exit 1 if nothing could be applied
+  update [--dry-run] [--ref main] [--theirs] [--force]   bring the running image up to the branch on GitHub without a restart (docs/github.md): applies the source changes since the image's commit, reports conflicts and what needs a restart; refuses image changes that depend on VM changes of the same range unless --force; exit 1 if nothing could be applied
   close
 session: --session, $SAMALTAK_SESSION, default "samaltak"
 input commands wait until the image settles (at most 2 s); --settle ms changes that (0: return at once)
@@ -50,7 +50,7 @@ for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--session') session = argv[++i];
   else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at|provider|model|thinking|token-command|repo|base|prefix|ref)$/.test(a)) flags[a.slice(2)] = argv[++i];
-  else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi|from-pi|from-gh|clear|dry-run|theirs)$/.test(a)) flags[a.slice(2)] = true;
+  else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi|from-pi|from-gh|clear|dry-run|theirs|force)$/.test(a)) flags[a.slice(2)] = true;
   else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
   else pos.push(a);
 }
@@ -404,11 +404,12 @@ async function update() {
   if (flags.ref) req.ref = flags.ref;
   if (flags['dry-run']) req.dryRun = true;
   if (flags.theirs) req.takeTheirs = true;
+  if (flags.force) req.force = true;
   const r = await call(req, 30 * 60000);
   if (flags.json) return print(r);
   console.log(r.summary);
   if (r.base || r.head) console.log(`${r.base || '?'} -> ${r.head || '?'}`);
-  for (const [key, title] of [['applied', r.state === 'preview' ? 'would apply' : 'applied'], ['conflicts', 'conflicts'], ['failures', 'failures'], ['needsRestart', 'needs restart'], ['hostSide', 'host side'], ['notApplied', 'not applied'], ['notes', 'notes']])
+  for (const [key, title] of [['applied', r.state === 'preview' ? 'would apply' : 'applied'], ['conflicts', 'conflicts'], ['failures', 'failures'], ['needsRestart', 'needs restart'], ['hostSide', 'host side'], ['vmDependent', 'depends on VM changes'], ['notApplied', 'not applied'], ['notes', 'notes']])
     if (r[key] && r[key].length) console.log(`${title}:\n${r[key].map(x => '  ' + x).join('\n')}`);
   if (r.state === 'failed' || r.state === 'partial') process.exit(1);
 }

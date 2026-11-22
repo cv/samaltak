@@ -223,12 +223,20 @@ previewUpdateFrom: aRef
 	"What updateFrom: would apply, installing nothing."
 	^self updateFrom: aRef dryRun: true takeTheirs: false
 !
+updateFrom: aRef force: aBoolean
+	"updateFrom:, also when image changes depend on VM changes of the same range (SourceUpdate>>vmDependent), which it otherwise refuses."
+	^self updateFrom: aRef dryRun: false takeTheirs: false force: aBoolean
+!
 updateFrom: aRef dryRun: dryRun takeTheirs: takeTheirs
+	^self updateFrom: aRef dryRun: dryRun takeTheirs: takeTheirs force: false
+!
+updateFrom: aRef dryRun: dryRun takeTheirs: takeTheirs force: force
 	| update |
 	update := (SourceUpdate account: self gitHubStore account ref: (aRef ifNil: [self gitHubStore account baseBranch]) base: self class baseCommit)
 		filer: self;
 		dryRun: dryRun;
 		takeTheirs: takeTheirs;
+		force: force;
 		previousRestart: self class needsRestart;
 		run.
 	update state == #applied ifTrue: [
@@ -302,13 +310,14 @@ recordBuildCommit
 	LastUpdate := nil
 !
 updateCommand: aRemoteRequest
-	"The update control command: {cmd: update, ref?, dryRun?, takeTheirs?} answers the SourceUpdate's asDictionary."
+	"The update control command: {cmd: update, ref?, dryRun?, takeTheirs?, force?} answers the SourceUpdate's asDictionary."
 	| arguments |
 	arguments := aRemoteRequest arguments.
 	^[(self default
 		updateFrom: (arguments at: 'ref' ifAbsent: [nil])
 		dryRun: (arguments at: 'dryRun' ifAbsent: [false]) == true
-		takeTheirs: (arguments at: 'takeTheirs' ifAbsent: [false]) == true) asDictionary]
+		takeTheirs: (arguments at: 'takeTheirs' ifAbsent: [false]) == true
+		force: (arguments at: 'force' ifAbsent: [false]) == true) asDictionary]
 			on: Error do: [:e | RemoteError signal: 'update: ', e messageText asString]
 ! !
 

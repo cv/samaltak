@@ -1,5 +1,5 @@
 Object subclass: #SourceUpdate
-	instanceVariableNames: 'filer account client ref base head dryRun takeTheirs comparison baseFiles headFiles paths oldTexts newTexts pendingPaths newPackages changes definitionBodies classes shadows bindings reshaped newClasses removedClasses applied already conflicts failures needsRestart hostSide notApplied notes previousRestart state step'
+	instanceVariableNames: 'filer account client ref base head dryRun takeTheirs comparison baseFiles headFiles paths oldTexts newTexts pendingPaths newPackages changes definitionBodies classes shadows bindings reshaped newClasses removedClasses applied already conflicts failures needsRestart hostSide notApplied notes previousRestart state step force vmDependent oldShapes'
 	classVariableNames: ''
 	package: 'Tools'!
 
@@ -9,8 +9,8 @@ SourceUpdate comment: 'I bring the running image from the commit its sources are
 2. Sort the paths: src/<Package>/*.st of a package in this image (or one packages.txt adds) are applied; src/packages.txt adds new packages; src/VM-* and vm/ are the VM itself (needsRestart); everything outside src/ is host side (hostSide: Makefile, tools/, docs/, ...); anything else in src/ is notApplied.
 3. Diff: each changed file''s old and new text (git/blobs), cut into chunks (ChunkFile): class definitions, class-side instance variables, comments and methods, matched by class and selector across files (a method moving to an extension file is a category change). Each difference is a SourceChange.
 4. Conflicts: a change applies when the image has the old version; it is already done when the image has the new one; otherwise the image (or the SourceFiler''s pending change set) changed it too: a conflict, reported and left as the image has it unless takeTheirs. A conflicting class definition holds back every change of its class.
-5. Check: every new or changed method compiles (nothing installed yet) against shadow classes (unregistered copies with the new definitions); for a class whose instance variables or superclass change, its other methods and its subclasses'' methods compile against the new shape too; a removed class must have no subclass left. One failure and nothing is applied: failures says what.
-6. Install (unless dryRun), at userInterruptPriority so no other Process runs half-updated code: new packages (packages.txt order), the methods a reshaped class loses or changes removed first, class definitions (superclass first; ClassBuilder reshapes and migrates instances as the browser does), class-side instance variables, comments, methods added and changed, methods removed, removed classes (subclasses first); then each new class''s class-side initialize (a changed initialize is not run: notes says so).
+5. Check: when the VM side (src/VM-*, vm/) changes too, image methods that relate to its changes are refused unless force: this image runs the old VM until a restart (String>>hash and the VM''s stringHash in 99cfe6d). Related: its primitive (<primitive: ''stringHash''>) is defined or implemented by a changed VM method (vmPrimitive:name:, a selector of that name) or appears in a changed line of vm/''s C sources; a changed VM method''s text names it (String>>hash); a changed VM method has its selector (but initialize, printOn: and other common ones). Every new or changed method compiles (nothing installed yet) against shadow classes (unregistered copies with the new definitions); for a class whose instance variables or superclass change, its other methods and its subclasses'' methods compile against the new shape too; a removed class must have no subclass left. One failure and nothing is applied: failures says what.
+6. Install (unless dryRun), at userInterruptPriority so no other Process runs half-updated code: new packages (packages.txt order), the methods a reshaped class loses or changes removed first, class definitions (superclass first; ClassBuilder reshapes and migrates instances as the browser does), class-side instance variables, comments, methods added and changed, methods removed, removed classes (subclasses first); then the existing instances of each reshaped class get the instance variables they gained set as the class says (Behavior>>initializeAddedInstanceVariables:in:, by default when the class answers true to initializesAddedInstanceVariables: as initialize sets them; else they stay nil and notes says so); then each new class''s class-side initialize (a changed initialize is not run: notes says so).
 
 summary says it in a sentence: "applied 37 methods in 9 classes ...; needs restart for: src/VM-Core/Posix.st". state: #upToDate, #preview (dryRun), #applied, #failed (nothing installed), #partial (installing stopped at failures last; what was installed stays).'!
 
@@ -21,6 +21,9 @@ setAccount: aGitHubAccount ref: aString base: aShaOrNil
 	base := aShaOrNil.
 	dryRun := false.
 	takeTheirs := false.
+	force := false.
+	vmDependent := OrderedCollection new.
+	oldShapes := Dictionary new.
 	previousRestart := #().
 	applied := OrderedCollection new.
 	already := OrderedCollection new.
@@ -48,6 +51,10 @@ dryRun: aBoolean
 takeTheirs: aBoolean
 	"Apply a change even where the image changed it too."
 	takeTheirs := aBoolean
+!
+force: aBoolean
+	"Apply image changes that relate to VM changes of the same range too (vmDependent; refused otherwise)."
+	force := aBoolean
 !
 previousRestart: aCollection
 	"Paths an earlier update left for a restart; the summary repeats them."
@@ -99,6 +106,10 @@ notApplied
 notes
 	^notes asArray
 !
+vmDependent
+	"The image changes that relate to VM changes of the same range, each with why (checkVMDependencies)."
+	^vmDependent asArray
+!
 newPackages
 	^newPackages asArray
 !
@@ -114,7 +125,7 @@ run
 	"Fetch, diff, check and, unless dryRun, install (see my comment). Answer self."
 	[self fetch.
 	 state isNil ifTrue: [
-		self sortPaths; readFiles; diff; decide; check.
+		self sortPaths; readFiles; diff; decide; checkVMDependencies; check.
 		failures isEmpty
 			ifFalse: [state := #failed]
 			ifTrue: [dryRun
@@ -543,6 +554,91 @@ checkRemovedClasses
 					failures add: c label, ': removed, but its subclass ', sub name, ' is not']]]]
 ! !
 
+!SourceUpdate methodsFor: 'VM dependencies'!
+checkVMDependencies
+	"The image changes that relate to VM changes of the same range (see my comment): a failure unless force, else a note."
+	| methods vm list |
+	methods := self applying: #method.
+	(methods isEmpty or: [needsRestart isEmpty]) ifTrue: [^self].
+	vm := [self vmChanges] on: Error do: [:e |
+		^failures add: 'could not read the VM changes in this range (', e messageText asString, '): refused, as image changes may depend on them'].
+	methods do: [:c | | why |
+		why := self vmRelationOf: c in: vm.
+		why isNil ifFalse: [vmDependent add: c label, ' (', why, ')']].
+	vmDependent isEmpty ifTrue: [^self].
+	list := self listOf: vmDependent.
+	force
+		ifTrue: [notes add: 'forced past the VM changes these depend on: ', list]
+		ifFalse: [failures add: 'image changes that depend on VM changes in the same range, which this image''s VM does not have until a restart: ', list, '; restart with an image built at ', (self class short: head), ', or force the update (updateFrom:force:, samaltak-ctl update --force)']
+!
+vmChanges
+	"What the VM side of the range changes: its Lowtalk methods (src/VM-*/*.st), by selector (#selectors), with the primitives they define (#primitives) and the methods their text names (#labels), each -> where; and the lines that changed in vm/'s C sources (#lines: {path. line}; not vm/gen, which the translator makes from the Lowtalk)."
+	| before after old new vm |
+	before := Dictionary new.
+	after := Dictionary new.
+	vm := Dictionary new.
+	vm at: #selectors put: Dictionary new; at: #primitives put: Dictionary new; at: #labels put: Dictionary new; at: #lines put: OrderedCollection new.
+	needsRestart do: [:p |
+		((p beginsWith: 'src/') and: [p endsWith: '.st'])
+			ifTrue: [
+				before at: p put: (self textOfBlob: (baseFiles at: p ifAbsent: [nil])).
+				after at: p put: (self textOfBlob: (headFiles at: p ifAbsent: [nil]))]
+			ifFalse: [(self class isVMSource: p) ifTrue: [self addChangedLinesOf: p to: (vm at: #lines)]]].
+	old := self methodsOf: before.
+	new := self methodsOf: after.
+	(old keys asSet addAll: new keys; yourself) do: [:key | | o n |
+		o := old at: key ifAbsent: [nil].
+		n := new at: key ifAbsent: [nil].
+		((n ifNil: [o]) first == #method and: [(self entity: o equals: n) not]) ifTrue: [
+			{o. n} do: [:e | e isNil ifFalse: [self addVMMethod: e key: key to: vm]]]].
+	^vm
+!
+methodsOf: aDictionary
+	"The methods of the texts (path -> text or nil), as entitiesOf: has them."
+	| methods |
+	methods := Dictionary new.
+	aDictionary keysAndValuesDo: [:path :text |
+		text isNil ifFalse: [
+			(ChunkFile on: text) methodsDo: [:m |
+				methods at: (m first, ((m at: 2) ifTrue: [' class'] ifFalse: ['']), '>>', (m at: 3))
+					put: {#method. m first. m at: 2. m at: 3. m at: 5. m at: 4. path. nil}]]].
+	^methods
+!
+addVMMethod: anEntity key: aLabel to: vm
+	| where |
+	where := aLabel, ' in ', (anEntity at: 7).
+	(vm at: #selectors) at: (anEntity at: 4) asString put: where.
+	(self class primitivesIn: (anEntity at: 5)) do: [:p | (vm at: #primitives) at: p put: where].
+	(self class methodsNamedIn: (anEntity at: 5)) do: [:label | (vm at: #labels) at: label put: where]
+!
+addChangedLinesOf: aPath to: aCollection
+	"aPath's lines that one version has and the other not, {aPath. line} each."
+	| old new |
+	old := ((self textOfBlob: (baseFiles at: aPath ifAbsent: [nil])) ifNil: ['']) lines asSet.
+	new := ((self textOfBlob: (headFiles at: aPath ifAbsent: [nil])) ifNil: ['']) lines asSet.
+	old do: [:line | (new includes: line) ifFalse: [aCollection add: {aPath. line}]].
+	new do: [:line | (old includes: line) ifFalse: [aCollection add: {aPath. line}]]
+!
+vmRelationOf: aChange in: vm
+	"Why aChange's method relates to the VM changes vm (vmChanges), or nil."
+	| where text |
+	where := (vm at: #labels) at: aChange label ifAbsent: [nil].
+	where isNil ifFalse: [^'named by ', where].
+	text := (aChange old ifNil: ['']), ' ', (aChange new ifNil: ['']).
+	(self class primitivesIn: text) do: [:p | | selector line |
+		where := (vm at: #primitives) at: p ifAbsent: [nil].
+		where isNil ifFalse: [^'its primitive ', p, ' changes: ', where].
+		selector := (vm at: #selectors) keys detect: [:s | (s reject: [:ch | ch = $:]) = p] ifNone: [nil].
+		selector isNil ifFalse: [^'its primitive ', p, ': ', ((vm at: #selectors) at: selector), ' changes'].
+		(p size >= 4 and: [p first isLetter]) ifTrue: [
+			line := (vm at: #lines) detect: [:pair | (pair at: 2) includesSubstring: p] ifNone: [nil].
+			line isNil ifFalse: [^'its primitive ', p, ': ', (line at: 1), ' changes ', (self class abbreviate: (line at: 2) trimBoth)]]].
+	(self class commonSelectors includes: aChange selector asString) ifTrue: [^nil].
+	where := (vm at: #selectors) at: aChange selector asString ifAbsent: [nil].
+	where isNil ifFalse: [^'the VM''s ', where, ' changes too'].
+	^nil
+! !
+
 !SourceUpdate methodsFor: 'installing'!
 install
 	| process priority |
@@ -574,6 +670,8 @@ installChanges
 			ifFalse: [reshaped includes: c className]]) ifTrue: [
 			step := c label.
 			(c isMeta ifTrue: [class class] ifFalse: [class]) removeSelector: c selector asSymbol]].
+	reshaped do: [:name |
+		(self imageClassNamed: name) ifNotNil: [:class | oldShapes at: name put: (class allInstVarNames collect: [:n | n asString]) asArray]].
 	classes do: [:c |
 		step := c label.
 		Compiler evaluate: (definitionBodies at: c className).
@@ -604,7 +702,25 @@ installChanges
 	(removedClasses asSortedCollection: [:a :b | (self imageClassNamed: a) allSuperclasses size >= (self imageClassNamed: b) allSuperclasses size]) do: [:name |
 		step := name, ' (removing the class)'.
 		(self imageClassNamed: name) removeFromSystem.
-		applied addAll: (changes select: [:c | c applies and: [c className = name and: [c kind == #definition]]])]
+		applied addAll: (changes select: [:c | c applies and: [c className = name and: [c kind == #definition]]])].
+	self initializeAddedVariables
+!
+initializeAddedVariables
+	"ClassBuilder gave the existing instances of each reshaped class nil in the instance variables they gained; with the update's methods installed, the class sets them (Behavior>>initializeAddedInstanceVariables:in:), still at userInterruptPriority. A failure is a note: the rest is installed."
+	reshaped do: [:name | | class old added instances |
+		class := self imageClassNamed: name.
+		old := oldShapes at: name ifAbsent: [nil].
+		(class notNil and: [old notNil]) ifTrue: [
+			added := ((class allInstVarNames collect: [:n | n asString]) reject: [:n | old includes: n]) asArray.
+			instances := added isEmpty ifTrue: [#()] ifFalse: [class allInstances].
+			instances isEmpty ifFalse: [
+				step := name, ' (setting ', (added inject: '' into: [:a :b | a isEmpty ifTrue: [b] ifFalse: [a, ' ', b]]), ' in its instances)'.
+				[(class initializeAddedInstanceVariables: added in: instances)
+					ifTrue: [notes add: name, ': ', (self listOf: added), ' set in its ', (self count: instances size of: 'existing instance'), ' as initialize sets them']
+					ifFalse: [notes add: name, ': ', (self listOf: added), ' nil in its ', (self count: instances size of: 'existing instance'), ' (initializesAddedInstanceVariables is false)']]
+					on: Error do: [:e |
+						notes add: name, ': setting ', (self listOf: added), ' in its instances failed: ', e messageText asString.
+						e return: nil]]]]
 !
 initializeNewClasses
 	"Each new class's class-side initialize, in definition order."
@@ -671,6 +787,9 @@ printCountsOn: aStream
 count: anInteger of: aNoun
 	^anInteger printString, ' ', aNoun, (anInteger = 1 ifTrue: [''] ifFalse: [(aNoun endsWith: 's') ifTrue: ['es'] ifFalse: ['s']])
 !
+listOf: aCollection
+	^String new: 40 streamContents: [:s | self printList: aCollection on: s]
+!
 printList: aCollection on: aStream
 	aCollection doWithIndex: [:each :i |
 		i > 1 ifTrue: [aStream nextPutAll: ', '].
@@ -695,6 +814,7 @@ asDictionary
 		at: 'notApplied' put: notApplied asArray;
 		at: 'failures' put: failures asArray;
 		at: 'notes' put: notes asArray;
+		at: 'vmDependent' put: vmDependent asArray;
 		yourself
 ! !
 
@@ -739,6 +859,55 @@ typeOf: aKeyword
 	^#('subclass:' #normal 'variableSubclass:' #variable 'variableByteSubclass:' #bytes 'variableWordSubclass:' #words
 		'variableDoubleWordSubclass:' #doubleWords 'weakSubclass:' #weak 'immediateSubclass:' #immediate)
 			at: (#('subclass:' 'variableSubclass:' 'variableByteSubclass:' 'variableWordSubclass:' 'variableDoubleWordSubclass:' 'weakSubclass:' 'immediateSubclass:') indexOf: aKeyword) * 2
+!
+isVMSource: aPath
+	"A C, C++ or Objective-C source or header of vm/ that the translator does not make."
+	(aPath beginsWith: 'vm/') ifFalse: [^false].
+	(aPath beginsWith: 'vm/gen/') ifTrue: [^false].
+	^#('.c' '.h' '.m' '.cpp' '.cc') anySatisfy: [:ext | aPath endsWith: ext]
+!
+primitivesIn: aString
+	"The names and numbers (Strings) of the primitives aString's <primitive: ...> and <vmPrimitive: n name: '...'> pragmas name."
+	| found separators |
+	found := OrderedCollection new.
+	separators := ' <>:''"', (String with: Character tab).
+	aString lines do: [:line |
+		(line includesSubstring: 'rimitive:') ifTrue: [ | words k |
+			words := line substrings: separators.
+			k := 1.
+			[k <= words size and: [((words at: k) = 'primitive' or: [(words at: k) = 'vmPrimitive']) not]] whileTrue: [k := k + 1].
+			k < words size ifTrue: [
+				found add: (words at: k + 1).
+				(k + 3 <= words size and: [(words at: k + 2) = 'name']) ifTrue: [found add: (words at: k + 3)]]]].
+	^found
+!
+methodsNamedIn: aString
+	"The methods aString names as Class>>selector or Class class>>selector (a VM method's comment names the image methods it implements: String>>hash); a keyword selector's last colon may end a sentence, so with and without it."
+	| found i |
+	found := OrderedCollection new.
+	i := 0.
+	[(i := aString indexOfSubCollection: '>>' startingAt: i + 1) > 0] whileTrue: [ | e s k meta className selector |
+		e := i - 1.
+		meta := e >= 6 and: [(aString copyFrom: e - 5 to: e) = ' class'].
+		meta ifTrue: [e := e - 6].
+		s := e.
+		[s > 0 and: [(aString at: s) isAlphaNumeric]] whileTrue: [s := s - 1].
+		className := aString copyFrom: s + 1 to: e.
+		k := i + 2.
+		[k <= aString size and: [(aString at: k) isAlphaNumeric or: [(aString at: k) = $:]]] whileTrue: [k := k + 1].
+		k = (i + 2) ifTrue: [[k <= aString size and: ['+-*/\<>=~@%|&?,' includes: (aString at: k)]] whileTrue: [k := k + 1]].
+		selector := aString copyFrom: i + 2 to: k - 1.
+		(className notEmpty and: [className first isUppercase and: [selector notEmpty]]) ifTrue: [
+			found add: className, (meta ifTrue: [' class'] ifFalse: ['']), '>>', selector.
+			(selector size > 1 and: [selector last = $:]) ifTrue: [found add: className, (meta ifTrue: [' class'] ifFalse: ['']), '>>', selector allButLast]]].
+	^found
+!
+abbreviate: aString
+	^aString size > 60 ifTrue: [(aString copyFrom: 1 to: 60), '...'] ifFalse: [aString]
+!
+commonSelectors
+	"Selectors that image and VM classes both have for their own reasons: the same one changing on both sides says nothing."
+	^#('initialize' 'printOn:' 'new' 'name' 'size' 'value' 'at:' 'at:put:' 'do:' '=' 'hash' 'comment' 'reset' 'release' 'start' 'stop')
 !
 isSha: aString
 	^aString size = 40 and: [aString allSatisfy: [:c | '0123456789abcdef' includes: c]]
