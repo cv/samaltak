@@ -693,6 +693,7 @@ emitNode: n block: b next: nextBlock
 		asm orr: r with: X16 imm: 1.
 		^self def: n from: r].
 	op = O_CLASSOF ifTrue: [^self emitClassOf: n].
+	(op = O_STRHASH or: [op = O_STRCMP]) ifTrue: [^self emitString: n].
 	(op = O_UNBOXF or: [op = O_BOXF or: [op = O_FARITH or: [op = O_FSQRT]]]) ifTrue: [^self emitFloat: n].
 	(op = O_EQ or: [op = O_NE or: [op = O_ICMP or: [op = O_CLASSIS or: [op = O_FCMP or: [op = O_BOTHINT]]]]]) ifTrue: [
 		(self isFused: n) ifTrue: [^self].
@@ -1794,6 +1795,32 @@ emitReplace: n slow: slow done: done
 		asm ldr: (self scratchB bitOr: REG_W) base: X16 offset: 0.
 		asm mov: X17 imm: 0.
 		self emitZeroSlotsOf: X16 from: X17 count: self scratchB]
+!
+emitString: n
+	"String>>hash (O_STRHASH) or compareWith: (O_STRCMP) of bytes: compareWith:'s argument checked to be bytes (NF_GUARD: else deoptimize), then the string hash or compare stub (x16 the receiver, x17 the argument, the result in x16)."
+	| nd s x |
+	nd := ir node: n.
+	(nd flags bitAnd: NF_GUARD) ~= 0 ifTrue: [
+		s := self deoptLabelFor: n.
+		asm comment: 'guard: the argument is bytes'.
+		x := self src: nd b into: X17.
+		asm tst: x imm: 7.
+		asm b: s if: COND_NE.
+		asm ldr: X16 base: x offset: 0.
+		asm ubfx: X16 with: X16 lsb: H_FMT_SHIFT width: 5.
+		self emitKindCheck: X16 shift: 0 slow: s].
+	x := self src: nd a into: X16.
+	x ~= X16 ifTrue: [asm mov: X16 with: x].
+	nd op asInt32 = O_STRHASH
+		ifTrue: [
+			asm comment: 'String>>hash of bytes: the string hash stub'.
+			asm bl: (asm labelAt: stubs blStringHashStub)]
+		ifFalse: [
+			x := self src: nd b into: X17.
+			x ~= X17 ifTrue: [asm mov: X17 with: x].
+			asm comment: 'compareWith: of bytes: the string compare stub'.
+			asm bl: (asm labelAt: stubs blStringCompareStub)].
+	self def: n from: X16
 !
 emitKindCheck: f shift: s slow: slow
 	"Unless format f is one of elements of 1 << s bytes (bytes, 32-bit words, pointers without fixed fields): slow."

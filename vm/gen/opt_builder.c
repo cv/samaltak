@@ -8726,6 +8726,8 @@ static bool inline_primitive(int64_t p, oop cls, int32_t argc, int32_t pc, int32
     int64_t p_40;
     int64_t p_41;
     int64_t p_42;
+    int64_t p_43;
+    int64_t p_44;
     int64_t kind;
     int32_t var;
     int32_t rcv;
@@ -8895,57 +8897,96 @@ static bool inline_primitive(int64_t p, oop cls, int32_t argc, int32_t pc, int32
     uint64_t o_10;
     int64_t fmt;
     int64_t spec;
-    int64_t fixed;
-    int64_t ek;
-    int32_t d_4;
-    int32_t r_add_22;
-    int32_t n_59;
+    bool r_string_primitive;
     int32_t var_17;
-    int32_t r_add_23;
-    int32_t n_61;
+    int32_t rcv_2;
+    int32_t r_add_22;
     int32_t n_60;
-    int32_t n_62;
-    int32_t i_7;
+    int32_t n_59;
     int32_t var_18;
-    int32_t v_7;
-    int32_t r_guard_int_4;
-    int32_t r_add_24;
-    int32_t n_64;
+    int32_t r_add_23;
+    int32_t n_62;
+    int32_t n_61;
     int32_t n_63;
-    int32_t r_add_25;
-    int32_t n_65;
+    int32_t i_7;
     int32_t var_19;
-    int32_t r_add_26;
-    int32_t n_67;
-    int32_t n_66;
-    int32_t n_68;
-    int32_t i_8;
-    int32_t var_20;
-    int32_t v_8;
-    int32_t r_guard_int_5;
-    int32_t r_add_27;
-    int32_t n_70;
-    int32_t n_69;
-    int32_t i_9;
-    int32_t var_21;
-    int32_t val;
-    int32_t r_add_28;
-    int32_t n_71;
+    int32_t x;
+    int64_t s_3;
     oop r_known_class_of_7;
-    int32_t n_72;
+    int32_t n_64;
     opt_node *nd_8;
     uint64_t o_11;
     oop r_class_of_13;
     oop r_class_of_14;
-    int32_t r_cast;
-    int32_t r_add_29;
-    int32_t n_74;
+    oop cls_2;
+    bool r_has_bytes;
+    uint64_t o_12;
+    uint64_t o_13;
+    oop r_known_class_of_8;
+    int32_t n_65;
+    opt_node *nd_9;
+    uint64_t o_14;
+    oop r_class_of_15;
+    oop r_class_of_16;
+    int32_t d_4;
+    int32_t r_add_24;
+    int32_t n_66;
+    int32_t var_20;
+    int32_t r_add_25;
+    int32_t n_68;
+    int32_t n_67;
+    int32_t n_69;
+    int64_t fixed;
+    int64_t ek;
+    int32_t d_5;
+    int32_t r_add_26;
+    int32_t n_70;
+    int32_t var_21;
+    int32_t r_add_27;
+    int32_t n_72;
+    int32_t n_71;
     int32_t n_73;
+    int32_t i_8;
     int32_t var_22;
-    int32_t r_add_30;
-    int32_t n_76;
+    int32_t v_7;
+    int32_t r_guard_int_4;
+    int32_t r_add_28;
     int32_t n_75;
+    int32_t n_74;
+    int32_t r_add_29;
+    int32_t n_76;
+    int32_t var_23;
+    int32_t r_add_30;
+    int32_t n_78;
     int32_t n_77;
+    int32_t n_79;
+    int32_t i_9;
+    int32_t var_24;
+    int32_t v_8;
+    int32_t r_guard_int_5;
+    int32_t r_add_31;
+    int32_t n_81;
+    int32_t n_80;
+    int32_t i_10;
+    int32_t var_25;
+    int32_t val;
+    int32_t r_add_32;
+    int32_t n_82;
+    oop r_known_class_of_9;
+    int32_t n_83;
+    opt_node *nd_10;
+    uint64_t o_15;
+    oop r_class_of_17;
+    oop r_class_of_18;
+    int32_t r_cast;
+    int32_t r_add_33;
+    int32_t n_85;
+    int32_t n_84;
+    int32_t var_26;
+    int32_t r_add_34;
+    int32_t n_87;
+    int32_t n_86;
+    int32_t n_88;
     kind = ({
     if (!ob_prims_known) {
         ob_prims_known = true;
@@ -9113,6 +9154,14 @@ static bool inline_primitive(int64_t p, oop cls, int32_t argc, int32_t pc, int32
         p_42 = primitive_number_named("replaceFromToWithStartingAt");
         if ((p_42 > 0) && (p_42 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_42] = 14U;
+        }
+        p_43 = primitive_number_named("stringHash");
+        if ((p_43 > 0) && (p_43 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_43] = 15U;
+        }
+        p_44 = primitive_number_named("stringCompare");
+        if ((p_44 > 0) && (p_44 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_44] = 16U;
         }
     }
     if ((p <= 0) || (p >= OPT_MAX_PRIM)) {
@@ -9952,146 +10001,53 @@ exit_guard_int_3:;
     o_10 = *(uint64_t *)(cls + 16 + 16);
     fmt = ((int64_t)o_10) >> 1;
     spec = fmt >> 16;
-    fixed = fmt & CLS_INSTSIZE_MASK;
-    ek = -1;
-    if ((spec == F_VAR) || (spec == F_FIXVAR)) {
-        ek = E_PTR;
+    if ((kind == OPK_STRHASH) || (kind == OPK_STRCMP)) {
+        return ({
+    if (!(spec >= F_BYTES)) {
+        r_string_primitive = false;
+        goto exit_string_primitive;
     }
-    if (spec >= F_BYTES) {
-        ek = E_BYTE;
-        fixed = 0;
-    }
-    if ((kind == OPK_STRINGAT) || (kind == OPK_STRINGATPUT)) {
-        if (!(spec >= F_BYTES)) {
-            return false;
-        }
-        ek = E_CHAR;
-    }
-    if (ek < 0) {
-        return false;
-    }
-    if ((flags_at((opt_acts + a)->method, pc) & FB_DEOPT_OTHER) != 0) {
-        return false;
-    }
-    d_4 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc];
-    s = state_act(a, pc, d_4, pc);
-    if ((kind == OPK_SIZE) && (argc == 0)) {
-        n = ({
-    n_59 = new_node(O_SIZE, R_OOP);
-    append(n_59, ob_cur_block);
-    r_add_22 = n_59;
+    var_17 = (opt_acts + a)->var_base + r;
+    rcv_2 = opt_builder_read(var_17, ob_cur_block);
+    if ((kind == OPK_STRHASH) && (argc == 0)) {
+        n_59 = ({
+    n_60 = new_node(O_STRHASH, R_OOP);
+    append(n_60, ob_cur_block);
+    r_add_22 = n_60;
     r_add_22; });
-        (opt_nodes + n)->a = rcv;
-        (opt_nodes + n)->aux = ek;
-        (opt_nodes + n)->aux2 = fixed;
-        (opt_nodes + n)->tkind = T_SMI;
-        var_17 = (opt_acts + a)->var_base + r;
-        if ((var_17 < OPT_MAX_VARS) && (ob_arg_flags[var_17] == 2)) {
-            n_60 = ({
-    n_61 = new_node(O_STORESLOT, R_NONE);
-    append(n_61, ob_cur_block);
-    r_add_23 = n_61;
+        (opt_nodes + n_59)->a = rcv_2;
+        (opt_nodes + n_59)->flags = NF_PURE;
+        (opt_nodes + n_59)->tkind = T_SMI;
+        (opt_nodes + n_59)->lo = 0;
+        (opt_nodes + n_59)->hi = 0x3FFFFFFF;
+        var_18 = (opt_acts + a)->var_base + r;
+        if ((var_18 < OPT_MAX_VARS) && (ob_arg_flags[var_18] == 2)) {
+            n_61 = ({
+    n_62 = new_node(O_STORESLOT, R_NONE);
+    append(n_62, ob_cur_block);
+    r_add_23 = n_62;
     r_add_23; });
-            (opt_nodes + n_60)->a = n;
-            n_62 = ob_arg_vals[var_17];
-            (opt_nodes + n_60)->aux = (opt_nodes + n_62)->aux;
+            (opt_nodes + n_61)->a = n_59;
+            n_63 = ob_arg_vals[var_18];
+            (opt_nodes + n_61)->aux = (opt_nodes + n_63)->aux;
             goto exit_write_10;
         }
-        opt_builder_write(var_17, n, ob_cur_block);
+        opt_builder_write(var_18, n_59, ob_cur_block);
     exit_write_10:;
-        return true;
+        r_string_primitive = true;
+        goto exit_string_primitive;
     }
-    if (((kind == OPK_AT) || (kind == OPK_STRINGAT)) && (argc == 1)) {
-        i_7 = r + 1;
-        var_18 = (opt_acts + a)->var_base + i_7;
-        v_7 = opt_builder_read(var_18, ob_cur_block);
-        idx = ({
-    if ((int32_t)(opt_nodes + v_7)->tkind == T_SMI) {
-        r_guard_int_4 = v_7;
-        goto exit_guard_int_4;
+    if (!((kind == OPK_STRCMP) && (argc == 1))) {
+        r_string_primitive = false;
+        goto exit_string_primitive;
     }
-    n_63 = ({
-    n_64 = new_node(O_GUARDINT, R_OOP);
-    append(n_64, ob_cur_block);
-    r_add_24 = n_64;
-    r_add_24; });
-    (opt_nodes + n_63)->a = v_7;
-    (opt_nodes + n_63)->state = s;
-    (opt_nodes + n_63)->tkind = T_SMI;
-    (opt_nodes + n_63)->flags = NF_GUARD;
-    r_guard_int_4 = n_63;
-exit_guard_int_4:;
-    r_guard_int_4; });
-        n = ({
-    n_65 = new_node(O_INDEXLOAD, R_OOP);
-    append(n_65, ob_cur_block);
-    r_add_25 = n_65;
-    r_add_25; });
-        (opt_nodes + n)->a = rcv;
-        (opt_nodes + n)->b = idx;
-        (opt_nodes + n)->aux = ek;
-        (opt_nodes + n)->aux2 = fixed;
-        (opt_nodes + n)->state = s;
-        if (ek == E_BYTE) {
-            (opt_nodes + n)->tkind = T_SMI;
-        }
-        if (ek == E_CHAR) {
-            (opt_nodes + n)->tkind = T_CHAR;
-        }
-        var_19 = (opt_acts + a)->var_base + r;
-        if ((var_19 < OPT_MAX_VARS) && (ob_arg_flags[var_19] == 2)) {
-            n_66 = ({
-    n_67 = new_node(O_STORESLOT, R_NONE);
-    append(n_67, ob_cur_block);
-    r_add_26 = n_67;
-    r_add_26; });
-            (opt_nodes + n_66)->a = n;
-            n_68 = ob_arg_vals[var_19];
-            (opt_nodes + n_66)->aux = (opt_nodes + n_68)->aux;
-            goto exit_write_11;
-        }
-        opt_builder_write(var_19, n, ob_cur_block);
-    exit_write_11:;
-        return true;
-    }
-    if (((kind == OPK_ATPUT) || (kind == OPK_STRINGATPUT)) && (argc == 2)) {
-        i_8 = r + 1;
-        var_20 = (opt_acts + a)->var_base + i_8;
-        v_8 = opt_builder_read(var_20, ob_cur_block);
-        idx = ({
-    if ((int32_t)(opt_nodes + v_8)->tkind == T_SMI) {
-        r_guard_int_5 = v_8;
-        goto exit_guard_int_5;
-    }
-    n_69 = ({
-    n_70 = new_node(O_GUARDINT, R_OOP);
-    append(n_70, ob_cur_block);
-    r_add_27 = n_70;
-    r_add_27; });
-    (opt_nodes + n_69)->a = v_8;
-    (opt_nodes + n_69)->state = s;
-    (opt_nodes + n_69)->tkind = T_SMI;
-    (opt_nodes + n_69)->flags = NF_GUARD;
-    r_guard_int_5 = n_69;
-exit_guard_int_5:;
-    r_guard_int_5; });
-        i_9 = r + 2;
-        var_21 = (opt_acts + a)->var_base + i_9;
-        val = opt_builder_read(var_21, ob_cur_block);
-        n = ({
-    n_71 = new_node(O_INDEXSTORE, R_NONE);
-    append(n_71, ob_cur_block);
-    r_add_28 = n_71;
-    r_add_28; });
-        (opt_nodes + n)->a = rcv;
-        (opt_nodes + n)->b = idx;
-        (opt_nodes + n)->c = val;
-        (opt_nodes + n)->aux = ek;
-        (opt_nodes + n)->aux2 = fixed;
-        (opt_nodes + n)->state = s;
-        if ((ek == E_CHAR) && (({
-    n_72 = live_value_of(val);
-    nd_8 = opt_nodes + n_72;
+    i_7 = r + 1;
+    var_19 = (opt_acts + a)->var_base + i_7;
+    x = opt_builder_read(var_19, ob_cur_block);
+    s_3 = -1;
+    cls_2 = ({
+    n_64 = live_value_of(x);
+    nd_8 = opt_nodes + n_64;
     if ((int32_t)nd_8->op == O_CONST) {
         o_11 = (uint64_t)nd_8->aux;
         r_known_class_of_7 = ({
@@ -10157,45 +10113,378 @@ exit_class_of_14:;
     }
     r_known_class_of_7 = 0;
 exit_known_class_of_7:;
-    r_known_class_of_7; }) == 0)) {
-            val = ({
-    n_73 = ({
-    n_74 = new_node(O_CAST, R_OOP);
-    append(n_74, ob_cur_block);
-    r_add_29 = n_74;
+    r_known_class_of_7; });
+    if (!({
+    if (cls_2 == 0) {
+        r_has_bytes = false;
+        goto exit_has_bytes;
+    }
+    o_12 = *(uint64_t *)(cls_2 + 16 + 16);
+    if (!((o_12 & 1) != 0)) {
+        r_has_bytes = false;
+        goto exit_has_bytes;
+    }
+    o_13 = *(uint64_t *)(cls_2 + 16 + 16);
+    r_has_bytes = (((int64_t)o_13) >> 1 >> 16) >= F_BYTES;
+exit_has_bytes:;
+    r_has_bytes; })) {
+        if (({
+    n_65 = live_value_of(x);
+    nd_9 = opt_nodes + n_65;
+    if ((int32_t)nd_9->op == O_CONST) {
+        o_14 = (uint64_t)nd_9->aux;
+        r_known_class_of_8 = ({
+    if ((o_14 & 1) != 0) {
+        r_class_of_15 = cls_smallint;
+        goto exit_class_of_15;
+    }
+    if ((o_14 & 7) == 0) {
+        r_class_of_15 = *(uint64_t *)(o_14 + 8);
+        goto exit_class_of_15;
+    }
+    if ((o_14 & 7) == 2) {
+        r_class_of_15 = cls_char;
+        goto exit_class_of_15;
+    }
+    if ((o_14 & 7) == 4) {
+        r_class_of_15 = cls_smallfloat;
+        goto exit_class_of_15;
+    }
+    r_class_of_15 = nil_oop;
+exit_class_of_15:;
+    r_class_of_15; });
+        goto exit_known_class_of_8;
+    }
+    if ((int32_t)nd_9->tkind == T_SMI) {
+        r_known_class_of_8 = cls_smallint;
+        goto exit_known_class_of_8;
+    }
+    if ((int32_t)nd_9->tkind == T_FLOAT) {
+        r_known_class_of_8 = cls_smallfloat;
+        goto exit_known_class_of_8;
+    }
+    if ((int32_t)nd_9->tkind == T_NIL) {
+        r_known_class_of_8 = ({
+    if ((nil_oop & 1) != 0) {
+        r_class_of_16 = cls_smallint;
+        goto exit_class_of_16;
+    }
+    if ((nil_oop & 7) == 0) {
+        r_class_of_16 = *(uint64_t *)(nil_oop + 8);
+        goto exit_class_of_16;
+    }
+    if ((nil_oop & 7) == 2) {
+        r_class_of_16 = cls_char;
+        goto exit_class_of_16;
+    }
+    if ((nil_oop & 7) == 4) {
+        r_class_of_16 = cls_smallfloat;
+        goto exit_class_of_16;
+    }
+    r_class_of_16 = nil_oop;
+exit_class_of_16:;
+    r_class_of_16; });
+        goto exit_known_class_of_8;
+    }
+    if ((int32_t)nd_9->tkind == T_CHAR) {
+        r_known_class_of_8 = cls_char;
+        goto exit_known_class_of_8;
+    }
+    if (((int32_t)nd_9->tkind == T_OBJ) && (nd_9->tcls != 0)) {
+        r_known_class_of_8 = nd_9->tcls;
+        goto exit_known_class_of_8;
+    }
+    r_known_class_of_8 = 0;
+exit_known_class_of_8:;
+    r_known_class_of_8; }) != 0) {
+            r_string_primitive = false;
+            goto exit_string_primitive;
+        }
+        if ((flags_at((opt_acts + a)->method, pc) & FB_DEOPT_OTHER) != 0) {
+            r_string_primitive = false;
+            goto exit_string_primitive;
+        }
+        d_4 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc];
+        s_3 = state_act(a, pc, d_4, pc);
+    }
+    n_59 = ({
+    n_66 = new_node(O_STRCMP, R_OOP);
+    append(n_66, ob_cur_block);
+    r_add_24 = n_66;
+    r_add_24; });
+    (opt_nodes + n_59)->a = rcv_2;
+    (opt_nodes + n_59)->b = x;
+    if (s_3 >= 0) {
+        (opt_nodes + n_59)->state = s_3;
+        (opt_nodes + n_59)->flags = NF_GUARD;
+    } else {
+        (opt_nodes + n_59)->flags = NF_PURE;
+    }
+    (opt_nodes + n_59)->tkind = T_SMI;
+    (opt_nodes + n_59)->lo = -1;
+    (opt_nodes + n_59)->hi = 1;
+    var_20 = (opt_acts + a)->var_base + r;
+    if ((var_20 < OPT_MAX_VARS) && (ob_arg_flags[var_20] == 2)) {
+        n_67 = ({
+    n_68 = new_node(O_STORESLOT, R_NONE);
+    append(n_68, ob_cur_block);
+    r_add_25 = n_68;
+    r_add_25; });
+        (opt_nodes + n_67)->a = n_59;
+        n_69 = ob_arg_vals[var_20];
+        (opt_nodes + n_67)->aux = (opt_nodes + n_69)->aux;
+        goto exit_write_11;
+    }
+    opt_builder_write(var_20, n_59, ob_cur_block);
+exit_write_11:;
+    r_string_primitive = true;
+exit_string_primitive:;
+    r_string_primitive; });
+    }
+    fixed = fmt & CLS_INSTSIZE_MASK;
+    ek = -1;
+    if ((spec == F_VAR) || (spec == F_FIXVAR)) {
+        ek = E_PTR;
+    }
+    if (spec >= F_BYTES) {
+        ek = E_BYTE;
+        fixed = 0;
+    }
+    if ((kind == OPK_STRINGAT) || (kind == OPK_STRINGATPUT)) {
+        if (!(spec >= F_BYTES)) {
+            return false;
+        }
+        ek = E_CHAR;
+    }
+    if (ek < 0) {
+        return false;
+    }
+    if ((flags_at((opt_acts + a)->method, pc) & FB_DEOPT_OTHER) != 0) {
+        return false;
+    }
+    d_5 = (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc];
+    s = state_act(a, pc, d_5, pc);
+    if ((kind == OPK_SIZE) && (argc == 0)) {
+        n = ({
+    n_70 = new_node(O_SIZE, R_OOP);
+    append(n_70, ob_cur_block);
+    r_add_26 = n_70;
+    r_add_26; });
+        (opt_nodes + n)->a = rcv;
+        (opt_nodes + n)->aux = ek;
+        (opt_nodes + n)->aux2 = fixed;
+        (opt_nodes + n)->tkind = T_SMI;
+        var_21 = (opt_acts + a)->var_base + r;
+        if ((var_21 < OPT_MAX_VARS) && (ob_arg_flags[var_21] == 2)) {
+            n_71 = ({
+    n_72 = new_node(O_STORESLOT, R_NONE);
+    append(n_72, ob_cur_block);
+    r_add_27 = n_72;
+    r_add_27; });
+            (opt_nodes + n_71)->a = n;
+            n_73 = ob_arg_vals[var_21];
+            (opt_nodes + n_71)->aux = (opt_nodes + n_73)->aux;
+            goto exit_write_12;
+        }
+        opt_builder_write(var_21, n, ob_cur_block);
+    exit_write_12:;
+        return true;
+    }
+    if (((kind == OPK_AT) || (kind == OPK_STRINGAT)) && (argc == 1)) {
+        i_8 = r + 1;
+        var_22 = (opt_acts + a)->var_base + i_8;
+        v_7 = opt_builder_read(var_22, ob_cur_block);
+        idx = ({
+    if ((int32_t)(opt_nodes + v_7)->tkind == T_SMI) {
+        r_guard_int_4 = v_7;
+        goto exit_guard_int_4;
+    }
+    n_74 = ({
+    n_75 = new_node(O_GUARDINT, R_OOP);
+    append(n_75, ob_cur_block);
+    r_add_28 = n_75;
+    r_add_28; });
+    (opt_nodes + n_74)->a = v_7;
+    (opt_nodes + n_74)->state = s;
+    (opt_nodes + n_74)->tkind = T_SMI;
+    (opt_nodes + n_74)->flags = NF_GUARD;
+    r_guard_int_4 = n_74;
+exit_guard_int_4:;
+    r_guard_int_4; });
+        n = ({
+    n_76 = new_node(O_INDEXLOAD, R_OOP);
+    append(n_76, ob_cur_block);
+    r_add_29 = n_76;
     r_add_29; });
-    (opt_nodes + n_73)->a = val;
+        (opt_nodes + n)->a = rcv;
+        (opt_nodes + n)->b = idx;
+        (opt_nodes + n)->aux = ek;
+        (opt_nodes + n)->aux2 = fixed;
+        (opt_nodes + n)->state = s;
+        if (ek == E_BYTE) {
+            (opt_nodes + n)->tkind = T_SMI;
+        }
+        if (ek == E_CHAR) {
+            (opt_nodes + n)->tkind = T_CHAR;
+        }
+        var_23 = (opt_acts + a)->var_base + r;
+        if ((var_23 < OPT_MAX_VARS) && (ob_arg_flags[var_23] == 2)) {
+            n_77 = ({
+    n_78 = new_node(O_STORESLOT, R_NONE);
+    append(n_78, ob_cur_block);
+    r_add_30 = n_78;
+    r_add_30; });
+            (opt_nodes + n_77)->a = n;
+            n_79 = ob_arg_vals[var_23];
+            (opt_nodes + n_77)->aux = (opt_nodes + n_79)->aux;
+            goto exit_write_13;
+        }
+        opt_builder_write(var_23, n, ob_cur_block);
+    exit_write_13:;
+        return true;
+    }
+    if (((kind == OPK_ATPUT) || (kind == OPK_STRINGATPUT)) && (argc == 2)) {
+        i_9 = r + 1;
+        var_24 = (opt_acts + a)->var_base + i_9;
+        v_8 = opt_builder_read(var_24, ob_cur_block);
+        idx = ({
+    if ((int32_t)(opt_nodes + v_8)->tkind == T_SMI) {
+        r_guard_int_5 = v_8;
+        goto exit_guard_int_5;
+    }
+    n_80 = ({
+    n_81 = new_node(O_GUARDINT, R_OOP);
+    append(n_81, ob_cur_block);
+    r_add_31 = n_81;
+    r_add_31; });
+    (opt_nodes + n_80)->a = v_8;
+    (opt_nodes + n_80)->state = s;
+    (opt_nodes + n_80)->tkind = T_SMI;
+    (opt_nodes + n_80)->flags = NF_GUARD;
+    r_guard_int_5 = n_80;
+exit_guard_int_5:;
+    r_guard_int_5; });
+        i_10 = r + 2;
+        var_25 = (opt_acts + a)->var_base + i_10;
+        val = opt_builder_read(var_25, ob_cur_block);
+        n = ({
+    n_82 = new_node(O_INDEXSTORE, R_NONE);
+    append(n_82, ob_cur_block);
+    r_add_32 = n_82;
+    r_add_32; });
+        (opt_nodes + n)->a = rcv;
+        (opt_nodes + n)->b = idx;
+        (opt_nodes + n)->c = val;
+        (opt_nodes + n)->aux = ek;
+        (opt_nodes + n)->aux2 = fixed;
+        (opt_nodes + n)->state = s;
+        if ((ek == E_CHAR) && (({
+    n_83 = live_value_of(val);
+    nd_10 = opt_nodes + n_83;
+    if ((int32_t)nd_10->op == O_CONST) {
+        o_15 = (uint64_t)nd_10->aux;
+        r_known_class_of_9 = ({
+    if ((o_15 & 1) != 0) {
+        r_class_of_17 = cls_smallint;
+        goto exit_class_of_17;
+    }
+    if ((o_15 & 7) == 0) {
+        r_class_of_17 = *(uint64_t *)(o_15 + 8);
+        goto exit_class_of_17;
+    }
+    if ((o_15 & 7) == 2) {
+        r_class_of_17 = cls_char;
+        goto exit_class_of_17;
+    }
+    if ((o_15 & 7) == 4) {
+        r_class_of_17 = cls_smallfloat;
+        goto exit_class_of_17;
+    }
+    r_class_of_17 = nil_oop;
+exit_class_of_17:;
+    r_class_of_17; });
+        goto exit_known_class_of_9;
+    }
+    if ((int32_t)nd_10->tkind == T_SMI) {
+        r_known_class_of_9 = cls_smallint;
+        goto exit_known_class_of_9;
+    }
+    if ((int32_t)nd_10->tkind == T_FLOAT) {
+        r_known_class_of_9 = cls_smallfloat;
+        goto exit_known_class_of_9;
+    }
+    if ((int32_t)nd_10->tkind == T_NIL) {
+        r_known_class_of_9 = ({
+    if ((nil_oop & 1) != 0) {
+        r_class_of_18 = cls_smallint;
+        goto exit_class_of_18;
+    }
+    if ((nil_oop & 7) == 0) {
+        r_class_of_18 = *(uint64_t *)(nil_oop + 8);
+        goto exit_class_of_18;
+    }
+    if ((nil_oop & 7) == 2) {
+        r_class_of_18 = cls_char;
+        goto exit_class_of_18;
+    }
+    if ((nil_oop & 7) == 4) {
+        r_class_of_18 = cls_smallfloat;
+        goto exit_class_of_18;
+    }
+    r_class_of_18 = nil_oop;
+exit_class_of_18:;
+    r_class_of_18; });
+        goto exit_known_class_of_9;
+    }
+    if ((int32_t)nd_10->tkind == T_CHAR) {
+        r_known_class_of_9 = cls_char;
+        goto exit_known_class_of_9;
+    }
+    if (((int32_t)nd_10->tkind == T_OBJ) && (nd_10->tcls != 0)) {
+        r_known_class_of_9 = nd_10->tcls;
+        goto exit_known_class_of_9;
+    }
+    r_known_class_of_9 = 0;
+exit_known_class_of_9:;
+    r_known_class_of_9; }) == 0)) {
+            val = ({
+    n_84 = ({
+    n_85 = new_node(O_CAST, R_OOP);
+    append(n_85, ob_cur_block);
+    r_add_33 = n_85;
+    r_add_33; });
+    (opt_nodes + n_84)->a = val;
     if (cls_char == cls_smallfloat) {
-        (opt_nodes + n_73)->tkind = T_FLOAT;
+        (opt_nodes + n_84)->tkind = T_FLOAT;
         goto exit_type;
     }
     if (cls_char == cls_smallint) {
-        (opt_nodes + n_73)->tkind = T_SMI;
+        (opt_nodes + n_84)->tkind = T_SMI;
     } else {
-        (opt_nodes + n_73)->tkind = T_OBJ;
-        (opt_nodes + n_73)->tcls = cls_char;
+        (opt_nodes + n_84)->tkind = T_OBJ;
+        (opt_nodes + n_84)->tcls = cls_char;
     }
 exit_type:;
-    r_cast = n_73;
+    r_cast = n_84;
     r_cast; });
             (opt_nodes + val)->tkind = T_CHAR;
             (opt_nodes + val)->lo = 0;
             (opt_nodes + val)->hi = 255;
         }
-        var_22 = (opt_acts + a)->var_base + r;
-        if ((var_22 < OPT_MAX_VARS) && (ob_arg_flags[var_22] == 2)) {
-            n_75 = ({
-    n_76 = new_node(O_STORESLOT, R_NONE);
-    append(n_76, ob_cur_block);
-    r_add_30 = n_76;
-    r_add_30; });
-            (opt_nodes + n_75)->a = val;
-            n_77 = ob_arg_vals[var_22];
-            (opt_nodes + n_75)->aux = (opt_nodes + n_77)->aux;
-            goto exit_write_12;
+        var_26 = (opt_acts + a)->var_base + r;
+        if ((var_26 < OPT_MAX_VARS) && (ob_arg_flags[var_26] == 2)) {
+            n_86 = ({
+    n_87 = new_node(O_STORESLOT, R_NONE);
+    append(n_87, ob_cur_block);
+    r_add_34 = n_87;
+    r_add_34; });
+            (opt_nodes + n_86)->a = val;
+            n_88 = ob_arg_vals[var_26];
+            (opt_nodes + n_86)->aux = (opt_nodes + n_88)->aux;
+            goto exit_write_14;
         }
-        opt_builder_write(var_22, val, ob_cur_block);
-    exit_write_12:;
+        opt_builder_write(var_26, val, ob_cur_block);
+    exit_write_14:;
         return true;
     }
     return false;
@@ -10274,6 +10563,8 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int64_t p_44;
     int64_t p_45;
     int64_t p_46;
+    int64_t p_47;
+    int64_t p_48;
     int64_t kind_2;
     uint64_t inst;
     oop r_class_of;
@@ -10302,11 +10593,9 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_12;
     int32_t n_7;
     int32_t r_method_primitive_4;
-    uint64_t p_47;
-    int32_t p_48;
+    uint64_t p_49;
+    int32_t p_50;
     int64_t r_prim_kind_of_2;
-    int64_t p_49;
-    int64_t p_50;
     int64_t p_51;
     int64_t p_52;
     int64_t p_53;
@@ -10346,6 +10635,10 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int64_t p_87;
     int64_t p_88;
     int64_t p_89;
+    int64_t p_90;
+    int64_t p_91;
+    int64_t p_92;
+    int64_t p_93;
     bool r_block_call;
     int64_t k_2;
     oop o_4;
@@ -10391,13 +10684,9 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_13;
     bool r_replace;
     int32_t r_method_primitive_5;
-    uint64_t p_90;
-    int32_t p_91;
+    uint64_t p_94;
+    int32_t p_95;
     int64_t r_prim_kind_of_3;
-    int64_t p_92;
-    int64_t p_93;
-    int64_t p_94;
-    int64_t p_95;
     int64_t p_96;
     int64_t p_97;
     int64_t p_98;
@@ -10435,6 +10724,12 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int64_t p_130;
     int64_t p_131;
     int64_t p_132;
+    int64_t p_133;
+    int64_t p_134;
+    int64_t p_135;
+    int64_t p_136;
+    int64_t p_137;
+    int64_t p_138;
     uint64_t fo_2;
     int64_t spec_2;
     int64_t fl_2;
@@ -10462,9 +10757,9 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_25;
     int32_t n_24;
     int32_t r_method_primitive_6;
-    uint64_t p_133;
+    uint64_t p_139;
     int32_t r_method_primitive_7;
-    uint64_t p_134;
+    uint64_t p_140;
     int kind_4;
     int32_t r_call_selector_4;
     int32_t r_add_10;
@@ -10504,24 +10799,18 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_41;
     uint64_t r_performed_at_2;
     int32_t r_method_primitive_8;
-    uint64_t p_136;
+    uint64_t p_142;
     int32_t r_method_primitive_9;
-    uint64_t p_137;
+    uint64_t p_143;
     int32_t var_15;
     int32_t n_42;
     opt_node *nd_3;
-    uint64_t p_135;
+    uint64_t p_141;
     bool r_allocate_2;
     int32_t r_method_primitive_10;
-    uint64_t p_138;
-    int32_t p_139;
+    uint64_t p_144;
+    int32_t p_145;
     int64_t r_prim_kind_of_4;
-    int64_t p_140;
-    int64_t p_141;
-    int64_t p_142;
-    int64_t p_143;
-    int64_t p_144;
-    int64_t p_145;
     int64_t p_146;
     int64_t p_147;
     int64_t p_148;
@@ -10557,6 +10846,14 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int64_t p_178;
     int64_t p_179;
     int64_t p_180;
+    int64_t p_181;
+    int64_t p_182;
+    int64_t p_183;
+    int64_t p_184;
+    int64_t p_185;
+    int64_t p_186;
+    int64_t p_187;
+    int64_t p_188;
     int64_t kind_5;
     uint64_t inst_2;
     oop r_class_of_4;
@@ -10585,17 +10882,9 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_48;
     int32_t n_43;
     int32_t r_method_primitive_11;
-    uint64_t p_181;
-    int32_t p_182;
+    uint64_t p_189;
+    int32_t p_190;
     int64_t r_prim_kind_of_5;
-    int64_t p_183;
-    int64_t p_184;
-    int64_t p_185;
-    int64_t p_186;
-    int64_t p_187;
-    int64_t p_188;
-    int64_t p_189;
-    int64_t p_190;
     int64_t p_191;
     int64_t p_192;
     int64_t p_193;
@@ -10629,6 +10918,16 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int64_t p_221;
     int64_t p_222;
     int64_t p_223;
+    int64_t p_224;
+    int64_t p_225;
+    int64_t p_226;
+    int64_t p_227;
+    int64_t p_228;
+    int64_t p_229;
+    int64_t p_230;
+    int64_t p_231;
+    int64_t p_232;
+    int64_t p_233;
     bool r_block_call_2;
     int64_t k_3;
     oop o_13;
@@ -10674,19 +10973,9 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_49;
     bool r_replace_2;
     int32_t r_method_primitive_12;
-    uint64_t p_224;
-    int32_t p_225;
+    uint64_t p_234;
+    int32_t p_235;
     int64_t r_prim_kind_of_6;
-    int64_t p_226;
-    int64_t p_227;
-    int64_t p_228;
-    int64_t p_229;
-    int64_t p_230;
-    int64_t p_231;
-    int64_t p_232;
-    int64_t p_233;
-    int64_t p_234;
-    int64_t p_235;
     int64_t p_236;
     int64_t p_237;
     int64_t p_238;
@@ -10718,6 +11007,18 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int64_t p_264;
     int64_t p_265;
     int64_t p_266;
+    int64_t p_267;
+    int64_t p_268;
+    int64_t p_269;
+    int64_t p_270;
+    int64_t p_271;
+    int64_t p_272;
+    int64_t p_273;
+    int64_t p_274;
+    int64_t p_275;
+    int64_t p_276;
+    int64_t p_277;
+    int64_t p_278;
     uint64_t fo_4;
     int64_t spec_4;
     int64_t fl_3;
@@ -10745,9 +11046,9 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_61;
     int32_t n_60;
     int32_t r_method_primitive_13;
-    uint64_t p_267;
+    uint64_t p_279;
     int32_t r_method_primitive_14;
-    uint64_t p_268;
+    uint64_t p_280;
     int kind_7;
     int32_t r_call_selector_8;
     int32_t r_add_21;
@@ -10808,30 +11109,18 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_80;
     uint64_t r_performed_at_3;
     int32_t r_method_primitive_15;
-    uint64_t p_270;
+    uint64_t p_282;
     int32_t r_method_primitive_16;
-    uint64_t p_271;
+    uint64_t p_283;
     int32_t var_27;
     int32_t n_81;
     opt_node *nd_4;
-    uint64_t p_269;
+    uint64_t p_281;
     bool r_allocate_3;
     int32_t r_method_primitive_17;
-    uint64_t p_272;
-    int32_t p_273;
+    uint64_t p_284;
+    int32_t p_285;
     int64_t r_prim_kind_of_7;
-    int64_t p_274;
-    int64_t p_275;
-    int64_t p_276;
-    int64_t p_277;
-    int64_t p_278;
-    int64_t p_279;
-    int64_t p_280;
-    int64_t p_281;
-    int64_t p_282;
-    int64_t p_283;
-    int64_t p_284;
-    int64_t p_285;
     int64_t p_286;
     int64_t p_287;
     int64_t p_288;
@@ -10861,6 +11150,20 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int64_t p_312;
     int64_t p_313;
     int64_t p_314;
+    int64_t p_315;
+    int64_t p_316;
+    int64_t p_317;
+    int64_t p_318;
+    int64_t p_319;
+    int64_t p_320;
+    int64_t p_321;
+    int64_t p_322;
+    int64_t p_323;
+    int64_t p_324;
+    int64_t p_325;
+    int64_t p_326;
+    int64_t p_327;
+    int64_t p_328;
     int64_t kind_8;
     uint64_t inst_3;
     oop r_class_of_5;
@@ -10889,23 +11192,9 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_87;
     int32_t n_82;
     int32_t r_method_primitive_18;
-    uint64_t p_315;
-    int32_t p_316;
+    uint64_t p_329;
+    int32_t p_330;
     int64_t r_prim_kind_of_8;
-    int64_t p_317;
-    int64_t p_318;
-    int64_t p_319;
-    int64_t p_320;
-    int64_t p_321;
-    int64_t p_322;
-    int64_t p_323;
-    int64_t p_324;
-    int64_t p_325;
-    int64_t p_326;
-    int64_t p_327;
-    int64_t p_328;
-    int64_t p_329;
-    int64_t p_330;
     int64_t p_331;
     int64_t p_332;
     int64_t p_333;
@@ -10933,6 +11222,22 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int64_t p_355;
     int64_t p_356;
     int64_t p_357;
+    int64_t p_358;
+    int64_t p_359;
+    int64_t p_360;
+    int64_t p_361;
+    int64_t p_362;
+    int64_t p_363;
+    int64_t p_364;
+    int64_t p_365;
+    int64_t p_366;
+    int64_t p_367;
+    int64_t p_368;
+    int64_t p_369;
+    int64_t p_370;
+    int64_t p_371;
+    int64_t p_372;
+    int64_t p_373;
     bool r_block_call_3;
     int64_t k_4;
     oop o_21;
@@ -10978,25 +11283,9 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_88;
     bool r_replace_3;
     int32_t r_method_primitive_19;
-    uint64_t p_358;
-    int32_t p_359;
+    uint64_t p_374;
+    int32_t p_375;
     int64_t r_prim_kind_of_9;
-    int64_t p_360;
-    int64_t p_361;
-    int64_t p_362;
-    int64_t p_363;
-    int64_t p_364;
-    int64_t p_365;
-    int64_t p_366;
-    int64_t p_367;
-    int64_t p_368;
-    int64_t p_369;
-    int64_t p_370;
-    int64_t p_371;
-    int64_t p_372;
-    int64_t p_373;
-    int64_t p_374;
-    int64_t p_375;
     int64_t p_376;
     int64_t p_377;
     int64_t p_378;
@@ -11022,6 +11311,24 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int64_t p_398;
     int64_t p_399;
     int64_t p_400;
+    int64_t p_401;
+    int64_t p_402;
+    int64_t p_403;
+    int64_t p_404;
+    int64_t p_405;
+    int64_t p_406;
+    int64_t p_407;
+    int64_t p_408;
+    int64_t p_409;
+    int64_t p_410;
+    int64_t p_411;
+    int64_t p_412;
+    int64_t p_413;
+    int64_t p_414;
+    int64_t p_415;
+    int64_t p_416;
+    int64_t p_417;
+    int64_t p_418;
     uint64_t fo_6;
     int64_t spec_6;
     int64_t fl_4;
@@ -11049,9 +11356,9 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_100;
     int32_t n_99;
     int32_t r_method_primitive_20;
-    uint64_t p_401;
+    uint64_t p_419;
     int32_t r_method_primitive_21;
-    uint64_t p_402;
+    uint64_t p_420;
     int kind_10;
     int32_t r_call_selector_12;
     int32_t r_add_34;
@@ -11104,36 +11411,18 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_123;
     uint64_t r_performed_at_4;
     int32_t r_method_primitive_22;
-    uint64_t p_404;
+    uint64_t p_422;
     int32_t r_method_primitive_23;
-    uint64_t p_405;
+    uint64_t p_423;
     int32_t var_40;
     int32_t n_124;
     opt_node *nd_5;
-    uint64_t p_403;
+    uint64_t p_421;
     bool r_allocate_4;
     int32_t r_method_primitive_24;
-    uint64_t p_406;
-    int32_t p_407;
+    uint64_t p_424;
+    int32_t p_425;
     int64_t r_prim_kind_of_10;
-    int64_t p_408;
-    int64_t p_409;
-    int64_t p_410;
-    int64_t p_411;
-    int64_t p_412;
-    int64_t p_413;
-    int64_t p_414;
-    int64_t p_415;
-    int64_t p_416;
-    int64_t p_417;
-    int64_t p_418;
-    int64_t p_419;
-    int64_t p_420;
-    int64_t p_421;
-    int64_t p_422;
-    int64_t p_423;
-    int64_t p_424;
-    int64_t p_425;
     int64_t p_426;
     int64_t p_427;
     int64_t p_428;
@@ -11157,6 +11446,26 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int64_t p_446;
     int64_t p_447;
     int64_t p_448;
+    int64_t p_449;
+    int64_t p_450;
+    int64_t p_451;
+    int64_t p_452;
+    int64_t p_453;
+    int64_t p_454;
+    int64_t p_455;
+    int64_t p_456;
+    int64_t p_457;
+    int64_t p_458;
+    int64_t p_459;
+    int64_t p_460;
+    int64_t p_461;
+    int64_t p_462;
+    int64_t p_463;
+    int64_t p_464;
+    int64_t p_465;
+    int64_t p_466;
+    int64_t p_467;
+    int64_t p_468;
     int64_t kind_11;
     uint64_t inst_4;
     oop r_class_of_6;
@@ -11185,29 +11494,9 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_130;
     int32_t n_125;
     int32_t r_method_primitive_25;
-    uint64_t p_449;
-    int32_t p_450;
+    uint64_t p_469;
+    int32_t p_470;
     int64_t r_prim_kind_of_11;
-    int64_t p_451;
-    int64_t p_452;
-    int64_t p_453;
-    int64_t p_454;
-    int64_t p_455;
-    int64_t p_456;
-    int64_t p_457;
-    int64_t p_458;
-    int64_t p_459;
-    int64_t p_460;
-    int64_t p_461;
-    int64_t p_462;
-    int64_t p_463;
-    int64_t p_464;
-    int64_t p_465;
-    int64_t p_466;
-    int64_t p_467;
-    int64_t p_468;
-    int64_t p_469;
-    int64_t p_470;
     int64_t p_471;
     int64_t p_472;
     int64_t p_473;
@@ -11229,6 +11518,28 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int64_t p_489;
     int64_t p_490;
     int64_t p_491;
+    int64_t p_492;
+    int64_t p_493;
+    int64_t p_494;
+    int64_t p_495;
+    int64_t p_496;
+    int64_t p_497;
+    int64_t p_498;
+    int64_t p_499;
+    int64_t p_500;
+    int64_t p_501;
+    int64_t p_502;
+    int64_t p_503;
+    int64_t p_504;
+    int64_t p_505;
+    int64_t p_506;
+    int64_t p_507;
+    int64_t p_508;
+    int64_t p_509;
+    int64_t p_510;
+    int64_t p_511;
+    int64_t p_512;
+    int64_t p_513;
     bool r_block_call_4;
     int64_t k_5;
     oop o_29;
@@ -11274,31 +11585,9 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_131;
     bool r_replace_4;
     int32_t r_method_primitive_26;
-    uint64_t p_492;
-    int32_t p_493;
+    uint64_t p_514;
+    int32_t p_515;
     int64_t r_prim_kind_of_12;
-    int64_t p_494;
-    int64_t p_495;
-    int64_t p_496;
-    int64_t p_497;
-    int64_t p_498;
-    int64_t p_499;
-    int64_t p_500;
-    int64_t p_501;
-    int64_t p_502;
-    int64_t p_503;
-    int64_t p_504;
-    int64_t p_505;
-    int64_t p_506;
-    int64_t p_507;
-    int64_t p_508;
-    int64_t p_509;
-    int64_t p_510;
-    int64_t p_511;
-    int64_t p_512;
-    int64_t p_513;
-    int64_t p_514;
-    int64_t p_515;
     int64_t p_516;
     int64_t p_517;
     int64_t p_518;
@@ -11318,6 +11607,30 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int64_t p_532;
     int64_t p_533;
     int64_t p_534;
+    int64_t p_535;
+    int64_t p_536;
+    int64_t p_537;
+    int64_t p_538;
+    int64_t p_539;
+    int64_t p_540;
+    int64_t p_541;
+    int64_t p_542;
+    int64_t p_543;
+    int64_t p_544;
+    int64_t p_545;
+    int64_t p_546;
+    int64_t p_547;
+    int64_t p_548;
+    int64_t p_549;
+    int64_t p_550;
+    int64_t p_551;
+    int64_t p_552;
+    int64_t p_553;
+    int64_t p_554;
+    int64_t p_555;
+    int64_t p_556;
+    int64_t p_557;
+    int64_t p_558;
     uint64_t fo_8;
     int64_t spec_8;
     int64_t fl_5;
@@ -11345,9 +11658,9 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_143;
     int32_t n_142;
     int32_t r_method_primitive_27;
-    uint64_t p_535;
+    uint64_t p_559;
     int32_t r_method_primitive_28;
-    uint64_t p_536;
+    uint64_t p_560;
     int kind_13;
     int32_t r_call_selector_16;
     int32_t r_add_49;
@@ -11652,6 +11965,14 @@ exit_performed_at:;
         if ((p_46 > 0) && (p_46 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_46] = 14U;
         }
+        p_47 = primitive_number_named("stringHash");
+        if ((p_47 > 0) && (p_47 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_47] = 15U;
+        }
+        p_48 = primitive_number_named("stringCompare");
+        if ((p_48 > 0) && (p_48 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_48] = 16U;
+        }
     }
     if ((p_5 <= 0) || (p_5 >= OPT_MAX_PRIM)) {
         r_prim_kind_of = 0;
@@ -11829,184 +12150,192 @@ exit_allocate:;
         goto exit_send;
     }
     if ((cls == cls_block) && (((jit_flags & JIT_FLAG_CALLS) != 0) && ({
-    p_48 = ({
-    p_47 = *(uint64_t *)(m + 16 + 56);
-    r_method_primitive_4 = (p_47 & 1) != 0 ? (int32_t)((((int64_t)p_47) >> 1) & CM_PRIM_MASK) : 0;
+    p_50 = ({
+    p_49 = *(uint64_t *)(m + 16 + 56);
+    r_method_primitive_4 = (p_49 & 1) != 0 ? (int32_t)((((int64_t)p_49) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_4; });
     ({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_49 = primitive_number_named("at");
-        if ((p_49 > 0) && (p_49 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_49] = 1U;
-        }
-        p_50 = primitive_number_named("atPut");
-        if ((p_50 > 0) && (p_50 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_50] = 2U;
-        }
-        p_51 = primitive_number_named("basicSize");
+        p_51 = primitive_number_named("at");
         if ((p_51 > 0) && (p_51 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_51] = 3U;
+            ob_prim_kinds[p_51] = 1U;
         }
-        p_52 = primitive_number_named("stringAt");
+        p_52 = primitive_number_named("atPut");
         if ((p_52 > 0) && (p_52 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_52] = 4U;
+            ob_prim_kinds[p_52] = 2U;
         }
-        p_53 = primitive_number_named("stringAtPut");
+        p_53 = primitive_number_named("basicSize");
         if ((p_53 > 0) && (p_53 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_53] = 5U;
+            ob_prim_kinds[p_53] = 3U;
         }
-        p_54 = primitive_number_named("class");
+        p_54 = primitive_number_named("stringAt");
         if ((p_54 > 0) && (p_54 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_54] = 6U;
+            ob_prim_kinds[p_54] = 4U;
         }
-        p_55 = primitive_number_named("identical");
+        p_55 = primitive_number_named("stringAtPut");
         if ((p_55 > 0) && (p_55 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_55] = 7U;
+            ob_prim_kinds[p_55] = 5U;
         }
-        p_56 = primitive_number_named("intAdd");
+        p_56 = primitive_number_named("class");
         if ((p_56 > 0) && (p_56 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_56] = 32U;
+            ob_prim_kinds[p_56] = 6U;
         }
-        p_57 = primitive_number_named("intSub");
+        p_57 = primitive_number_named("identical");
         if ((p_57 > 0) && (p_57 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_57] = 33U;
+            ob_prim_kinds[p_57] = 7U;
         }
-        p_58 = primitive_number_named("intLess");
+        p_58 = primitive_number_named("intAdd");
         if ((p_58 > 0) && (p_58 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_58] = 34U;
+            ob_prim_kinds[p_58] = 32U;
         }
-        p_59 = primitive_number_named("intGreater");
+        p_59 = primitive_number_named("intSub");
         if ((p_59 > 0) && (p_59 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_59] = 35U;
+            ob_prim_kinds[p_59] = 33U;
         }
-        p_60 = primitive_number_named("intLessEq");
+        p_60 = primitive_number_named("intLess");
         if ((p_60 > 0) && (p_60 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_60] = 36U;
+            ob_prim_kinds[p_60] = 34U;
         }
-        p_61 = primitive_number_named("intGreaterEq");
+        p_61 = primitive_number_named("intGreater");
         if ((p_61 > 0) && (p_61 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_61] = 37U;
+            ob_prim_kinds[p_61] = 35U;
         }
-        p_62 = primitive_number_named("intEq");
+        p_62 = primitive_number_named("intLessEq");
         if ((p_62 > 0) && (p_62 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_62] = 38U;
+            ob_prim_kinds[p_62] = 36U;
         }
-        p_63 = primitive_number_named("intNotEq");
+        p_63 = primitive_number_named("intGreaterEq");
         if ((p_63 > 0) && (p_63 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_63] = 39U;
+            ob_prim_kinds[p_63] = 37U;
         }
-        p_64 = primitive_number_named("intMul");
+        p_64 = primitive_number_named("intEq");
         if ((p_64 > 0) && (p_64 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_64] = 40U;
+            ob_prim_kinds[p_64] = 38U;
         }
-        p_65 = primitive_number_named("intBitAnd");
+        p_65 = primitive_number_named("intNotEq");
         if ((p_65 > 0) && (p_65 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_65] = 46U;
+            ob_prim_kinds[p_65] = 39U;
         }
-        p_66 = primitive_number_named("intBitOr");
+        p_66 = primitive_number_named("intMul");
         if ((p_66 > 0) && (p_66 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_66] = 47U;
+            ob_prim_kinds[p_66] = 40U;
         }
-        p_67 = primitive_number_named("intMod");
+        p_67 = primitive_number_named("intBitAnd");
         if ((p_67 > 0) && (p_67 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_67] = 42U;
+            ob_prim_kinds[p_67] = 46U;
         }
-        p_68 = primitive_number_named("intBitXor");
+        p_68 = primitive_number_named("intBitOr");
         if ((p_68 > 0) && (p_68 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_68] = 43U;
+            ob_prim_kinds[p_68] = 47U;
         }
-        p_69 = primitive_number_named("intBitShift");
+        p_69 = primitive_number_named("intMod");
         if ((p_69 > 0) && (p_69 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_69] = 44U;
+            ob_prim_kinds[p_69] = 42U;
         }
-        p_70 = primitive_number_named("intFloorDiv");
+        p_70 = primitive_number_named("intBitXor");
         if ((p_70 > 0) && (p_70 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_70] = 45U;
+            ob_prim_kinds[p_70] = 43U;
         }
-        p_71 = primitive_number_named("intQuo");
+        p_71 = primitive_number_named("intBitShift");
         if ((p_71 > 0) && (p_71 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_71] = 48U;
+            ob_prim_kinds[p_71] = 44U;
         }
-        p_72 = primitive_number_named("intRem");
+        p_72 = primitive_number_named("intFloorDiv");
         if ((p_72 > 0) && (p_72 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_72] = 49U;
+            ob_prim_kinds[p_72] = 45U;
         }
-        p_73 = primitive_number_named("charValue");
+        p_73 = primitive_number_named("intQuo");
         if ((p_73 > 0) && (p_73 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_73] = 12U;
+            ob_prim_kinds[p_73] = 48U;
         }
-        p_74 = primitive_number_named("charFromValue");
+        p_74 = primitive_number_named("intRem");
         if ((p_74 > 0) && (p_74 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_74] = 13U;
+            ob_prim_kinds[p_74] = 49U;
         }
-        p_75 = primitive_number_named("floatAdd");
+        p_75 = primitive_number_named("charValue");
         if ((p_75 > 0) && (p_75 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_75] = 64U;
+            ob_prim_kinds[p_75] = 12U;
         }
-        p_76 = primitive_number_named("floatSub");
+        p_76 = primitive_number_named("charFromValue");
         if ((p_76 > 0) && (p_76 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_76] = 65U;
+            ob_prim_kinds[p_76] = 13U;
         }
-        p_77 = primitive_number_named("floatLess");
+        p_77 = primitive_number_named("floatAdd");
         if ((p_77 > 0) && (p_77 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_77] = 66U;
+            ob_prim_kinds[p_77] = 64U;
         }
-        p_78 = primitive_number_named("floatGreater");
+        p_78 = primitive_number_named("floatSub");
         if ((p_78 > 0) && (p_78 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_78] = 67U;
+            ob_prim_kinds[p_78] = 65U;
         }
-        p_79 = primitive_number_named("floatLessEq");
+        p_79 = primitive_number_named("floatLess");
         if ((p_79 > 0) && (p_79 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_79] = 68U;
+            ob_prim_kinds[p_79] = 66U;
         }
-        p_80 = primitive_number_named("floatGreaterEq");
+        p_80 = primitive_number_named("floatGreater");
         if ((p_80 > 0) && (p_80 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_80] = 69U;
+            ob_prim_kinds[p_80] = 67U;
         }
-        p_81 = primitive_number_named("floatEq");
+        p_81 = primitive_number_named("floatLessEq");
         if ((p_81 > 0) && (p_81 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_81] = 70U;
+            ob_prim_kinds[p_81] = 68U;
         }
-        p_82 = primitive_number_named("floatNotEq");
+        p_82 = primitive_number_named("floatGreaterEq");
         if ((p_82 > 0) && (p_82 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_82] = 71U;
+            ob_prim_kinds[p_82] = 69U;
         }
-        p_83 = primitive_number_named("floatMul");
+        p_83 = primitive_number_named("floatEq");
         if ((p_83 > 0) && (p_83 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_83] = 72U;
+            ob_prim_kinds[p_83] = 70U;
         }
-        p_84 = primitive_number_named("floatDiv");
+        p_84 = primitive_number_named("floatNotEq");
         if ((p_84 > 0) && (p_84 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_84] = 73U;
+            ob_prim_kinds[p_84] = 71U;
         }
-        p_85 = primitive_number_named("floatSqrt");
+        p_85 = primitive_number_named("floatMul");
         if ((p_85 > 0) && (p_85 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_85] = 8U;
+            ob_prim_kinds[p_85] = 72U;
         }
-        p_86 = primitive_number_named("basicNew");
+        p_86 = primitive_number_named("floatDiv");
         if ((p_86 > 0) && (p_86 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_86] = 9U;
+            ob_prim_kinds[p_86] = 73U;
         }
-        p_87 = primitive_number_named("basicNew:");
+        p_87 = primitive_number_named("floatSqrt");
         if ((p_87 > 0) && (p_87 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_87] = 10U;
+            ob_prim_kinds[p_87] = 8U;
         }
-        p_88 = primitive_number_named("closureValue");
+        p_88 = primitive_number_named("basicNew");
         if ((p_88 > 0) && (p_88 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_88] = 11U;
+            ob_prim_kinds[p_88] = 9U;
         }
-        p_89 = primitive_number_named("replaceFromToWithStartingAt");
+        p_89 = primitive_number_named("basicNew:");
         if ((p_89 > 0) && (p_89 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_89] = 14U;
+            ob_prim_kinds[p_89] = 10U;
+        }
+        p_90 = primitive_number_named("closureValue");
+        if ((p_90 > 0) && (p_90 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_90] = 11U;
+        }
+        p_91 = primitive_number_named("replaceFromToWithStartingAt");
+        if ((p_91 > 0) && (p_91 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_91] = 14U;
+        }
+        p_92 = primitive_number_named("stringHash");
+        if ((p_92 > 0) && (p_92 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_92] = 15U;
+        }
+        p_93 = primitive_number_named("stringCompare");
+        if ((p_93 > 0) && (p_93 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_93] = 16U;
         }
     }
-    if ((p_48 <= 0) || (p_48 >= OPT_MAX_PRIM)) {
+    if ((p_50 <= 0) || (p_50 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_2 = 0;
         goto exit_prim_kind_of_2;
     }
-    r_prim_kind_of_2 = (int32_t)ob_prim_kinds[p_48];
+    r_prim_kind_of_2 = (int32_t)ob_prim_kinds[p_50];
 exit_prim_kind_of_2:;
     r_prim_kind_of_2; }) == OPK_CLOSURE; }))) {
         r_send = ({
@@ -12243,184 +12572,192 @@ exit_block_call:;
         goto exit_send;
     }
     if (((jit_flags & JIT_FLAG_PRIMS) != 0) && ({
-    p_91 = ({
-    p_90 = *(uint64_t *)(m + 16 + 56);
-    r_method_primitive_5 = (p_90 & 1) != 0 ? (int32_t)((((int64_t)p_90) >> 1) & CM_PRIM_MASK) : 0;
+    p_95 = ({
+    p_94 = *(uint64_t *)(m + 16 + 56);
+    r_method_primitive_5 = (p_94 & 1) != 0 ? (int32_t)((((int64_t)p_94) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_5; });
     if (!((({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_92 = primitive_number_named("at");
-        if ((p_92 > 0) && (p_92 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_92] = 1U;
-        }
-        p_93 = primitive_number_named("atPut");
-        if ((p_93 > 0) && (p_93 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_93] = 2U;
-        }
-        p_94 = primitive_number_named("basicSize");
-        if ((p_94 > 0) && (p_94 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_94] = 3U;
-        }
-        p_95 = primitive_number_named("stringAt");
-        if ((p_95 > 0) && (p_95 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_95] = 4U;
-        }
-        p_96 = primitive_number_named("stringAtPut");
+        p_96 = primitive_number_named("at");
         if ((p_96 > 0) && (p_96 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_96] = 5U;
+            ob_prim_kinds[p_96] = 1U;
         }
-        p_97 = primitive_number_named("class");
+        p_97 = primitive_number_named("atPut");
         if ((p_97 > 0) && (p_97 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_97] = 6U;
+            ob_prim_kinds[p_97] = 2U;
         }
-        p_98 = primitive_number_named("identical");
+        p_98 = primitive_number_named("basicSize");
         if ((p_98 > 0) && (p_98 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_98] = 7U;
+            ob_prim_kinds[p_98] = 3U;
         }
-        p_99 = primitive_number_named("intAdd");
+        p_99 = primitive_number_named("stringAt");
         if ((p_99 > 0) && (p_99 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_99] = 32U;
+            ob_prim_kinds[p_99] = 4U;
         }
-        p_100 = primitive_number_named("intSub");
+        p_100 = primitive_number_named("stringAtPut");
         if ((p_100 > 0) && (p_100 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_100] = 33U;
+            ob_prim_kinds[p_100] = 5U;
         }
-        p_101 = primitive_number_named("intLess");
+        p_101 = primitive_number_named("class");
         if ((p_101 > 0) && (p_101 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_101] = 34U;
+            ob_prim_kinds[p_101] = 6U;
         }
-        p_102 = primitive_number_named("intGreater");
+        p_102 = primitive_number_named("identical");
         if ((p_102 > 0) && (p_102 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_102] = 35U;
+            ob_prim_kinds[p_102] = 7U;
         }
-        p_103 = primitive_number_named("intLessEq");
+        p_103 = primitive_number_named("intAdd");
         if ((p_103 > 0) && (p_103 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_103] = 36U;
+            ob_prim_kinds[p_103] = 32U;
         }
-        p_104 = primitive_number_named("intGreaterEq");
+        p_104 = primitive_number_named("intSub");
         if ((p_104 > 0) && (p_104 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_104] = 37U;
+            ob_prim_kinds[p_104] = 33U;
         }
-        p_105 = primitive_number_named("intEq");
+        p_105 = primitive_number_named("intLess");
         if ((p_105 > 0) && (p_105 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_105] = 38U;
+            ob_prim_kinds[p_105] = 34U;
         }
-        p_106 = primitive_number_named("intNotEq");
+        p_106 = primitive_number_named("intGreater");
         if ((p_106 > 0) && (p_106 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_106] = 39U;
+            ob_prim_kinds[p_106] = 35U;
         }
-        p_107 = primitive_number_named("intMul");
+        p_107 = primitive_number_named("intLessEq");
         if ((p_107 > 0) && (p_107 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_107] = 40U;
+            ob_prim_kinds[p_107] = 36U;
         }
-        p_108 = primitive_number_named("intBitAnd");
+        p_108 = primitive_number_named("intGreaterEq");
         if ((p_108 > 0) && (p_108 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_108] = 46U;
+            ob_prim_kinds[p_108] = 37U;
         }
-        p_109 = primitive_number_named("intBitOr");
+        p_109 = primitive_number_named("intEq");
         if ((p_109 > 0) && (p_109 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_109] = 47U;
+            ob_prim_kinds[p_109] = 38U;
         }
-        p_110 = primitive_number_named("intMod");
+        p_110 = primitive_number_named("intNotEq");
         if ((p_110 > 0) && (p_110 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_110] = 42U;
+            ob_prim_kinds[p_110] = 39U;
         }
-        p_111 = primitive_number_named("intBitXor");
+        p_111 = primitive_number_named("intMul");
         if ((p_111 > 0) && (p_111 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_111] = 43U;
+            ob_prim_kinds[p_111] = 40U;
         }
-        p_112 = primitive_number_named("intBitShift");
+        p_112 = primitive_number_named("intBitAnd");
         if ((p_112 > 0) && (p_112 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_112] = 44U;
+            ob_prim_kinds[p_112] = 46U;
         }
-        p_113 = primitive_number_named("intFloorDiv");
+        p_113 = primitive_number_named("intBitOr");
         if ((p_113 > 0) && (p_113 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_113] = 45U;
+            ob_prim_kinds[p_113] = 47U;
         }
-        p_114 = primitive_number_named("intQuo");
+        p_114 = primitive_number_named("intMod");
         if ((p_114 > 0) && (p_114 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_114] = 48U;
+            ob_prim_kinds[p_114] = 42U;
         }
-        p_115 = primitive_number_named("intRem");
+        p_115 = primitive_number_named("intBitXor");
         if ((p_115 > 0) && (p_115 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_115] = 49U;
+            ob_prim_kinds[p_115] = 43U;
         }
-        p_116 = primitive_number_named("charValue");
+        p_116 = primitive_number_named("intBitShift");
         if ((p_116 > 0) && (p_116 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_116] = 12U;
+            ob_prim_kinds[p_116] = 44U;
         }
-        p_117 = primitive_number_named("charFromValue");
+        p_117 = primitive_number_named("intFloorDiv");
         if ((p_117 > 0) && (p_117 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_117] = 13U;
+            ob_prim_kinds[p_117] = 45U;
         }
-        p_118 = primitive_number_named("floatAdd");
+        p_118 = primitive_number_named("intQuo");
         if ((p_118 > 0) && (p_118 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_118] = 64U;
+            ob_prim_kinds[p_118] = 48U;
         }
-        p_119 = primitive_number_named("floatSub");
+        p_119 = primitive_number_named("intRem");
         if ((p_119 > 0) && (p_119 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_119] = 65U;
+            ob_prim_kinds[p_119] = 49U;
         }
-        p_120 = primitive_number_named("floatLess");
+        p_120 = primitive_number_named("charValue");
         if ((p_120 > 0) && (p_120 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_120] = 66U;
+            ob_prim_kinds[p_120] = 12U;
         }
-        p_121 = primitive_number_named("floatGreater");
+        p_121 = primitive_number_named("charFromValue");
         if ((p_121 > 0) && (p_121 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_121] = 67U;
+            ob_prim_kinds[p_121] = 13U;
         }
-        p_122 = primitive_number_named("floatLessEq");
+        p_122 = primitive_number_named("floatAdd");
         if ((p_122 > 0) && (p_122 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_122] = 68U;
+            ob_prim_kinds[p_122] = 64U;
         }
-        p_123 = primitive_number_named("floatGreaterEq");
+        p_123 = primitive_number_named("floatSub");
         if ((p_123 > 0) && (p_123 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_123] = 69U;
+            ob_prim_kinds[p_123] = 65U;
         }
-        p_124 = primitive_number_named("floatEq");
+        p_124 = primitive_number_named("floatLess");
         if ((p_124 > 0) && (p_124 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_124] = 70U;
+            ob_prim_kinds[p_124] = 66U;
         }
-        p_125 = primitive_number_named("floatNotEq");
+        p_125 = primitive_number_named("floatGreater");
         if ((p_125 > 0) && (p_125 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_125] = 71U;
+            ob_prim_kinds[p_125] = 67U;
         }
-        p_126 = primitive_number_named("floatMul");
+        p_126 = primitive_number_named("floatLessEq");
         if ((p_126 > 0) && (p_126 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_126] = 72U;
+            ob_prim_kinds[p_126] = 68U;
         }
-        p_127 = primitive_number_named("floatDiv");
+        p_127 = primitive_number_named("floatGreaterEq");
         if ((p_127 > 0) && (p_127 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_127] = 73U;
+            ob_prim_kinds[p_127] = 69U;
         }
-        p_128 = primitive_number_named("floatSqrt");
+        p_128 = primitive_number_named("floatEq");
         if ((p_128 > 0) && (p_128 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_128] = 8U;
+            ob_prim_kinds[p_128] = 70U;
         }
-        p_129 = primitive_number_named("basicNew");
+        p_129 = primitive_number_named("floatNotEq");
         if ((p_129 > 0) && (p_129 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_129] = 9U;
+            ob_prim_kinds[p_129] = 71U;
         }
-        p_130 = primitive_number_named("basicNew:");
+        p_130 = primitive_number_named("floatMul");
         if ((p_130 > 0) && (p_130 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_130] = 10U;
+            ob_prim_kinds[p_130] = 72U;
         }
-        p_131 = primitive_number_named("closureValue");
+        p_131 = primitive_number_named("floatDiv");
         if ((p_131 > 0) && (p_131 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_131] = 11U;
+            ob_prim_kinds[p_131] = 73U;
         }
-        p_132 = primitive_number_named("replaceFromToWithStartingAt");
+        p_132 = primitive_number_named("floatSqrt");
         if ((p_132 > 0) && (p_132 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_132] = 14U;
+            ob_prim_kinds[p_132] = 8U;
+        }
+        p_133 = primitive_number_named("basicNew");
+        if ((p_133 > 0) && (p_133 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_133] = 9U;
+        }
+        p_134 = primitive_number_named("basicNew:");
+        if ((p_134 > 0) && (p_134 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_134] = 10U;
+        }
+        p_135 = primitive_number_named("closureValue");
+        if ((p_135 > 0) && (p_135 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_135] = 11U;
+        }
+        p_136 = primitive_number_named("replaceFromToWithStartingAt");
+        if ((p_136 > 0) && (p_136 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_136] = 14U;
+        }
+        p_137 = primitive_number_named("stringHash");
+        if ((p_137 > 0) && (p_137 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_137] = 15U;
+        }
+        p_138 = primitive_number_named("stringCompare");
+        if ((p_138 > 0) && (p_138 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_138] = 16U;
         }
     }
-    if ((p_91 <= 0) || (p_91 >= OPT_MAX_PRIM)) {
+    if ((p_95 <= 0) || (p_95 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_3 = 0;
         goto exit_prim_kind_of_3;
     }
-    r_prim_kind_of_3 = (int32_t)ob_prim_kinds[p_91];
+    r_prim_kind_of_3 = (int32_t)ob_prim_kinds[p_95];
 exit_prim_kind_of_3:;
     r_prim_kind_of_3; }) == OPK_REPLACE) && (argc == 4))) {
         r_replace = false;
@@ -12572,11 +12909,11 @@ exit_replace:;
         goto exit_send;
     }
     if ((({
-    p_133 = *(uint64_t *)(m + 16 + 56);
-    r_method_primitive_6 = (p_133 & 1) != 0 ? (int32_t)((((int64_t)p_133) >> 1) & CM_PRIM_MASK) : 0;
+    p_139 = *(uint64_t *)(m + 16 + 56);
+    r_method_primitive_6 = (p_139 & 1) != 0 ? (int32_t)((((int64_t)p_139) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_6; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && inline_primitive(({
-    p_134 = *(uint64_t *)(m + 16 + 56);
-    r_method_primitive_7 = (p_134 & 1) != 0 ? (int32_t)((((int64_t)p_134) >> 1) & CM_PRIM_MASK) : 0;
+    p_140 = *(uint64_t *)(m + 16 + 56);
+    r_method_primitive_7 = (p_140 & 1) != 0 ? (int32_t)((((int64_t)p_140) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_7; }), cls, argc, pc, a, r))) {
         r_send = true;
         goto exit_send;
@@ -12811,13 +13148,13 @@ exit_write_7:;
     if ((kind == 0) && ({
     i_19 = r + 1;
     n_41 = argc - 1;
-    (p_135 = ({
+    (p_141 = ({
     if (!((ob_perform_act < 0) && ((prim_kind_of(({
-    p_136 = *(uint64_t *)(m_7 + 16 + 56);
-    r_method_primitive_8 = (p_136 & 1) != 0 ? (int32_t)((((int64_t)p_136) >> 1) & CM_PRIM_MASK) : 0;
+    p_142 = *(uint64_t *)(m_7 + 16 + 56);
+    r_method_primitive_8 = (p_142 & 1) != 0 ? (int32_t)((((int64_t)p_142) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_8; })) == PK_PERFORM) && ((prim_op_of(({
-    p_137 = *(uint64_t *)(m_7 + 16 + 56);
-    r_method_primitive_9 = (p_137 & 1) != 0 ? (int32_t)((((int64_t)p_137) >> 1) & CM_PRIM_MASK) : 0;
+    p_143 = *(uint64_t *)(m_7 + 16 + 56);
+    r_method_primitive_9 = (p_143 & 1) != 0 ? (int32_t)((((int64_t)p_143) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_9; })) == 0) && ((n_41 >= 0) && (n_41 < 8)))))) {
         r_performed_at_2 = 0ULL;
         goto exit_performed_at_2;
@@ -12836,188 +13173,196 @@ exit_write_7:;
     r_performed_at_2 = (uint64_t)nd_3->aux;
 exit_performed_at_2:;
     r_performed_at_2; })) != 0; })) {
-        r_send_2 = send_performed(p_135, rcv, cls, argc - 1, pc, a, r);
+        r_send_2 = send_performed(p_141, rcv, cls, argc - 1, pc, a, r);
         goto exit_send_2;
     }
     if (((jit_flags & JIT_FLAG_ALLOC) != 0) && ({
-    p_139 = ({
-    p_138 = *(uint64_t *)(m_7 + 16 + 56);
-    r_method_primitive_10 = (p_138 & 1) != 0 ? (int32_t)((((int64_t)p_138) >> 1) & CM_PRIM_MASK) : 0;
+    p_145 = ({
+    p_144 = *(uint64_t *)(m_7 + 16 + 56);
+    r_method_primitive_10 = (p_144 & 1) != 0 ? (int32_t)((((int64_t)p_144) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_10; });
     kind_5 = ({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_140 = primitive_number_named("at");
-        if ((p_140 > 0) && (p_140 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_140] = 1U;
-        }
-        p_141 = primitive_number_named("atPut");
-        if ((p_141 > 0) && (p_141 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_141] = 2U;
-        }
-        p_142 = primitive_number_named("basicSize");
-        if ((p_142 > 0) && (p_142 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_142] = 3U;
-        }
-        p_143 = primitive_number_named("stringAt");
-        if ((p_143 > 0) && (p_143 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_143] = 4U;
-        }
-        p_144 = primitive_number_named("stringAtPut");
-        if ((p_144 > 0) && (p_144 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_144] = 5U;
-        }
-        p_145 = primitive_number_named("class");
-        if ((p_145 > 0) && (p_145 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_145] = 6U;
-        }
-        p_146 = primitive_number_named("identical");
+        p_146 = primitive_number_named("at");
         if ((p_146 > 0) && (p_146 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_146] = 7U;
+            ob_prim_kinds[p_146] = 1U;
         }
-        p_147 = primitive_number_named("intAdd");
+        p_147 = primitive_number_named("atPut");
         if ((p_147 > 0) && (p_147 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_147] = 32U;
+            ob_prim_kinds[p_147] = 2U;
         }
-        p_148 = primitive_number_named("intSub");
+        p_148 = primitive_number_named("basicSize");
         if ((p_148 > 0) && (p_148 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_148] = 33U;
+            ob_prim_kinds[p_148] = 3U;
         }
-        p_149 = primitive_number_named("intLess");
+        p_149 = primitive_number_named("stringAt");
         if ((p_149 > 0) && (p_149 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_149] = 34U;
+            ob_prim_kinds[p_149] = 4U;
         }
-        p_150 = primitive_number_named("intGreater");
+        p_150 = primitive_number_named("stringAtPut");
         if ((p_150 > 0) && (p_150 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_150] = 35U;
+            ob_prim_kinds[p_150] = 5U;
         }
-        p_151 = primitive_number_named("intLessEq");
+        p_151 = primitive_number_named("class");
         if ((p_151 > 0) && (p_151 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_151] = 36U;
+            ob_prim_kinds[p_151] = 6U;
         }
-        p_152 = primitive_number_named("intGreaterEq");
+        p_152 = primitive_number_named("identical");
         if ((p_152 > 0) && (p_152 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_152] = 37U;
+            ob_prim_kinds[p_152] = 7U;
         }
-        p_153 = primitive_number_named("intEq");
+        p_153 = primitive_number_named("intAdd");
         if ((p_153 > 0) && (p_153 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_153] = 38U;
+            ob_prim_kinds[p_153] = 32U;
         }
-        p_154 = primitive_number_named("intNotEq");
+        p_154 = primitive_number_named("intSub");
         if ((p_154 > 0) && (p_154 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_154] = 39U;
+            ob_prim_kinds[p_154] = 33U;
         }
-        p_155 = primitive_number_named("intMul");
+        p_155 = primitive_number_named("intLess");
         if ((p_155 > 0) && (p_155 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_155] = 40U;
+            ob_prim_kinds[p_155] = 34U;
         }
-        p_156 = primitive_number_named("intBitAnd");
+        p_156 = primitive_number_named("intGreater");
         if ((p_156 > 0) && (p_156 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_156] = 46U;
+            ob_prim_kinds[p_156] = 35U;
         }
-        p_157 = primitive_number_named("intBitOr");
+        p_157 = primitive_number_named("intLessEq");
         if ((p_157 > 0) && (p_157 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_157] = 47U;
+            ob_prim_kinds[p_157] = 36U;
         }
-        p_158 = primitive_number_named("intMod");
+        p_158 = primitive_number_named("intGreaterEq");
         if ((p_158 > 0) && (p_158 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_158] = 42U;
+            ob_prim_kinds[p_158] = 37U;
         }
-        p_159 = primitive_number_named("intBitXor");
+        p_159 = primitive_number_named("intEq");
         if ((p_159 > 0) && (p_159 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_159] = 43U;
+            ob_prim_kinds[p_159] = 38U;
         }
-        p_160 = primitive_number_named("intBitShift");
+        p_160 = primitive_number_named("intNotEq");
         if ((p_160 > 0) && (p_160 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_160] = 44U;
+            ob_prim_kinds[p_160] = 39U;
         }
-        p_161 = primitive_number_named("intFloorDiv");
+        p_161 = primitive_number_named("intMul");
         if ((p_161 > 0) && (p_161 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_161] = 45U;
+            ob_prim_kinds[p_161] = 40U;
         }
-        p_162 = primitive_number_named("intQuo");
+        p_162 = primitive_number_named("intBitAnd");
         if ((p_162 > 0) && (p_162 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_162] = 48U;
+            ob_prim_kinds[p_162] = 46U;
         }
-        p_163 = primitive_number_named("intRem");
+        p_163 = primitive_number_named("intBitOr");
         if ((p_163 > 0) && (p_163 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_163] = 49U;
+            ob_prim_kinds[p_163] = 47U;
         }
-        p_164 = primitive_number_named("charValue");
+        p_164 = primitive_number_named("intMod");
         if ((p_164 > 0) && (p_164 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_164] = 12U;
+            ob_prim_kinds[p_164] = 42U;
         }
-        p_165 = primitive_number_named("charFromValue");
+        p_165 = primitive_number_named("intBitXor");
         if ((p_165 > 0) && (p_165 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_165] = 13U;
+            ob_prim_kinds[p_165] = 43U;
         }
-        p_166 = primitive_number_named("floatAdd");
+        p_166 = primitive_number_named("intBitShift");
         if ((p_166 > 0) && (p_166 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_166] = 64U;
+            ob_prim_kinds[p_166] = 44U;
         }
-        p_167 = primitive_number_named("floatSub");
+        p_167 = primitive_number_named("intFloorDiv");
         if ((p_167 > 0) && (p_167 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_167] = 65U;
+            ob_prim_kinds[p_167] = 45U;
         }
-        p_168 = primitive_number_named("floatLess");
+        p_168 = primitive_number_named("intQuo");
         if ((p_168 > 0) && (p_168 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_168] = 66U;
+            ob_prim_kinds[p_168] = 48U;
         }
-        p_169 = primitive_number_named("floatGreater");
+        p_169 = primitive_number_named("intRem");
         if ((p_169 > 0) && (p_169 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_169] = 67U;
+            ob_prim_kinds[p_169] = 49U;
         }
-        p_170 = primitive_number_named("floatLessEq");
+        p_170 = primitive_number_named("charValue");
         if ((p_170 > 0) && (p_170 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_170] = 68U;
+            ob_prim_kinds[p_170] = 12U;
         }
-        p_171 = primitive_number_named("floatGreaterEq");
+        p_171 = primitive_number_named("charFromValue");
         if ((p_171 > 0) && (p_171 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_171] = 69U;
+            ob_prim_kinds[p_171] = 13U;
         }
-        p_172 = primitive_number_named("floatEq");
+        p_172 = primitive_number_named("floatAdd");
         if ((p_172 > 0) && (p_172 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_172] = 70U;
+            ob_prim_kinds[p_172] = 64U;
         }
-        p_173 = primitive_number_named("floatNotEq");
+        p_173 = primitive_number_named("floatSub");
         if ((p_173 > 0) && (p_173 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_173] = 71U;
+            ob_prim_kinds[p_173] = 65U;
         }
-        p_174 = primitive_number_named("floatMul");
+        p_174 = primitive_number_named("floatLess");
         if ((p_174 > 0) && (p_174 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_174] = 72U;
+            ob_prim_kinds[p_174] = 66U;
         }
-        p_175 = primitive_number_named("floatDiv");
+        p_175 = primitive_number_named("floatGreater");
         if ((p_175 > 0) && (p_175 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_175] = 73U;
+            ob_prim_kinds[p_175] = 67U;
         }
-        p_176 = primitive_number_named("floatSqrt");
+        p_176 = primitive_number_named("floatLessEq");
         if ((p_176 > 0) && (p_176 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_176] = 8U;
+            ob_prim_kinds[p_176] = 68U;
         }
-        p_177 = primitive_number_named("basicNew");
+        p_177 = primitive_number_named("floatGreaterEq");
         if ((p_177 > 0) && (p_177 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_177] = 9U;
+            ob_prim_kinds[p_177] = 69U;
         }
-        p_178 = primitive_number_named("basicNew:");
+        p_178 = primitive_number_named("floatEq");
         if ((p_178 > 0) && (p_178 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_178] = 10U;
+            ob_prim_kinds[p_178] = 70U;
         }
-        p_179 = primitive_number_named("closureValue");
+        p_179 = primitive_number_named("floatNotEq");
         if ((p_179 > 0) && (p_179 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_179] = 11U;
+            ob_prim_kinds[p_179] = 71U;
         }
-        p_180 = primitive_number_named("replaceFromToWithStartingAt");
+        p_180 = primitive_number_named("floatMul");
         if ((p_180 > 0) && (p_180 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_180] = 14U;
+            ob_prim_kinds[p_180] = 72U;
+        }
+        p_181 = primitive_number_named("floatDiv");
+        if ((p_181 > 0) && (p_181 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_181] = 73U;
+        }
+        p_182 = primitive_number_named("floatSqrt");
+        if ((p_182 > 0) && (p_182 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_182] = 8U;
+        }
+        p_183 = primitive_number_named("basicNew");
+        if ((p_183 > 0) && (p_183 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_183] = 9U;
+        }
+        p_184 = primitive_number_named("basicNew:");
+        if ((p_184 > 0) && (p_184 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_184] = 10U;
+        }
+        p_185 = primitive_number_named("closureValue");
+        if ((p_185 > 0) && (p_185 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_185] = 11U;
+        }
+        p_186 = primitive_number_named("replaceFromToWithStartingAt");
+        if ((p_186 > 0) && (p_186 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_186] = 14U;
+        }
+        p_187 = primitive_number_named("stringHash");
+        if ((p_187 > 0) && (p_187 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_187] = 15U;
+        }
+        p_188 = primitive_number_named("stringCompare");
+        if ((p_188 > 0) && (p_188 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_188] = 16U;
         }
     }
-    if ((p_139 <= 0) || (p_139 >= OPT_MAX_PRIM)) {
+    if ((p_145 <= 0) || (p_145 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_4 = 0;
         goto exit_prim_kind_of_4;
     }
-    r_prim_kind_of_4 = (int32_t)ob_prim_kinds[p_139];
+    r_prim_kind_of_4 = (int32_t)ob_prim_kinds[p_145];
 exit_prim_kind_of_4:;
     r_prim_kind_of_4; });
     if (!(((kind_5 == OPK_NEW) && (argc == 0)) || ((kind_5 == OPK_NEWSIZE) && (argc == 1)))) {
@@ -13189,184 +13534,192 @@ exit_allocate_2:;
         goto exit_send_2;
     }
     if ((cls == cls_block) && (((jit_flags & JIT_FLAG_CALLS) != 0) && ({
-    p_182 = ({
-    p_181 = *(uint64_t *)(m_7 + 16 + 56);
-    r_method_primitive_11 = (p_181 & 1) != 0 ? (int32_t)((((int64_t)p_181) >> 1) & CM_PRIM_MASK) : 0;
+    p_190 = ({
+    p_189 = *(uint64_t *)(m_7 + 16 + 56);
+    r_method_primitive_11 = (p_189 & 1) != 0 ? (int32_t)((((int64_t)p_189) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_11; });
     ({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_183 = primitive_number_named("at");
-        if ((p_183 > 0) && (p_183 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_183] = 1U;
-        }
-        p_184 = primitive_number_named("atPut");
-        if ((p_184 > 0) && (p_184 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_184] = 2U;
-        }
-        p_185 = primitive_number_named("basicSize");
-        if ((p_185 > 0) && (p_185 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_185] = 3U;
-        }
-        p_186 = primitive_number_named("stringAt");
-        if ((p_186 > 0) && (p_186 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_186] = 4U;
-        }
-        p_187 = primitive_number_named("stringAtPut");
-        if ((p_187 > 0) && (p_187 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_187] = 5U;
-        }
-        p_188 = primitive_number_named("class");
-        if ((p_188 > 0) && (p_188 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_188] = 6U;
-        }
-        p_189 = primitive_number_named("identical");
-        if ((p_189 > 0) && (p_189 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_189] = 7U;
-        }
-        p_190 = primitive_number_named("intAdd");
-        if ((p_190 > 0) && (p_190 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_190] = 32U;
-        }
-        p_191 = primitive_number_named("intSub");
+        p_191 = primitive_number_named("at");
         if ((p_191 > 0) && (p_191 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_191] = 33U;
+            ob_prim_kinds[p_191] = 1U;
         }
-        p_192 = primitive_number_named("intLess");
+        p_192 = primitive_number_named("atPut");
         if ((p_192 > 0) && (p_192 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_192] = 34U;
+            ob_prim_kinds[p_192] = 2U;
         }
-        p_193 = primitive_number_named("intGreater");
+        p_193 = primitive_number_named("basicSize");
         if ((p_193 > 0) && (p_193 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_193] = 35U;
+            ob_prim_kinds[p_193] = 3U;
         }
-        p_194 = primitive_number_named("intLessEq");
+        p_194 = primitive_number_named("stringAt");
         if ((p_194 > 0) && (p_194 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_194] = 36U;
+            ob_prim_kinds[p_194] = 4U;
         }
-        p_195 = primitive_number_named("intGreaterEq");
+        p_195 = primitive_number_named("stringAtPut");
         if ((p_195 > 0) && (p_195 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_195] = 37U;
+            ob_prim_kinds[p_195] = 5U;
         }
-        p_196 = primitive_number_named("intEq");
+        p_196 = primitive_number_named("class");
         if ((p_196 > 0) && (p_196 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_196] = 38U;
+            ob_prim_kinds[p_196] = 6U;
         }
-        p_197 = primitive_number_named("intNotEq");
+        p_197 = primitive_number_named("identical");
         if ((p_197 > 0) && (p_197 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_197] = 39U;
+            ob_prim_kinds[p_197] = 7U;
         }
-        p_198 = primitive_number_named("intMul");
+        p_198 = primitive_number_named("intAdd");
         if ((p_198 > 0) && (p_198 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_198] = 40U;
+            ob_prim_kinds[p_198] = 32U;
         }
-        p_199 = primitive_number_named("intBitAnd");
+        p_199 = primitive_number_named("intSub");
         if ((p_199 > 0) && (p_199 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_199] = 46U;
+            ob_prim_kinds[p_199] = 33U;
         }
-        p_200 = primitive_number_named("intBitOr");
+        p_200 = primitive_number_named("intLess");
         if ((p_200 > 0) && (p_200 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_200] = 47U;
+            ob_prim_kinds[p_200] = 34U;
         }
-        p_201 = primitive_number_named("intMod");
+        p_201 = primitive_number_named("intGreater");
         if ((p_201 > 0) && (p_201 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_201] = 42U;
+            ob_prim_kinds[p_201] = 35U;
         }
-        p_202 = primitive_number_named("intBitXor");
+        p_202 = primitive_number_named("intLessEq");
         if ((p_202 > 0) && (p_202 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_202] = 43U;
+            ob_prim_kinds[p_202] = 36U;
         }
-        p_203 = primitive_number_named("intBitShift");
+        p_203 = primitive_number_named("intGreaterEq");
         if ((p_203 > 0) && (p_203 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_203] = 44U;
+            ob_prim_kinds[p_203] = 37U;
         }
-        p_204 = primitive_number_named("intFloorDiv");
+        p_204 = primitive_number_named("intEq");
         if ((p_204 > 0) && (p_204 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_204] = 45U;
+            ob_prim_kinds[p_204] = 38U;
         }
-        p_205 = primitive_number_named("intQuo");
+        p_205 = primitive_number_named("intNotEq");
         if ((p_205 > 0) && (p_205 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_205] = 48U;
+            ob_prim_kinds[p_205] = 39U;
         }
-        p_206 = primitive_number_named("intRem");
+        p_206 = primitive_number_named("intMul");
         if ((p_206 > 0) && (p_206 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_206] = 49U;
+            ob_prim_kinds[p_206] = 40U;
         }
-        p_207 = primitive_number_named("charValue");
+        p_207 = primitive_number_named("intBitAnd");
         if ((p_207 > 0) && (p_207 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_207] = 12U;
+            ob_prim_kinds[p_207] = 46U;
         }
-        p_208 = primitive_number_named("charFromValue");
+        p_208 = primitive_number_named("intBitOr");
         if ((p_208 > 0) && (p_208 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_208] = 13U;
+            ob_prim_kinds[p_208] = 47U;
         }
-        p_209 = primitive_number_named("floatAdd");
+        p_209 = primitive_number_named("intMod");
         if ((p_209 > 0) && (p_209 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_209] = 64U;
+            ob_prim_kinds[p_209] = 42U;
         }
-        p_210 = primitive_number_named("floatSub");
+        p_210 = primitive_number_named("intBitXor");
         if ((p_210 > 0) && (p_210 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_210] = 65U;
+            ob_prim_kinds[p_210] = 43U;
         }
-        p_211 = primitive_number_named("floatLess");
+        p_211 = primitive_number_named("intBitShift");
         if ((p_211 > 0) && (p_211 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_211] = 66U;
+            ob_prim_kinds[p_211] = 44U;
         }
-        p_212 = primitive_number_named("floatGreater");
+        p_212 = primitive_number_named("intFloorDiv");
         if ((p_212 > 0) && (p_212 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_212] = 67U;
+            ob_prim_kinds[p_212] = 45U;
         }
-        p_213 = primitive_number_named("floatLessEq");
+        p_213 = primitive_number_named("intQuo");
         if ((p_213 > 0) && (p_213 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_213] = 68U;
+            ob_prim_kinds[p_213] = 48U;
         }
-        p_214 = primitive_number_named("floatGreaterEq");
+        p_214 = primitive_number_named("intRem");
         if ((p_214 > 0) && (p_214 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_214] = 69U;
+            ob_prim_kinds[p_214] = 49U;
         }
-        p_215 = primitive_number_named("floatEq");
+        p_215 = primitive_number_named("charValue");
         if ((p_215 > 0) && (p_215 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_215] = 70U;
+            ob_prim_kinds[p_215] = 12U;
         }
-        p_216 = primitive_number_named("floatNotEq");
+        p_216 = primitive_number_named("charFromValue");
         if ((p_216 > 0) && (p_216 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_216] = 71U;
+            ob_prim_kinds[p_216] = 13U;
         }
-        p_217 = primitive_number_named("floatMul");
+        p_217 = primitive_number_named("floatAdd");
         if ((p_217 > 0) && (p_217 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_217] = 72U;
+            ob_prim_kinds[p_217] = 64U;
         }
-        p_218 = primitive_number_named("floatDiv");
+        p_218 = primitive_number_named("floatSub");
         if ((p_218 > 0) && (p_218 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_218] = 73U;
+            ob_prim_kinds[p_218] = 65U;
         }
-        p_219 = primitive_number_named("floatSqrt");
+        p_219 = primitive_number_named("floatLess");
         if ((p_219 > 0) && (p_219 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_219] = 8U;
+            ob_prim_kinds[p_219] = 66U;
         }
-        p_220 = primitive_number_named("basicNew");
+        p_220 = primitive_number_named("floatGreater");
         if ((p_220 > 0) && (p_220 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_220] = 9U;
+            ob_prim_kinds[p_220] = 67U;
         }
-        p_221 = primitive_number_named("basicNew:");
+        p_221 = primitive_number_named("floatLessEq");
         if ((p_221 > 0) && (p_221 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_221] = 10U;
+            ob_prim_kinds[p_221] = 68U;
         }
-        p_222 = primitive_number_named("closureValue");
+        p_222 = primitive_number_named("floatGreaterEq");
         if ((p_222 > 0) && (p_222 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_222] = 11U;
+            ob_prim_kinds[p_222] = 69U;
         }
-        p_223 = primitive_number_named("replaceFromToWithStartingAt");
+        p_223 = primitive_number_named("floatEq");
         if ((p_223 > 0) && (p_223 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_223] = 14U;
+            ob_prim_kinds[p_223] = 70U;
+        }
+        p_224 = primitive_number_named("floatNotEq");
+        if ((p_224 > 0) && (p_224 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_224] = 71U;
+        }
+        p_225 = primitive_number_named("floatMul");
+        if ((p_225 > 0) && (p_225 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_225] = 72U;
+        }
+        p_226 = primitive_number_named("floatDiv");
+        if ((p_226 > 0) && (p_226 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_226] = 73U;
+        }
+        p_227 = primitive_number_named("floatSqrt");
+        if ((p_227 > 0) && (p_227 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_227] = 8U;
+        }
+        p_228 = primitive_number_named("basicNew");
+        if ((p_228 > 0) && (p_228 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_228] = 9U;
+        }
+        p_229 = primitive_number_named("basicNew:");
+        if ((p_229 > 0) && (p_229 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_229] = 10U;
+        }
+        p_230 = primitive_number_named("closureValue");
+        if ((p_230 > 0) && (p_230 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_230] = 11U;
+        }
+        p_231 = primitive_number_named("replaceFromToWithStartingAt");
+        if ((p_231 > 0) && (p_231 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_231] = 14U;
+        }
+        p_232 = primitive_number_named("stringHash");
+        if ((p_232 > 0) && (p_232 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_232] = 15U;
+        }
+        p_233 = primitive_number_named("stringCompare");
+        if ((p_233 > 0) && (p_233 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_233] = 16U;
         }
     }
-    if ((p_182 <= 0) || (p_182 >= OPT_MAX_PRIM)) {
+    if ((p_190 <= 0) || (p_190 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_5 = 0;
         goto exit_prim_kind_of_5;
     }
-    r_prim_kind_of_5 = (int32_t)ob_prim_kinds[p_182];
+    r_prim_kind_of_5 = (int32_t)ob_prim_kinds[p_190];
 exit_prim_kind_of_5:;
     r_prim_kind_of_5; }) == OPK_CLOSURE; }))) {
         r_send_2 = ({
@@ -13603,184 +13956,192 @@ exit_block_call_2:;
         goto exit_send_2;
     }
     if (((jit_flags & JIT_FLAG_PRIMS) != 0) && ({
-    p_225 = ({
-    p_224 = *(uint64_t *)(m_7 + 16 + 56);
-    r_method_primitive_12 = (p_224 & 1) != 0 ? (int32_t)((((int64_t)p_224) >> 1) & CM_PRIM_MASK) : 0;
+    p_235 = ({
+    p_234 = *(uint64_t *)(m_7 + 16 + 56);
+    r_method_primitive_12 = (p_234 & 1) != 0 ? (int32_t)((((int64_t)p_234) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_12; });
     if (!((({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_226 = primitive_number_named("at");
-        if ((p_226 > 0) && (p_226 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_226] = 1U;
-        }
-        p_227 = primitive_number_named("atPut");
-        if ((p_227 > 0) && (p_227 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_227] = 2U;
-        }
-        p_228 = primitive_number_named("basicSize");
-        if ((p_228 > 0) && (p_228 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_228] = 3U;
-        }
-        p_229 = primitive_number_named("stringAt");
-        if ((p_229 > 0) && (p_229 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_229] = 4U;
-        }
-        p_230 = primitive_number_named("stringAtPut");
-        if ((p_230 > 0) && (p_230 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_230] = 5U;
-        }
-        p_231 = primitive_number_named("class");
-        if ((p_231 > 0) && (p_231 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_231] = 6U;
-        }
-        p_232 = primitive_number_named("identical");
-        if ((p_232 > 0) && (p_232 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_232] = 7U;
-        }
-        p_233 = primitive_number_named("intAdd");
-        if ((p_233 > 0) && (p_233 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_233] = 32U;
-        }
-        p_234 = primitive_number_named("intSub");
-        if ((p_234 > 0) && (p_234 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_234] = 33U;
-        }
-        p_235 = primitive_number_named("intLess");
-        if ((p_235 > 0) && (p_235 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_235] = 34U;
-        }
-        p_236 = primitive_number_named("intGreater");
+        p_236 = primitive_number_named("at");
         if ((p_236 > 0) && (p_236 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_236] = 35U;
+            ob_prim_kinds[p_236] = 1U;
         }
-        p_237 = primitive_number_named("intLessEq");
+        p_237 = primitive_number_named("atPut");
         if ((p_237 > 0) && (p_237 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_237] = 36U;
+            ob_prim_kinds[p_237] = 2U;
         }
-        p_238 = primitive_number_named("intGreaterEq");
+        p_238 = primitive_number_named("basicSize");
         if ((p_238 > 0) && (p_238 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_238] = 37U;
+            ob_prim_kinds[p_238] = 3U;
         }
-        p_239 = primitive_number_named("intEq");
+        p_239 = primitive_number_named("stringAt");
         if ((p_239 > 0) && (p_239 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_239] = 38U;
+            ob_prim_kinds[p_239] = 4U;
         }
-        p_240 = primitive_number_named("intNotEq");
+        p_240 = primitive_number_named("stringAtPut");
         if ((p_240 > 0) && (p_240 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_240] = 39U;
+            ob_prim_kinds[p_240] = 5U;
         }
-        p_241 = primitive_number_named("intMul");
+        p_241 = primitive_number_named("class");
         if ((p_241 > 0) && (p_241 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_241] = 40U;
+            ob_prim_kinds[p_241] = 6U;
         }
-        p_242 = primitive_number_named("intBitAnd");
+        p_242 = primitive_number_named("identical");
         if ((p_242 > 0) && (p_242 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_242] = 46U;
+            ob_prim_kinds[p_242] = 7U;
         }
-        p_243 = primitive_number_named("intBitOr");
+        p_243 = primitive_number_named("intAdd");
         if ((p_243 > 0) && (p_243 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_243] = 47U;
+            ob_prim_kinds[p_243] = 32U;
         }
-        p_244 = primitive_number_named("intMod");
+        p_244 = primitive_number_named("intSub");
         if ((p_244 > 0) && (p_244 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_244] = 42U;
+            ob_prim_kinds[p_244] = 33U;
         }
-        p_245 = primitive_number_named("intBitXor");
+        p_245 = primitive_number_named("intLess");
         if ((p_245 > 0) && (p_245 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_245] = 43U;
+            ob_prim_kinds[p_245] = 34U;
         }
-        p_246 = primitive_number_named("intBitShift");
+        p_246 = primitive_number_named("intGreater");
         if ((p_246 > 0) && (p_246 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_246] = 44U;
+            ob_prim_kinds[p_246] = 35U;
         }
-        p_247 = primitive_number_named("intFloorDiv");
+        p_247 = primitive_number_named("intLessEq");
         if ((p_247 > 0) && (p_247 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_247] = 45U;
+            ob_prim_kinds[p_247] = 36U;
         }
-        p_248 = primitive_number_named("intQuo");
+        p_248 = primitive_number_named("intGreaterEq");
         if ((p_248 > 0) && (p_248 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_248] = 48U;
+            ob_prim_kinds[p_248] = 37U;
         }
-        p_249 = primitive_number_named("intRem");
+        p_249 = primitive_number_named("intEq");
         if ((p_249 > 0) && (p_249 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_249] = 49U;
+            ob_prim_kinds[p_249] = 38U;
         }
-        p_250 = primitive_number_named("charValue");
+        p_250 = primitive_number_named("intNotEq");
         if ((p_250 > 0) && (p_250 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_250] = 12U;
+            ob_prim_kinds[p_250] = 39U;
         }
-        p_251 = primitive_number_named("charFromValue");
+        p_251 = primitive_number_named("intMul");
         if ((p_251 > 0) && (p_251 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_251] = 13U;
+            ob_prim_kinds[p_251] = 40U;
         }
-        p_252 = primitive_number_named("floatAdd");
+        p_252 = primitive_number_named("intBitAnd");
         if ((p_252 > 0) && (p_252 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_252] = 64U;
+            ob_prim_kinds[p_252] = 46U;
         }
-        p_253 = primitive_number_named("floatSub");
+        p_253 = primitive_number_named("intBitOr");
         if ((p_253 > 0) && (p_253 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_253] = 65U;
+            ob_prim_kinds[p_253] = 47U;
         }
-        p_254 = primitive_number_named("floatLess");
+        p_254 = primitive_number_named("intMod");
         if ((p_254 > 0) && (p_254 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_254] = 66U;
+            ob_prim_kinds[p_254] = 42U;
         }
-        p_255 = primitive_number_named("floatGreater");
+        p_255 = primitive_number_named("intBitXor");
         if ((p_255 > 0) && (p_255 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_255] = 67U;
+            ob_prim_kinds[p_255] = 43U;
         }
-        p_256 = primitive_number_named("floatLessEq");
+        p_256 = primitive_number_named("intBitShift");
         if ((p_256 > 0) && (p_256 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_256] = 68U;
+            ob_prim_kinds[p_256] = 44U;
         }
-        p_257 = primitive_number_named("floatGreaterEq");
+        p_257 = primitive_number_named("intFloorDiv");
         if ((p_257 > 0) && (p_257 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_257] = 69U;
+            ob_prim_kinds[p_257] = 45U;
         }
-        p_258 = primitive_number_named("floatEq");
+        p_258 = primitive_number_named("intQuo");
         if ((p_258 > 0) && (p_258 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_258] = 70U;
+            ob_prim_kinds[p_258] = 48U;
         }
-        p_259 = primitive_number_named("floatNotEq");
+        p_259 = primitive_number_named("intRem");
         if ((p_259 > 0) && (p_259 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_259] = 71U;
+            ob_prim_kinds[p_259] = 49U;
         }
-        p_260 = primitive_number_named("floatMul");
+        p_260 = primitive_number_named("charValue");
         if ((p_260 > 0) && (p_260 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_260] = 72U;
+            ob_prim_kinds[p_260] = 12U;
         }
-        p_261 = primitive_number_named("floatDiv");
+        p_261 = primitive_number_named("charFromValue");
         if ((p_261 > 0) && (p_261 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_261] = 73U;
+            ob_prim_kinds[p_261] = 13U;
         }
-        p_262 = primitive_number_named("floatSqrt");
+        p_262 = primitive_number_named("floatAdd");
         if ((p_262 > 0) && (p_262 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_262] = 8U;
+            ob_prim_kinds[p_262] = 64U;
         }
-        p_263 = primitive_number_named("basicNew");
+        p_263 = primitive_number_named("floatSub");
         if ((p_263 > 0) && (p_263 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_263] = 9U;
+            ob_prim_kinds[p_263] = 65U;
         }
-        p_264 = primitive_number_named("basicNew:");
+        p_264 = primitive_number_named("floatLess");
         if ((p_264 > 0) && (p_264 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_264] = 10U;
+            ob_prim_kinds[p_264] = 66U;
         }
-        p_265 = primitive_number_named("closureValue");
+        p_265 = primitive_number_named("floatGreater");
         if ((p_265 > 0) && (p_265 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_265] = 11U;
+            ob_prim_kinds[p_265] = 67U;
         }
-        p_266 = primitive_number_named("replaceFromToWithStartingAt");
+        p_266 = primitive_number_named("floatLessEq");
         if ((p_266 > 0) && (p_266 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_266] = 14U;
+            ob_prim_kinds[p_266] = 68U;
+        }
+        p_267 = primitive_number_named("floatGreaterEq");
+        if ((p_267 > 0) && (p_267 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_267] = 69U;
+        }
+        p_268 = primitive_number_named("floatEq");
+        if ((p_268 > 0) && (p_268 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_268] = 70U;
+        }
+        p_269 = primitive_number_named("floatNotEq");
+        if ((p_269 > 0) && (p_269 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_269] = 71U;
+        }
+        p_270 = primitive_number_named("floatMul");
+        if ((p_270 > 0) && (p_270 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_270] = 72U;
+        }
+        p_271 = primitive_number_named("floatDiv");
+        if ((p_271 > 0) && (p_271 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_271] = 73U;
+        }
+        p_272 = primitive_number_named("floatSqrt");
+        if ((p_272 > 0) && (p_272 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_272] = 8U;
+        }
+        p_273 = primitive_number_named("basicNew");
+        if ((p_273 > 0) && (p_273 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_273] = 9U;
+        }
+        p_274 = primitive_number_named("basicNew:");
+        if ((p_274 > 0) && (p_274 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_274] = 10U;
+        }
+        p_275 = primitive_number_named("closureValue");
+        if ((p_275 > 0) && (p_275 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_275] = 11U;
+        }
+        p_276 = primitive_number_named("replaceFromToWithStartingAt");
+        if ((p_276 > 0) && (p_276 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_276] = 14U;
+        }
+        p_277 = primitive_number_named("stringHash");
+        if ((p_277 > 0) && (p_277 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_277] = 15U;
+        }
+        p_278 = primitive_number_named("stringCompare");
+        if ((p_278 > 0) && (p_278 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_278] = 16U;
         }
     }
-    if ((p_225 <= 0) || (p_225 >= OPT_MAX_PRIM)) {
+    if ((p_235 <= 0) || (p_235 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_6 = 0;
         goto exit_prim_kind_of_6;
     }
-    r_prim_kind_of_6 = (int32_t)ob_prim_kinds[p_225];
+    r_prim_kind_of_6 = (int32_t)ob_prim_kinds[p_235];
 exit_prim_kind_of_6:;
     r_prim_kind_of_6; }) == OPK_REPLACE) && (argc == 4))) {
         r_replace_2 = false;
@@ -13932,11 +14293,11 @@ exit_replace_2:;
         goto exit_send_2;
     }
     if ((({
-    p_267 = *(uint64_t *)(m_7 + 16 + 56);
-    r_method_primitive_13 = (p_267 & 1) != 0 ? (int32_t)((((int64_t)p_267) >> 1) & CM_PRIM_MASK) : 0;
+    p_279 = *(uint64_t *)(m_7 + 16 + 56);
+    r_method_primitive_13 = (p_279 & 1) != 0 ? (int32_t)((((int64_t)p_279) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_13; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && inline_primitive(({
-    p_268 = *(uint64_t *)(m_7 + 16 + 56);
-    r_method_primitive_14 = (p_268 & 1) != 0 ? (int32_t)((((int64_t)p_268) >> 1) & CM_PRIM_MASK) : 0;
+    p_280 = *(uint64_t *)(m_7 + 16 + 56);
+    r_method_primitive_14 = (p_280 & 1) != 0 ? (int32_t)((((int64_t)p_280) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_14; }), cls, argc, pc, a, r))) {
         r_send_2 = true;
         goto exit_send_2;
@@ -14208,13 +14569,13 @@ exit_write_13:;
     if ((kind == 0) && ({
     i_40 = r + 1;
     n_80 = argc - 1;
-    (p_269 = ({
+    (p_281 = ({
     if (!((ob_perform_act < 0) && ((prim_kind_of(({
-    p_270 = *(uint64_t *)(m_15 + 16 + 56);
-    r_method_primitive_15 = (p_270 & 1) != 0 ? (int32_t)((((int64_t)p_270) >> 1) & CM_PRIM_MASK) : 0;
+    p_282 = *(uint64_t *)(m_15 + 16 + 56);
+    r_method_primitive_15 = (p_282 & 1) != 0 ? (int32_t)((((int64_t)p_282) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_15; })) == PK_PERFORM) && ((prim_op_of(({
-    p_271 = *(uint64_t *)(m_15 + 16 + 56);
-    r_method_primitive_16 = (p_271 & 1) != 0 ? (int32_t)((((int64_t)p_271) >> 1) & CM_PRIM_MASK) : 0;
+    p_283 = *(uint64_t *)(m_15 + 16 + 56);
+    r_method_primitive_16 = (p_283 & 1) != 0 ? (int32_t)((((int64_t)p_283) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_16; })) == 0) && ((n_80 >= 0) && (n_80 < 8)))))) {
         r_performed_at_3 = 0ULL;
         goto exit_performed_at_3;
@@ -14233,188 +14594,196 @@ exit_write_13:;
     r_performed_at_3 = (uint64_t)nd_4->aux;
 exit_performed_at_3:;
     r_performed_at_3; })) != 0; })) {
-        r_send_3 = send_performed(p_269, g, cls_3, argc - 1, pc, a, r);
+        r_send_3 = send_performed(p_281, g, cls_3, argc - 1, pc, a, r);
         goto exit_send_3;
     }
     if (((jit_flags & JIT_FLAG_ALLOC) != 0) && ({
-    p_273 = ({
-    p_272 = *(uint64_t *)(m_15 + 16 + 56);
-    r_method_primitive_17 = (p_272 & 1) != 0 ? (int32_t)((((int64_t)p_272) >> 1) & CM_PRIM_MASK) : 0;
+    p_285 = ({
+    p_284 = *(uint64_t *)(m_15 + 16 + 56);
+    r_method_primitive_17 = (p_284 & 1) != 0 ? (int32_t)((((int64_t)p_284) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_17; });
     kind_8 = ({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_274 = primitive_number_named("at");
-        if ((p_274 > 0) && (p_274 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_274] = 1U;
-        }
-        p_275 = primitive_number_named("atPut");
-        if ((p_275 > 0) && (p_275 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_275] = 2U;
-        }
-        p_276 = primitive_number_named("basicSize");
-        if ((p_276 > 0) && (p_276 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_276] = 3U;
-        }
-        p_277 = primitive_number_named("stringAt");
-        if ((p_277 > 0) && (p_277 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_277] = 4U;
-        }
-        p_278 = primitive_number_named("stringAtPut");
-        if ((p_278 > 0) && (p_278 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_278] = 5U;
-        }
-        p_279 = primitive_number_named("class");
-        if ((p_279 > 0) && (p_279 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_279] = 6U;
-        }
-        p_280 = primitive_number_named("identical");
-        if ((p_280 > 0) && (p_280 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_280] = 7U;
-        }
-        p_281 = primitive_number_named("intAdd");
-        if ((p_281 > 0) && (p_281 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_281] = 32U;
-        }
-        p_282 = primitive_number_named("intSub");
-        if ((p_282 > 0) && (p_282 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_282] = 33U;
-        }
-        p_283 = primitive_number_named("intLess");
-        if ((p_283 > 0) && (p_283 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_283] = 34U;
-        }
-        p_284 = primitive_number_named("intGreater");
-        if ((p_284 > 0) && (p_284 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_284] = 35U;
-        }
-        p_285 = primitive_number_named("intLessEq");
-        if ((p_285 > 0) && (p_285 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_285] = 36U;
-        }
-        p_286 = primitive_number_named("intGreaterEq");
+        p_286 = primitive_number_named("at");
         if ((p_286 > 0) && (p_286 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_286] = 37U;
+            ob_prim_kinds[p_286] = 1U;
         }
-        p_287 = primitive_number_named("intEq");
+        p_287 = primitive_number_named("atPut");
         if ((p_287 > 0) && (p_287 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_287] = 38U;
+            ob_prim_kinds[p_287] = 2U;
         }
-        p_288 = primitive_number_named("intNotEq");
+        p_288 = primitive_number_named("basicSize");
         if ((p_288 > 0) && (p_288 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_288] = 39U;
+            ob_prim_kinds[p_288] = 3U;
         }
-        p_289 = primitive_number_named("intMul");
+        p_289 = primitive_number_named("stringAt");
         if ((p_289 > 0) && (p_289 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_289] = 40U;
+            ob_prim_kinds[p_289] = 4U;
         }
-        p_290 = primitive_number_named("intBitAnd");
+        p_290 = primitive_number_named("stringAtPut");
         if ((p_290 > 0) && (p_290 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_290] = 46U;
+            ob_prim_kinds[p_290] = 5U;
         }
-        p_291 = primitive_number_named("intBitOr");
+        p_291 = primitive_number_named("class");
         if ((p_291 > 0) && (p_291 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_291] = 47U;
+            ob_prim_kinds[p_291] = 6U;
         }
-        p_292 = primitive_number_named("intMod");
+        p_292 = primitive_number_named("identical");
         if ((p_292 > 0) && (p_292 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_292] = 42U;
+            ob_prim_kinds[p_292] = 7U;
         }
-        p_293 = primitive_number_named("intBitXor");
+        p_293 = primitive_number_named("intAdd");
         if ((p_293 > 0) && (p_293 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_293] = 43U;
+            ob_prim_kinds[p_293] = 32U;
         }
-        p_294 = primitive_number_named("intBitShift");
+        p_294 = primitive_number_named("intSub");
         if ((p_294 > 0) && (p_294 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_294] = 44U;
+            ob_prim_kinds[p_294] = 33U;
         }
-        p_295 = primitive_number_named("intFloorDiv");
+        p_295 = primitive_number_named("intLess");
         if ((p_295 > 0) && (p_295 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_295] = 45U;
+            ob_prim_kinds[p_295] = 34U;
         }
-        p_296 = primitive_number_named("intQuo");
+        p_296 = primitive_number_named("intGreater");
         if ((p_296 > 0) && (p_296 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_296] = 48U;
+            ob_prim_kinds[p_296] = 35U;
         }
-        p_297 = primitive_number_named("intRem");
+        p_297 = primitive_number_named("intLessEq");
         if ((p_297 > 0) && (p_297 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_297] = 49U;
+            ob_prim_kinds[p_297] = 36U;
         }
-        p_298 = primitive_number_named("charValue");
+        p_298 = primitive_number_named("intGreaterEq");
         if ((p_298 > 0) && (p_298 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_298] = 12U;
+            ob_prim_kinds[p_298] = 37U;
         }
-        p_299 = primitive_number_named("charFromValue");
+        p_299 = primitive_number_named("intEq");
         if ((p_299 > 0) && (p_299 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_299] = 13U;
+            ob_prim_kinds[p_299] = 38U;
         }
-        p_300 = primitive_number_named("floatAdd");
+        p_300 = primitive_number_named("intNotEq");
         if ((p_300 > 0) && (p_300 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_300] = 64U;
+            ob_prim_kinds[p_300] = 39U;
         }
-        p_301 = primitive_number_named("floatSub");
+        p_301 = primitive_number_named("intMul");
         if ((p_301 > 0) && (p_301 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_301] = 65U;
+            ob_prim_kinds[p_301] = 40U;
         }
-        p_302 = primitive_number_named("floatLess");
+        p_302 = primitive_number_named("intBitAnd");
         if ((p_302 > 0) && (p_302 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_302] = 66U;
+            ob_prim_kinds[p_302] = 46U;
         }
-        p_303 = primitive_number_named("floatGreater");
+        p_303 = primitive_number_named("intBitOr");
         if ((p_303 > 0) && (p_303 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_303] = 67U;
+            ob_prim_kinds[p_303] = 47U;
         }
-        p_304 = primitive_number_named("floatLessEq");
+        p_304 = primitive_number_named("intMod");
         if ((p_304 > 0) && (p_304 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_304] = 68U;
+            ob_prim_kinds[p_304] = 42U;
         }
-        p_305 = primitive_number_named("floatGreaterEq");
+        p_305 = primitive_number_named("intBitXor");
         if ((p_305 > 0) && (p_305 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_305] = 69U;
+            ob_prim_kinds[p_305] = 43U;
         }
-        p_306 = primitive_number_named("floatEq");
+        p_306 = primitive_number_named("intBitShift");
         if ((p_306 > 0) && (p_306 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_306] = 70U;
+            ob_prim_kinds[p_306] = 44U;
         }
-        p_307 = primitive_number_named("floatNotEq");
+        p_307 = primitive_number_named("intFloorDiv");
         if ((p_307 > 0) && (p_307 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_307] = 71U;
+            ob_prim_kinds[p_307] = 45U;
         }
-        p_308 = primitive_number_named("floatMul");
+        p_308 = primitive_number_named("intQuo");
         if ((p_308 > 0) && (p_308 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_308] = 72U;
+            ob_prim_kinds[p_308] = 48U;
         }
-        p_309 = primitive_number_named("floatDiv");
+        p_309 = primitive_number_named("intRem");
         if ((p_309 > 0) && (p_309 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_309] = 73U;
+            ob_prim_kinds[p_309] = 49U;
         }
-        p_310 = primitive_number_named("floatSqrt");
+        p_310 = primitive_number_named("charValue");
         if ((p_310 > 0) && (p_310 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_310] = 8U;
+            ob_prim_kinds[p_310] = 12U;
         }
-        p_311 = primitive_number_named("basicNew");
+        p_311 = primitive_number_named("charFromValue");
         if ((p_311 > 0) && (p_311 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_311] = 9U;
+            ob_prim_kinds[p_311] = 13U;
         }
-        p_312 = primitive_number_named("basicNew:");
+        p_312 = primitive_number_named("floatAdd");
         if ((p_312 > 0) && (p_312 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_312] = 10U;
+            ob_prim_kinds[p_312] = 64U;
         }
-        p_313 = primitive_number_named("closureValue");
+        p_313 = primitive_number_named("floatSub");
         if ((p_313 > 0) && (p_313 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_313] = 11U;
+            ob_prim_kinds[p_313] = 65U;
         }
-        p_314 = primitive_number_named("replaceFromToWithStartingAt");
+        p_314 = primitive_number_named("floatLess");
         if ((p_314 > 0) && (p_314 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_314] = 14U;
+            ob_prim_kinds[p_314] = 66U;
+        }
+        p_315 = primitive_number_named("floatGreater");
+        if ((p_315 > 0) && (p_315 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_315] = 67U;
+        }
+        p_316 = primitive_number_named("floatLessEq");
+        if ((p_316 > 0) && (p_316 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_316] = 68U;
+        }
+        p_317 = primitive_number_named("floatGreaterEq");
+        if ((p_317 > 0) && (p_317 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_317] = 69U;
+        }
+        p_318 = primitive_number_named("floatEq");
+        if ((p_318 > 0) && (p_318 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_318] = 70U;
+        }
+        p_319 = primitive_number_named("floatNotEq");
+        if ((p_319 > 0) && (p_319 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_319] = 71U;
+        }
+        p_320 = primitive_number_named("floatMul");
+        if ((p_320 > 0) && (p_320 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_320] = 72U;
+        }
+        p_321 = primitive_number_named("floatDiv");
+        if ((p_321 > 0) && (p_321 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_321] = 73U;
+        }
+        p_322 = primitive_number_named("floatSqrt");
+        if ((p_322 > 0) && (p_322 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_322] = 8U;
+        }
+        p_323 = primitive_number_named("basicNew");
+        if ((p_323 > 0) && (p_323 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_323] = 9U;
+        }
+        p_324 = primitive_number_named("basicNew:");
+        if ((p_324 > 0) && (p_324 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_324] = 10U;
+        }
+        p_325 = primitive_number_named("closureValue");
+        if ((p_325 > 0) && (p_325 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_325] = 11U;
+        }
+        p_326 = primitive_number_named("replaceFromToWithStartingAt");
+        if ((p_326 > 0) && (p_326 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_326] = 14U;
+        }
+        p_327 = primitive_number_named("stringHash");
+        if ((p_327 > 0) && (p_327 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_327] = 15U;
+        }
+        p_328 = primitive_number_named("stringCompare");
+        if ((p_328 > 0) && (p_328 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_328] = 16U;
         }
     }
-    if ((p_273 <= 0) || (p_273 >= OPT_MAX_PRIM)) {
+    if ((p_285 <= 0) || (p_285 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_7 = 0;
         goto exit_prim_kind_of_7;
     }
-    r_prim_kind_of_7 = (int32_t)ob_prim_kinds[p_273];
+    r_prim_kind_of_7 = (int32_t)ob_prim_kinds[p_285];
 exit_prim_kind_of_7:;
     r_prim_kind_of_7; });
     if (!(((kind_8 == OPK_NEW) && (argc == 0)) || ((kind_8 == OPK_NEWSIZE) && (argc == 1)))) {
@@ -14586,184 +14955,192 @@ exit_allocate_3:;
         goto exit_send_3;
     }
     if ((cls_3 == cls_block) && (((jit_flags & JIT_FLAG_CALLS) != 0) && ({
-    p_316 = ({
-    p_315 = *(uint64_t *)(m_15 + 16 + 56);
-    r_method_primitive_18 = (p_315 & 1) != 0 ? (int32_t)((((int64_t)p_315) >> 1) & CM_PRIM_MASK) : 0;
+    p_330 = ({
+    p_329 = *(uint64_t *)(m_15 + 16 + 56);
+    r_method_primitive_18 = (p_329 & 1) != 0 ? (int32_t)((((int64_t)p_329) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_18; });
     ({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_317 = primitive_number_named("at");
-        if ((p_317 > 0) && (p_317 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_317] = 1U;
-        }
-        p_318 = primitive_number_named("atPut");
-        if ((p_318 > 0) && (p_318 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_318] = 2U;
-        }
-        p_319 = primitive_number_named("basicSize");
-        if ((p_319 > 0) && (p_319 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_319] = 3U;
-        }
-        p_320 = primitive_number_named("stringAt");
-        if ((p_320 > 0) && (p_320 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_320] = 4U;
-        }
-        p_321 = primitive_number_named("stringAtPut");
-        if ((p_321 > 0) && (p_321 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_321] = 5U;
-        }
-        p_322 = primitive_number_named("class");
-        if ((p_322 > 0) && (p_322 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_322] = 6U;
-        }
-        p_323 = primitive_number_named("identical");
-        if ((p_323 > 0) && (p_323 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_323] = 7U;
-        }
-        p_324 = primitive_number_named("intAdd");
-        if ((p_324 > 0) && (p_324 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_324] = 32U;
-        }
-        p_325 = primitive_number_named("intSub");
-        if ((p_325 > 0) && (p_325 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_325] = 33U;
-        }
-        p_326 = primitive_number_named("intLess");
-        if ((p_326 > 0) && (p_326 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_326] = 34U;
-        }
-        p_327 = primitive_number_named("intGreater");
-        if ((p_327 > 0) && (p_327 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_327] = 35U;
-        }
-        p_328 = primitive_number_named("intLessEq");
-        if ((p_328 > 0) && (p_328 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_328] = 36U;
-        }
-        p_329 = primitive_number_named("intGreaterEq");
-        if ((p_329 > 0) && (p_329 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_329] = 37U;
-        }
-        p_330 = primitive_number_named("intEq");
-        if ((p_330 > 0) && (p_330 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_330] = 38U;
-        }
-        p_331 = primitive_number_named("intNotEq");
+        p_331 = primitive_number_named("at");
         if ((p_331 > 0) && (p_331 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_331] = 39U;
+            ob_prim_kinds[p_331] = 1U;
         }
-        p_332 = primitive_number_named("intMul");
+        p_332 = primitive_number_named("atPut");
         if ((p_332 > 0) && (p_332 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_332] = 40U;
+            ob_prim_kinds[p_332] = 2U;
         }
-        p_333 = primitive_number_named("intBitAnd");
+        p_333 = primitive_number_named("basicSize");
         if ((p_333 > 0) && (p_333 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_333] = 46U;
+            ob_prim_kinds[p_333] = 3U;
         }
-        p_334 = primitive_number_named("intBitOr");
+        p_334 = primitive_number_named("stringAt");
         if ((p_334 > 0) && (p_334 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_334] = 47U;
+            ob_prim_kinds[p_334] = 4U;
         }
-        p_335 = primitive_number_named("intMod");
+        p_335 = primitive_number_named("stringAtPut");
         if ((p_335 > 0) && (p_335 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_335] = 42U;
+            ob_prim_kinds[p_335] = 5U;
         }
-        p_336 = primitive_number_named("intBitXor");
+        p_336 = primitive_number_named("class");
         if ((p_336 > 0) && (p_336 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_336] = 43U;
+            ob_prim_kinds[p_336] = 6U;
         }
-        p_337 = primitive_number_named("intBitShift");
+        p_337 = primitive_number_named("identical");
         if ((p_337 > 0) && (p_337 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_337] = 44U;
+            ob_prim_kinds[p_337] = 7U;
         }
-        p_338 = primitive_number_named("intFloorDiv");
+        p_338 = primitive_number_named("intAdd");
         if ((p_338 > 0) && (p_338 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_338] = 45U;
+            ob_prim_kinds[p_338] = 32U;
         }
-        p_339 = primitive_number_named("intQuo");
+        p_339 = primitive_number_named("intSub");
         if ((p_339 > 0) && (p_339 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_339] = 48U;
+            ob_prim_kinds[p_339] = 33U;
         }
-        p_340 = primitive_number_named("intRem");
+        p_340 = primitive_number_named("intLess");
         if ((p_340 > 0) && (p_340 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_340] = 49U;
+            ob_prim_kinds[p_340] = 34U;
         }
-        p_341 = primitive_number_named("charValue");
+        p_341 = primitive_number_named("intGreater");
         if ((p_341 > 0) && (p_341 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_341] = 12U;
+            ob_prim_kinds[p_341] = 35U;
         }
-        p_342 = primitive_number_named("charFromValue");
+        p_342 = primitive_number_named("intLessEq");
         if ((p_342 > 0) && (p_342 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_342] = 13U;
+            ob_prim_kinds[p_342] = 36U;
         }
-        p_343 = primitive_number_named("floatAdd");
+        p_343 = primitive_number_named("intGreaterEq");
         if ((p_343 > 0) && (p_343 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_343] = 64U;
+            ob_prim_kinds[p_343] = 37U;
         }
-        p_344 = primitive_number_named("floatSub");
+        p_344 = primitive_number_named("intEq");
         if ((p_344 > 0) && (p_344 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_344] = 65U;
+            ob_prim_kinds[p_344] = 38U;
         }
-        p_345 = primitive_number_named("floatLess");
+        p_345 = primitive_number_named("intNotEq");
         if ((p_345 > 0) && (p_345 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_345] = 66U;
+            ob_prim_kinds[p_345] = 39U;
         }
-        p_346 = primitive_number_named("floatGreater");
+        p_346 = primitive_number_named("intMul");
         if ((p_346 > 0) && (p_346 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_346] = 67U;
+            ob_prim_kinds[p_346] = 40U;
         }
-        p_347 = primitive_number_named("floatLessEq");
+        p_347 = primitive_number_named("intBitAnd");
         if ((p_347 > 0) && (p_347 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_347] = 68U;
+            ob_prim_kinds[p_347] = 46U;
         }
-        p_348 = primitive_number_named("floatGreaterEq");
+        p_348 = primitive_number_named("intBitOr");
         if ((p_348 > 0) && (p_348 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_348] = 69U;
+            ob_prim_kinds[p_348] = 47U;
         }
-        p_349 = primitive_number_named("floatEq");
+        p_349 = primitive_number_named("intMod");
         if ((p_349 > 0) && (p_349 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_349] = 70U;
+            ob_prim_kinds[p_349] = 42U;
         }
-        p_350 = primitive_number_named("floatNotEq");
+        p_350 = primitive_number_named("intBitXor");
         if ((p_350 > 0) && (p_350 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_350] = 71U;
+            ob_prim_kinds[p_350] = 43U;
         }
-        p_351 = primitive_number_named("floatMul");
+        p_351 = primitive_number_named("intBitShift");
         if ((p_351 > 0) && (p_351 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_351] = 72U;
+            ob_prim_kinds[p_351] = 44U;
         }
-        p_352 = primitive_number_named("floatDiv");
+        p_352 = primitive_number_named("intFloorDiv");
         if ((p_352 > 0) && (p_352 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_352] = 73U;
+            ob_prim_kinds[p_352] = 45U;
         }
-        p_353 = primitive_number_named("floatSqrt");
+        p_353 = primitive_number_named("intQuo");
         if ((p_353 > 0) && (p_353 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_353] = 8U;
+            ob_prim_kinds[p_353] = 48U;
         }
-        p_354 = primitive_number_named("basicNew");
+        p_354 = primitive_number_named("intRem");
         if ((p_354 > 0) && (p_354 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_354] = 9U;
+            ob_prim_kinds[p_354] = 49U;
         }
-        p_355 = primitive_number_named("basicNew:");
+        p_355 = primitive_number_named("charValue");
         if ((p_355 > 0) && (p_355 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_355] = 10U;
+            ob_prim_kinds[p_355] = 12U;
         }
-        p_356 = primitive_number_named("closureValue");
+        p_356 = primitive_number_named("charFromValue");
         if ((p_356 > 0) && (p_356 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_356] = 11U;
+            ob_prim_kinds[p_356] = 13U;
         }
-        p_357 = primitive_number_named("replaceFromToWithStartingAt");
+        p_357 = primitive_number_named("floatAdd");
         if ((p_357 > 0) && (p_357 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_357] = 14U;
+            ob_prim_kinds[p_357] = 64U;
+        }
+        p_358 = primitive_number_named("floatSub");
+        if ((p_358 > 0) && (p_358 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_358] = 65U;
+        }
+        p_359 = primitive_number_named("floatLess");
+        if ((p_359 > 0) && (p_359 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_359] = 66U;
+        }
+        p_360 = primitive_number_named("floatGreater");
+        if ((p_360 > 0) && (p_360 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_360] = 67U;
+        }
+        p_361 = primitive_number_named("floatLessEq");
+        if ((p_361 > 0) && (p_361 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_361] = 68U;
+        }
+        p_362 = primitive_number_named("floatGreaterEq");
+        if ((p_362 > 0) && (p_362 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_362] = 69U;
+        }
+        p_363 = primitive_number_named("floatEq");
+        if ((p_363 > 0) && (p_363 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_363] = 70U;
+        }
+        p_364 = primitive_number_named("floatNotEq");
+        if ((p_364 > 0) && (p_364 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_364] = 71U;
+        }
+        p_365 = primitive_number_named("floatMul");
+        if ((p_365 > 0) && (p_365 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_365] = 72U;
+        }
+        p_366 = primitive_number_named("floatDiv");
+        if ((p_366 > 0) && (p_366 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_366] = 73U;
+        }
+        p_367 = primitive_number_named("floatSqrt");
+        if ((p_367 > 0) && (p_367 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_367] = 8U;
+        }
+        p_368 = primitive_number_named("basicNew");
+        if ((p_368 > 0) && (p_368 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_368] = 9U;
+        }
+        p_369 = primitive_number_named("basicNew:");
+        if ((p_369 > 0) && (p_369 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_369] = 10U;
+        }
+        p_370 = primitive_number_named("closureValue");
+        if ((p_370 > 0) && (p_370 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_370] = 11U;
+        }
+        p_371 = primitive_number_named("replaceFromToWithStartingAt");
+        if ((p_371 > 0) && (p_371 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_371] = 14U;
+        }
+        p_372 = primitive_number_named("stringHash");
+        if ((p_372 > 0) && (p_372 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_372] = 15U;
+        }
+        p_373 = primitive_number_named("stringCompare");
+        if ((p_373 > 0) && (p_373 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_373] = 16U;
         }
     }
-    if ((p_316 <= 0) || (p_316 >= OPT_MAX_PRIM)) {
+    if ((p_330 <= 0) || (p_330 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_8 = 0;
         goto exit_prim_kind_of_8;
     }
-    r_prim_kind_of_8 = (int32_t)ob_prim_kinds[p_316];
+    r_prim_kind_of_8 = (int32_t)ob_prim_kinds[p_330];
 exit_prim_kind_of_8:;
     r_prim_kind_of_8; }) == OPK_CLOSURE; }))) {
         r_send_3 = ({
@@ -15000,184 +15377,192 @@ exit_block_call_3:;
         goto exit_send_3;
     }
     if (((jit_flags & JIT_FLAG_PRIMS) != 0) && ({
-    p_359 = ({
-    p_358 = *(uint64_t *)(m_15 + 16 + 56);
-    r_method_primitive_19 = (p_358 & 1) != 0 ? (int32_t)((((int64_t)p_358) >> 1) & CM_PRIM_MASK) : 0;
+    p_375 = ({
+    p_374 = *(uint64_t *)(m_15 + 16 + 56);
+    r_method_primitive_19 = (p_374 & 1) != 0 ? (int32_t)((((int64_t)p_374) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_19; });
     if (!((({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_360 = primitive_number_named("at");
-        if ((p_360 > 0) && (p_360 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_360] = 1U;
-        }
-        p_361 = primitive_number_named("atPut");
-        if ((p_361 > 0) && (p_361 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_361] = 2U;
-        }
-        p_362 = primitive_number_named("basicSize");
-        if ((p_362 > 0) && (p_362 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_362] = 3U;
-        }
-        p_363 = primitive_number_named("stringAt");
-        if ((p_363 > 0) && (p_363 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_363] = 4U;
-        }
-        p_364 = primitive_number_named("stringAtPut");
-        if ((p_364 > 0) && (p_364 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_364] = 5U;
-        }
-        p_365 = primitive_number_named("class");
-        if ((p_365 > 0) && (p_365 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_365] = 6U;
-        }
-        p_366 = primitive_number_named("identical");
-        if ((p_366 > 0) && (p_366 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_366] = 7U;
-        }
-        p_367 = primitive_number_named("intAdd");
-        if ((p_367 > 0) && (p_367 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_367] = 32U;
-        }
-        p_368 = primitive_number_named("intSub");
-        if ((p_368 > 0) && (p_368 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_368] = 33U;
-        }
-        p_369 = primitive_number_named("intLess");
-        if ((p_369 > 0) && (p_369 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_369] = 34U;
-        }
-        p_370 = primitive_number_named("intGreater");
-        if ((p_370 > 0) && (p_370 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_370] = 35U;
-        }
-        p_371 = primitive_number_named("intLessEq");
-        if ((p_371 > 0) && (p_371 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_371] = 36U;
-        }
-        p_372 = primitive_number_named("intGreaterEq");
-        if ((p_372 > 0) && (p_372 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_372] = 37U;
-        }
-        p_373 = primitive_number_named("intEq");
-        if ((p_373 > 0) && (p_373 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_373] = 38U;
-        }
-        p_374 = primitive_number_named("intNotEq");
-        if ((p_374 > 0) && (p_374 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_374] = 39U;
-        }
-        p_375 = primitive_number_named("intMul");
-        if ((p_375 > 0) && (p_375 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_375] = 40U;
-        }
-        p_376 = primitive_number_named("intBitAnd");
+        p_376 = primitive_number_named("at");
         if ((p_376 > 0) && (p_376 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_376] = 46U;
+            ob_prim_kinds[p_376] = 1U;
         }
-        p_377 = primitive_number_named("intBitOr");
+        p_377 = primitive_number_named("atPut");
         if ((p_377 > 0) && (p_377 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_377] = 47U;
+            ob_prim_kinds[p_377] = 2U;
         }
-        p_378 = primitive_number_named("intMod");
+        p_378 = primitive_number_named("basicSize");
         if ((p_378 > 0) && (p_378 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_378] = 42U;
+            ob_prim_kinds[p_378] = 3U;
         }
-        p_379 = primitive_number_named("intBitXor");
+        p_379 = primitive_number_named("stringAt");
         if ((p_379 > 0) && (p_379 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_379] = 43U;
+            ob_prim_kinds[p_379] = 4U;
         }
-        p_380 = primitive_number_named("intBitShift");
+        p_380 = primitive_number_named("stringAtPut");
         if ((p_380 > 0) && (p_380 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_380] = 44U;
+            ob_prim_kinds[p_380] = 5U;
         }
-        p_381 = primitive_number_named("intFloorDiv");
+        p_381 = primitive_number_named("class");
         if ((p_381 > 0) && (p_381 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_381] = 45U;
+            ob_prim_kinds[p_381] = 6U;
         }
-        p_382 = primitive_number_named("intQuo");
+        p_382 = primitive_number_named("identical");
         if ((p_382 > 0) && (p_382 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_382] = 48U;
+            ob_prim_kinds[p_382] = 7U;
         }
-        p_383 = primitive_number_named("intRem");
+        p_383 = primitive_number_named("intAdd");
         if ((p_383 > 0) && (p_383 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_383] = 49U;
+            ob_prim_kinds[p_383] = 32U;
         }
-        p_384 = primitive_number_named("charValue");
+        p_384 = primitive_number_named("intSub");
         if ((p_384 > 0) && (p_384 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_384] = 12U;
+            ob_prim_kinds[p_384] = 33U;
         }
-        p_385 = primitive_number_named("charFromValue");
+        p_385 = primitive_number_named("intLess");
         if ((p_385 > 0) && (p_385 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_385] = 13U;
+            ob_prim_kinds[p_385] = 34U;
         }
-        p_386 = primitive_number_named("floatAdd");
+        p_386 = primitive_number_named("intGreater");
         if ((p_386 > 0) && (p_386 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_386] = 64U;
+            ob_prim_kinds[p_386] = 35U;
         }
-        p_387 = primitive_number_named("floatSub");
+        p_387 = primitive_number_named("intLessEq");
         if ((p_387 > 0) && (p_387 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_387] = 65U;
+            ob_prim_kinds[p_387] = 36U;
         }
-        p_388 = primitive_number_named("floatLess");
+        p_388 = primitive_number_named("intGreaterEq");
         if ((p_388 > 0) && (p_388 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_388] = 66U;
+            ob_prim_kinds[p_388] = 37U;
         }
-        p_389 = primitive_number_named("floatGreater");
+        p_389 = primitive_number_named("intEq");
         if ((p_389 > 0) && (p_389 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_389] = 67U;
+            ob_prim_kinds[p_389] = 38U;
         }
-        p_390 = primitive_number_named("floatLessEq");
+        p_390 = primitive_number_named("intNotEq");
         if ((p_390 > 0) && (p_390 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_390] = 68U;
+            ob_prim_kinds[p_390] = 39U;
         }
-        p_391 = primitive_number_named("floatGreaterEq");
+        p_391 = primitive_number_named("intMul");
         if ((p_391 > 0) && (p_391 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_391] = 69U;
+            ob_prim_kinds[p_391] = 40U;
         }
-        p_392 = primitive_number_named("floatEq");
+        p_392 = primitive_number_named("intBitAnd");
         if ((p_392 > 0) && (p_392 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_392] = 70U;
+            ob_prim_kinds[p_392] = 46U;
         }
-        p_393 = primitive_number_named("floatNotEq");
+        p_393 = primitive_number_named("intBitOr");
         if ((p_393 > 0) && (p_393 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_393] = 71U;
+            ob_prim_kinds[p_393] = 47U;
         }
-        p_394 = primitive_number_named("floatMul");
+        p_394 = primitive_number_named("intMod");
         if ((p_394 > 0) && (p_394 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_394] = 72U;
+            ob_prim_kinds[p_394] = 42U;
         }
-        p_395 = primitive_number_named("floatDiv");
+        p_395 = primitive_number_named("intBitXor");
         if ((p_395 > 0) && (p_395 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_395] = 73U;
+            ob_prim_kinds[p_395] = 43U;
         }
-        p_396 = primitive_number_named("floatSqrt");
+        p_396 = primitive_number_named("intBitShift");
         if ((p_396 > 0) && (p_396 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_396] = 8U;
+            ob_prim_kinds[p_396] = 44U;
         }
-        p_397 = primitive_number_named("basicNew");
+        p_397 = primitive_number_named("intFloorDiv");
         if ((p_397 > 0) && (p_397 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_397] = 9U;
+            ob_prim_kinds[p_397] = 45U;
         }
-        p_398 = primitive_number_named("basicNew:");
+        p_398 = primitive_number_named("intQuo");
         if ((p_398 > 0) && (p_398 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_398] = 10U;
+            ob_prim_kinds[p_398] = 48U;
         }
-        p_399 = primitive_number_named("closureValue");
+        p_399 = primitive_number_named("intRem");
         if ((p_399 > 0) && (p_399 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_399] = 11U;
+            ob_prim_kinds[p_399] = 49U;
         }
-        p_400 = primitive_number_named("replaceFromToWithStartingAt");
+        p_400 = primitive_number_named("charValue");
         if ((p_400 > 0) && (p_400 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_400] = 14U;
+            ob_prim_kinds[p_400] = 12U;
+        }
+        p_401 = primitive_number_named("charFromValue");
+        if ((p_401 > 0) && (p_401 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_401] = 13U;
+        }
+        p_402 = primitive_number_named("floatAdd");
+        if ((p_402 > 0) && (p_402 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_402] = 64U;
+        }
+        p_403 = primitive_number_named("floatSub");
+        if ((p_403 > 0) && (p_403 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_403] = 65U;
+        }
+        p_404 = primitive_number_named("floatLess");
+        if ((p_404 > 0) && (p_404 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_404] = 66U;
+        }
+        p_405 = primitive_number_named("floatGreater");
+        if ((p_405 > 0) && (p_405 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_405] = 67U;
+        }
+        p_406 = primitive_number_named("floatLessEq");
+        if ((p_406 > 0) && (p_406 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_406] = 68U;
+        }
+        p_407 = primitive_number_named("floatGreaterEq");
+        if ((p_407 > 0) && (p_407 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_407] = 69U;
+        }
+        p_408 = primitive_number_named("floatEq");
+        if ((p_408 > 0) && (p_408 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_408] = 70U;
+        }
+        p_409 = primitive_number_named("floatNotEq");
+        if ((p_409 > 0) && (p_409 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_409] = 71U;
+        }
+        p_410 = primitive_number_named("floatMul");
+        if ((p_410 > 0) && (p_410 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_410] = 72U;
+        }
+        p_411 = primitive_number_named("floatDiv");
+        if ((p_411 > 0) && (p_411 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_411] = 73U;
+        }
+        p_412 = primitive_number_named("floatSqrt");
+        if ((p_412 > 0) && (p_412 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_412] = 8U;
+        }
+        p_413 = primitive_number_named("basicNew");
+        if ((p_413 > 0) && (p_413 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_413] = 9U;
+        }
+        p_414 = primitive_number_named("basicNew:");
+        if ((p_414 > 0) && (p_414 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_414] = 10U;
+        }
+        p_415 = primitive_number_named("closureValue");
+        if ((p_415 > 0) && (p_415 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_415] = 11U;
+        }
+        p_416 = primitive_number_named("replaceFromToWithStartingAt");
+        if ((p_416 > 0) && (p_416 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_416] = 14U;
+        }
+        p_417 = primitive_number_named("stringHash");
+        if ((p_417 > 0) && (p_417 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_417] = 15U;
+        }
+        p_418 = primitive_number_named("stringCompare");
+        if ((p_418 > 0) && (p_418 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_418] = 16U;
         }
     }
-    if ((p_359 <= 0) || (p_359 >= OPT_MAX_PRIM)) {
+    if ((p_375 <= 0) || (p_375 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_9 = 0;
         goto exit_prim_kind_of_9;
     }
-    r_prim_kind_of_9 = (int32_t)ob_prim_kinds[p_359];
+    r_prim_kind_of_9 = (int32_t)ob_prim_kinds[p_375];
 exit_prim_kind_of_9:;
     r_prim_kind_of_9; }) == OPK_REPLACE) && (argc == 4))) {
         r_replace_3 = false;
@@ -15329,11 +15714,11 @@ exit_replace_3:;
         goto exit_send_3;
     }
     if ((({
-    p_401 = *(uint64_t *)(m_15 + 16 + 56);
-    r_method_primitive_20 = (p_401 & 1) != 0 ? (int32_t)((((int64_t)p_401) >> 1) & CM_PRIM_MASK) : 0;
+    p_419 = *(uint64_t *)(m_15 + 16 + 56);
+    r_method_primitive_20 = (p_419 & 1) != 0 ? (int32_t)((((int64_t)p_419) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_20; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && inline_primitive(({
-    p_402 = *(uint64_t *)(m_15 + 16 + 56);
-    r_method_primitive_21 = (p_402 & 1) != 0 ? (int32_t)((((int64_t)p_402) >> 1) & CM_PRIM_MASK) : 0;
+    p_420 = *(uint64_t *)(m_15 + 16 + 56);
+    r_method_primitive_21 = (p_420 & 1) != 0 ? (int32_t)((((int64_t)p_420) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_21; }), cls_3, argc, pc, a, r))) {
         r_send_3 = true;
         goto exit_send_3;
@@ -15568,13 +15953,13 @@ exit_write_20:;
     if ((kind == 0) && ({
     i_58 = r + 1;
     n_123 = argc - 1;
-    (p_403 = ({
+    (p_421 = ({
     if (!((ob_perform_act < 0) && ((prim_kind_of(({
-    p_404 = *(uint64_t *)(m_21 + 16 + 56);
-    r_method_primitive_22 = (p_404 & 1) != 0 ? (int32_t)((((int64_t)p_404) >> 1) & CM_PRIM_MASK) : 0;
+    p_422 = *(uint64_t *)(m_21 + 16 + 56);
+    r_method_primitive_22 = (p_422 & 1) != 0 ? (int32_t)((((int64_t)p_422) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_22; })) == PK_PERFORM) && ((prim_op_of(({
-    p_405 = *(uint64_t *)(m_21 + 16 + 56);
-    r_method_primitive_23 = (p_405 & 1) != 0 ? (int32_t)((((int64_t)p_405) >> 1) & CM_PRIM_MASK) : 0;
+    p_423 = *(uint64_t *)(m_21 + 16 + 56);
+    r_method_primitive_23 = (p_423 & 1) != 0 ? (int32_t)((((int64_t)p_423) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_23; })) == 0) && ((n_123 >= 0) && (n_123 < 8)))))) {
         r_performed_at_4 = 0ULL;
         goto exit_performed_at_4;
@@ -15593,188 +15978,196 @@ exit_write_20:;
     r_performed_at_4 = (uint64_t)nd_5->aux;
 exit_performed_at_4:;
     r_performed_at_4; })) != 0; })) {
-        r_send_4 = send_performed(p_403, g, cls, argc - 1, pc, a, r);
+        r_send_4 = send_performed(p_421, g, cls, argc - 1, pc, a, r);
         goto exit_send_4;
     }
     if (((jit_flags & JIT_FLAG_ALLOC) != 0) && ({
-    p_407 = ({
-    p_406 = *(uint64_t *)(m_21 + 16 + 56);
-    r_method_primitive_24 = (p_406 & 1) != 0 ? (int32_t)((((int64_t)p_406) >> 1) & CM_PRIM_MASK) : 0;
+    p_425 = ({
+    p_424 = *(uint64_t *)(m_21 + 16 + 56);
+    r_method_primitive_24 = (p_424 & 1) != 0 ? (int32_t)((((int64_t)p_424) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_24; });
     kind_11 = ({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_408 = primitive_number_named("at");
-        if ((p_408 > 0) && (p_408 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_408] = 1U;
-        }
-        p_409 = primitive_number_named("atPut");
-        if ((p_409 > 0) && (p_409 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_409] = 2U;
-        }
-        p_410 = primitive_number_named("basicSize");
-        if ((p_410 > 0) && (p_410 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_410] = 3U;
-        }
-        p_411 = primitive_number_named("stringAt");
-        if ((p_411 > 0) && (p_411 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_411] = 4U;
-        }
-        p_412 = primitive_number_named("stringAtPut");
-        if ((p_412 > 0) && (p_412 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_412] = 5U;
-        }
-        p_413 = primitive_number_named("class");
-        if ((p_413 > 0) && (p_413 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_413] = 6U;
-        }
-        p_414 = primitive_number_named("identical");
-        if ((p_414 > 0) && (p_414 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_414] = 7U;
-        }
-        p_415 = primitive_number_named("intAdd");
-        if ((p_415 > 0) && (p_415 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_415] = 32U;
-        }
-        p_416 = primitive_number_named("intSub");
-        if ((p_416 > 0) && (p_416 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_416] = 33U;
-        }
-        p_417 = primitive_number_named("intLess");
-        if ((p_417 > 0) && (p_417 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_417] = 34U;
-        }
-        p_418 = primitive_number_named("intGreater");
-        if ((p_418 > 0) && (p_418 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_418] = 35U;
-        }
-        p_419 = primitive_number_named("intLessEq");
-        if ((p_419 > 0) && (p_419 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_419] = 36U;
-        }
-        p_420 = primitive_number_named("intGreaterEq");
-        if ((p_420 > 0) && (p_420 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_420] = 37U;
-        }
-        p_421 = primitive_number_named("intEq");
-        if ((p_421 > 0) && (p_421 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_421] = 38U;
-        }
-        p_422 = primitive_number_named("intNotEq");
-        if ((p_422 > 0) && (p_422 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_422] = 39U;
-        }
-        p_423 = primitive_number_named("intMul");
-        if ((p_423 > 0) && (p_423 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_423] = 40U;
-        }
-        p_424 = primitive_number_named("intBitAnd");
-        if ((p_424 > 0) && (p_424 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_424] = 46U;
-        }
-        p_425 = primitive_number_named("intBitOr");
-        if ((p_425 > 0) && (p_425 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_425] = 47U;
-        }
-        p_426 = primitive_number_named("intMod");
+        p_426 = primitive_number_named("at");
         if ((p_426 > 0) && (p_426 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_426] = 42U;
+            ob_prim_kinds[p_426] = 1U;
         }
-        p_427 = primitive_number_named("intBitXor");
+        p_427 = primitive_number_named("atPut");
         if ((p_427 > 0) && (p_427 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_427] = 43U;
+            ob_prim_kinds[p_427] = 2U;
         }
-        p_428 = primitive_number_named("intBitShift");
+        p_428 = primitive_number_named("basicSize");
         if ((p_428 > 0) && (p_428 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_428] = 44U;
+            ob_prim_kinds[p_428] = 3U;
         }
-        p_429 = primitive_number_named("intFloorDiv");
+        p_429 = primitive_number_named("stringAt");
         if ((p_429 > 0) && (p_429 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_429] = 45U;
+            ob_prim_kinds[p_429] = 4U;
         }
-        p_430 = primitive_number_named("intQuo");
+        p_430 = primitive_number_named("stringAtPut");
         if ((p_430 > 0) && (p_430 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_430] = 48U;
+            ob_prim_kinds[p_430] = 5U;
         }
-        p_431 = primitive_number_named("intRem");
+        p_431 = primitive_number_named("class");
         if ((p_431 > 0) && (p_431 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_431] = 49U;
+            ob_prim_kinds[p_431] = 6U;
         }
-        p_432 = primitive_number_named("charValue");
+        p_432 = primitive_number_named("identical");
         if ((p_432 > 0) && (p_432 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_432] = 12U;
+            ob_prim_kinds[p_432] = 7U;
         }
-        p_433 = primitive_number_named("charFromValue");
+        p_433 = primitive_number_named("intAdd");
         if ((p_433 > 0) && (p_433 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_433] = 13U;
+            ob_prim_kinds[p_433] = 32U;
         }
-        p_434 = primitive_number_named("floatAdd");
+        p_434 = primitive_number_named("intSub");
         if ((p_434 > 0) && (p_434 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_434] = 64U;
+            ob_prim_kinds[p_434] = 33U;
         }
-        p_435 = primitive_number_named("floatSub");
+        p_435 = primitive_number_named("intLess");
         if ((p_435 > 0) && (p_435 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_435] = 65U;
+            ob_prim_kinds[p_435] = 34U;
         }
-        p_436 = primitive_number_named("floatLess");
+        p_436 = primitive_number_named("intGreater");
         if ((p_436 > 0) && (p_436 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_436] = 66U;
+            ob_prim_kinds[p_436] = 35U;
         }
-        p_437 = primitive_number_named("floatGreater");
+        p_437 = primitive_number_named("intLessEq");
         if ((p_437 > 0) && (p_437 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_437] = 67U;
+            ob_prim_kinds[p_437] = 36U;
         }
-        p_438 = primitive_number_named("floatLessEq");
+        p_438 = primitive_number_named("intGreaterEq");
         if ((p_438 > 0) && (p_438 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_438] = 68U;
+            ob_prim_kinds[p_438] = 37U;
         }
-        p_439 = primitive_number_named("floatGreaterEq");
+        p_439 = primitive_number_named("intEq");
         if ((p_439 > 0) && (p_439 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_439] = 69U;
+            ob_prim_kinds[p_439] = 38U;
         }
-        p_440 = primitive_number_named("floatEq");
+        p_440 = primitive_number_named("intNotEq");
         if ((p_440 > 0) && (p_440 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_440] = 70U;
+            ob_prim_kinds[p_440] = 39U;
         }
-        p_441 = primitive_number_named("floatNotEq");
+        p_441 = primitive_number_named("intMul");
         if ((p_441 > 0) && (p_441 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_441] = 71U;
+            ob_prim_kinds[p_441] = 40U;
         }
-        p_442 = primitive_number_named("floatMul");
+        p_442 = primitive_number_named("intBitAnd");
         if ((p_442 > 0) && (p_442 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_442] = 72U;
+            ob_prim_kinds[p_442] = 46U;
         }
-        p_443 = primitive_number_named("floatDiv");
+        p_443 = primitive_number_named("intBitOr");
         if ((p_443 > 0) && (p_443 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_443] = 73U;
+            ob_prim_kinds[p_443] = 47U;
         }
-        p_444 = primitive_number_named("floatSqrt");
+        p_444 = primitive_number_named("intMod");
         if ((p_444 > 0) && (p_444 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_444] = 8U;
+            ob_prim_kinds[p_444] = 42U;
         }
-        p_445 = primitive_number_named("basicNew");
+        p_445 = primitive_number_named("intBitXor");
         if ((p_445 > 0) && (p_445 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_445] = 9U;
+            ob_prim_kinds[p_445] = 43U;
         }
-        p_446 = primitive_number_named("basicNew:");
+        p_446 = primitive_number_named("intBitShift");
         if ((p_446 > 0) && (p_446 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_446] = 10U;
+            ob_prim_kinds[p_446] = 44U;
         }
-        p_447 = primitive_number_named("closureValue");
+        p_447 = primitive_number_named("intFloorDiv");
         if ((p_447 > 0) && (p_447 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_447] = 11U;
+            ob_prim_kinds[p_447] = 45U;
         }
-        p_448 = primitive_number_named("replaceFromToWithStartingAt");
+        p_448 = primitive_number_named("intQuo");
         if ((p_448 > 0) && (p_448 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_448] = 14U;
+            ob_prim_kinds[p_448] = 48U;
+        }
+        p_449 = primitive_number_named("intRem");
+        if ((p_449 > 0) && (p_449 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_449] = 49U;
+        }
+        p_450 = primitive_number_named("charValue");
+        if ((p_450 > 0) && (p_450 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_450] = 12U;
+        }
+        p_451 = primitive_number_named("charFromValue");
+        if ((p_451 > 0) && (p_451 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_451] = 13U;
+        }
+        p_452 = primitive_number_named("floatAdd");
+        if ((p_452 > 0) && (p_452 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_452] = 64U;
+        }
+        p_453 = primitive_number_named("floatSub");
+        if ((p_453 > 0) && (p_453 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_453] = 65U;
+        }
+        p_454 = primitive_number_named("floatLess");
+        if ((p_454 > 0) && (p_454 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_454] = 66U;
+        }
+        p_455 = primitive_number_named("floatGreater");
+        if ((p_455 > 0) && (p_455 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_455] = 67U;
+        }
+        p_456 = primitive_number_named("floatLessEq");
+        if ((p_456 > 0) && (p_456 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_456] = 68U;
+        }
+        p_457 = primitive_number_named("floatGreaterEq");
+        if ((p_457 > 0) && (p_457 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_457] = 69U;
+        }
+        p_458 = primitive_number_named("floatEq");
+        if ((p_458 > 0) && (p_458 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_458] = 70U;
+        }
+        p_459 = primitive_number_named("floatNotEq");
+        if ((p_459 > 0) && (p_459 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_459] = 71U;
+        }
+        p_460 = primitive_number_named("floatMul");
+        if ((p_460 > 0) && (p_460 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_460] = 72U;
+        }
+        p_461 = primitive_number_named("floatDiv");
+        if ((p_461 > 0) && (p_461 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_461] = 73U;
+        }
+        p_462 = primitive_number_named("floatSqrt");
+        if ((p_462 > 0) && (p_462 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_462] = 8U;
+        }
+        p_463 = primitive_number_named("basicNew");
+        if ((p_463 > 0) && (p_463 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_463] = 9U;
+        }
+        p_464 = primitive_number_named("basicNew:");
+        if ((p_464 > 0) && (p_464 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_464] = 10U;
+        }
+        p_465 = primitive_number_named("closureValue");
+        if ((p_465 > 0) && (p_465 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_465] = 11U;
+        }
+        p_466 = primitive_number_named("replaceFromToWithStartingAt");
+        if ((p_466 > 0) && (p_466 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_466] = 14U;
+        }
+        p_467 = primitive_number_named("stringHash");
+        if ((p_467 > 0) && (p_467 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_467] = 15U;
+        }
+        p_468 = primitive_number_named("stringCompare");
+        if ((p_468 > 0) && (p_468 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_468] = 16U;
         }
     }
-    if ((p_407 <= 0) || (p_407 >= OPT_MAX_PRIM)) {
+    if ((p_425 <= 0) || (p_425 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_10 = 0;
         goto exit_prim_kind_of_10;
     }
-    r_prim_kind_of_10 = (int32_t)ob_prim_kinds[p_407];
+    r_prim_kind_of_10 = (int32_t)ob_prim_kinds[p_425];
 exit_prim_kind_of_10:;
     r_prim_kind_of_10; });
     if (!(((kind_11 == OPK_NEW) && (argc == 0)) || ((kind_11 == OPK_NEWSIZE) && (argc == 1)))) {
@@ -15946,184 +16339,192 @@ exit_allocate_4:;
         goto exit_send_4;
     }
     if ((cls == cls_block) && (((jit_flags & JIT_FLAG_CALLS) != 0) && ({
-    p_450 = ({
-    p_449 = *(uint64_t *)(m_21 + 16 + 56);
-    r_method_primitive_25 = (p_449 & 1) != 0 ? (int32_t)((((int64_t)p_449) >> 1) & CM_PRIM_MASK) : 0;
+    p_470 = ({
+    p_469 = *(uint64_t *)(m_21 + 16 + 56);
+    r_method_primitive_25 = (p_469 & 1) != 0 ? (int32_t)((((int64_t)p_469) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_25; });
     ({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_451 = primitive_number_named("at");
-        if ((p_451 > 0) && (p_451 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_451] = 1U;
-        }
-        p_452 = primitive_number_named("atPut");
-        if ((p_452 > 0) && (p_452 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_452] = 2U;
-        }
-        p_453 = primitive_number_named("basicSize");
-        if ((p_453 > 0) && (p_453 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_453] = 3U;
-        }
-        p_454 = primitive_number_named("stringAt");
-        if ((p_454 > 0) && (p_454 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_454] = 4U;
-        }
-        p_455 = primitive_number_named("stringAtPut");
-        if ((p_455 > 0) && (p_455 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_455] = 5U;
-        }
-        p_456 = primitive_number_named("class");
-        if ((p_456 > 0) && (p_456 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_456] = 6U;
-        }
-        p_457 = primitive_number_named("identical");
-        if ((p_457 > 0) && (p_457 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_457] = 7U;
-        }
-        p_458 = primitive_number_named("intAdd");
-        if ((p_458 > 0) && (p_458 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_458] = 32U;
-        }
-        p_459 = primitive_number_named("intSub");
-        if ((p_459 > 0) && (p_459 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_459] = 33U;
-        }
-        p_460 = primitive_number_named("intLess");
-        if ((p_460 > 0) && (p_460 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_460] = 34U;
-        }
-        p_461 = primitive_number_named("intGreater");
-        if ((p_461 > 0) && (p_461 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_461] = 35U;
-        }
-        p_462 = primitive_number_named("intLessEq");
-        if ((p_462 > 0) && (p_462 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_462] = 36U;
-        }
-        p_463 = primitive_number_named("intGreaterEq");
-        if ((p_463 > 0) && (p_463 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_463] = 37U;
-        }
-        p_464 = primitive_number_named("intEq");
-        if ((p_464 > 0) && (p_464 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_464] = 38U;
-        }
-        p_465 = primitive_number_named("intNotEq");
-        if ((p_465 > 0) && (p_465 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_465] = 39U;
-        }
-        p_466 = primitive_number_named("intMul");
-        if ((p_466 > 0) && (p_466 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_466] = 40U;
-        }
-        p_467 = primitive_number_named("intBitAnd");
-        if ((p_467 > 0) && (p_467 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_467] = 46U;
-        }
-        p_468 = primitive_number_named("intBitOr");
-        if ((p_468 > 0) && (p_468 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_468] = 47U;
-        }
-        p_469 = primitive_number_named("intMod");
-        if ((p_469 > 0) && (p_469 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_469] = 42U;
-        }
-        p_470 = primitive_number_named("intBitXor");
-        if ((p_470 > 0) && (p_470 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_470] = 43U;
-        }
-        p_471 = primitive_number_named("intBitShift");
+        p_471 = primitive_number_named("at");
         if ((p_471 > 0) && (p_471 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_471] = 44U;
+            ob_prim_kinds[p_471] = 1U;
         }
-        p_472 = primitive_number_named("intFloorDiv");
+        p_472 = primitive_number_named("atPut");
         if ((p_472 > 0) && (p_472 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_472] = 45U;
+            ob_prim_kinds[p_472] = 2U;
         }
-        p_473 = primitive_number_named("intQuo");
+        p_473 = primitive_number_named("basicSize");
         if ((p_473 > 0) && (p_473 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_473] = 48U;
+            ob_prim_kinds[p_473] = 3U;
         }
-        p_474 = primitive_number_named("intRem");
+        p_474 = primitive_number_named("stringAt");
         if ((p_474 > 0) && (p_474 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_474] = 49U;
+            ob_prim_kinds[p_474] = 4U;
         }
-        p_475 = primitive_number_named("charValue");
+        p_475 = primitive_number_named("stringAtPut");
         if ((p_475 > 0) && (p_475 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_475] = 12U;
+            ob_prim_kinds[p_475] = 5U;
         }
-        p_476 = primitive_number_named("charFromValue");
+        p_476 = primitive_number_named("class");
         if ((p_476 > 0) && (p_476 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_476] = 13U;
+            ob_prim_kinds[p_476] = 6U;
         }
-        p_477 = primitive_number_named("floatAdd");
+        p_477 = primitive_number_named("identical");
         if ((p_477 > 0) && (p_477 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_477] = 64U;
+            ob_prim_kinds[p_477] = 7U;
         }
-        p_478 = primitive_number_named("floatSub");
+        p_478 = primitive_number_named("intAdd");
         if ((p_478 > 0) && (p_478 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_478] = 65U;
+            ob_prim_kinds[p_478] = 32U;
         }
-        p_479 = primitive_number_named("floatLess");
+        p_479 = primitive_number_named("intSub");
         if ((p_479 > 0) && (p_479 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_479] = 66U;
+            ob_prim_kinds[p_479] = 33U;
         }
-        p_480 = primitive_number_named("floatGreater");
+        p_480 = primitive_number_named("intLess");
         if ((p_480 > 0) && (p_480 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_480] = 67U;
+            ob_prim_kinds[p_480] = 34U;
         }
-        p_481 = primitive_number_named("floatLessEq");
+        p_481 = primitive_number_named("intGreater");
         if ((p_481 > 0) && (p_481 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_481] = 68U;
+            ob_prim_kinds[p_481] = 35U;
         }
-        p_482 = primitive_number_named("floatGreaterEq");
+        p_482 = primitive_number_named("intLessEq");
         if ((p_482 > 0) && (p_482 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_482] = 69U;
+            ob_prim_kinds[p_482] = 36U;
         }
-        p_483 = primitive_number_named("floatEq");
+        p_483 = primitive_number_named("intGreaterEq");
         if ((p_483 > 0) && (p_483 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_483] = 70U;
+            ob_prim_kinds[p_483] = 37U;
         }
-        p_484 = primitive_number_named("floatNotEq");
+        p_484 = primitive_number_named("intEq");
         if ((p_484 > 0) && (p_484 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_484] = 71U;
+            ob_prim_kinds[p_484] = 38U;
         }
-        p_485 = primitive_number_named("floatMul");
+        p_485 = primitive_number_named("intNotEq");
         if ((p_485 > 0) && (p_485 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_485] = 72U;
+            ob_prim_kinds[p_485] = 39U;
         }
-        p_486 = primitive_number_named("floatDiv");
+        p_486 = primitive_number_named("intMul");
         if ((p_486 > 0) && (p_486 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_486] = 73U;
+            ob_prim_kinds[p_486] = 40U;
         }
-        p_487 = primitive_number_named("floatSqrt");
+        p_487 = primitive_number_named("intBitAnd");
         if ((p_487 > 0) && (p_487 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_487] = 8U;
+            ob_prim_kinds[p_487] = 46U;
         }
-        p_488 = primitive_number_named("basicNew");
+        p_488 = primitive_number_named("intBitOr");
         if ((p_488 > 0) && (p_488 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_488] = 9U;
+            ob_prim_kinds[p_488] = 47U;
         }
-        p_489 = primitive_number_named("basicNew:");
+        p_489 = primitive_number_named("intMod");
         if ((p_489 > 0) && (p_489 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_489] = 10U;
+            ob_prim_kinds[p_489] = 42U;
         }
-        p_490 = primitive_number_named("closureValue");
+        p_490 = primitive_number_named("intBitXor");
         if ((p_490 > 0) && (p_490 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_490] = 11U;
+            ob_prim_kinds[p_490] = 43U;
         }
-        p_491 = primitive_number_named("replaceFromToWithStartingAt");
+        p_491 = primitive_number_named("intBitShift");
         if ((p_491 > 0) && (p_491 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_491] = 14U;
+            ob_prim_kinds[p_491] = 44U;
+        }
+        p_492 = primitive_number_named("intFloorDiv");
+        if ((p_492 > 0) && (p_492 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_492] = 45U;
+        }
+        p_493 = primitive_number_named("intQuo");
+        if ((p_493 > 0) && (p_493 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_493] = 48U;
+        }
+        p_494 = primitive_number_named("intRem");
+        if ((p_494 > 0) && (p_494 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_494] = 49U;
+        }
+        p_495 = primitive_number_named("charValue");
+        if ((p_495 > 0) && (p_495 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_495] = 12U;
+        }
+        p_496 = primitive_number_named("charFromValue");
+        if ((p_496 > 0) && (p_496 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_496] = 13U;
+        }
+        p_497 = primitive_number_named("floatAdd");
+        if ((p_497 > 0) && (p_497 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_497] = 64U;
+        }
+        p_498 = primitive_number_named("floatSub");
+        if ((p_498 > 0) && (p_498 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_498] = 65U;
+        }
+        p_499 = primitive_number_named("floatLess");
+        if ((p_499 > 0) && (p_499 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_499] = 66U;
+        }
+        p_500 = primitive_number_named("floatGreater");
+        if ((p_500 > 0) && (p_500 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_500] = 67U;
+        }
+        p_501 = primitive_number_named("floatLessEq");
+        if ((p_501 > 0) && (p_501 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_501] = 68U;
+        }
+        p_502 = primitive_number_named("floatGreaterEq");
+        if ((p_502 > 0) && (p_502 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_502] = 69U;
+        }
+        p_503 = primitive_number_named("floatEq");
+        if ((p_503 > 0) && (p_503 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_503] = 70U;
+        }
+        p_504 = primitive_number_named("floatNotEq");
+        if ((p_504 > 0) && (p_504 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_504] = 71U;
+        }
+        p_505 = primitive_number_named("floatMul");
+        if ((p_505 > 0) && (p_505 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_505] = 72U;
+        }
+        p_506 = primitive_number_named("floatDiv");
+        if ((p_506 > 0) && (p_506 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_506] = 73U;
+        }
+        p_507 = primitive_number_named("floatSqrt");
+        if ((p_507 > 0) && (p_507 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_507] = 8U;
+        }
+        p_508 = primitive_number_named("basicNew");
+        if ((p_508 > 0) && (p_508 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_508] = 9U;
+        }
+        p_509 = primitive_number_named("basicNew:");
+        if ((p_509 > 0) && (p_509 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_509] = 10U;
+        }
+        p_510 = primitive_number_named("closureValue");
+        if ((p_510 > 0) && (p_510 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_510] = 11U;
+        }
+        p_511 = primitive_number_named("replaceFromToWithStartingAt");
+        if ((p_511 > 0) && (p_511 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_511] = 14U;
+        }
+        p_512 = primitive_number_named("stringHash");
+        if ((p_512 > 0) && (p_512 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_512] = 15U;
+        }
+        p_513 = primitive_number_named("stringCompare");
+        if ((p_513 > 0) && (p_513 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_513] = 16U;
         }
     }
-    if ((p_450 <= 0) || (p_450 >= OPT_MAX_PRIM)) {
+    if ((p_470 <= 0) || (p_470 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_11 = 0;
         goto exit_prim_kind_of_11;
     }
-    r_prim_kind_of_11 = (int32_t)ob_prim_kinds[p_450];
+    r_prim_kind_of_11 = (int32_t)ob_prim_kinds[p_470];
 exit_prim_kind_of_11:;
     r_prim_kind_of_11; }) == OPK_CLOSURE; }))) {
         r_send_4 = ({
@@ -16360,184 +16761,192 @@ exit_block_call_4:;
         goto exit_send_4;
     }
     if (((jit_flags & JIT_FLAG_PRIMS) != 0) && ({
-    p_493 = ({
-    p_492 = *(uint64_t *)(m_21 + 16 + 56);
-    r_method_primitive_26 = (p_492 & 1) != 0 ? (int32_t)((((int64_t)p_492) >> 1) & CM_PRIM_MASK) : 0;
+    p_515 = ({
+    p_514 = *(uint64_t *)(m_21 + 16 + 56);
+    r_method_primitive_26 = (p_514 & 1) != 0 ? (int32_t)((((int64_t)p_514) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_26; });
     if (!((({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_494 = primitive_number_named("at");
-        if ((p_494 > 0) && (p_494 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_494] = 1U;
-        }
-        p_495 = primitive_number_named("atPut");
-        if ((p_495 > 0) && (p_495 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_495] = 2U;
-        }
-        p_496 = primitive_number_named("basicSize");
-        if ((p_496 > 0) && (p_496 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_496] = 3U;
-        }
-        p_497 = primitive_number_named("stringAt");
-        if ((p_497 > 0) && (p_497 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_497] = 4U;
-        }
-        p_498 = primitive_number_named("stringAtPut");
-        if ((p_498 > 0) && (p_498 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_498] = 5U;
-        }
-        p_499 = primitive_number_named("class");
-        if ((p_499 > 0) && (p_499 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_499] = 6U;
-        }
-        p_500 = primitive_number_named("identical");
-        if ((p_500 > 0) && (p_500 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_500] = 7U;
-        }
-        p_501 = primitive_number_named("intAdd");
-        if ((p_501 > 0) && (p_501 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_501] = 32U;
-        }
-        p_502 = primitive_number_named("intSub");
-        if ((p_502 > 0) && (p_502 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_502] = 33U;
-        }
-        p_503 = primitive_number_named("intLess");
-        if ((p_503 > 0) && (p_503 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_503] = 34U;
-        }
-        p_504 = primitive_number_named("intGreater");
-        if ((p_504 > 0) && (p_504 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_504] = 35U;
-        }
-        p_505 = primitive_number_named("intLessEq");
-        if ((p_505 > 0) && (p_505 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_505] = 36U;
-        }
-        p_506 = primitive_number_named("intGreaterEq");
-        if ((p_506 > 0) && (p_506 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_506] = 37U;
-        }
-        p_507 = primitive_number_named("intEq");
-        if ((p_507 > 0) && (p_507 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_507] = 38U;
-        }
-        p_508 = primitive_number_named("intNotEq");
-        if ((p_508 > 0) && (p_508 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_508] = 39U;
-        }
-        p_509 = primitive_number_named("intMul");
-        if ((p_509 > 0) && (p_509 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_509] = 40U;
-        }
-        p_510 = primitive_number_named("intBitAnd");
-        if ((p_510 > 0) && (p_510 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_510] = 46U;
-        }
-        p_511 = primitive_number_named("intBitOr");
-        if ((p_511 > 0) && (p_511 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_511] = 47U;
-        }
-        p_512 = primitive_number_named("intMod");
-        if ((p_512 > 0) && (p_512 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_512] = 42U;
-        }
-        p_513 = primitive_number_named("intBitXor");
-        if ((p_513 > 0) && (p_513 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_513] = 43U;
-        }
-        p_514 = primitive_number_named("intBitShift");
-        if ((p_514 > 0) && (p_514 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_514] = 44U;
-        }
-        p_515 = primitive_number_named("intFloorDiv");
-        if ((p_515 > 0) && (p_515 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_515] = 45U;
-        }
-        p_516 = primitive_number_named("intQuo");
+        p_516 = primitive_number_named("at");
         if ((p_516 > 0) && (p_516 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_516] = 48U;
+            ob_prim_kinds[p_516] = 1U;
         }
-        p_517 = primitive_number_named("intRem");
+        p_517 = primitive_number_named("atPut");
         if ((p_517 > 0) && (p_517 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_517] = 49U;
+            ob_prim_kinds[p_517] = 2U;
         }
-        p_518 = primitive_number_named("charValue");
+        p_518 = primitive_number_named("basicSize");
         if ((p_518 > 0) && (p_518 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_518] = 12U;
+            ob_prim_kinds[p_518] = 3U;
         }
-        p_519 = primitive_number_named("charFromValue");
+        p_519 = primitive_number_named("stringAt");
         if ((p_519 > 0) && (p_519 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_519] = 13U;
+            ob_prim_kinds[p_519] = 4U;
         }
-        p_520 = primitive_number_named("floatAdd");
+        p_520 = primitive_number_named("stringAtPut");
         if ((p_520 > 0) && (p_520 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_520] = 64U;
+            ob_prim_kinds[p_520] = 5U;
         }
-        p_521 = primitive_number_named("floatSub");
+        p_521 = primitive_number_named("class");
         if ((p_521 > 0) && (p_521 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_521] = 65U;
+            ob_prim_kinds[p_521] = 6U;
         }
-        p_522 = primitive_number_named("floatLess");
+        p_522 = primitive_number_named("identical");
         if ((p_522 > 0) && (p_522 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_522] = 66U;
+            ob_prim_kinds[p_522] = 7U;
         }
-        p_523 = primitive_number_named("floatGreater");
+        p_523 = primitive_number_named("intAdd");
         if ((p_523 > 0) && (p_523 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_523] = 67U;
+            ob_prim_kinds[p_523] = 32U;
         }
-        p_524 = primitive_number_named("floatLessEq");
+        p_524 = primitive_number_named("intSub");
         if ((p_524 > 0) && (p_524 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_524] = 68U;
+            ob_prim_kinds[p_524] = 33U;
         }
-        p_525 = primitive_number_named("floatGreaterEq");
+        p_525 = primitive_number_named("intLess");
         if ((p_525 > 0) && (p_525 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_525] = 69U;
+            ob_prim_kinds[p_525] = 34U;
         }
-        p_526 = primitive_number_named("floatEq");
+        p_526 = primitive_number_named("intGreater");
         if ((p_526 > 0) && (p_526 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_526] = 70U;
+            ob_prim_kinds[p_526] = 35U;
         }
-        p_527 = primitive_number_named("floatNotEq");
+        p_527 = primitive_number_named("intLessEq");
         if ((p_527 > 0) && (p_527 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_527] = 71U;
+            ob_prim_kinds[p_527] = 36U;
         }
-        p_528 = primitive_number_named("floatMul");
+        p_528 = primitive_number_named("intGreaterEq");
         if ((p_528 > 0) && (p_528 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_528] = 72U;
+            ob_prim_kinds[p_528] = 37U;
         }
-        p_529 = primitive_number_named("floatDiv");
+        p_529 = primitive_number_named("intEq");
         if ((p_529 > 0) && (p_529 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_529] = 73U;
+            ob_prim_kinds[p_529] = 38U;
         }
-        p_530 = primitive_number_named("floatSqrt");
+        p_530 = primitive_number_named("intNotEq");
         if ((p_530 > 0) && (p_530 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_530] = 8U;
+            ob_prim_kinds[p_530] = 39U;
         }
-        p_531 = primitive_number_named("basicNew");
+        p_531 = primitive_number_named("intMul");
         if ((p_531 > 0) && (p_531 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_531] = 9U;
+            ob_prim_kinds[p_531] = 40U;
         }
-        p_532 = primitive_number_named("basicNew:");
+        p_532 = primitive_number_named("intBitAnd");
         if ((p_532 > 0) && (p_532 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_532] = 10U;
+            ob_prim_kinds[p_532] = 46U;
         }
-        p_533 = primitive_number_named("closureValue");
+        p_533 = primitive_number_named("intBitOr");
         if ((p_533 > 0) && (p_533 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_533] = 11U;
+            ob_prim_kinds[p_533] = 47U;
         }
-        p_534 = primitive_number_named("replaceFromToWithStartingAt");
+        p_534 = primitive_number_named("intMod");
         if ((p_534 > 0) && (p_534 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_534] = 14U;
+            ob_prim_kinds[p_534] = 42U;
+        }
+        p_535 = primitive_number_named("intBitXor");
+        if ((p_535 > 0) && (p_535 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_535] = 43U;
+        }
+        p_536 = primitive_number_named("intBitShift");
+        if ((p_536 > 0) && (p_536 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_536] = 44U;
+        }
+        p_537 = primitive_number_named("intFloorDiv");
+        if ((p_537 > 0) && (p_537 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_537] = 45U;
+        }
+        p_538 = primitive_number_named("intQuo");
+        if ((p_538 > 0) && (p_538 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_538] = 48U;
+        }
+        p_539 = primitive_number_named("intRem");
+        if ((p_539 > 0) && (p_539 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_539] = 49U;
+        }
+        p_540 = primitive_number_named("charValue");
+        if ((p_540 > 0) && (p_540 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_540] = 12U;
+        }
+        p_541 = primitive_number_named("charFromValue");
+        if ((p_541 > 0) && (p_541 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_541] = 13U;
+        }
+        p_542 = primitive_number_named("floatAdd");
+        if ((p_542 > 0) && (p_542 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_542] = 64U;
+        }
+        p_543 = primitive_number_named("floatSub");
+        if ((p_543 > 0) && (p_543 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_543] = 65U;
+        }
+        p_544 = primitive_number_named("floatLess");
+        if ((p_544 > 0) && (p_544 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_544] = 66U;
+        }
+        p_545 = primitive_number_named("floatGreater");
+        if ((p_545 > 0) && (p_545 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_545] = 67U;
+        }
+        p_546 = primitive_number_named("floatLessEq");
+        if ((p_546 > 0) && (p_546 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_546] = 68U;
+        }
+        p_547 = primitive_number_named("floatGreaterEq");
+        if ((p_547 > 0) && (p_547 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_547] = 69U;
+        }
+        p_548 = primitive_number_named("floatEq");
+        if ((p_548 > 0) && (p_548 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_548] = 70U;
+        }
+        p_549 = primitive_number_named("floatNotEq");
+        if ((p_549 > 0) && (p_549 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_549] = 71U;
+        }
+        p_550 = primitive_number_named("floatMul");
+        if ((p_550 > 0) && (p_550 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_550] = 72U;
+        }
+        p_551 = primitive_number_named("floatDiv");
+        if ((p_551 > 0) && (p_551 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_551] = 73U;
+        }
+        p_552 = primitive_number_named("floatSqrt");
+        if ((p_552 > 0) && (p_552 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_552] = 8U;
+        }
+        p_553 = primitive_number_named("basicNew");
+        if ((p_553 > 0) && (p_553 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_553] = 9U;
+        }
+        p_554 = primitive_number_named("basicNew:");
+        if ((p_554 > 0) && (p_554 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_554] = 10U;
+        }
+        p_555 = primitive_number_named("closureValue");
+        if ((p_555 > 0) && (p_555 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_555] = 11U;
+        }
+        p_556 = primitive_number_named("replaceFromToWithStartingAt");
+        if ((p_556 > 0) && (p_556 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_556] = 14U;
+        }
+        p_557 = primitive_number_named("stringHash");
+        if ((p_557 > 0) && (p_557 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_557] = 15U;
+        }
+        p_558 = primitive_number_named("stringCompare");
+        if ((p_558 > 0) && (p_558 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_558] = 16U;
         }
     }
-    if ((p_493 <= 0) || (p_493 >= OPT_MAX_PRIM)) {
+    if ((p_515 <= 0) || (p_515 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_12 = 0;
         goto exit_prim_kind_of_12;
     }
-    r_prim_kind_of_12 = (int32_t)ob_prim_kinds[p_493];
+    r_prim_kind_of_12 = (int32_t)ob_prim_kinds[p_515];
 exit_prim_kind_of_12:;
     r_prim_kind_of_12; }) == OPK_REPLACE) && (argc == 4))) {
         r_replace_4 = false;
@@ -16689,11 +17098,11 @@ exit_replace_4:;
         goto exit_send_4;
     }
     if ((({
-    p_535 = *(uint64_t *)(m_21 + 16 + 56);
-    r_method_primitive_27 = (p_535 & 1) != 0 ? (int32_t)((((int64_t)p_535) >> 1) & CM_PRIM_MASK) : 0;
+    p_559 = *(uint64_t *)(m_21 + 16 + 56);
+    r_method_primitive_27 = (p_559 & 1) != 0 ? (int32_t)((((int64_t)p_559) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_27; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && inline_primitive(({
-    p_536 = *(uint64_t *)(m_21 + 16 + 56);
-    r_method_primitive_28 = (p_536 & 1) != 0 ? (int32_t)((((int64_t)p_536) >> 1) & CM_PRIM_MASK) : 0;
+    p_560 = *(uint64_t *)(m_21 + 16 + 56);
+    r_method_primitive_28 = (p_560 & 1) != 0 ? (int32_t)((((int64_t)p_560) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_28; }), cls, argc, pc, a, r))) {
         r_send_4 = true;
         goto exit_send_4;
@@ -17885,6 +18294,8 @@ static bool send_performed(uint64_t sel, int32_t rcv, oop cls, int32_t n, int32_
     int64_t p_44;
     int64_t p_45;
     int64_t p_46;
+    int64_t p_47;
+    int64_t p_48;
     int64_t kind;
     uint64_t inst;
     oop r_class_of;
@@ -17913,11 +18324,9 @@ static bool send_performed(uint64_t sel, int32_t rcv, oop cls, int32_t n, int32_
     int32_t n_15;
     int32_t n_10;
     int32_t r_method_primitive_4;
-    uint64_t p_47;
-    int32_t p_48;
+    uint64_t p_49;
+    int32_t p_50;
     int64_t r_prim_kind_of_2;
-    int64_t p_49;
-    int64_t p_50;
     int64_t p_51;
     int64_t p_52;
     int64_t p_53;
@@ -17957,6 +18366,10 @@ static bool send_performed(uint64_t sel, int32_t rcv, oop cls, int32_t n, int32_
     int64_t p_87;
     int64_t p_88;
     int64_t p_89;
+    int64_t p_90;
+    int64_t p_91;
+    int64_t p_92;
+    int64_t p_93;
     int64_t k;
     oop o_2;
     oop o_3;
@@ -18001,13 +18414,9 @@ static bool send_performed(uint64_t sel, int32_t rcv, oop cls, int32_t n, int32_
     int32_t n_16;
     bool r_replace;
     int32_t r_method_primitive_5;
-    uint64_t p_90;
-    int32_t p_91;
+    uint64_t p_94;
+    int32_t p_95;
     int64_t r_prim_kind_of_3;
-    int64_t p_92;
-    int64_t p_93;
-    int64_t p_94;
-    int64_t p_95;
     int64_t p_96;
     int64_t p_97;
     int64_t p_98;
@@ -18045,6 +18454,12 @@ static bool send_performed(uint64_t sel, int32_t rcv, oop cls, int32_t n, int32_
     int64_t p_130;
     int64_t p_131;
     int64_t p_132;
+    int64_t p_133;
+    int64_t p_134;
+    int64_t p_135;
+    int64_t p_136;
+    int64_t p_137;
+    int64_t p_138;
     uint64_t fo_2;
     int64_t spec_2;
     int64_t fl;
@@ -18071,9 +18486,9 @@ static bool send_performed(uint64_t sel, int32_t rcv, oop cls, int32_t n, int32_
     int32_t n_28;
     int32_t n_27;
     int32_t r_method_primitive_6;
-    uint64_t p_133;
+    uint64_t p_139;
     int32_t r_method_primitive_7;
-    uint64_t p_134;
+    uint64_t p_140;
     int32_t r_call_selector_4;
     int32_t r_add_11;
     int32_t n_36;
@@ -18356,6 +18771,14 @@ exit_performed_at:;
         if ((p_46 > 0) && (p_46 < OPT_MAX_PRIM)) {
             ob_prim_kinds[p_46] = 14U;
         }
+        p_47 = primitive_number_named("stringHash");
+        if ((p_47 > 0) && (p_47 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_47] = 15U;
+        }
+        p_48 = primitive_number_named("stringCompare");
+        if ((p_48 > 0) && (p_48 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_48] = 16U;
+        }
     }
     if ((p_5 <= 0) || (p_5 >= OPT_MAX_PRIM)) {
         r_prim_kind_of = 0;
@@ -18532,184 +18955,192 @@ exit_allocate:;
         goto exit_send;
     }
     if ((cls == cls_block) && (((jit_flags & JIT_FLAG_CALLS) != 0) && ({
-    p_48 = ({
-    p_47 = *(uint64_t *)(m + 16 + 56);
-    r_method_primitive_4 = (p_47 & 1) != 0 ? (int32_t)((((int64_t)p_47) >> 1) & CM_PRIM_MASK) : 0;
+    p_50 = ({
+    p_49 = *(uint64_t *)(m + 16 + 56);
+    r_method_primitive_4 = (p_49 & 1) != 0 ? (int32_t)((((int64_t)p_49) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_4; });
     ({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_49 = primitive_number_named("at");
-        if ((p_49 > 0) && (p_49 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_49] = 1U;
-        }
-        p_50 = primitive_number_named("atPut");
-        if ((p_50 > 0) && (p_50 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_50] = 2U;
-        }
-        p_51 = primitive_number_named("basicSize");
+        p_51 = primitive_number_named("at");
         if ((p_51 > 0) && (p_51 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_51] = 3U;
+            ob_prim_kinds[p_51] = 1U;
         }
-        p_52 = primitive_number_named("stringAt");
+        p_52 = primitive_number_named("atPut");
         if ((p_52 > 0) && (p_52 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_52] = 4U;
+            ob_prim_kinds[p_52] = 2U;
         }
-        p_53 = primitive_number_named("stringAtPut");
+        p_53 = primitive_number_named("basicSize");
         if ((p_53 > 0) && (p_53 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_53] = 5U;
+            ob_prim_kinds[p_53] = 3U;
         }
-        p_54 = primitive_number_named("class");
+        p_54 = primitive_number_named("stringAt");
         if ((p_54 > 0) && (p_54 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_54] = 6U;
+            ob_prim_kinds[p_54] = 4U;
         }
-        p_55 = primitive_number_named("identical");
+        p_55 = primitive_number_named("stringAtPut");
         if ((p_55 > 0) && (p_55 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_55] = 7U;
+            ob_prim_kinds[p_55] = 5U;
         }
-        p_56 = primitive_number_named("intAdd");
+        p_56 = primitive_number_named("class");
         if ((p_56 > 0) && (p_56 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_56] = 32U;
+            ob_prim_kinds[p_56] = 6U;
         }
-        p_57 = primitive_number_named("intSub");
+        p_57 = primitive_number_named("identical");
         if ((p_57 > 0) && (p_57 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_57] = 33U;
+            ob_prim_kinds[p_57] = 7U;
         }
-        p_58 = primitive_number_named("intLess");
+        p_58 = primitive_number_named("intAdd");
         if ((p_58 > 0) && (p_58 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_58] = 34U;
+            ob_prim_kinds[p_58] = 32U;
         }
-        p_59 = primitive_number_named("intGreater");
+        p_59 = primitive_number_named("intSub");
         if ((p_59 > 0) && (p_59 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_59] = 35U;
+            ob_prim_kinds[p_59] = 33U;
         }
-        p_60 = primitive_number_named("intLessEq");
+        p_60 = primitive_number_named("intLess");
         if ((p_60 > 0) && (p_60 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_60] = 36U;
+            ob_prim_kinds[p_60] = 34U;
         }
-        p_61 = primitive_number_named("intGreaterEq");
+        p_61 = primitive_number_named("intGreater");
         if ((p_61 > 0) && (p_61 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_61] = 37U;
+            ob_prim_kinds[p_61] = 35U;
         }
-        p_62 = primitive_number_named("intEq");
+        p_62 = primitive_number_named("intLessEq");
         if ((p_62 > 0) && (p_62 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_62] = 38U;
+            ob_prim_kinds[p_62] = 36U;
         }
-        p_63 = primitive_number_named("intNotEq");
+        p_63 = primitive_number_named("intGreaterEq");
         if ((p_63 > 0) && (p_63 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_63] = 39U;
+            ob_prim_kinds[p_63] = 37U;
         }
-        p_64 = primitive_number_named("intMul");
+        p_64 = primitive_number_named("intEq");
         if ((p_64 > 0) && (p_64 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_64] = 40U;
+            ob_prim_kinds[p_64] = 38U;
         }
-        p_65 = primitive_number_named("intBitAnd");
+        p_65 = primitive_number_named("intNotEq");
         if ((p_65 > 0) && (p_65 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_65] = 46U;
+            ob_prim_kinds[p_65] = 39U;
         }
-        p_66 = primitive_number_named("intBitOr");
+        p_66 = primitive_number_named("intMul");
         if ((p_66 > 0) && (p_66 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_66] = 47U;
+            ob_prim_kinds[p_66] = 40U;
         }
-        p_67 = primitive_number_named("intMod");
+        p_67 = primitive_number_named("intBitAnd");
         if ((p_67 > 0) && (p_67 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_67] = 42U;
+            ob_prim_kinds[p_67] = 46U;
         }
-        p_68 = primitive_number_named("intBitXor");
+        p_68 = primitive_number_named("intBitOr");
         if ((p_68 > 0) && (p_68 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_68] = 43U;
+            ob_prim_kinds[p_68] = 47U;
         }
-        p_69 = primitive_number_named("intBitShift");
+        p_69 = primitive_number_named("intMod");
         if ((p_69 > 0) && (p_69 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_69] = 44U;
+            ob_prim_kinds[p_69] = 42U;
         }
-        p_70 = primitive_number_named("intFloorDiv");
+        p_70 = primitive_number_named("intBitXor");
         if ((p_70 > 0) && (p_70 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_70] = 45U;
+            ob_prim_kinds[p_70] = 43U;
         }
-        p_71 = primitive_number_named("intQuo");
+        p_71 = primitive_number_named("intBitShift");
         if ((p_71 > 0) && (p_71 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_71] = 48U;
+            ob_prim_kinds[p_71] = 44U;
         }
-        p_72 = primitive_number_named("intRem");
+        p_72 = primitive_number_named("intFloorDiv");
         if ((p_72 > 0) && (p_72 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_72] = 49U;
+            ob_prim_kinds[p_72] = 45U;
         }
-        p_73 = primitive_number_named("charValue");
+        p_73 = primitive_number_named("intQuo");
         if ((p_73 > 0) && (p_73 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_73] = 12U;
+            ob_prim_kinds[p_73] = 48U;
         }
-        p_74 = primitive_number_named("charFromValue");
+        p_74 = primitive_number_named("intRem");
         if ((p_74 > 0) && (p_74 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_74] = 13U;
+            ob_prim_kinds[p_74] = 49U;
         }
-        p_75 = primitive_number_named("floatAdd");
+        p_75 = primitive_number_named("charValue");
         if ((p_75 > 0) && (p_75 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_75] = 64U;
+            ob_prim_kinds[p_75] = 12U;
         }
-        p_76 = primitive_number_named("floatSub");
+        p_76 = primitive_number_named("charFromValue");
         if ((p_76 > 0) && (p_76 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_76] = 65U;
+            ob_prim_kinds[p_76] = 13U;
         }
-        p_77 = primitive_number_named("floatLess");
+        p_77 = primitive_number_named("floatAdd");
         if ((p_77 > 0) && (p_77 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_77] = 66U;
+            ob_prim_kinds[p_77] = 64U;
         }
-        p_78 = primitive_number_named("floatGreater");
+        p_78 = primitive_number_named("floatSub");
         if ((p_78 > 0) && (p_78 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_78] = 67U;
+            ob_prim_kinds[p_78] = 65U;
         }
-        p_79 = primitive_number_named("floatLessEq");
+        p_79 = primitive_number_named("floatLess");
         if ((p_79 > 0) && (p_79 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_79] = 68U;
+            ob_prim_kinds[p_79] = 66U;
         }
-        p_80 = primitive_number_named("floatGreaterEq");
+        p_80 = primitive_number_named("floatGreater");
         if ((p_80 > 0) && (p_80 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_80] = 69U;
+            ob_prim_kinds[p_80] = 67U;
         }
-        p_81 = primitive_number_named("floatEq");
+        p_81 = primitive_number_named("floatLessEq");
         if ((p_81 > 0) && (p_81 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_81] = 70U;
+            ob_prim_kinds[p_81] = 68U;
         }
-        p_82 = primitive_number_named("floatNotEq");
+        p_82 = primitive_number_named("floatGreaterEq");
         if ((p_82 > 0) && (p_82 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_82] = 71U;
+            ob_prim_kinds[p_82] = 69U;
         }
-        p_83 = primitive_number_named("floatMul");
+        p_83 = primitive_number_named("floatEq");
         if ((p_83 > 0) && (p_83 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_83] = 72U;
+            ob_prim_kinds[p_83] = 70U;
         }
-        p_84 = primitive_number_named("floatDiv");
+        p_84 = primitive_number_named("floatNotEq");
         if ((p_84 > 0) && (p_84 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_84] = 73U;
+            ob_prim_kinds[p_84] = 71U;
         }
-        p_85 = primitive_number_named("floatSqrt");
+        p_85 = primitive_number_named("floatMul");
         if ((p_85 > 0) && (p_85 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_85] = 8U;
+            ob_prim_kinds[p_85] = 72U;
         }
-        p_86 = primitive_number_named("basicNew");
+        p_86 = primitive_number_named("floatDiv");
         if ((p_86 > 0) && (p_86 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_86] = 9U;
+            ob_prim_kinds[p_86] = 73U;
         }
-        p_87 = primitive_number_named("basicNew:");
+        p_87 = primitive_number_named("floatSqrt");
         if ((p_87 > 0) && (p_87 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_87] = 10U;
+            ob_prim_kinds[p_87] = 8U;
         }
-        p_88 = primitive_number_named("closureValue");
+        p_88 = primitive_number_named("basicNew");
         if ((p_88 > 0) && (p_88 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_88] = 11U;
+            ob_prim_kinds[p_88] = 9U;
         }
-        p_89 = primitive_number_named("replaceFromToWithStartingAt");
+        p_89 = primitive_number_named("basicNew:");
         if ((p_89 > 0) && (p_89 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_89] = 14U;
+            ob_prim_kinds[p_89] = 10U;
+        }
+        p_90 = primitive_number_named("closureValue");
+        if ((p_90 > 0) && (p_90 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_90] = 11U;
+        }
+        p_91 = primitive_number_named("replaceFromToWithStartingAt");
+        if ((p_91 > 0) && (p_91 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_91] = 14U;
+        }
+        p_92 = primitive_number_named("stringHash");
+        if ((p_92 > 0) && (p_92 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_92] = 15U;
+        }
+        p_93 = primitive_number_named("stringCompare");
+        if ((p_93 > 0) && (p_93 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_93] = 16U;
         }
     }
-    if ((p_48 <= 0) || (p_48 >= OPT_MAX_PRIM)) {
+    if ((p_50 <= 0) || (p_50 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_2 = 0;
         goto exit_prim_kind_of_2;
     }
-    r_prim_kind_of_2 = (int32_t)ob_prim_kinds[p_48];
+    r_prim_kind_of_2 = (int32_t)ob_prim_kinds[p_50];
 exit_prim_kind_of_2:;
     r_prim_kind_of_2; }) == OPK_CLOSURE; }))) {
         k = -1;
@@ -18942,184 +19373,192 @@ exit_write_5:;
         goto exit_send;
     }
     if (((jit_flags & JIT_FLAG_PRIMS) != 0) && ({
-    p_91 = ({
-    p_90 = *(uint64_t *)(m + 16 + 56);
-    r_method_primitive_5 = (p_90 & 1) != 0 ? (int32_t)((((int64_t)p_90) >> 1) & CM_PRIM_MASK) : 0;
+    p_95 = ({
+    p_94 = *(uint64_t *)(m + 16 + 56);
+    r_method_primitive_5 = (p_94 & 1) != 0 ? (int32_t)((((int64_t)p_94) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_5; });
     if (!((({
     if (!ob_prims_known) {
         ob_prims_known = true;
         memset(ob_prim_kinds, 0, OPT_MAX_PRIM);
-        p_92 = primitive_number_named("at");
-        if ((p_92 > 0) && (p_92 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_92] = 1U;
-        }
-        p_93 = primitive_number_named("atPut");
-        if ((p_93 > 0) && (p_93 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_93] = 2U;
-        }
-        p_94 = primitive_number_named("basicSize");
-        if ((p_94 > 0) && (p_94 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_94] = 3U;
-        }
-        p_95 = primitive_number_named("stringAt");
-        if ((p_95 > 0) && (p_95 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_95] = 4U;
-        }
-        p_96 = primitive_number_named("stringAtPut");
+        p_96 = primitive_number_named("at");
         if ((p_96 > 0) && (p_96 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_96] = 5U;
+            ob_prim_kinds[p_96] = 1U;
         }
-        p_97 = primitive_number_named("class");
+        p_97 = primitive_number_named("atPut");
         if ((p_97 > 0) && (p_97 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_97] = 6U;
+            ob_prim_kinds[p_97] = 2U;
         }
-        p_98 = primitive_number_named("identical");
+        p_98 = primitive_number_named("basicSize");
         if ((p_98 > 0) && (p_98 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_98] = 7U;
+            ob_prim_kinds[p_98] = 3U;
         }
-        p_99 = primitive_number_named("intAdd");
+        p_99 = primitive_number_named("stringAt");
         if ((p_99 > 0) && (p_99 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_99] = 32U;
+            ob_prim_kinds[p_99] = 4U;
         }
-        p_100 = primitive_number_named("intSub");
+        p_100 = primitive_number_named("stringAtPut");
         if ((p_100 > 0) && (p_100 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_100] = 33U;
+            ob_prim_kinds[p_100] = 5U;
         }
-        p_101 = primitive_number_named("intLess");
+        p_101 = primitive_number_named("class");
         if ((p_101 > 0) && (p_101 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_101] = 34U;
+            ob_prim_kinds[p_101] = 6U;
         }
-        p_102 = primitive_number_named("intGreater");
+        p_102 = primitive_number_named("identical");
         if ((p_102 > 0) && (p_102 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_102] = 35U;
+            ob_prim_kinds[p_102] = 7U;
         }
-        p_103 = primitive_number_named("intLessEq");
+        p_103 = primitive_number_named("intAdd");
         if ((p_103 > 0) && (p_103 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_103] = 36U;
+            ob_prim_kinds[p_103] = 32U;
         }
-        p_104 = primitive_number_named("intGreaterEq");
+        p_104 = primitive_number_named("intSub");
         if ((p_104 > 0) && (p_104 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_104] = 37U;
+            ob_prim_kinds[p_104] = 33U;
         }
-        p_105 = primitive_number_named("intEq");
+        p_105 = primitive_number_named("intLess");
         if ((p_105 > 0) && (p_105 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_105] = 38U;
+            ob_prim_kinds[p_105] = 34U;
         }
-        p_106 = primitive_number_named("intNotEq");
+        p_106 = primitive_number_named("intGreater");
         if ((p_106 > 0) && (p_106 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_106] = 39U;
+            ob_prim_kinds[p_106] = 35U;
         }
-        p_107 = primitive_number_named("intMul");
+        p_107 = primitive_number_named("intLessEq");
         if ((p_107 > 0) && (p_107 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_107] = 40U;
+            ob_prim_kinds[p_107] = 36U;
         }
-        p_108 = primitive_number_named("intBitAnd");
+        p_108 = primitive_number_named("intGreaterEq");
         if ((p_108 > 0) && (p_108 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_108] = 46U;
+            ob_prim_kinds[p_108] = 37U;
         }
-        p_109 = primitive_number_named("intBitOr");
+        p_109 = primitive_number_named("intEq");
         if ((p_109 > 0) && (p_109 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_109] = 47U;
+            ob_prim_kinds[p_109] = 38U;
         }
-        p_110 = primitive_number_named("intMod");
+        p_110 = primitive_number_named("intNotEq");
         if ((p_110 > 0) && (p_110 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_110] = 42U;
+            ob_prim_kinds[p_110] = 39U;
         }
-        p_111 = primitive_number_named("intBitXor");
+        p_111 = primitive_number_named("intMul");
         if ((p_111 > 0) && (p_111 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_111] = 43U;
+            ob_prim_kinds[p_111] = 40U;
         }
-        p_112 = primitive_number_named("intBitShift");
+        p_112 = primitive_number_named("intBitAnd");
         if ((p_112 > 0) && (p_112 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_112] = 44U;
+            ob_prim_kinds[p_112] = 46U;
         }
-        p_113 = primitive_number_named("intFloorDiv");
+        p_113 = primitive_number_named("intBitOr");
         if ((p_113 > 0) && (p_113 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_113] = 45U;
+            ob_prim_kinds[p_113] = 47U;
         }
-        p_114 = primitive_number_named("intQuo");
+        p_114 = primitive_number_named("intMod");
         if ((p_114 > 0) && (p_114 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_114] = 48U;
+            ob_prim_kinds[p_114] = 42U;
         }
-        p_115 = primitive_number_named("intRem");
+        p_115 = primitive_number_named("intBitXor");
         if ((p_115 > 0) && (p_115 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_115] = 49U;
+            ob_prim_kinds[p_115] = 43U;
         }
-        p_116 = primitive_number_named("charValue");
+        p_116 = primitive_number_named("intBitShift");
         if ((p_116 > 0) && (p_116 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_116] = 12U;
+            ob_prim_kinds[p_116] = 44U;
         }
-        p_117 = primitive_number_named("charFromValue");
+        p_117 = primitive_number_named("intFloorDiv");
         if ((p_117 > 0) && (p_117 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_117] = 13U;
+            ob_prim_kinds[p_117] = 45U;
         }
-        p_118 = primitive_number_named("floatAdd");
+        p_118 = primitive_number_named("intQuo");
         if ((p_118 > 0) && (p_118 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_118] = 64U;
+            ob_prim_kinds[p_118] = 48U;
         }
-        p_119 = primitive_number_named("floatSub");
+        p_119 = primitive_number_named("intRem");
         if ((p_119 > 0) && (p_119 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_119] = 65U;
+            ob_prim_kinds[p_119] = 49U;
         }
-        p_120 = primitive_number_named("floatLess");
+        p_120 = primitive_number_named("charValue");
         if ((p_120 > 0) && (p_120 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_120] = 66U;
+            ob_prim_kinds[p_120] = 12U;
         }
-        p_121 = primitive_number_named("floatGreater");
+        p_121 = primitive_number_named("charFromValue");
         if ((p_121 > 0) && (p_121 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_121] = 67U;
+            ob_prim_kinds[p_121] = 13U;
         }
-        p_122 = primitive_number_named("floatLessEq");
+        p_122 = primitive_number_named("floatAdd");
         if ((p_122 > 0) && (p_122 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_122] = 68U;
+            ob_prim_kinds[p_122] = 64U;
         }
-        p_123 = primitive_number_named("floatGreaterEq");
+        p_123 = primitive_number_named("floatSub");
         if ((p_123 > 0) && (p_123 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_123] = 69U;
+            ob_prim_kinds[p_123] = 65U;
         }
-        p_124 = primitive_number_named("floatEq");
+        p_124 = primitive_number_named("floatLess");
         if ((p_124 > 0) && (p_124 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_124] = 70U;
+            ob_prim_kinds[p_124] = 66U;
         }
-        p_125 = primitive_number_named("floatNotEq");
+        p_125 = primitive_number_named("floatGreater");
         if ((p_125 > 0) && (p_125 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_125] = 71U;
+            ob_prim_kinds[p_125] = 67U;
         }
-        p_126 = primitive_number_named("floatMul");
+        p_126 = primitive_number_named("floatLessEq");
         if ((p_126 > 0) && (p_126 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_126] = 72U;
+            ob_prim_kinds[p_126] = 68U;
         }
-        p_127 = primitive_number_named("floatDiv");
+        p_127 = primitive_number_named("floatGreaterEq");
         if ((p_127 > 0) && (p_127 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_127] = 73U;
+            ob_prim_kinds[p_127] = 69U;
         }
-        p_128 = primitive_number_named("floatSqrt");
+        p_128 = primitive_number_named("floatEq");
         if ((p_128 > 0) && (p_128 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_128] = 8U;
+            ob_prim_kinds[p_128] = 70U;
         }
-        p_129 = primitive_number_named("basicNew");
+        p_129 = primitive_number_named("floatNotEq");
         if ((p_129 > 0) && (p_129 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_129] = 9U;
+            ob_prim_kinds[p_129] = 71U;
         }
-        p_130 = primitive_number_named("basicNew:");
+        p_130 = primitive_number_named("floatMul");
         if ((p_130 > 0) && (p_130 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_130] = 10U;
+            ob_prim_kinds[p_130] = 72U;
         }
-        p_131 = primitive_number_named("closureValue");
+        p_131 = primitive_number_named("floatDiv");
         if ((p_131 > 0) && (p_131 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_131] = 11U;
+            ob_prim_kinds[p_131] = 73U;
         }
-        p_132 = primitive_number_named("replaceFromToWithStartingAt");
+        p_132 = primitive_number_named("floatSqrt");
         if ((p_132 > 0) && (p_132 < OPT_MAX_PRIM)) {
-            ob_prim_kinds[p_132] = 14U;
+            ob_prim_kinds[p_132] = 8U;
+        }
+        p_133 = primitive_number_named("basicNew");
+        if ((p_133 > 0) && (p_133 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_133] = 9U;
+        }
+        p_134 = primitive_number_named("basicNew:");
+        if ((p_134 > 0) && (p_134 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_134] = 10U;
+        }
+        p_135 = primitive_number_named("closureValue");
+        if ((p_135 > 0) && (p_135 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_135] = 11U;
+        }
+        p_136 = primitive_number_named("replaceFromToWithStartingAt");
+        if ((p_136 > 0) && (p_136 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_136] = 14U;
+        }
+        p_137 = primitive_number_named("stringHash");
+        if ((p_137 > 0) && (p_137 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_137] = 15U;
+        }
+        p_138 = primitive_number_named("stringCompare");
+        if ((p_138 > 0) && (p_138 < OPT_MAX_PRIM)) {
+            ob_prim_kinds[p_138] = 16U;
         }
     }
-    if ((p_91 <= 0) || (p_91 >= OPT_MAX_PRIM)) {
+    if ((p_95 <= 0) || (p_95 >= OPT_MAX_PRIM)) {
         r_prim_kind_of_3 = 0;
         goto exit_prim_kind_of_3;
     }
-    r_prim_kind_of_3 = (int32_t)ob_prim_kinds[p_91];
+    r_prim_kind_of_3 = (int32_t)ob_prim_kinds[p_95];
 exit_prim_kind_of_3:;
     r_prim_kind_of_3; }) == OPK_REPLACE) && (n == 4))) {
         r_replace = false;
@@ -19269,11 +19708,11 @@ exit_replace:;
         goto exit_send;
     }
     if ((({
-    p_133 = *(uint64_t *)(m + 16 + 56);
-    r_method_primitive_6 = (p_133 & 1) != 0 ? (int32_t)((((int64_t)p_133) >> 1) & CM_PRIM_MASK) : 0;
+    p_139 = *(uint64_t *)(m + 16 + 56);
+    r_method_primitive_6 = (p_139 & 1) != 0 ? (int32_t)((((int64_t)p_139) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_6; }) != 0) && (((jit_flags & JIT_FLAG_PRIMS) != 0) && inline_primitive(({
-    p_134 = *(uint64_t *)(m + 16 + 56);
-    r_method_primitive_7 = (p_134 & 1) != 0 ? (int32_t)((((int64_t)p_134) >> 1) & CM_PRIM_MASK) : 0;
+    p_140 = *(uint64_t *)(m + 16 + 56);
+    r_method_primitive_7 = (p_140 & 1) != 0 ? (int32_t)((((int64_t)p_140) >> 1) & CM_PRIM_MASK) : 0;
     r_method_primitive_7; }), cls, n, pc, a, r))) {
         goto exit_send;
     }
