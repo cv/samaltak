@@ -12,7 +12,7 @@ src/                Smalltalk sources, one directory per package; src/packages.t
   VM-Translator/    VMTranslator: Lowtalk → C
   VM-ImageBuilder/  ImageBuilder: a source tree → a seed image
 vm/gen/             the C translated from VM-Core, VM-Jit and VM-Platform (checked in; make translate regenerates it)
-vm/Makefile         → vm/build/samaltak (profile-guided with vm/pgo.profdata)
+vm/Makefile         → vm/build/samaltak (clang where installed; profile-guided with vm/pgo/<os>-<arch>.profdata)
 boot/seed.image     the checked-in seed image that runs ImageBuilder (boot/build-image.sh)
 st80/               the VM Simulator's Smalltalk-80 guest: links to src/'s Kernel and Compiler packages, and ST80-UI
 fonts/              TTF files (OFL; Twemoji: Apache-2.0 and CC-BY-4.0, twemoji-LICENSE.md)

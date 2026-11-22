@@ -3,17 +3,27 @@
 # the top level regenerates them); gen/sources.mk says which files make the core and which the platform layer, and
 # which of them are for one OS only (VM_CORE_SOURCES_LINUX ...: this build adds those of its uname -s) or for one CPU
 # (VM_CORE_SOURCES_X86_64: this build adds those of its uname -m, arm64's on any CPU but x86-64).
-# macOS: Homebrew sdl3 and openssl@3, clang. Linux: sdl3, shaderc (GLSL → SPIR-V for SDL_GPU on Vulkan) and OpenSSL 3, gcc
-# or clang.
-# Profile-guided: pgo.profdata (if present) steers optimization; `make pgo IMAGE=...` retrains it. NO_PGO=1 skips it.
+# macOS: Homebrew sdl3 and openssl@3, clang. Linux: sdl3, shaderc (GLSL → SPIR-V for SDL_GPU on Vulkan) and OpenSSL 3;
+# clang (linked with lld if there is one) when it is installed, else cc; CC=gcc builds with gcc.
+# Profile-guided (clang): pgo/<os>-<arch>.profdata (pgo/darwin-arm64.profdata, pgo/linux-arm64.profdata), if there is one
+# for this platform and this clang reads it, steers optimization; `make pgo IMAGE=...` retrains it (llvm-profdata of
+# clang's version: LLVM_PROFDATA=...). NO_PGO=1 skips it.
 # BRIEF=1 prints one line per file instead of the commands.
 UNAME_S := $(shell uname -s)
 OS := $(shell echo $(UNAME_S) | tr a-z A-Z)
 ARCH := $(if $(filter x86_64 amd64,$(shell uname -m)),X86_64,ARM64)
 CC ?= cc
+ifeq ($(and $(filter default,$(origin CC)),$(filter Linux,$(UNAME_S))),Linux)
+  # clang's interpreter loop is about 6 % faster than gcc 13's (Cortex-X925, without a profile)
+  CC := $(if $(shell command -v clang 2>/dev/null),clang,cc)
+endif
 IS_CLANG := $(shell $(CC) --version 2>/dev/null | grep -q clang && echo yes)
 ifeq ($(IS_CLANG),yes)
   CFLAGS ?= -O2 -g -flto
+  # LTO through lld (the system linker would need clang's LLVMgold plugin)
+  ifeq ($(UNAME_S),Linux)
+    LDFLAGS += $(if $(shell command -v ld.lld 2>/dev/null),-fuse-ld=lld)
+  endif
 else
   # gcc: -flto=auto spreads the link over the cores. Its extra warnings about generated code are not bugs: comparisons
   # always true for some types, && inside ||, uninitialized locals on paths the code never takes, and messages cut to
@@ -33,11 +43,20 @@ endif
 LDLIBS += -lm -lpthread
 
 BUILD := build
-PGO_PROFILE := pgo.profdata
-LLVM_PROFDATA := $(shell xcrun -f llvm-profdata 2>/dev/null || command -v llvm-profdata)
+PGO_PROFILE := pgo/$(shell echo $(UNAME_S) | tr A-Z a-z)-$(if $(filter X86_64,$(ARCH)),x86_64,arm64).profdata
+# llvm-profdata of clang's own version (a profile is read only by an LLVM as new as the one that wrote it)
+LLVM_PROFDATA ?= $(firstword $(wildcard $(dir $(realpath $(shell command -v $(CC) 2>/dev/null)))llvm-profdata) \
+  $(shell xcrun -f llvm-profdata 2>/dev/null || command -v llvm-profdata))
 ifneq ($(IS_CLANG),yes)
   # The profile is clang's (llvm-profdata); gcc builds without it.
   NO_PGO := 1
+endif
+ifeq ($(and $(wildcard $(PGO_PROFILE)),$(if $(NO_PGO)$(PGO_GEN),,yes)),yes)
+  # a profile this clang cannot read (an older LLVM than the one that wrote it): build without it
+  ifneq ($(shell $(CC) -fprofile-instr-use=$(PGO_PROFILE) -x c -c -o /dev/null /dev/null 2>/dev/null && echo ok),ok)
+    $(warning $(PGO_PROFILE) is not readable by $(CC): building without profile-guided optimization)
+    NO_PGO := 1
+  endif
 endif
 ifneq ($(PGO_GEN),)
   CFLAGS += -fprofile-instr-generate=$(CURDIR)/$(BUILD)/prof/%p.profraw
@@ -99,12 +118,15 @@ $(OBJDIR)/%.o: %.c $(PGO_DEP)
 # Retrain the profile: an instrumented VM runs the benchmarks (also under the baseline JIT) and the kernel/compiler tests on IMAGE.
 pgo:
 	@test -n "$(IMAGE)" || { echo "usage: make pgo IMAGE=path/to/samaltak.image"; exit 1; }
+	@test -n "$(LLVM_PROFDATA)" || { echo "make pgo: no llvm-profdata (LLVM_PROFDATA=...)"; exit 1; }
 	rm -rf build/pgo-gen/prof
 	$(MAKE) BUILD=build/pgo-gen PGO_GEN=1
+	build/pgo-gen/samaltak --jit none $(IMAGE) --headless --eval "$$(cat tests/bench/suite-samaltak.st)" > /dev/null
 	build/pgo-gen/samaltak $(IMAGE) --headless --eval "$$(cat tests/bench/suite-samaltak.st)" > /dev/null
 	build/pgo-gen/samaltak $(IMAGE) --headless --eval "$$(cat tests/bench/bench.st)" > /dev/null
 	build/pgo-gen/samaltak --jit baseline $(IMAGE) --headless --eval "$$(cat tests/bench/suite-samaltak.st)" > /dev/null
 	build/pgo-gen/samaltak $(IMAGE) --headless --test KernelTestProxy CollectionTest StringTest IntegerTest CompilerTest > /dev/null
+	@mkdir -p $(dir $(PGO_PROFILE))
 	$(LLVM_PROFDATA) merge -o $(PGO_PROFILE) build/pgo-gen/prof/*.profraw
 
 clean:
