@@ -1713,6 +1713,7 @@ uint64_t target_of(int32_t a_label);
 #endif
 bool byte_search_convert_case(uint8_t *a, uint8_t *b, int64_t n, bool upper);
 int64_t index_of_bytes(uint8_t *b, int64_t m, uint8_t *a, int64_t n, int64_t start);
+int64_t last_mismatch_of(uint8_t *a, uint8_t *b, int64_t n);
 int64_t mismatch_of(uint8_t *a, uint8_t *b, int64_t start, int64_t n);
 bool analyze(oop m);
 void analyze_liveness(void);
@@ -2028,6 +2029,8 @@ void prim_bytes_float64_at(void);
 void prim_bytes_float64_at_put(void);
 void prim_bytes_int16_at(void);
 void prim_bytes_int16_big_endian_at(void);
+void prim_bytes_last_mismatch(void);
+void prim_bytes_mismatch(void);
 void prim_bytes_uint16_at(void);
 void prim_bytes_uint16_big_endian_at(void);
 void prim_bytes_uint32_at(void);

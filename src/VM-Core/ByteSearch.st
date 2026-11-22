@@ -3,7 +3,7 @@ VMModule subclass: #ByteSearch
 	classVariableNames: ''
 	package: 'VM-Core'!
 
-ByteSearch comment: 'Bytes of strings a block of positions at a time (blocks, ByteBlocks: what the CPU does best), for the string primitives (ObjectPrimitives). Where bytes occur in bytes: a block is looked at all at once for the positions that have the first and the last byte sought; only those are compared further. Where two runs of bytes first differ (mismatchOf:with:from:size:, for comparing). Their case changed (convertCase:into:size:upper:, Character''s asUppercase and asLowercase of the bytes: uppercase:, lowercase:). Nothing outside the bytes given is read or written.'!
+ByteSearch comment: 'Bytes of strings a block of positions at a time (blocks, ByteBlocks: what the CPU does best), for the string primitives (ObjectPrimitives). Where bytes occur in bytes: a block is looked at all at once for the positions that have the first and the last byte sought; only those are compared further. Where two runs of bytes first or last differ (mismatchOf:with:from:size:, lastMismatchOf:with:size:, for comparing). Their case changed (convertCase:into:size:upper:, Character''s asUppercase and asLowercase of the bytes: uppercase:, lowercase:). Nothing outside the bytes given is read or written.'!
 
 !ByteSearch class methodsFor: 'declaring'!
 declarations
@@ -79,6 +79,24 @@ mismatchOf: a with: b from: start size: n
 		i := i + 1].
 	^n
 !
+lastMismatchOf: a with: b size: n
+	"The last index i < n where a[i] and b[i] differ, -1 if they do not; n >= 0. Blocks from the end, the bytes left at the start one by one."
+	<function>
+	<var: #a type: 'uint8_t *'>
+	<var: #b type: 'uint8_t *'>
+	<var: #n type: 'int64_t'>
+	<returns: 'int64_t'>
+	| i mask |
+	i := n.
+	[i >= blocks blockSize] whileTrue: [
+		i := i - blocks blockSize.
+		mask := blocks mismatchesAt: a + i with: b + i.
+		mask ~= 0 ifTrue: [^i + (blocks lastOf: mask)]].
+	[i > 0] whileTrue: [
+		i := i - 1.
+		(a at: i) = (b at: i) ifFalse: [^i]].
+	^-1
+!
 convertCase: a into: b size: n upper: upper
 	"b[0..n) := the uppercase (upper) or lowercase bytes of a[0..n); false, going up, if a has 255 (ÿ, whose uppercase is wide), and b is then partly written."
 	<function>
@@ -117,7 +135,7 @@ VMModule subclass: #ByteBlocks
 	classVariableNames: ''
 	package: 'VM-Core'!
 
-ByteBlocks comment: 'I look at a block of positions of bytes at once (ByteSearch): an arch interface (VMModule class>>isArchInterface), so ByteSearch is translated with my subclass for each CPU, whose inline methods expand there. Sse2ByteBlocks on x86-64, NeonByteBlocks on arm64 (and every CPU but x86-64): 16 positions each. A mask has a bit or bits for each position of a block (firstOf: finds the first; clearing the lowest set bit drops a position).'!
+ByteBlocks comment: 'I look at a block of positions of bytes at once (ByteSearch): an arch interface (VMModule class>>isArchInterface), so ByteSearch is translated with my subclass for each CPU, whose inline methods expand there. Sse2ByteBlocks on x86-64, NeonByteBlocks on arm64 (and every CPU but x86-64): 16 positions each. A mask has a bit or bits for each position of a block (firstOf: finds the first, lastOf: the last; clearing the lowest set bit drops a position).'!
 
 !ByteBlocks class methodsFor: 'declaring'!
 declarations
@@ -153,6 +171,10 @@ case: p into: q upper: upper
 !
 firstOf: mask
 	"The first position of a mask that is not 0, from the start of its block."
+	self subclassResponsibility
+!
+lastOf: mask
+	"The last position of a mask that is not 0, from the start of its block."
 	self subclassResponsibility
 !
 drop: n from: mask
@@ -216,6 +238,9 @@ case: p into: q upper: upper
 firstOf: mask
 	^builtins ctz: mask
 !
+lastOf: mask
+	^31 - (builtins clz: mask)
+!
 drop: n from: mask
 	^mask >> n
 ! !
@@ -272,6 +297,9 @@ case: p into: q upper: upper
 !
 firstOf: mask
 	^(builtins ctz64: mask) >> 2
+!
+lastOf: mask
+	^(63 - (builtins clz64: mask)) >> 2
 !
 drop: n from: mask
 	^mask >> (n * 4)

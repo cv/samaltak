@@ -6,8 +6,115 @@ static oop instances_class;
 static size_t instances_count;
 static oop instances_result;
 
+static void bytes_mismatch(bool last);
 static void object_primitives_convert_case(bool upper);
 static void count_instance(uint64_t o, void *d);
+
+/* ObjectPrimitives>>bytesMismatch: */
+static void bytes_mismatch(bool last)
+{
+    oop a;
+    oop b;
+    oop o;
+    oop o_2;
+    oop o_3;
+    int32_t f;
+    int32_t f_2;
+    oop o_4;
+    int64_t s;
+    oop o_5;
+    int64_t t;
+    oop o_6;
+    int64_t n;
+    size_t r_raw_byte_size;
+    int32_t f_3;
+    size_t r_raw_byte_size_2;
+    int32_t f_4;
+    uint8_t *pa;
+    uint8_t *pb;
+    int64_t k;
+    uint64_t v;
+    if (!(prim_nargs == 4)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    a = prim_base[0];
+    b = prim_base[2];
+    if (!(((a & 7) == 0) && (((b & 7) == 0) && ({
+    o = prim_base[1];
+    ((o & 1) != 0) && ({
+    o_2 = prim_base[3];
+    ((o_2 & 1) != 0) && ({
+    o_3 = prim_base[4];
+    (o_3 & 1) != 0; }); }); })))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    f = (int32_t)(((*(uint64_t *)a) >> H_FMT_SHIFT) & H_FMT_MASK);
+    if (((f >= 1) && (f <= 4)) || ({
+    f_2 = (int32_t)(((*(uint64_t *)b) >> H_FMT_SHIFT) & H_FMT_MASK);
+    (f_2 >= 1) && (f_2 <= 4); })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o_4 = prim_base[1];
+    s = ((int64_t)o_4) >> 1;
+    o_5 = prim_base[3];
+    t = ((int64_t)o_5) >> 1;
+    o_6 = prim_base[4];
+    n = ((int64_t)o_6) >> 1;
+    if (!((s >= 1) && ((t >= 1) && ((n >= 0) && ((s + n - 1 <= (int64_t)({
+    f_3 = (int32_t)(((*(uint64_t *)a) >> H_FMT_SHIFT) & H_FMT_MASK);
+    if (f_3 >= F_BYTES) {
+        r_raw_byte_size = byte_size(a);
+        goto exit_raw_byte_size;
+    }
+    if ((f_3 == 10) || (f_3 == 11)) {
+        r_raw_byte_size = word32_size(a) * 4;
+        goto exit_raw_byte_size;
+    }
+    if (f_3 == F_W64) {
+        r_raw_byte_size = (uint64_t)(uint32_t)*(uint64_t *)a * 8;
+        goto exit_raw_byte_size;
+    }
+    r_raw_byte_size = 0ULL;
+exit_raw_byte_size:;
+    r_raw_byte_size; })) && (t + n - 1 <= (int64_t)({
+    f_4 = (int32_t)(((*(uint64_t *)b) >> H_FMT_SHIFT) & H_FMT_MASK);
+    if (f_4 >= F_BYTES) {
+        r_raw_byte_size_2 = byte_size(b);
+        goto exit_raw_byte_size_2;
+    }
+    if ((f_4 == 10) || (f_4 == 11)) {
+        r_raw_byte_size_2 = word32_size(b) * 4;
+        goto exit_raw_byte_size_2;
+    }
+    if (f_4 == F_W64) {
+        r_raw_byte_size_2 = (uint64_t)(uint32_t)*(uint64_t *)b * 8;
+        goto exit_raw_byte_size_2;
+    }
+    r_raw_byte_size_2 = 0ULL;
+exit_raw_byte_size_2:;
+    r_raw_byte_size_2; }))))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    pa = (uint8_t *)(a + 16) + s - 1;
+    pb = (uint8_t *)(b + 16) + t - 1;
+    if (last) {
+        k = last_mismatch_of(pa, pb, n) + 1;
+    } else {
+        k = mismatch_of(pa, pb, 0, n);
+        k = k == n ? 0 : k + 1;
+    }
+    v = (uint64_t)((k << 1) | 1);
+    prim_result = v;
+    prim_status = PS_OK;
+}
 
 /* ObjectPrimitives>>convertCase: */
 static void object_primitives_convert_case(bool upper)
@@ -669,6 +776,18 @@ exit_byte_at:;
     v_2 = (uint64_t)((((int64_t)v) << 1) | 1);
     prim_result = v_2;
     prim_status = PS_OK;
+}
+
+/* ObjectPrimitives>>primBytesLastMismatch */
+void prim_bytes_last_mismatch(void)
+{
+    bytes_mismatch(true);
+}
+
+/* ObjectPrimitives>>primBytesMismatch */
+void prim_bytes_mismatch(void)
+{
+    bytes_mismatch(false);
 }
 
 /* ObjectPrimitives>>primBytesUint16At */

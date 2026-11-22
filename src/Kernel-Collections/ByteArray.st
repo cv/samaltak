@@ -16,6 +16,20 @@ compareBytes: aByteArray
 		b := aByteArray at: i.
 		a = b ifFalse: [^a < b ifTrue: [-1] ifFalse: [1]]].
 	^self size < aByteArray size ifTrue: [-1] ifFalse: [self size > aByteArray size ifTrue: [1] ifFalse: [0]]
+!
+indexOfMismatchAt: start with: anObject at: otherStart size: n
+	"The first i in 1 .. n where my byte start + i - 1 differs from anObject's byte otherStart + i - 1, or 0 if none does: two ranges compared in place, 16 bytes at a time (the bytesMismatch primitive; anObject bytes, or a Bitmap's words as the CPU stores them). An error if a range is outside."
+	<primitive: 'bytesMismatch'>
+	(start >= 1 and: [otherStart >= 1 and: [n >= 0 and: [start + n - 1 <= self size and: [otherStart + n - 1 <= anObject size]]]]) ifFalse: [^self error: 'range outside'].
+	1 to: n do: [:i | (self at: start + i - 1) = (anObject at: otherStart + i - 1) ifFalse: [^i]].
+	^0
+!
+lastIndexOfMismatchAt: start with: anObject at: otherStart size: n
+	"The last i in 1 .. n where my byte start + i - 1 differs from anObject's byte otherStart + i - 1, or 0 if none does (the bytesLastMismatch primitive; see indexOfMismatchAt:with:at:size:)."
+	<primitive: 'bytesLastMismatch'>
+	(start >= 1 and: [otherStart >= 1 and: [n >= 0 and: [start + n - 1 <= self size and: [otherStart + n - 1 <= anObject size]]]]) ifFalse: [^self error: 'range outside'].
+	n to: 1 by: -1 do: [:i | (self at: start + i - 1) = (anObject at: otherStart + i - 1) ifFalse: [^i]].
+	^0
 ! !
 
 !ByteArray methodsFor: 'accessing'!

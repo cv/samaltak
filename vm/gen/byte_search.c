@@ -435,6 +435,63 @@ exit_candidates_2:;
 
 #endif
 #if defined(__x86_64__)
+/* ByteSearch>>lastMismatchOf:with:size: */
+int64_t last_mismatch_of(uint8_t *a, uint8_t *b, int64_t n)
+{
+    int64_t i;
+    uint8_t *p;
+    uint8_t *q;
+    uint32_t mask;
+    i = n;
+    while (i >= 16) {
+        i = i - 16;
+        p = a + i;
+        q = b + i;
+        mask = (uint32_t)(_mm_movemask_epi8(_mm_cmpeq_epi8(_mm_loadu_si128((__m128i *)p), _mm_loadu_si128((__m128i *)q))) ^ 0xFFFF);
+        if (mask != 0) {
+            return i + (31 - __builtin_clz(mask));
+        }
+    }
+    while (i > 0) {
+        i = i - 1;
+        if (!(a[i] == b[i])) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+#else
+/* ByteSearch>>lastMismatchOf:with:size: */
+int64_t last_mismatch_of(uint8_t *a, uint8_t *b, int64_t n)
+{
+    int64_t i;
+    uint8_t *p;
+    uint8_t *q;
+    uint8x16_t v;
+    uint64_t mask;
+    i = n;
+    while (i >= 16) {
+        i = i - 16;
+        p = a + i;
+        q = b + i;
+        v = vmvnq_u8(vceqq_u8(vld1q_u8(p), vld1q_u8(q)));
+        mask = vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16(vreinterpretq_u16_u8(v), 4)), 0);
+        if (mask != 0) {
+            return i + ((63 - __builtin_clzll(mask)) >> 2);
+        }
+    }
+    while (i > 0) {
+        i = i - 1;
+        if (!(a[i] == b[i])) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+#endif
+#if defined(__x86_64__)
 /* ByteSearch>>mismatchOf:with:from:size: */
 int64_t mismatch_of(uint8_t *a, uint8_t *b, int64_t start, int64_t n)
 {

@@ -272,4 +272,26 @@ testByteArray
 	self assert: 'héllo' utf8Encoded utf8Decoded = 'héllo'.
 	self assert: 'abc' asByteArray = #[97 98 99].
 	self assert: #[97 98] asString = 'ab'
+!
+testByteArrayMismatch
+	"indexOfMismatchAt:with:at:size: and lastIndexOfMismatchAt:with:at:size: compare ranges in place (also of a Bitmap's words), and refuse ranges outside."
+	| a b w |
+	a := (1 to: 100) asByteArray.
+	b := a copy.
+	self assert: (a indexOfMismatchAt: 1 with: b at: 1 size: 100) = 0.
+	self assert: (a lastIndexOfMismatchAt: 1 with: b at: 1 size: 100) = 0.
+	b at: 20 put: 0; at: 70 put: 0.
+	self assert: (a indexOfMismatchAt: 1 with: b at: 1 size: 100) = 20.
+	self assert: (a lastIndexOfMismatchAt: 1 with: b at: 1 size: 100) = 70.
+	self assert: (a indexOfMismatchAt: 21 with: b at: 21 size: 80) = 50.
+	self assert: (a lastIndexOfMismatchAt: 1 with: b at: 1 size: 69) = 20.
+	self assert: (a indexOfMismatchAt: 21 with: b at: 21 size: 49) = 0.
+	self assert: (a indexOfMismatchAt: 2 with: a at: 1 size: 0) = 0.
+	self assert: (a indexOfMismatchAt: 2 with: (0 to: 99) asByteArray at: 3 size: 98) = 0.
+	w := Bitmap new: 2.
+	w at: 1 put: 16r04030201; at: 2 put: 16r08070605.
+	self assert: (a indexOfMismatchAt: 1 with: w at: 1 size: 8) = 0.
+	self assert: (a lastIndexOfMismatchAt: 1 with: w at: 2 size: 7) = 7.
+	self should: [a indexOfMismatchAt: 1 with: b at: 2 size: 100] raise: Error.
+	self should: [a lastIndexOfMismatchAt: 0 with: b at: 1 size: 1] raise: Error
 ! !

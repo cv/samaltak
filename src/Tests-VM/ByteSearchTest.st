@@ -86,7 +86,7 @@ testSse2MismatchAndCase
 
 !ByteSearchTest methodsFor: 'helpers'!
 compareWith: aBlocksClass
-	"mismatchOf:with:from:size: of runs that differ at each place (or nowhere) from each start; convertCase:into:size:upper: of every byte at a random place of runs around the block size, against ByteSearch's own uppercase: and lowercase: (Character's asUppercase and asLowercase of the byte, but µ's, which is wide). The runs of one size share their simulated memory."
+	"mismatchOf:with:from:size: of runs that differ at each place (or nowhere) from each start, and lastMismatchOf:with:size: (also with the first byte differing too); convertCase:into:size:upper: of every byte at a random place of runs around the block size, against ByteSearch's own uppercase: and lowercase: (Character's asUppercase and asLowercase of the byte, but µ's, which is wide). The runs of one size share their simulated memory."
 	| sim search random |
 	sim := VMSimulation modules: {ByteSearch. aBlocksClass}.
 	search := sim module: ByteSearch.
@@ -106,7 +106,13 @@ compareWith: aBlocksClass
 			(0 to: n) do: [:s |
 				self
 					assert: (search mismatchOf: pa with: pb from: s size: n)
-					equals: (s <= at ifTrue: [at] ifFalse: [n])]].
+					equals: (s <= at ifTrue: [at] ifFalse: [n])].
+			self assert: (search lastMismatchOf: pa with: pb size: n) equals: (at < n ifTrue: [at] ifFalse: [-1]).
+			(at > 0 and: [at < n]) ifTrue: [
+				b at: 1 put: (b at: 1) + 1 \\ 256.
+				sim memory bytesAt: (sim memory addressOf: pb) put: b.
+				self assert: (search lastMismatchOf: pa with: pb size: n) equals: at.
+				self assert: (search lastMismatchOf: pa with: pb size: at) equals: 0]].
 		sim memory free: aa; free: ab].
 	#(1 15 16 17 32 33) do: [:n |
 		| aa ab pa pb |

@@ -722,4 +722,38 @@ primRawBytesReplace
 	(start >= 1 and: [n >= 0 and: [stop <= (memory byteSize: r) asInt64 and: [s >= 1 and: [s + n - 1 <= (self rawByteSize: src) asInt64]]]]) ifFalse: [^self fail].
 	libc memmove: (self bytesOf: r) + start - 1 from: (self bytesOf: src) + s - 1 size: n asUInt64.
 	self answer: r
+!
+primBytesMismatch
+	"ByteArray>>indexOfMismatchAt:with:at:size:: the first of n bytes, compared in place, that differ (bytesMismatch: last)."
+	<vmPrimitive: 119 name: 'bytesMismatch'>
+	<leaf>
+	self bytesMismatch: false
+!
+primBytesLastMismatch
+	"ByteArray>>lastIndexOfMismatchAt:with:at:size:: the last of n bytes, compared in place, that differ (bytesMismatch: last)."
+	<vmPrimitive: 122 name: 'bytesLastMismatch'>
+	<leaf>
+	self bytesMismatch: true
+!
+bytesMismatch: last
+	"Receiver start other otherStart n: where the n bytes of the receiver's memory from its byte start (1-based) and of other's from otherStart differ, the first or the last (ByteSearch: 16 at a time), as i in 1 .. n, or 0 if they do not. Both are non-pointer objects (bytes, or words as the CPU stores them); fails unless both ranges are inside."
+	<function>
+	| a b s t n pa pb k |
+	self argCount = 4 ifFalse: [^self fail].
+	a := self receiver.
+	b := self arg: 1.
+	((self isPtr: a) and: [(self isPtr: b) and: [(self isInt: (self arg: 0)) and: [(self isInt: (self arg: 2)) and: [self isInt: (self arg: 3)]]]]) ifFalse: [^self fail].
+	((self fmtHasPointers: (self formatOf: a)) or: [self fmtHasPointers: (self formatOf: b)]) ifTrue: [^self fail].
+	s := self intVal: (self arg: 0).
+	t := self intVal: (self arg: 2).
+	n := self intVal: (self arg: 3).
+	(s >= 1 and: [t >= 1 and: [n >= 0 and: [s + n - 1 <= (self rawByteSize: a) asInt64 and: [t + n - 1 <= (self rawByteSize: b) asInt64]]]]) ifFalse: [^self fail].
+	pa := (self bytesOf: a) + s - 1.
+	pb := (self bytesOf: b) + t - 1.
+	last
+		ifTrue: [k := (search lastMismatchOf: pa with: pb size: n) + 1]
+		ifFalse: [
+			k := search mismatchOf: pa with: pb from: 0 size: n.
+			k := k = n ifTrue: [0] ifFalse: [k + 1]].
+	self answer: (self intOop: k)
 ! !

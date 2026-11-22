@@ -15,6 +15,16 @@ ctz64: x
 	"The number of trailing zero bits of x, which is not 0."
 	<c: 'int __builtin_ctzll(unsigned long long x)'>
 	^x lowBit - 1
+!
+clz: x
+	"The number of leading zero bits of x (32 bits), which is not 0."
+	<c: 'int __builtin_clz(unsigned x)'>
+	^32 - x highBit
+!
+clz64: x
+	"The number of leading zero bits of x (64 bits), which is not 0."
+	<c: 'int __builtin_clzll(unsigned long long x)'>
+	^64 - x highBit
 ! !
 
 !Builtins methodsFor: 'memory'!
