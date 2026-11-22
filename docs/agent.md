@@ -123,7 +123,7 @@ The agent shrinks its own context with messages to the conversation, which every
 
 ## Commits and pull requests
 
-The agent's changes reach `src/` through the SourceFiler: in a local checkout they are files `git diff` shows; where there is none (UEFI) and the operator has sent a GitHub account (`samaltak-ctl github-config --from-gh`, docs/github.md), they collect in the image. Its instructions say: after changing code, run the affected tests in the image, then `SourceFiler default commit: 'Area: one sentence.'`, which makes a commit on a new `agent/…` branch and opens a pull request into `main`; report the pull request's URL; never push to the base branch. Without an account and without a writable source directory the agent says so and how the operator sets one. The token, like an API key, lives in memory only.
+The agent's changes reach `src/` through the SourceFiler: in a local checkout they are files `git diff` shows; where there is none (UEFI) and the operator has sent a GitHub account (`samaltak-ctl github-config --from-gh`, docs/github.md), they collect in the image. Its instructions say: after changing code, run the affected tests in the image, then `SourceFiler default commit: 'Area: what changed'` (a short subject, optionally a 2-5 line body), which makes a commit on a new `agent/…` branch and opens a pull request into `main`; report the pull request's URL; never push to the base branch. Without an account and without a writable source directory the agent says so and how the operator sets one. The token, like an API key, lives in memory only.
 
 ## Protocol (from `openai/codex` at `b7056f3`, 2026-11-15)
 

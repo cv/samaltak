@@ -7,7 +7,7 @@ The image turns its own source changes into a branch, a commit and a pull reques
 1. **Configure**, on the host: `samaltak-ctl open` (or `open --uefi`), then `samaltak-ctl github-config --from-gh`. One `github-config` request goes over the control connection (on UEFI through QEMU's forwarded control port): the repository (`owner/name` of the current checkout's `origin` remote unless `--repo`), the base branch (`main` unless `--base`), the branch prefix (`agent/` unless `--prefix`) and the token (`gh auth token`'s stdout, or with `--token-command 'cmd'` the command's, run under `/bin/sh`). The image answers its configuration with `hasToken`, never the token. `samaltak-ctl github-config` shows it, `--clear` forgets it all; `--repo`, `--base` or `--prefix` alone change those and keep the token.
 2. **Change**: compile, then write with the SourceFiler as always (below: a change set).
 3. **Test** in the image: `FooTest run`.
-4. **Commit**: `SourceFiler default commit: 'Area: one sentence.'` answers a GitHubPullRequest; its url goes to the person who reviews it.
+4. **Commit**: `SourceFiler default commit: 'Area: what changed'` (a subject of at most ~72 characters, the pull request's title; optionally a short body after a blank line) answers a GitHubPullRequest; its url goes to the person who reviews it.
 
 ## Pieces (System-Net, layer 0; Tools)
 
@@ -42,7 +42,7 @@ GitHubClient's ref guard keeps even a broad token off the base branch and every 
 
 ## The agent
 
-AgentInstructions tells the agent: after changing code, run the affected tests in the image, then `SourceFiler default commit: 'Area: one sentence.'` and report the pull request's url; never push to the base branch. Its `sourceState`, a line of every request, says where changes go in this image: to GitHub (repository, prefix, base), to a local checkout (the user commits with git), collected for GitHub without a token, or nowhere; in the last two the agent tells the user to run `samaltak-ctl github-config --from-gh` on the host.
+AgentInstructions tells the agent: after changing code, run the affected tests in the image, then `SourceFiler default commit: 'Area: what changed'` (AGENTS.md's commit message style) and report the pull request's url; never push to the base branch. Its `sourceState`, a line of every request, says where changes go in this image: to GitHub (repository, prefix, base), to a local checkout (the user commits with git), collected for GitHub without a token, or nowhere; in the last two the agent tells the user to run `samaltak-ctl github-config --from-gh` on the host.
 
 ## Updating a running image
 
