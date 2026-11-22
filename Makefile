@@ -395,6 +395,16 @@ test-usb-image: uefi
 	$(MAKE) usb-boot USB_IMAGE=$(USB_TEST) USB_DEVICE=usb-storage
 	grep -q "'resumed 42'" $(UEFI)/usb-console.log
 	rm $(USB_TEST)
+# test-install: the installer (SamaltakInstaller, docs/uefi.md, Installing) under QEMU on an NVMe disk image like the
+# DGX Spark's (an ESP with a fake Ubuntu, an ext4 root, free space) with a variable store of its own: install from a
+# boot stick (usb-disk), check the GPT (sgdisk -v), the ESP (mtools) and the boot options (tests/uefi/efivars.py), boot
+# Samaltak from the NVMe by BootNext with the stick removed, then Ubuntu (tests/uefi/install-test.sh).
+INSTALL_USB := $(UEFI)/install-usb.img
+test-install: uefi
+	$(MAKE) usb-disk USB_IMAGE=$(INSTALL_USB) USB_FILES=
+	UEFI=$(UEFI) UEFI_ARCH=$(UEFI_ARCH) UEFI_BOOT=$(UEFI_BOOT) OVMF_CODE=$(OVMF_CODE) OVMF_VARS=$(OVMF_VARS) \
+		QEMU_UEFI_MACHINE='$(QEMU_UEFI_MACHINE)' USB_IMAGE=$(INSTALL_USB) tests/uefi/install-test.sh
+	rm -rf $(INSTALL_USB) $(UEFI)/install-test
 
 
 # The narrated walkthrough on the real system, from a copy of the image named nuuk.image like the prototype's (a visible window; needs ffmpeg, agent-browser for the captions and
@@ -434,4 +444,4 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-fat test-uefi-nic usb-image usb-disk usb-run usb-boot test-usb-image test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels test video mindblown-video jit-video clean
+.PHONY: all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-fat test-uefi-nic usb-image usb-disk usb-run usb-boot test-usb-image test-install test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels test video mindblown-video jit-video clean

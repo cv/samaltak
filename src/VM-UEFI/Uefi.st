@@ -90,17 +90,17 @@ runtime
 ! !
 
 UefiModule subclass: #UefiFirmware
-	instanceVariableNames: 'imageHandle systemTable bootServices runtimeServices conOut consoleOutput root store cpu serial mp crash'
+	instanceVariableNames: 'imageHandle systemTable bootServices runtimeServices conOut consoleOutput root store cpu serial mp crash argsPath'
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
-UefiFirmware comment: 'The VM''s entry on UEFI, efi_main: makes its image writable and executable (unprotect:bootServices:), keeps the system table, turns off the boot manager''s watchdog (it resets the machine after 5 minutes), switches to a stack of STACK_BYTES (the firmware''s is 128 KB, and the JIT''s code keeps a native frame per activation), opens the volume the VM was loaded from (its root directory is the current directory: fopen of a relative path), finds the image store (UefiImageStore), reads the command line from samaltak.args there (one argument a line; without it: disk: --headless, or samaltak.image --headless if there is no store) and runs VMMain>>main:argv:. What it answers is the exit status (UefiLibC>>exit:); a fatal error leaves a crash report first (UefiCrash).'!
+UefiFirmware comment: 'The VM''s entry on UEFI, efi_main: makes its image writable and executable (unprotect:bootServices:), keeps the system table, turns off the boot manager''s watchdog (it resets the machine after 5 minutes), switches to a stack of STACK_BYTES (the firmware''s is 128 KB, and the JIT''s code keeps a native frame per activation), opens the volume the VM was loaded from (its root directory is the current directory: fopen of a relative path), finds the image store (UefiImageStore: the one on the disk the VM was loaded from, else the first), reads the command line from samaltak.args beside the EFI application (\EFI\samaltak\samaltak.args for \EFI\samaltak\BOOTAA64.EFI, as the installer writes it), else in the root directory (one argument a line; without it: disk: --headless, or samaltak.image --headless if there is no store) and runs VMMain>>main:argv:. What it answers is the exit status (UefiLibC>>exit:); a fatal error leaves a crash report first (UefiCrash).'!
 
 !UefiFirmware class methodsFor: 'declaring'!
 declarations
 	^#((imageHandle 'void *') (systemTable 'EfiSystemTable *') (bootServices 'EfiBootServices *') (runtimeServices 'EfiRuntimeServices *')
 		(conOut 'EfiTextOutput *') (consoleOutput 'void *') (root 'EfiFile *') (store UefiImageStore) (cpu UefiCpu) (serial 'EfiSerialIo *') (mp UefiMp)
-		(crash UefiCrash))
+		(crash UefiCrash) (argsPath 'char[512]'))
 ! !
 
 !UefiFirmware methodsFor: 'entry'!
@@ -172,6 +172,7 @@ openRoot
 	image := self local: 'EfiLoadedImage *'.
 	self guid: guid data1: 16r5B1B31A1 data2: 16r9562 data3: 16r11D2 data4: 16r8E3F00A0C969723B.
 	(self efiFailed: (self efi: bootServices handleProtocol with: imageHandle with: guid with: image)) ifTrue: [^self].
+	self argsPathBeside: (self cCoerce: image value filePath to: 'uint8_t *').
 	fs := self local: 'EfiFileSystem *'.
 	self guid: guid data1: 16r964E5B22 data2: 16r6459 data3: 16r11D2 data4: 16r8E3900A0C969723B.
 	(self efiFailed: (self efi: bootServices handleProtocol with: image value deviceHandle with: guid with: fs)) ifTrue: [^self].
@@ -180,7 +181,7 @@ openRoot
 	root := dir value
 !
 arguments: argv max: max
-	"Fill argv from samaltak.args in the root directory, one argument a line; answer argc."
+	"Fill argv from samaltak.args beside the application, else in the root directory, one argument a line; answer argc."
 	<function>
 	<var: #argv type: 'char **'>
 	<var: #max type: 'int'>
@@ -188,7 +189,9 @@ arguments: argv max: max
 	| f buf n argc i start |
 	argv at: 0 put: 'samaltak'.
 	argc := 1.
-	f := libc fopen: 'samaltak.args' mode: 'rb'.
+	f := self null.
+	(argsPath at: 0) ~= 0 ifTrue: [f := libc fopen: argsPath mode: 'rb'].
+	f isNull ifTrue: [f := libc fopen: 'samaltak.args' mode: 'rb'].
 	f isNull ifTrue: [
 		argv at: 1 put: (store isPresent ifTrue: ['disk:'] ifFalse: ['samaltak.image']).
 		argv at: 2 put: '--headless'.
@@ -209,6 +212,42 @@ arguments: argv max: max
 		i := i + 1].
 	argv at: argc put: self null.
 	^argc asInt32
+!
+argsPathBeside: path
+	"argsPath: samaltak.args in the directory of the file the device path path names (its file path nodes, joined), or empty."
+	<function>
+	<var: #path type: 'uint8_t *'>
+	| i len n slash k c |
+	argsPath at: 0 put: 0.
+	path isNull ifTrue: [^self].
+	i := 0 asUInt64.
+	n := 0 asInt64.
+	slash := -1 asInt64.
+	[(path at: i) ~= 16r7F and: [i < 4096]] whileTrue: [
+		len := (path at: i + 2) asUInt64 + ((path at: i + 3) asUInt64 << 8).
+		len < 4 ifTrue: [^self].
+		((path at: i) = 4 and: [(path at: i + 1) = 4]) ifTrue: [
+			(n > 0 and: [(argsPath at: n - 1) ~= $\ value]) ifTrue: [
+				slash := n.
+				argsPath at: n put: $\ value.
+				n := n + 1].
+			k := 4 asUInt64.
+			[k + 1 < len] whileTrue: [
+				c := (path at: i + k) asInt64 + ((path at: i + k + 1) asInt64 << 8).
+				(c = 0 or: [c > 126 or: [n > 480]]) ifTrue: [k := len] ifFalse: [
+					c = $/ value ifTrue: [c := $\ value].
+					c = $\ value ifTrue: [slash := n].
+					argsPath at: n put: c.
+					n := n + 1.
+					k := k + 2]]].
+		i := i + len].
+	slash < 0 ifTrue: [
+		argsPath at: 0 put: 0.
+		^self].
+	n := slash + 1.
+	0 to: 12 do: [:j |
+		argsPath at: n + j put: ('samaltak.args' at: j)].
+	argsPath at: n + 13 put: 0
 !
 guid: g data1: a data2: b data3: c data4: d
 	"d's bytes, most significant first, are data4[0..7]."

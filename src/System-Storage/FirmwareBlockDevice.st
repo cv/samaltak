@@ -3,9 +3,9 @@ BlockDevice subclass: #FirmwareBlockDevice
 	classVariableNames: ''
 	package: 'System-Storage'!
 
-FirmwareBlockDevice comment: 'I am a disk or a partition of the machine on UEFI, read through the firmware''s Block I/O protocol (UEFI 2.10, 13.9): the firmware has a handle for each disk its drivers (NVMe, virtio, USB mass storage, AHCI) found, and a child handle for each GPT or MBR partition on one (isLogicalPartition). I only read: a read goes through a buffer outside the object heap aligned to the medium''s IoAlign, at most bufferBytes at a time. The medium (blockSize, blockCount, isReadOnly, isRemovable, mediaId) is read from the firmware at each use, so a changed medium shows. A partition''s table entry comes from its EFI_PARTITION_INFO_PROTOCOL (partitionType #gpt, #mbr or #other, partitionName and partitionTypeGuid of a GPT entry, mbrType of an MBR one), its number from its device path (partitionNumber); description is the firmware''s text of the device path, e.g. PciRoot(0x0)/Pci(0x2,0x0)/NVMe(0x1,...)/HD(1,GPT,...).
+FirmwareBlockDevice comment: 'I am a disk or a partition of the machine on UEFI, read through the firmware''s Block I/O protocol (UEFI 2.10, 13.9): the firmware has a handle for each disk its drivers (NVMe, virtio, USB mass storage, AHCI) found, and a child handle for each GPT or MBR partition on one (isLogicalPartition). Reads and writes (write:blocksAt:from:startingAt:, for the installer: SamaltakInstaller) go through a buffer outside the object heap aligned to the medium''s IoAlign, at most bufferBytes at a time; flush is the firmware''s FlushBlocks. The medium (blockSize, blockCount, isReadOnly, isRemovable, mediaId) is read from the firmware at each use, so a changed medium shows. A partition''s table entry comes from its EFI_PARTITION_INFO_PROTOCOL (partitionType #gpt, #mbr or #other, partitionName and partitionTypeGuid of a GPT entry, mbrType of an MBR one), its number from its device path (partitionNumber); description is the firmware''s text of the device path, e.g. PciRoot(0x0)/Pci(0x2,0x0)/NVMe(0x1,...)/HD(1,GPT,...).
 
-FirmwareBlockDevice all answers every disk and partition with a medium except the image store (UefiImageStore: a disk or partition that starts with SAMSTORE), the disk it is a partition of, and the partitions of a whole disk that is one: nothing here reads past their first block. The other partitions of a store''s disk are there (make usb-image puts an ext4 volume next to the store on the boot stick). On an operating system there are none. Read errors signal FileError. My memory and handles are the firmware''s: they do not survive a snapshot (FirmwareVolumes mounts afresh at each start).
+FirmwareBlockDevice all answers every disk and partition with a medium except the image store (UefiImageStore: a disk or partition that starts with SAMSTORE), the disk it is a partition of, and the partitions of a whole disk that is one: nothing here reads past their first block (allIncludingStores has them too). The other partitions of a store''s disk are there (make usb-image puts an ext4 volume next to the store on the boot stick). On an operating system there are none. Read errors signal FileError. My memory and handles are the firmware''s: they do not survive a snapshot (FirmwareVolumes mounts afresh at each start).
 
 	FirmwareBlockDevice all collect: [:d | d printString]'!
 
@@ -30,13 +30,16 @@ devicePathToTextGuid
 !FirmwareBlockDevice class methodsFor: 'finding'!
 all
 	"The firmware's disks and partitions with a medium, in its order, but the image store, the disk it is on and, if it is a whole disk, its partitions; none without a firmware."
+	^self withoutImageStores: self allIncludingStores
+!
+allIncludingStores
+	"The firmware's disks and partitions with a medium, in its order, the image stores and their disks among them."
 	| firmware devices |
 	firmware := Firmware current.
 	firmware isNil ifTrue: [^#()].
 	devices := (firmware handlesSupporting: self blockIoGuid)
 		collect: [:h | self firmware: firmware handle: h].
-	devices := devices select: [:d | d notNil and: [d isMediaPresent and: [d blockSize > 0]]].
-	^self withoutImageStores: devices
+	^(devices select: [:d | d notNil and: [d isMediaPresent and: [d blockSize > 0]]]) asArray
 !
 withoutImageStores: devices
 	"devices without the image stores among them, the disks a store is a partition of, and the partitions of a disk that is a store."
@@ -82,7 +85,7 @@ isLogicalPartition
 	^(Machine uint8At: self media + 6) ~= 0
 !
 isReadOnly
-	"Is the medium write-protected? (I never write.)"
+	"Is the medium write-protected?"
 	^(Machine uint8At: self media + 7) ~= 0
 !
 blockSize
@@ -118,8 +121,35 @@ read: count blocksAt: lba into: bytes startingAt: index
 			done := done + n]].
 	^bytes
 !
+write: count blocksAt: lba from: bytes startingAt: index
+	"Write count blocks from bytes (from index on) from block lba on (WriteBlocks)."
+	| size done n status |
+	self isReadOnly ifTrue: [^FileError signal: 'Read-only medium: ', self description path: self description].
+	self checkBlocks: count at: lba.
+	size := self blockSize.
+	(index >= 1 and: [index - 1 + (count * size) <= bytes size]) ifFalse: [^self error: 'Buffer too small'].
+	count = 0 ifTrue: [^bytes].
+	lock critical: [
+		self ensureBuffer.
+		done := 0.
+		[done < count] whileTrue: [
+			n := count - done min: bufferBytes // size.
+			Machine copy: n * size from: bytes at: index - 1 + (done * size) to: buffer at: 0.
+			status := Machine call: (Machine uint64At: blockIo + 32) with: blockIo with: self mediaId with: lba + done with: n * size with: buffer.
+			(firmware isError: status) ifTrue: [
+				^FileError signal: 'Block I/O failed (status 16r', (status printString: 16), ') writing block ', (lba + done) printString, ' of ', self description path: self description].
+			done := done + n]].
+	^bytes
+!
+flush
+	"FlushBlocks: what was written is on the medium."
+	| status |
+	status := Machine call: (Machine uint64At: blockIo + 40) with: blockIo.
+	(firmware isError: status) ifTrue: [
+		^FileError signal: 'Block I/O flush failed (status 16r', (status printString: 16), ') on ', self description path: self description]
+!
 bufferSize
-	"The most one firmware call reads."
+	"The most one firmware call reads or writes."
 	^256 * 1024
 !
 ensureBuffer

@@ -13,9 +13,11 @@ BlockDevice comment: 'I am a device of fixed-size blocks, numbered from 0 (logic
 	read: count blocksAt: lba into: bytes startingAt: index    the same into bytes, answering bytes
 	readBytes: count at: byteOffset             count bytes at any byte offset (whole blocks are read; one device call for the aligned middle)
 	readBytes: count at: byteOffset into: bytes startingAt: index
+	write: count blocksAt: lba from: bytes startingAt: index    write count blocks (FileError where isReadOnly)
+	flush                                       make what was written durable
 	close                                       release what the device holds
 
-Reading outside the device signals FileError. FileBlockDevice reads a disk image file on the host (System-Files); FirmwareBlockDevice reads the firmware''s Block I/O on UEFI.'!
+Reading or writing outside the device signals FileError. FileBlockDevice reads a disk image file on the host (System-Files); FirmwareBlockDevice reads the firmware''s Block I/O on UEFI.'!
 
 !BlockDevice methodsFor: 'accessing'!
 blockSize
@@ -77,6 +79,15 @@ readBytes: count at: byteOffset into: aByteArray startingAt: index
 		block := self read: 1 blocksAt: pos // bs.
 		aByteArray replaceFrom: dst to: dst + remaining - 1 with: block startingAt: 1].
 	^aByteArray
+! !
+
+!BlockDevice methodsFor: 'writing'!
+write: count blocksAt: lba from: aByteArray startingAt: index
+	"Write count blocks from aByteArray (from index on) to the device from block lba on. Here: FileError, the device is read-only."
+	^FileError signal: self printString, ' is read-only' path: self printString
+!
+flush
+	"Make what was written durable (the device's FlushBlocks)."
 ! !
 
 !BlockDevice methodsFor: 'closing'!
