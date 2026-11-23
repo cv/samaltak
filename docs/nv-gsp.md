@@ -311,7 +311,7 @@ This answers docs/nv.md Phase B question 3 and brief C4 (format; UVM agrees, `uv
 - **BAR0 only**: 64 MB at 0x24000000, 64-bit prefetchable. No BAR1, BAR2 or I/O BAR.
 - Capabilities: PM (NoSoftRst+), MSI (16 vectors, disabled), PCIe (FLReset+, MPS 256), vendor-specific, **MSI-X 9 vectors**
   (table BAR0 + 0xB90000, PBA BAR0 + 0xBA0000; Linux uses 8, IRQs 341-348), AER, ARI, L1SS, vendor `[2a4]` ID 1,
-  **ATS (enabled)**, **PASID (14 bits, enabled)**, DSN. Reset methods: `flr bus`. The root port has ACS (SrcValid,
+  **ATS (enabled)**, **PASID (20 bits, enabled)**, DSN. Reset methods: `flr bus`. The root port has ACS (SrcValid,
   ReqRedir, CmpltRedir, UpstreamFwd).
 - nvidia-smi: Addressing ATS, C2C enabled, Display Attached No; `/proc/driver/nvidia`: DMA 41 bits (mask 0x1ffffffffff),
   `EnableGpuFirmware` 18, VBIOS 9a.0b.2d.00.00. `vgaarb` names it the boot VGA device.
@@ -422,6 +422,52 @@ not to be changed on this shared one)).
 | 6. Channel and launch | GPFIFO with instance block and USERD descriptors (3.3), doorbell in BAR0, NvCompute | `NvTestKernels` `fill` = 7, then Tests-NV on UEFI | fault/error handling without interrupts | 1-2 weeks |
 
 Steps 1 and 2 can proceed now; step 3 should wait for a dedicated Spark.
+
+## 8. Step 1: the probe
+
+`NvProbe` (System-NV) looks at an NVIDIA GPU without writing anything, and `FirmwareDiagnostics`' `nvidia` section runs it
+on every NVIDIA display function the firmware's PCI I/O protocol has. What it reports:
+
+- where the function is (`segment:bus:device.function`), its device path, whether a firmware driver manages it (opened
+  BY_DRIVER or EXCLUSIVE), how many child controllers that driver made, and which GOP is this GPU's (a child, or a device
+  path below the GPU's): the answer to "is the GOP driven by the GB10's display engine";
+- the configuration space: ids, revision, class, subsystem, the command register (memory decoding, bus mastering), the
+  BARs with the sizes the firmware assigned (`GetBarAttributes`, never sized by writing ones), the capabilities (PM, MSI,
+  PCIe link and FLR, MSI-X table and PBA) and extended capabilities (ATS, PASID, the serial number, and NVIDIA's VSEC
+  with `NV_EP_PCFG_GPU_VSEC_DEBUG_SEC` at 16r2B4: the SEC_FAULT bits RM decodes, `kern_gpu_gb10b.c` 99-176);
+- if (and only if) memory decoding is already on, eleven BAR0 registers read through PCI I/O `Mem.Read`: `NV_PMC_BOOT_0`,
+  `NV_PMC_BOOT_42` (chip 16r1AB = GB10B, revision), SEC2 `QUEUE_HEAD(0)`/`QUEUE_TAIL(0)`/`MAILBOX0`/`MAILBOX1`, GSP
+  `HWCFG2`/`MAILBOX0`/`MAILBOX1`, the GSP RISC-V `CPUCTL` (addresses in 2.3) and `NV_FUSE_OPT_SECURE_GSP_DEBUG_DIS`
+  (16r82074C, 1.2: which FMC to use), each decoded (PRI errors 16rBADxxxxx
+  included), and a `state:` line saying what they imply.
+
+Run it on the dedicated Spark:
+
+1. `make usb-image USB_DIAG=nv` (on any Linux, the Spark itself included; the stick's command line then runs
+   `FirmwareDiagnostics runNvidiaThenWorld`: the firmware, the PCI functions, the NVIDIA section, then the World after a
+   key or 30 s), write `build/uefi/usb.img` to a stick (docs/uefi.md, Bare metal), boot the Spark from it.
+2. The lines (`diag nvidia ...`) appear on the console and in `samaltak-diag.txt` on the stick's EFI system partition,
+   flushed before the registers are read, so a hang leaves the configuration-space part. Under the World, the World menu's
+   **NVIDIA GPU probe** (on UEFI only) shows the same lines in a Workspace. `USB_DIAG=1` includes the section too, before
+   the network.
+
+What to look for:
+
+| Line | Expect | If not |
+|---|---|---|
+| `nvidia 000f:01:00.0 on ..., driven by the firmware` | the GPU, managed by the firmware's GOP driver | not managed: the GOP is elsewhere, or the firmware leaves the GPU alone |
+| `nvidia gop N is this GPU's` | one line: the GOP is the GB10's display engine | none: the scanout is not this PCI function's (another display path) |
+| `id 10de:2e12 rev a1`, `bar 0: memory 16r24000000, 64-bit, prefetchable, 64 MB` | as under Linux (4.1) | a different BAR0: the firmware maps the GPU elsewhere before Linux |
+| `command ...: memory decoding on` | on (the GOP driver uses BAR0) | off: no register was read; the next step must enable decoding (a write) |
+| `sec fault ...: none` | none (Linux reads 0) | a SEC_FAULT already: nothing will boot until a cold reset |
+| `reg NV_PMC_BOOT_42 ... chip 16r1ab (GB10B), revision A1` | that | PRI error or all ones: BAR0 not usable from UEFI as is |
+| `reg FUSE_OPT_SECURE_GSP_DEBUG_DIS ... production-signed` | production (brief A4) | debug: use the debug-signed FMC |
+| `state: SEC2 queue 0 idle` | idle | busy: someone is talking to SEC2 |
+| `state: GSP ...` | "not released to the CPU": nobody booted GSP, as nvidia.ko expects before its chain of trust | "running": the firmware booted GSP (GSP-RM or its own); the boot then needs a reset first (FLR? docs 6.3) |
+
+The probe's decoding is tested without a GPU (`NvProbeTest`, with this Spark's configuration space as `sudo lspci -xxxx`
+shows it and register values from the headers) on Linux and on UEFI, where the same test also runs the section on QEMU's
+firmware (no NVIDIA GPU).
 
 ### nv-brief questions now answered
 

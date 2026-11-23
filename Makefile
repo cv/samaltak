@@ -270,7 +270,7 @@ UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest Conte
 	SHA256Test SHA384Test SHA512Test HMACTest HKDFTest ChaCha20Test Poly1305Test ChaCha20Poly1305Test AesTest AesGcmTest SecureRandomTest WycheproofAeadTest NativeCryptoTest \
 	X25519Test RsaPublicKeyTest EcPublicKeyTest EcPrivateKeyTest HmacHkdfWycheproofTest Asn1DerTest X509CertificateTest TrustStoreTest CertificateValidatorTest \
 	MountTableTest FirmwareVolumesTest GitHubClientTest SourceFilerGitHubTest SourceUpdateTest PosixDeviceTest ZLibTest PNGCodecTest AgentImageTest \
-	SoftwareGPUTest SoftwareGPUBandsTest JitOptBackgroundTest FrameTapTest PixelPackTest
+	SoftwareGPUTest SoftwareGPUBandsTest JitOptBackgroundTest FrameTapTest PixelPackTest NvProbeTest
 UEFI_WORLD := | w t | w := UIWindows startUp. RemoteInputDevice default inject: {1. nil. 123. 45. 0. 0. nil. w displayWindow windowId}. t := Time millisecondClockValue. [w dispatcher pointer = (123 @ 45) or: [Time millisecondClockValue - t > 20000]] whileFalse: [(Delay forMilliseconds: 50) wait]. Smalltalk vm stderrWrite: 'world ', w extent printString, ' ', Renderer default device isSoftware printString, ' ', w dispatcher pointer rounded printString, (String with: Character lf)
 UEFI_NET := | s buf n | s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: '{\"cmd\": \"ping\", \"auth\": \"', ControlServer current token, '\"}', (String with: Character lf). buf := ByteArray new: 200. n := s receiveInto: buf timeout: 20000. s close. (buf copyFrom: 1 to: n) asString
 UEFI_NET_BULK := | src req s buf n chunk out t ms resp ok more | src := String new: 1000000. 1 to: src size do: [:i | src at: i put: (Character value: 97 + (i * 7 rem: 26))]. req := '{\"cmd\": \"eval\", \"auth\": \"', ControlServer current token, '\", \"source\": \"''', src, ''' reverse\"}', (String with: Character lf). t := Time millisecondClockValue. s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: req. out := WriteStream on: (String new: 1100000). buf := ByteArray new: 65536. more := true. [more] whileTrue: [n := s receiveInto: buf timeout: 60000. chunk := (buf copyFrom: 1 to: n) asString. out nextPutAll: chunk. more := n > 0 and: [(chunk includes: Character lf) not]]. ms := Time millisecondClockValue - t. s close. resp := out contents. ok := (resp includesSubstring: '\"ok\":true') and: [resp includesSubstring: src reverse]. 'bulk ', ok printString, ' ', (req size + resp size) printString, ' bytes in ', ms printString, ' ms'
@@ -344,7 +344,8 @@ test-uefi-nic:
 # samaltak.args: --max-heap USB_HEAP_MB disk: USB_ARGS, the World by default (USB_SCREEN its --window-size, else the
 # firmware's mode). USB_DIAG=1 first runs FirmwareDiagnostics (firmware, SMBIOS, ACPI and CPUs, memory map and protection,
 # timer, RNG, GOP modes, PCI, disks, volumes, NICs, DHCP: on the console and in samaltak-diag.txt on the stick's ESP), then
-# the World after a key or 30 s; USB_DIAG=key powers off after a key instead, USB_DIAG=quit at once. usb-run boots
+# the World after a key or 30 s; USB_DIAG=key powers off after a key instead, USB_DIAG=quit at once; USB_DIAG=nv runs
+# only the firmware, PCI and NVIDIA GPU sections (NvProbe, read only: docs/nv-gsp.md, Step 1), then the World. usb-run boots
 # USB_IMAGE in QEMU as USB_DEVICE (usb-storage on xHCI, or nvme), its console on stdio (UEFI_VNC=N: its screen on VNC;
 # UEFI_CONTROL_PORT=N: host 127.0.0.1:N forwarded to its port 7341, for USB_CONTROL; UEFI_DISPLAY=N: 127.0.0.1:5900+N
 # forwarded to its port 5900, for USB_DISPLAY).
@@ -359,7 +360,7 @@ USB_FILES_MB ?= 32
 USB_FILES_LABEL ?= usb-files
 USB_SCREEN ?=
 USB_DIAG ?=
-USB_DIAG_RUN = $(if $(filter key,$(USB_DIAG)),runThenWaitForKey,$(if $(filter quit,$(USB_DIAG)),runThenQuit,runThenWorld))
+USB_DIAG_RUN = $(if $(filter key,$(USB_DIAG)),runThenWaitForKey,$(if $(filter quit,$(USB_DIAG)),runThenQuit,$(if $(filter nv,$(USB_DIAG)),runNvidiaThenWorld,runThenWorld)))
 USB_ARGS ?= $(if $(USB_SCREEN),--window-size $(USB_SCREEN)) $(if $(USB_DIAG),--eval 'FirmwareDiagnostics $(USB_DIAG_RUN)')
 # USB_CONTROL=1: the control service on every address, port 7341, for samaltak-ctl connect from another machine
 # (docs/remote.md); its token the contents of USB_CONTROL_TOKEN_FILE (e.g. openssl rand -hex 16 > F; written into
