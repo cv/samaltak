@@ -21,7 +21,8 @@ NvDevice during: [:gpu | | compute vadd a b c |
 
 | Class | What |
 | --- | --- |
-| `NvDevice` | `open`/`during:`/`close`: the RM object tree, `alloc:parent:params:`, `control:object:params:`, `free:parent:`, `allocate:` (NvMemory), `newChannel`, `newCompute`; GR info (`smVersion`, `smCount`), `classes` |
+| `NvDevice` | `open`/`during:`/`close` (`open:over:` a transport): the RM object tree, `alloc:parent:params:`, `control:object:params:`, `free:parent:`, `mapToCpu:size:`/`mapToGpu:size:` and their unmaps, `allocate:` (NvMemory), `newChannel`, `newCompute`; GR info (`smVersion`, `smCount`), `classes` |
+| `NvTransport`, `NvIoctlTransport` | the seam to RM: every RM call and mapping NvDevice makes; the ioctl one is today's path (the kernel module), a GSP one is the UEFI driver's (docs/nv-gsp.md) |
 | `NvMemory` | system memory mapped for both: `gpuAddress`, `cpuAddress`, `uint32At:(put:)`, `uint64At:(put:)`, `bytesAt:count:`, `bytesAt:put:`, `free` |
 | `NvChannel` | channel group + GPFIFO channel + compute object; `submit:` (an NvPushBuffer), `submitWithFence:`, `fence`, `wait:`, `sync`, `close` |
 | `NvCompute` | compute class setup; `launch:grid:block:arguments:` (answers a fence), `run:...` (waits), `close` |
@@ -103,7 +104,7 @@ docs/nv.md's Struct layouts; NvEncodingTest checks their offsets.
 
 ## Tests and numbers
 
-`make test-core` runs NvCubinTest and NvEncodingTest (no GPU). `make test-nv` runs NvGpuTest on the GPU: it is not
+`make test-core` runs NvCubinTest, NvEncodingTest and NvTransportTest (no GPU: NvDevice over a fake transport that logs the RM calls). `make test-nv` runs NvGpuTest on the GPU: it is not
 part of `make test` (`NvGpuTest class>>runsByDefault` is false, so `--test` without names leaves it out) and fails,
 saying so, where there is no NVIDIA driver. `NvGpuMeasure report` (evaluate it) measures, on the GB10 (48 SMs),
 best of a few runs:

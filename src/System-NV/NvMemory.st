@@ -21,7 +21,7 @@ device: anNvDevice size: n gpuCached: aBoolean
 	size := (n + 16rFFF) // 16r1000 * 16r1000.
 	handle := device alloc: NvRm classMemorySystem parent: device device
 		params: (NvRm memoryParams: size owner: device root type: NvRm typeNotifier alignment: 16r1000 gpuCached: aBoolean).
-	[cpuAddress := device mapToCpu: handle size: size file: '/dev/nvidiactl'.
+	[cpuAddress := device mapToCpu: handle size: size.
 	gpuAddress := device mapToGpu: handle size: size]
 		ifCurtailed: [self free]
 ! !
@@ -87,7 +87,7 @@ fill: n bytes: aByteArray from: offset
 free
 	"Unmap me and return me to RM. Safe to call twice."
 	handle isNil ifTrue: [^self].
-	[cpuAddress notNil ifTrue: [PosixDevice munmap: cpuAddress length: size. cpuAddress := nil].
+	[cpuAddress notNil ifTrue: [device unmapFromCpu: cpuAddress size: size. cpuAddress := nil].
 	gpuAddress notNil ifTrue: [device unmapFromGpu: handle address: gpuAddress. gpuAddress := nil].
 	device free: handle parent: device device]
 		ensure: [handle := nil. device forget: self]
