@@ -1,5 +1,5 @@
 VMPlatformModule subclass: #PlatformGPU
-	instanceVariableNames: 'objs logError defaultLog watches nwatches npending watchLock watchCond watcherStarted'
+	instanceVariableNames: 'objs logAdapter watches nwatches npending watchLock watchCond watcherStarted'
 	classVariableNames: 'K_BUF K_CMD K_DEV K_FENCE K_PASS K_PIPE K_SAMPLER K_SHADER K_SWAP K_TEX LOG_ERROR_SIZE MAX_CLAIMS'
 	package: 'VM-Platform'!
 
@@ -11,7 +11,7 @@ Fence timing: a watcher thread polls the pending fences every 200 µs while any 
 
 !PlatformGPU class methodsFor: 'declaring'!
 declarations
-	^#((objs 'pf_table[1]') (logError 'char[LOG_ERROR_SIZE]') (defaultLog SDL_LogOutputFunction)
+	^#((objs 'pf_table[1]') (logAdapter FFISDLLogAdapter)
 		(watches 'fence_watch *') (nwatches int32_t) (npending int32_t) (watchLock 'pthread_mutex_t[1]') (watchCond 'pthread_cond_t[1]')
 		(watcherStarted bool))
 !
@@ -70,18 +70,16 @@ pass: h
 	o isNull ifTrue: [^self null].
 	^o ptr
 !
-captureLog: userdata category: category priority: priority message: message
-	"Metal shader compile errors go to the SDL log, not SDL_GetError: keep the last one."
-	<function>
-	priority >= sdl SDL_LOG_PRIORITY_ERROR ifTrue: [sdl strlcpy: logError from: message size: LOG_ERROR_SIZE].
-	defaultLog call: userdata with: category with: priority with: message
-!
 sdlFail: what
 	"Set the error from SDL (or the log); answer 0."
 	<function>
-	| e |
+	| e captured |
 	e := sdl getError.
-	common setError: '%s: %s' with: what with: ((e at: 0) ~= 0 ifTrue: [e] ifFalse: [logError]).
+	(e at: 0) = 0 ifTrue: [
+		captured := self local: 'char[LOG_ERROR_SIZE]'.
+		logAdapter copyShaderError: captured size: LOG_ERROR_SIZE.
+		e := captured].
+	common setError: '%s: %s' with: what with: e.
 	^0
 !
 sdlFormat: f
@@ -138,9 +136,7 @@ createDevice: debug
 	platform init.
 	"SDL_CreateGPUDevice needs the video subsystem"
 	windows videoInit ifFalse: [^0].
-	defaultLog isNull ifTrue: [
-		defaultLog := sdl getDefaultLogOutputFunction.
-		sdl setLogOutputFunction: (self functionPointer: #captureLog:category:priority:message:) userdata: self null].
+	logAdapter enableShaderCapture.
 	d := self cCoerce: (libc calloc: 1 size: (self sizeof: 'gpu_dev')) to: 'gpu_dev *'.
 	d isNull ifTrue: [
 		common setError: 'out of memory'.
@@ -286,7 +282,7 @@ createShader: d handle: dev code: code size: n format: format entry: entry stage
 	ci num_storage_buffers: storageBuffers.
 	ci num_uniform_buffers: uniformBuffers.
 	sdl clearError.
-	logError at: 0 put: 0.
+	logAdapter clearShaderError.
 	s := sdlGpu createShader: d dev info: ci.
 	s isNull ifTrue: [^self sdlFail: 'SDL_CreateGPUShader'].
 	^self add: K_SHADER pointer: s device: dev
