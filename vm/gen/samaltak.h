@@ -446,6 +446,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define OPT_INLINE_BUDGET 3000
 #define OPT_INLINE_DEPTH 8
 #define OPT_INLINE_SIZE 200
+#define OPT_INLINE_STRAIGHT 1500
 #define OPT_MAX_ACTS 512
 #define OPT_MAX_ANA 256
 #define OPT_MAX_BLOCKS 2048

@@ -1,6 +1,6 @@
 OptModule subclass: #OptBuilder
 	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obAnaInts obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount obForeign obForeignM obForeignS obForeignDepth obNoForeignM obNoForeignS obNoForeignCount obPerformAct obPerformPc obPerformSlot obPerformCount obPerformVals obAnaLive obNilConst obConstVals obConstNodes'
-	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC OPK_CHARVALUE OPK_CHARFROM OPK_REPLACE OPK_STRHASH OPK_STRCMP OPK_U16AT OPK_I16AT OPK_U32AT OPK_U32ATPUT OPK_U16BEAT OPK_I16BEAT OPK_U32BEAT'
+	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_STRAIGHT OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC OPK_CHARVALUE OPK_CHARFROM OPK_REPLACE OPK_STRHASH OPK_STRCMP OPK_U16AT OPK_I16AT OPK_U32AT OPK_U32ATPUT OPK_U16BEAT OPK_I16BEAT OPK_U32BEAT'
 	package: 'VM-Jit'!
 
 OptBuilder comment: 'Builds the IR (OptIR) of a method from its bytecodes: an abstract interpretation of each activation''s bytecodes in pc order, its slots (arguments, temps, operand stack: the depths BytecodeAnalysis computed) SSA variables, phis made on demand (Braun et al., Simple and Efficient Construction of Static Single Assignment Form, CC 2013: a block is sealed once all its predecessors are known; jump targets when the scan reaches them, loop heads after their last backward jump). Sends, guards and interrupt checks get frame states (OptState) for deoptimization. bail abandons the method (a bytecode the tier does not compile).'!
@@ -53,6 +53,8 @@ initialize
 	OPK_U32BEAT := 23.
 	OPT_INLINE_SIZE := 200.
 	OPT_INLINE_BUDGET := 3000.
+	"of the budget, what sends outside every loop may take in a unit whose root activation has loops: the rest is the loops'"
+	OPT_INLINE_STRAIGHT := 1500.
 	OPT_INLINE_DEPTH := 8.
 	OA_START := 1.
 	OA_TARGET := 2.
@@ -108,8 +110,15 @@ build: m start: s osr: t depth: d resident: res
 					self noForeign: (self foreignActOf: e)]
 				ifFalse: [
 					(e = 0 or: [obNoInlineCount >= OPT_MAX_NOINLINE]) ifTrue: [^false].
+					"made in a block of a method not inlined already (the root's, say): the next build would be the same"
+					(self noInlines: (ir act: e) method) ifTrue: [^false].
 					obNoInline at: obNoInlineCount put: (ir act: e) method.
 					obNoInlineCount := obNoInlineCount + 1]]] repeat
+!
+noInlines: m
+	"The build does not inline m."
+	0 to: obNoInlineCount - 1 do: [:i | (obNoInline at: i) = m ifTrue: [^true]].
+	^false
 !
 buildOnce: m
 	<function>
@@ -1239,13 +1248,28 @@ escapingClosure
 	0 to: ir nodeCount - 1 do: [:n |
 		nd := ir node: n.
 		(nd block >= 0 and: [(nd flags bitAnd: NF_DEAD) = 0]) ifTrue: [
-			(self usesClosure: nd a) ifTrue: [^self definingActOf: nd a].
-			(self usesClosure: nd b) ifTrue: [^self definingActOf: nd b].
-			(nd op asInt32 ~= O_SEND and: [self usesClosure: nd c]) ifTrue: [^self definingActOf: nd c].
+			(self usesClosure: nd a) ifTrue: [^self escape: nd a by: n].
+			(self usesClosure: nd b) ifTrue: [^self escape: nd b by: n].
+			(nd op asInt32 ~= O_SEND and: [self usesClosure: nd c]) ifTrue: [^self escape: nd c by: n].
 			"a phi that is one closure is that closure"
 			(nd op asInt32 ~= O_PHI or: [(self closureOf: n depth: 0) < 0]) ifTrue: [
-				0 to: nd nargs asInt32 - 1 do: [:i | (self usesClosure: (ir operand: nd args + i)) ifTrue: [^self definingActOf: (ir operand: nd args + i)]]]]].
+				0 to: nd nargs asInt32 - 1 do: [:i | (self usesClosure: (ir operand: nd args + i)) ifTrue: [^self escape: (ir operand: nd args + i) by: n]]]]].
 	^-1
+!
+escape: v by: n
+	"Closure v escapes through node n: the activation that made it (SAMALTAK_OPT_TRACE says where)."
+	| e nd |
+	e := self definingActOf: v.
+	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
+		nd := ir node: n.
+		libc fprintf: libc stderr format: 'opt: closure v%d made in act %d (' with: v with: e.
+		interpreter printSymbol: (self loadRef: (ir act: e) method at: CM_SELECTOR) on: libc stderr.
+		libc fprintf: libc stderr format: ') used by v%d op %d' with: n with: nd op asInt32.
+		(nd op asInt32 = O_SEND or: [nd op asInt32 = O_CALL]) ifTrue: [
+			libc fputc: 32 to: libc stderr.
+			interpreter printSymbol: nd aux asUInt64 on: libc stderr].
+		libc fputc: 10 to: libc stderr].
+	^e
 !
 usesClosure: v
 	v < 0 ifTrue: [^false].
@@ -1766,7 +1790,7 @@ send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
 	((runtime flag: runtime primsFlag) and: [self replace: m selector: sel class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r]) ifTrue: [^true].
 	((self methodPrimitive: m) ~= 0 and: [(runtime flag: runtime primsFlag) and: [
 		self inlinePrimitive: (self methodPrimitive: m) class: cls argc: argc pc: pc act: a rcvSlot: r]]) ifTrue: [^true].
-	(self canInline: m act: a) ifTrue: [
+	(self canInline: m act: a extra: (self inlineExtraAt: pc act: a)) ifTrue: [
 		self inlineMethod: m receiverClass: cls pc: pc act: a rcvSlot: r argc: argc.
 		^true].
 	self call: m selector: sel argc: argc kind: kind pc: pc act: a rcvSlot: r.
@@ -2145,15 +2169,36 @@ cannotRun: b
 	bl := ir block: b.
 	^(bl flags bitAnd: BF_LIVE) = 0 and: [b ~= obEntryBlock and: [(bl flags bitAnd: BF_LOOP) = 0]]
 !
-canInline: m act: a
-	"m may be inlined into a: small, no primitive, only bytecodes the tier inlines, not too deep or recursive, within the budget."
+inlineExtraAt: pc act: a
+	"How far beyond the budget the send at a's pc may inline: less outside every loop of a unit with loops (straight code runs once a turn of what calls it, a loop's body many times: the budget goes to the loops, which would otherwise call what straight code before them took the budget from)."
+	((self hasLoop: 0) and: [(self inLoopAt: pc act: a) not]) ifTrue: [^OPT_INLINE_STRAIGHT - OPT_INLINE_BUDGET].
+	^0
+!
+hasLoop: a
+	"Activation a's code has a loop."
+	(ir act: a) startpc to: (ir act: a) endpc - 1 do: [:h | (self isLoopHead: h act: a) ifTrue: [^true]].
+	^false
+!
+inLoopAt: pc act: a
+	"The instruction at a's pc runs in a loop: of a, or around the send of an activation that a is inlined into."
+	| p q |
+	p := a.
+	q := pc.
+	[p >= 0] whileTrue: [
+		(ir act: p) startpc to: q do: [:h | ((self isLoopHead: h act: p) and: [(self lastBackJumpTo: h act: p) >= q]) ifTrue: [^true]].
+		q := (ir act: p) sendPc.
+		p := (ir act: p) parent].
+	^false
+!
+canInline: m act: a extra: x
+	"m may be inlined into a: small, no primitive, only bytecodes the tier inlines, not too deep or recursive, within the budget (and x more)."
 	<function>
 	| size bcs pc op depth p same |
 	(self loadRef: m at: CM_PRIMITIVE) ~= (self intOop: 0) ifTrue: [^false].
 	0 to: obNoInlineCount - 1 do: [:i | (obNoInline at: i) = m ifTrue: [^false]].
 	size := self methodSize: m.
 	size > OPT_INLINE_SIZE ifTrue: [^false].
-	obInlined + size > OPT_INLINE_BUDGET ifTrue: [^false].
+	obInlined + size > (OPT_INLINE_BUDGET + x) ifTrue: [^false].
 	depth := 0.
 	same := 0.
 	p := a.
