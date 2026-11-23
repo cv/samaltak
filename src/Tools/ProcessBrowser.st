@@ -3,7 +3,7 @@ ToolPane subclass: #ProcessBrowser
 	classVariableNames: ''
 	package: 'Tools'!
 
-ProcessBrowser comment: 'I am the Process Browser (prototypes/1-classic/tools.js openProcessBrowser): a live table of every Process (priority, name — with a window glyph for a window''s Process —, state, and CPU share from Process>>cpuMicroseconds deltas, read once a second), refreshed four times a second; above it a LoadMeters row with the load of each core the VM uses and of the GPU: cpu, the VM''s own core (every Process but the idle one, with the GC and the JIT: a Process''s CPU is its share of this core), jit, the core the background compiler runs on (VMStatistics>>optBackgroundMicroseconds), and gpu, the frames'' GPU time (GPUTimer>>totalMicroseconds); the toolbar sums the cores'' load (0.25 cores: a quarter of one core''s time). The application processors'' raster bands (CpuWorkers) are not measured by the VM: they show only as GPU time. below, the selected Process''s stack (its real suspendedContext chain) and the source of the selected frame with its current expression marked.
+ProcessBrowser comment: 'I am the Process Browser (prototypes/1-classic/tools.js openProcessBrowser): a live table of every Process (priority, name — with a window glyph for a window''s Process —, state, and CPU share from Process>>cpuMicroseconds deltas, read once a second), refreshed four times a second; above it a LoadMeters row with the load of each core the VM uses and of the GPU: cpu, the VM''s own core (every Process but the idle one, with the GC and the JIT: a Process''s CPU is its share of this core), jit, the core the background compiler runs on (VMStatistics>>optBackgroundMicroseconds: its jobs'' time, counted as each ends), and gpu, the frames'' GPU time (GPUTimer>>totalMicroseconds); the toolbar sums the cores'' load (0.25 cores: a quarter of one core''s time). The application processors'' raster bands (CpuWorkers) are not measured by the VM: they show only as GPU time. below, the selected Process''s stack (its real suspendedContext chain) and the source of the selected frame with its current expression marked.
 
 An idle browser presents (almost) nothing: the readings (a Process''s CPU, the meters) are taken once a second and change on the screen only when they moved by a visible step (shown:for:in:), a flip between ready and waiting shows once it held at two refreshes, and the table, the meters and the stack are drawn again only when what they show changed.
 
@@ -115,7 +115,7 @@ readingsOf: procs at: now
 	times := IdentityDictionary new.
 	procs do: [:p | times at: p put: p cpuMicroseconds].
 	stats := Smalltalk vm statistics.
-	sample := Array with: now with: times with: stats optBackgroundMicroseconds with: self gpuMicroseconds.
+	sample := Array with: now with: times with: stats optBackgroundMicroseconds with: self gpuMicroseconds with: stats jitCompileMicroseconds.
 	dt := lastSample isNil ifTrue: [1] ifFalse: [now - lastSample first max: 1].
 	raw := IdentityDictionary new.
 	procs do: [:p |
@@ -235,13 +235,24 @@ stateStyleOf: aProcess
 !
 updateMeters: raw sample: sample dt: dt jobs: jobs
 	"The load of each core the VM uses and of the GPU since the last reading (lastSample; sample is this one's), from the Processes' raw CPU: the VM's core is every Process but the idle one (with the GC and the JIT); the background compiler runs on a core of its own. Shown in visible steps, as the CPU column."
-	| gpu list |
+	| list |
+	list := self
+		loadsOver: dt
+		processes: raw
+		compile: (lastSample isNil ifTrue: [0] ifFalse: [(sample at: 5) - (lastSample at: 5)])
+		background: (jobs > 0 ifTrue: [lastSample isNil ifTrue: [0] ifFalse: [(sample at: 3) - (lastSample at: 3)]])
+		gpu: ((lastSample isNil or: [(lastSample at: 4) isNil or: [(sample at: 4) isNil]]) ifFalse: [(sample at: 4) - (lastSample at: 4)]).
+	meters meters: (list collect: [:each | each key -> (self shown: each value for: each key in: shownMeters)])
+!
+loadsOver: dt processes: percents compile: compileUs background: backgroundUsOrNil gpu: gpuUsOrNil
+	"The meters' label -> percent over dt µs, each at most 100. cpu, the VM's core: the Processes' shares (percents: Process -> percent of dt; their CPU time is the VM thread's, the GC's included), but the idle one's, and the JIT's compiling on that thread, which is charged to no Process (compileUs). jit, the background compiler's core, if it ran at all (backgroundUsOrNil: the time its jobs took, counted when each ends; nil: none ran). gpu: the frames' GPU time (gpuUsOrNil; nil: not measured, a dash)."
+	| list busy |
+	busy := percents keys inject: 0.0 into: [:sum :p | p == Processor idleProcess ifTrue: [sum] ifFalse: [sum + (percents at: p)]].
 	list := OrderedCollection new.
-	list add: 'cpu' -> ((raw keys inject: 0.0 into: [:sum :p | p == Processor idleProcess ifTrue: [sum] ifFalse: [sum + (raw at: p)]]) min: 100.0).
-	jobs > 0 ifTrue: [list add: 'jit' -> (lastSample isNil ifTrue: [0.0] ifFalse: [(sample at: 3) - (lastSample at: 3) * 100.0 / dt min: 100.0])].
-	gpu := (lastSample isNil or: [(lastSample at: 4) isNil or: [(sample at: 4) isNil]]) ifFalse: [(sample at: 4) - (lastSample at: 4) * 100.0 / dt min: 100.0].
-	list add: 'gpu' -> gpu.
-	meters meters: (list asArray collect: [:each | each key -> (self shown: each value for: each key in: shownMeters)])
+	list add: 'cpu' -> (busy + (compileUs * 100.0 / dt) min: 100.0).
+	backgroundUsOrNil isNil ifFalse: [list add: 'jit' -> (backgroundUsOrNil * 100.0 / dt min: 100.0)].
+	list add: 'gpu' -> (gpuUsOrNil isNil ifFalse: [gpuUsOrNil * 100.0 / dt min: 100.0]).
+	^list asArray
 !
 gpuMicroseconds
 	"The GPU time of the frames presented so far (GPUTimer), nil without a compositor that measures it."
