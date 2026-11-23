@@ -1130,7 +1130,6 @@ static void tick_update(void)
     int64_t now;
     due = 0x7FFFFFFFFFFFFFFFLL;
     poll = tick_idle ? 0 : work_clock_on ? WORK_CLOCK_POLL_US : tick_poll_us;
-    now = now_us();
     if (!(tick_idle || work_clock_on)) {
         if ((timer_ms >= 0) && (timer_ms < 9223372036854775LL)) {
             due = timer_ms * 1000;
@@ -1142,7 +1141,8 @@ static void tick_update(void)
             due = slice_due_us;
         }
     }
-    if (atomic_exchange(&tick_deadline_fired, false) || (due != tick_armed_deadline)) {
+    if ((atomic_load_explicit(&tick_deadline_fired, memory_order_relaxed) && atomic_exchange(&tick_deadline_fired, false)) || (due != tick_armed_deadline)) {
+        now = now_us();
         if (due <= now) {
             request_interrupt_check();
         }

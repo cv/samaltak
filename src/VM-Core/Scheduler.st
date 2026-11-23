@@ -407,17 +407,17 @@ tickFired: ident
 	self requestInterruptCheck
 !
 tickUpdate
-	"A pending one-shot is not armed twice; one that fired before its deadline (clock skew) is armed again."
+	"A pending one-shot is not armed twice; one that fired before its deadline (clock skew) is armed again. The clock is read, and the fired flag exchanged, only when it is (process switches call me)."
 	<function>
 	| due poll now |
 	due := 16r7FFFFFFFFFFFFFFF.
 	poll := tickIdle ifTrue: [0] ifFalse: [workClockOn ifTrue: [WORK_CLOCK_POLL_US] ifFalse: [tickPollUs]].
-	now := self nowUs.
 	(tickIdle or: [workClockOn]) ifFalse: [
 		(timerMs >= 0 and: [timerMs < (16r7FFFFFFFFFFFFFFF quo: 1000)]) ifTrue: [due := timerMs * 1000].
 		(samplerIntervalUs > 0 and: [samplerNextUs < due]) ifTrue: [due := samplerNextUs].
 		(sliceDueUs ~= 0 and: [sliceDueUs < due]) ifTrue: [due := sliceDueUs]].
-	((self atomicExchange: #tickDeadlineFired value: false) or: [due ~= tickArmedDeadline]) ifTrue: [
+	(((self atomicLoad: #tickDeadlineFired) and: [self atomicExchange: #tickDeadlineFired value: false]) or: [due ~= tickArmedDeadline]) ifTrue: [
+		now := self nowUs.
 		due <= now ifTrue: [self requestInterruptCheck].
 		ticker arm: TICK_DEADLINE microseconds: ((due = 16r7FFFFFFFFFFFFFFF or: [due <= now]) ifTrue: [-1] ifFalse: [due - now]) periodic: false.
 		tickArmedDeadline := due].
