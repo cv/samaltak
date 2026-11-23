@@ -610,6 +610,10 @@ ror: rd with: rn with: rm
 !
 clz: rd with: rn
 	self emit: ((16r5AC01000 bitOr: (self sf: rd)) bitOr: (self rd: rd rn: rn))
+!
+rev: rd with: rn
+	"rd := rn's bytes in reverse order (W registers: the low four)."
+	self emit: (((16r5AC00800 bitOr: (self sf: rd)) bitOr: ((self sf: rd) = 0 ifTrue: [0] ifFalse: [16r400])) bitOr: (self rd: rd rn: rn))
 ! !
 
 !Arm64Assembler methodsFor: 'multiply and divide'!

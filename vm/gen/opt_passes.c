@@ -2547,6 +2547,10 @@ static void ranges(void)
     int32_t n;
     opt_node *nd;
     int32_t op;
+    int32_t ek;
+    int64_t r_lowest_of;
+    int32_t ek_2;
+    int64_t r_highest_of;
     int32_t n_2;
     opt_node *x;
     int32_t n_3;
@@ -2559,6 +2563,10 @@ static void ranges(void)
     int32_t n_7;
     int32_t n_8;
     int32_t n_9;
+    int32_t ek_3;
+    int64_t r_lowest_of_2;
+    int32_t ek_4;
+    int64_t r_highest_of_2;
     for (i = 0; i <= ps_order_count - 1; i++) {
         b = ps_order[i];
         n = (opt_blocks + b)->first;
@@ -2566,8 +2574,32 @@ static void ranges(void)
             nd = opt_nodes + n;
             op = (int32_t)nd->op;
             if ((op == O_INDEXLOAD) && (nd->aux != E_PTR)) {
-                nd->lo = 0;
-                nd->hi = 255;
+                ek = (int32_t)nd->aux;
+                nd->lo = ({
+    if ((ek == E_I16) || (ek == E_I16BE)) {
+        r_lowest_of = -32768;
+        goto exit_lowest_of;
+    }
+    r_lowest_of = 0;
+exit_lowest_of:;
+    r_lowest_of; });
+                ek_2 = (int32_t)nd->aux;
+                nd->hi = ({
+    if ((ek_2 == E_U16) || (ek_2 == E_U16BE)) {
+        r_highest_of = 65535;
+        goto exit_highest_of;
+    }
+    if ((ek_2 == E_I16) || (ek_2 == E_I16BE)) {
+        r_highest_of = 32767;
+        goto exit_highest_of;
+    }
+    if ((ek_2 == E_W32) || ((ek_2 == E_U32) || (ek_2 == E_U32BE))) {
+        r_highest_of = 0xFFFFFFFFLL;
+        goto exit_highest_of;
+    }
+    r_highest_of = 255;
+exit_highest_of:;
+    r_highest_of; });
             }
             if ((op == O_CAST) || ((op == O_GUARDINT) || (op == O_GUARDCLASS))) {
                 n_2 = opt_ir_resolve(nd->a);
@@ -2625,7 +2657,33 @@ static void ranges(void)
             if ((op == O_INDEXSTORE) && (nd->aux != E_PTR)) {
                 n_9 = opt_ir_resolve(nd->c);
                 x = opt_nodes + n_9;
-                if (((int32_t)x->tkind == (nd->aux == E_CHAR ? T_CHAR : T_SMI)) && ((x->lo >= 0) && (x->hi <= 255))) {
+                if (((int32_t)x->tkind == (nd->aux == E_CHAR ? T_CHAR : T_SMI)) && ({
+    ek_3 = (int32_t)nd->aux;
+    (x->lo >= ({
+    if ((ek_3 == E_I16) || (ek_3 == E_I16BE)) {
+        r_lowest_of_2 = -32768;
+        goto exit_lowest_of_2;
+    }
+    r_lowest_of_2 = 0;
+exit_lowest_of_2:;
+    r_lowest_of_2; })) && ({
+    ek_4 = (int32_t)nd->aux;
+    x->hi <= ({
+    if ((ek_4 == E_U16) || (ek_4 == E_U16BE)) {
+        r_highest_of_2 = 65535;
+        goto exit_highest_of_2;
+    }
+    if ((ek_4 == E_I16) || (ek_4 == E_I16BE)) {
+        r_highest_of_2 = 32767;
+        goto exit_highest_of_2;
+    }
+    if ((ek_4 == E_W32) || ((ek_4 == E_U32) || (ek_4 == E_U32BE))) {
+        r_highest_of_2 = 0xFFFFFFFFLL;
+        goto exit_highest_of_2;
+    }
+    r_highest_of_2 = 255;
+exit_highest_of_2:;
+    r_highest_of_2; }); }); })) {
                     nd->flags = nd->flags | NF_INRANGE;
                 }
             }

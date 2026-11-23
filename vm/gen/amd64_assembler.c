@@ -4129,33 +4129,35 @@ int64_t effect_at(uint64_t address)
     int64_t r_2;
     int64_t len_3;
     int64_t len_4;
-    int64_t r_effect0_f;
+    int64_t x_3;
     int64_t r_3;
-    int kind;
+    int64_t r_effect0_f;
     int64_t r_4;
-    int64_t r_store_length;
+    int kind;
     int64_t r_5;
+    int64_t r_store_length;
     int64_t r_6;
+    int64_t r_7;
     int64_t r_store_length_2;
     int64_t len_5;
     int64_t len_6;
-    int64_t r_7;
+    int64_t r_8;
     int64_t len_7;
     int64_t r_store_length_3;
     int64_t r_move_or_write;
-    int64_t r_8;
-    int64_t r2;
     int64_t r_9;
+    int64_t r2;
     int64_t r_10;
     int64_t r_11;
-    int64_t r_move_or_write_2;
     int64_t r_12;
-    int64_t r2_2;
+    int64_t r_move_or_write_2;
     int64_t r_13;
+    int64_t r2_2;
     int64_t r_14;
-    int64_t r_store_length_4;
     int64_t r_15;
+    int64_t r_store_length_4;
     int64_t r_16;
+    int64_t r_17;
     int64_t r_store_length_5;
     p = address;
     pre = 0;
@@ -4218,6 +4220,11 @@ int64_t effect_at(uint64_t address)
         len_4 = len + 4;
         return len_4 | 0LL | 16711680LL | 4278190080LL | 0LL;
     }
+    if ((op2 >= 0xC8) && (op2 <= 0xCF)) {
+        x_3 = (op2 & 7) + (rex & 1) * 8;
+        r_3 = ((x_3 < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (x_3 & 7))) & 255;
+        return len | 1024LL | (r_3 << 16) | 4278190080LL | 0LL;
+    }
     modrm = (int64_t)*(uint8_t *)p;
     p = p + 1;
     mod = modrm >> 6;
@@ -4271,15 +4278,15 @@ int64_t effect_at(uint64_t address)
             goto exit_effect0_f;
         }
         if (op2 == 0x2C) {
-            r_3 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
-            r_effect0_f = len | 1024LL | (r_3 << 16) | 4278190080LL | 0LL;
+            r_4 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
+            r_effect0_f = len | 1024LL | (r_4 << 16) | 4278190080LL | 0LL;
             goto exit_effect0_f;
         }
         if ((op2 == 0x11) || ((op2 == 0x7E) && (pre == 0x66))) {
             if (mod == 3) {
                 kind = op2 == 0x11 ? ASM_EF_NONE : ASM_EF_WRITE;
-                r_4 = op2 == 0x11 ? 255 : ((rm < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (rm & 7))) & 255;
-                r_effect0_f = len | (((int64_t)kind) << 8) | (r_4 << 16) | 4278190080LL | 0LL;
+                r_5 = op2 == 0x11 ? 255 : ((rm < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (rm & 7))) & 255;
+                r_effect0_f = len | (((int64_t)kind) << 8) | (r_5 << 16) | 4278190080LL | 0LL;
                 goto exit_effect0_f;
             }
             r_effect0_f = ({
@@ -4296,14 +4303,14 @@ exit_store_length:;
         goto exit_effect0_f;
     }
     if (((op2 >= 0x40) && (op2 <= 0x4F)) || ((op2 == 0xAF) || ((op2 == 0xB6) || ((op2 == 0xB7) || ((op2 == 0xBE) || (op2 == 0xBF)))))) {
-        r_5 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
-        r_effect0_f = len | 1024LL | (r_5 << 16) | 4278190080LL | 0LL;
+        r_6 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
+        r_effect0_f = len | 1024LL | (r_6 << 16) | 4278190080LL | 0LL;
         goto exit_effect0_f;
     }
     if ((op2 >= 0x90) && (op2 <= 0x9F)) {
         if (mod == 3) {
-            r_6 = ((rm < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (rm & 7))) & 255;
-            r_effect0_f = len | 1024LL | (r_6 << 16) | 4278190080LL | 0LL;
+            r_7 = ((rm < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (rm & 7))) & 255;
+            r_effect0_f = len | 1024LL | (r_7 << 16) | 4278190080LL | 0LL;
             goto exit_effect0_f;
         }
         r_effect0_f = ({
@@ -4324,8 +4331,8 @@ exit_store_length_2:;
         }
         if (mod == 3) {
             len_6 = len + 1;
-            r_7 = ((rm < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (rm & 7))) & 255;
-            r_effect0_f = len_6 | 1024LL | (r_7 << 16) | 4278190080LL | 0LL;
+            r_8 = ((rm < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (rm & 7))) & 255;
+            r_effect0_f = len_6 | 1024LL | (r_8 << 16) | 4278190080LL | 0LL;
             goto exit_effect0_f;
         }
         len_7 = len + 1;
@@ -4357,40 +4364,40 @@ exit_effect0_f:;
         if (mod == 3) {
             return ({
     if ((rex & 8) != 0) {
-        r_8 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
+        r_9 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
         r2 = ((rm < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (rm & 7))) & 255;
-        r_move_or_write = len | 768LL | (r_8 << 16) | (r2 << 24) | 0LL;
+        r_move_or_write = len | 768LL | (r_9 << 16) | (r2 << 24) | 0LL;
         goto exit_move_or_write;
     }
-    r_9 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
-    r_move_or_write = len | 1024LL | (r_9 << 16) | 4278190080LL | 0LL;
+    r_10 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
+    r_move_or_write = len | 1024LL | (r_10 << 16) | 4278190080LL | 0LL;
 exit_move_or_write:;
     r_move_or_write; });
         }
         if (((rex & 8) != 0) && ((pre == 0) && ((base == X64_RBX) && (index < 0)))) {
-            r_10 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
-            return len | 256LL | (r_10 << 16) | 4278190080LL | ((disp & 0xFFFFFFFFLL) << 32);
+            r_11 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
+            return len | 256LL | (r_11 << 16) | 4278190080LL | ((disp & 0xFFFFFFFFLL) << 32);
         }
-        r_11 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
-        return len | 1024LL | (r_11 << 16) | 4278190080LL | 0LL;
+        r_12 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
+        return len | 1024LL | (r_12 << 16) | 4278190080LL | 0LL;
     }
     if (op == 0x89) {
         if (mod == 3) {
             return ({
     if ((rex & 8) != 0) {
-        r_12 = ((rm < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (rm & 7))) & 255;
+        r_13 = ((rm < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (rm & 7))) & 255;
         r2_2 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
-        r_move_or_write_2 = len | 768LL | (r_12 << 16) | (r2_2 << 24) | 0LL;
+        r_move_or_write_2 = len | 768LL | (r_13 << 16) | (r2_2 << 24) | 0LL;
         goto exit_move_or_write_2;
     }
-    r_13 = ((rm < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (rm & 7))) & 255;
-    r_move_or_write_2 = len | 1024LL | (r_13 << 16) | 4278190080LL | 0LL;
+    r_14 = ((rm < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (rm & 7))) & 255;
+    r_move_or_write_2 = len | 1024LL | (r_14 << 16) | 4278190080LL | 0LL;
 exit_move_or_write_2:;
     r_move_or_write_2; });
         }
         if (((rex & 8) != 0) && ((pre == 0) && ((base == X64_RBX) && (index < 0)))) {
-            r_14 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
-            return len | 512LL | (r_14 << 16) | 4278190080LL | ((disp & 0xFFFFFFFFLL) << 32);
+            r_15 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
+            return len | 512LL | (r_15 << 16) | 4278190080LL | ((disp & 0xFFFFFFFFLL) << 32);
         }
         return ({
     if ((base == X64_RBX) || ((base == X64_R11) || (base < 0))) {
@@ -4402,8 +4409,8 @@ exit_store_length_4:;
     r_store_length_4; });
     }
     if ((op == 0x8D) || ((op == 0x63) || ((op == 0x69) || ((op == 0x6B) || ((op < 0x40) && (((op & 7) == 3) && (op != 0x3B))))))) {
-        r_15 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
-        return len | 1024LL | (r_15 << 16) | 4278190080LL | 0LL;
+        r_16 = ((reg < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (reg & 7))) & 255;
+        return len | 1024LL | (r_16 << 16) | 4278190080LL | 0LL;
     }
     if ((op == 0x39) || ((op == 0x3B) || ((op == 0x38) || ((op == 0x3A) || ((op == 0x84) || (op == 0x85)))))) {
         return len | 0LL | 16711680LL | 4278190080LL | 0LL;
@@ -4422,8 +4429,8 @@ exit_store_length_4:;
     }
     if ((op == 0x88) || (((op >= 0x80) && (op <= 0x83)) || (((op >= 0xC0) && (op <= 0xC1)) || (((op >= 0xD0) && (op <= 0xD3)) || ((op == 0xC6) || ((op == 0xC7) || ((op == 0xF6) || ((op == 0xF7) || ((op == 0x8F) || ((op == 0xFF) || ((op < 0x40) && (((op & 7) == 1) && (op != 0x39))))))))))))) {
         if (mod == 3) {
-            r_16 = ((rm < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (rm & 7))) & 255;
-            return len | 1024LL | (r_16 << 16) | 4278190080LL | 0LL;
+            r_17 = ((rm < 8 ? X64_ARM_LO : X64_ARM_HI) >> (8 * (rm & 7))) & 255;
+            return len | 1024LL | (r_17 << 16) | 4278190080LL | 0LL;
         }
         return ({
     if ((base == X64_RBX) || ((base == X64_R11) || (base < 0))) {

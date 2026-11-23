@@ -530,5 +530,13 @@ runtime
 	self case: 'push rdi' emit: [asm stp: X29 with: X0 base: SP preIndex: -16].
 	self case: 'pop rdi|lea rsp, [rsp+8]' emit: [asm ldr: X0 base: SP postIndex: 16].
 	"cmn #0: an addition's flags (C clear), not cmp's of 0"
-	self case: 'test rdx, rdx' emit: [asm cmn: X2 imm: 0]
+	self case: 'test rdx, rdx' emit: [asm cmn: X2 imm: 0].
+	"rev: bswap; the 16-bit indexed loads of x86's own"
+	self case: 'bswap edi' emit: [asm rev: W0 with: W0].
+	self case: 'bswap r10' emit: [asm rev: X16 with: X16].
+	self case: '{load} mov r10, rsi|bswap r10d' emit: [asm rev: W16 with: W1].
+	self case: 'movzx r10d, WORD PTR [rdi+r12*1+0x10]' emit: [asm ldrh: W16 base: X0 index: X17 offset: 16].
+	self case: 'movsx r10, WORD PTR [rdi+r12*1+0x10]' emit: [asm ldrsh: X16 base: X0 index: X17 offset: 16].
+	self case: 'mov r10d, DWORD PTR [rdi+r12*4+0x10]' emit: [asm ldr: W16 base: X0 index: X17 shift: 2 offset: 16].
+	self case: 'mov DWORD PTR [rdi+r12*1+0x10], r10d' emit: [asm str: W16 base: X0 index: X17 shift: 0 offset: 16]
 ! !

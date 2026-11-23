@@ -1331,8 +1331,8 @@ ranges
 			nd := ir node: n.
 			op := nd op asInt32.
 			(op = O_INDEXLOAD and: [nd aux ~= E_PTR]) ifTrue: [
-				nd lo: 0.
-				nd hi: 255].
+				nd lo: (self lowestOf: nd aux asInt32).
+				nd hi: (self highestOf: nd aux asInt32)].
 			(op = O_CAST or: [op = O_GUARDINT or: [op = O_GUARDCLASS]]) ifTrue: [
 				x := ir node: (ir resolve: nd a).
 				nd lo: (nd lo max: x lo).
@@ -1369,9 +1369,23 @@ ranges
 					nd hi: y lo - 1]].
 			(op = O_INDEXSTORE and: [nd aux ~= E_PTR]) ifTrue: [
 				x := ir node: (ir resolve: nd c).
-				(x tkind asInt32 = (nd aux = E_CHAR ifTrue: [T_CHAR] ifFalse: [T_SMI]) and: [x lo >= 0 and: [x hi <= 255]]) ifTrue: [
+				(x tkind asInt32 = (nd aux = E_CHAR ifTrue: [T_CHAR] ifFalse: [T_SMI]) and: [x lo >= (self lowestOf: nd aux asInt32) and: [x hi <= (self highestOf: nd aux asInt32)]]) ifTrue: [
 					nd flags: (nd flags bitOr: NF_INRANGE)]].
 			n := nd next]]
+!
+lowestOf: ek
+	"The least value an indexed load of element kind ek (not E_PTR) answers, a Character's code point for E_CHAR."
+	<returns: 'int64_t'>
+	(ek = E_I16 or: [ek = E_I16BE]) ifTrue: [^-32768].
+	^0
+!
+highestOf: ek
+	"The greatest value an indexed load of element kind ek (not E_PTR) answers, a Character's code point for E_CHAR (below 256: bytes)."
+	<returns: 'int64_t'>
+	(ek = E_U16 or: [ek = E_U16BE]) ifTrue: [^65535].
+	(ek = E_I16 or: [ek = E_I16BE]) ifTrue: [^32767].
+	(ek = E_W32 or: [ek = E_U32 or: [ek = E_U32BE]]) ifTrue: [^16rFFFFFFFF].
+	^255
 !
 inRange: nd
 	"nd (an add or subtract, the Character of a code point) cannot fail: it checks nothing."

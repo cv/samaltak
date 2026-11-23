@@ -1065,16 +1065,23 @@ emitFloat: n
 	self ddef: n from: r
 !
 emitSizeOf: x kind: ek fixed: fixed
-	"X16 := the number of indexable elements of x (pointer slots after fixed fields, or bytes); uses X17."
+	"X16 := the number of indexable elements of x (pointer slots after fixed fields, 32-bit words, or bytes); for an access of more than one byte at a byte offset the last offset it may start at (the bytes less its own but one: negative if it does not fit at all); uses X17."
 	ek = E_PTR ifTrue: [
 		asm ldr: W16 base: x offset: 0.
 		fixed > 0 ifTrue: [asm sub: X16 with: X16 imm: fixed].
 		^self].
-	asm comment: 'bytes: 8 per slot less the unused ones (the format''s low bits)'.
 	asm ldr: X17 base: x offset: 0.
 	asm ubfx: X16 with: X17 lsb: 0 width: 32.
 	asm ubfx: X17 with: X17 lsb: 32 width: 5.
-	asm sub: X17 with: X17 imm: F_BYTES.
+	ek = E_W32 ifTrue: [
+		asm comment: '32-bit words: 2 per slot less the unused one (the format''s low bit)'.
+		asm sub: X17 with: X17 imm: F_W32.
+		asm lsl: X16 with: X16 imm: 1.
+		^asm sub: X16 with: X16 with: X17].
+	(self isByteOffset: ek)
+		ifTrue: [asm comment: 'bytes: 8 per slot less the unused ones (the format''s low bits) and the access''s bytes but one']
+		ifFalse: [asm comment: 'bytes: 8 per slot less the unused ones (the format''s low bits)'].
+	asm sub: X17 with: X17 imm: F_BYTES - ((self accessBytes: ek) - 1).
 	asm lsl: X16 with: X16 imm: 3.
 	asm sub: X16 with: X16 with: X17
 !
@@ -1094,6 +1101,9 @@ emitIndexCheck: n
 	x := self src: nd a into: self scratchA.
 	asm comment: 'bounds check'.
 	self emitSizeOf: x kind: nd aux asInt32 fixed: nd aux2 asInt32.
+	(self isByteOffset: nd aux asInt32) ifTrue: [
+		asm comment: 'fewer bytes than it reads'.
+		asm tbnz: X16 bit: 63 to: s].
 	i := self src: nd b into: self scratchB.
 	asm asr: X17 with: i imm: 1.
 	asm sub: X17 with: X17 imm: 1.
@@ -1105,7 +1115,7 @@ indexDisplacementOf: n
 	"x86: the element's address is the object's plus X17 times the element size plus this (emitIndexCheck: leaves a 1-based index where no bounds are checked)."
 	| nd size |
 	nd := ir node: n.
-	size := nd aux asInt32 = E_PTR ifTrue: [8] ifFalse: [1].
+	size := self elementBytes: nd aux asInt32.
 	^16 + (8 * nd aux2) - ((nd flags bitAnd: NF_NOBOUNDS) ~= 0 ifTrue: [size] ifFalse: [0])
 !
 emitByteStoreX64: n object: x label: s
@@ -1131,39 +1141,66 @@ emitByteStoreX64: n object: x label: s
 	asm strb: W16 base: x index: X17 offset: (self indexDisplacementOf: n)
 !
 emitIndexLoad: n
-	| nd x r ek |
+	"A pointer, or the element into X16 (bytes, 32-bit words, or 2 or 4 bytes at a byte offset: unaligned loads, which arm64 and x86-64 do in normal memory; big-endian ones reversed with rev, bswap on x86) and tagged: a SmallInteger, a Character for a string."
+	| nd x r ek disp |
 	nd := ir node: n.
 	ek := nd aux asInt32.
 	x := self emitIndexCheck: n.
-	asm isX64 ifTrue: [
-		"one addressing mode: the object, the index, the header and fixed fields as the displacement"
-		r := self dst: n.
-		ek = E_PTR ifTrue: [
-			asm ldr: r base: x index: X17 shift: 3 offset: (self indexDisplacementOf: n).
-			^self def: n from: r].
-		asm ldrb: W16 base: x index: X17 offset: (self indexDisplacementOf: n).
-		ek = E_BYTE
-			ifTrue: [
-				asm lsl: X16 with: X16 imm: 1.
-				asm orr: r with: X16 imm: 1]
-			ifFalse: [
-				asm lsl: X16 with: X16 imm: 3.
-				asm orr: r with: X16 imm: 2].
-		^self def: n from: r].
-	asm add: X16 with: x imm: 16 + (8 * nd aux2).
-	r := self dst: n.
-	ek = E_PTR ifTrue: [
-		asm ldr: r base: X16 index: X17 extend: EXT_LSL shift: 3.
-		^self def: n from: r].
-	asm ldrb: W16 base: X16 index: X17.
-	ek = E_BYTE
+	asm isX64
 		ifTrue: [
-			asm lsl: X16 with: X16 imm: 1.
-			asm orr: r with: X16 imm: 1]
+			"one addressing mode: the object, the index, the header and fixed fields as the displacement"
+			disp := self indexDisplacementOf: n.
+			ek = E_PTR ifTrue: [
+				r := self dst: n.
+				asm ldr: r base: x index: X17 shift: 3 offset: disp.
+				^self def: n from: r].
+			(ek = E_U16 or: [ek = E_U16BE or: [ek = E_I16BE]]) ifTrue: [asm ldrh: W16 base: x index: X17 offset: disp].
+			ek = E_I16 ifTrue: [asm ldrsh: X16 base: x index: X17 offset: disp].
+			(ek = E_W32 or: [ek = E_U32 or: [ek = E_U32BE]]) ifTrue: [asm ldr: W16 base: x index: X17 shift: (ek = E_W32 ifTrue: [2] ifFalse: [0]) offset: disp].
+			(ek = E_BYTE or: [ek = E_CHAR]) ifTrue: [asm ldrb: W16 base: x index: X17 offset: disp]]
 		ifFalse: [
+			asm add: X16 with: x imm: 16 + (8 * nd aux2).
+			ek = E_PTR ifTrue: [
+				r := self dst: n.
+				asm ldr: r base: X16 index: X17 extend: EXT_LSL shift: 3.
+				^self def: n from: r].
+			(ek = E_U16 or: [ek = E_U16BE or: [ek = E_I16BE]]) ifTrue: [asm ldrh: W16 base: X16 index: X17].
+			ek = E_I16 ifTrue: [asm ldrsh: X16 base: X16 index: X17].
+			ek = E_W32 ifTrue: [asm ldr: W16 base: X16 index: X17 extend: EXT_LSL shift: 2].
+			(ek = E_U32 or: [ek = E_U32BE]) ifTrue: [asm ldr: W16 base: X16 index: X17].
+			(ek = E_BYTE or: [ek = E_CHAR]) ifTrue: [asm ldrb: W16 base: X16 index: X17]].
+	(ek = E_U16BE or: [ek = E_I16BE or: [ek = E_U32BE]]) ifTrue: [
+		asm comment: 'big-endian: the bytes reversed'.
+		asm rev: W16 with: W16.
+		ek = E_U16BE ifTrue: [asm lsr: W16 with: W16 imm: 16].
+		ek = E_I16BE ifTrue: [asm sbfx: X16 with: X16 lsb: 16 width: 16]].
+	r := self dst: n.
+	ek = E_CHAR
+		ifTrue: [
 			asm lsl: X16 with: X16 imm: 3.
-			asm orr: r with: X16 imm: 2].
+			asm orr: r with: X16 imm: 2]
+		ifFalse: [
+			asm lsl: X16 with: X16 imm: 1.
+			asm orr: r with: X16 imm: 1].
 	self def: n from: r
+!
+emitWordStore: n object: x label: s
+	"emitIndexStore: of a SmallInteger 0 to 2^32 - 1 as 32 bits (into 32-bit words, or uint32At:put: at a byte offset, unaligned) at the object x, the index in X17."
+	| nd v |
+	nd := ir node: n.
+	v := self src: nd c into: self scratchB.
+	(nd flags bitAnd: NF_INRANGE) ~= 0
+		ifTrue: [asm comment: 'a SmallInteger 0 to 2^32 - 1: unchecked']
+		ifFalse: [
+			asm comment: 'a SmallInteger 0 to 2^32 - 1?'.
+			asm tst: v imm: 1.
+			asm b: s if: COND_EQ.
+			asm lsr: X16 with: v imm: 33.
+			asm cbnz: X16 to: s].
+	asm lsr: X16 with: v imm: 1.
+	asm isX64 ifTrue: [^asm str: W16 base: x index: X17 shift: (nd aux = E_W32 ifTrue: [2] ifFalse: [0]) offset: (self indexDisplacementOf: n)].
+	asm add: X17 with: x with: X17 shift: SHIFT_LSL amount: (nd aux = E_W32 ifTrue: [2] ifFalse: [0]).
+	asm str: W16 base: X17 offset: 16 + (8 * nd aux2)
 !
 emitIndexStore: n
 	"The value: a SmallInteger 0-255 into bytes, a Character below 256 into a string, any oop into pointers (with the store barrier); an immutable object deoptimizes."
@@ -1176,6 +1213,7 @@ emitIndexStore: n
 		asm ldr: X16 base: x offset: 0.
 		asm tst: X16 imm: H_IMMUTABLE.
 		asm b: s if: COND_NE].
+	(ek = E_W32 or: [ek = E_U32]) ifTrue: [^self emitWordStore: n object: x label: s].
 	(asm isX64 and: [ek ~= E_PTR]) ifTrue: [^self emitByteStoreX64: n object: x label: s].
 	asm isX64 ifFalse: [
 		asm add: X16 with: x imm: 16 + (8 * nd aux2).

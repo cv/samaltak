@@ -267,7 +267,14 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define EXT_UXTX 3
 #define E_BYTE 1
 #define E_CHAR 2
+#define E_I16 5
+#define E_I16BE 8
 #define E_PTR 0
+#define E_U16 4
+#define E_U16BE 7
+#define E_U32 6
+#define E_U32BE 9
+#define E_W32 3
 #define FB_CLASSES 4
 #define FB_DEOPT_ARITH 32
 #define FB_DEOPT_BOUNDS 64
@@ -410,6 +417,8 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define OPK_CLOSURE 11
 #define OPK_FLOAT 64
 #define OPK_FSQRT 8
+#define OPK_I16AT 18
+#define OPK_I16BEAT 22
 #define OPK_IDENTICAL 7
 #define OPK_INT 32
 #define OPK_NEW 9
@@ -420,6 +429,11 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define OPK_STRHASH 15
 #define OPK_STRINGAT 4
 #define OPK_STRINGATPUT 5
+#define OPK_U16AT 17
+#define OPK_U16BEAT 21
+#define OPK_U32AT 19
+#define OPK_U32ATPUT 20
+#define OPK_U32BEAT 23
 #define OPT_ANA_MAX 65536
 #define OPT_DEF_SIZE 131072
 #define OPT_FB_SNAP 16384

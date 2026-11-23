@@ -996,6 +996,21 @@ cmn: rn with: rm
 	self alu: 16r03 w: (self wide: rn) dst: X64_R11 src: rm.
 	self setFlags: X64_FL_ADD
 !
+rev: rd with: rn
+	"rd := rn's bytes in reverse order (a W register: the low four): bswap, which leaves the flags."
+	| t rex v n |
+	t := self dst: rd.
+	self load: rn into: t.
+	rex := self rex: (self wide: rd) reg: 0 index: 0 base: t.
+	v := 0 asUInt64.
+	n := 0.
+	rex ~= 0 ifTrue: [
+		v := (16r40 bitOr: rex) asUInt64.
+		n := 1].
+	v := v bitOr: (16rC80F bitOr: (t bitAnd: 7) asInt64 << 8) asUInt64 << (8 * n).
+	self emitBytes: v count: n + 2.
+	self store: t into: rd
+!
 neg: rd with: rm
 	| t |
 	t := self dst: rd.
@@ -1995,6 +2010,16 @@ strb: rt base: rn index: rm offset: d
 	((self isPhys: rt) and: [(self isBase: rn) and: [self isPhys: rm]]) ifFalse: [^self fail: ASM_ERR_OPERAND].
 	self op: 16r88 len: 1 pre: 0 w: 0 reg: (self gpr: rt) base: (self gpr: rn) index: (self gpr: rm) scale: 0 disp: d byte: true
 !
+ldrh: rt base: rn index: rm offset: d
+	"x86's own: rt := the 16 bits at rn + rm + d, zero-extended; registers of x86's."
+	((self isPhys: rt) and: [(self isBase: rn) and: [self isPhys: rm]]) ifFalse: [^self fail: ASM_ERR_OPERAND].
+	self op: 16rB70F len: 2 pre: 0 w: 0 reg: (self gpr: rt) base: (self gpr: rn) index: (self gpr: rm) scale: 0 disp: d byte: false
+!
+ldrsh: rt base: rn index: rm offset: d
+	"x86's own: rt := the 16 bits at rn + rm + d, sign-extended to 64 bits; registers of x86's."
+	((self isPhys: rt) and: [(self isBase: rn) and: [self isPhys: rm]]) ifFalse: [^self fail: ASM_ERR_OPERAND].
+	self op: 16rBF0F len: 2 pre: 0 w: 1 reg: (self gpr: rt) base: (self gpr: rn) index: (self gpr: rm) scale: 0 disp: d byte: false
+!
 ldr: rt base: rn index: rm shift: n offset: d
 	"x86's own: rt := the word at rn + (rm << n) + d; registers of x86's."
 	((self isPhys: rt) and: [(self isBase: rn) and: [self isPhys: rm]]) ifFalse: [^self fail: ASM_ERR_OPERAND].
@@ -2467,6 +2492,8 @@ effectAt: address
 		op = 16r99 ifTrue: [^self effect: len kind: ASM_EF_WRITE reg: 2 reg: 255 offset: 0].
 		(op = 16r90 or: [op = 16rCC]) ifTrue: [^self effect: len kind: ASM_EF_NONE reg: 255 reg: 255 offset: 0]].
 	(op2 between: 16r80 and: 16r8F) ifTrue: [^self effect: len + 4 kind: ASM_EF_NONE reg: 255 reg: 255 offset: 0].
+	"bswap r (no ModRM)"
+	(op2 between: 16rC8 and: 16rCF) ifTrue: [^self effect: len kind: ASM_EF_WRITE reg: (self armOf: (op2 bitAnd: 7) + ((rex bitAnd: 1) * 8)) reg: 255 offset: 0].
 	"ModRM, SIB, displacement"
 	modrm := (self uint8At: p) asInt64.
 	p := p + 1.

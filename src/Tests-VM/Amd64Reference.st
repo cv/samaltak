@@ -438,6 +438,13 @@ cases
 		('push rdi' 2791 ('57' 'push   rdi'))
 		('pop rdi|lea rsp, [rsp+8]' 2792 ('5f' 'pop    rdi' '488d642408' 'lea    rsp,[rsp+0x8]'))
 		('test rdx, rdx' 2798 ('4885d2' 'test   rdx,rdx'))
+		('bswap edi' 2801 ('0fcf' 'bswap  edi'))
+		('bswap r10' 2803 ('490fca' 'bswap  r10'))
+		('{load} mov r10, rsi|bswap r10d' 2806 ('4c8bd6' 'mov    r10,rsi' '410fca' 'bswap  r10d'))
+		('movzx r10d, WORD PTR [rdi+r12*1+0x10]' 2812 ('460fb7542710' 'movzx  r10d,WORD PTR [rdi+r12*1+0x10]'))
+		('movsx r10, WORD PTR [rdi+r12*1+0x10]' 2818 ('4e0fbf542710' 'movsx  r10,WORD PTR [rdi+r12*1+0x10]'))
+		('mov r10d, DWORD PTR [rdi+r12*4+0x10]' 2824 ('468b54a710' 'mov    r10d,DWORD PTR [rdi+r12*4+0x10]'))
+		('mov DWORD PTR [rdi+r12*1+0x10], r10d' 2829 ('4689542710' 'mov    DWORD PTR [rdi+r12*1+0x10],r10d'))
 	)
 !
 disassembly

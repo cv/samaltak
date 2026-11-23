@@ -306,8 +306,11 @@ dataProcessing2
 	^self op: name with: (#(0 5 16) collect: [:lsb | self r: (self field: lsb width: 5)])
 !
 dataProcessing1
-	(self field: 10 width: 11) = 4 ifFalse: [^nil].
-	^self op: 'clz' with: (#(0 5) collect: [:lsb | self r: (self field: lsb width: 5)])
+	| opcode |
+	opcode := self field: 10 width: 11.
+	"rev: opcode 2 of W registers, 3 of X registers (2 of X is rev32)"
+	(opcode = 4 or: [opcode = (self width = 64 ifTrue: [3] ifFalse: [2])]) ifFalse: [^nil].
+	^self op: (opcode = 4 ifTrue: ['clz'] ifFalse: ['rev']) with: (#(0 5) collect: [:lsb | self r: (self field: lsb width: 5)])
 !
 dataProcessing3
 	| op31 o0 regs |

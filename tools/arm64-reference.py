@@ -114,7 +114,7 @@ DISASM_FIELDS = [(0, 5, 31), (5, 5, 31), (16, 5, 31), (10, 5, 31), (10, 6, 63), 
 
 DISASM_MNEMONICS = set('''add sub adds subs cmp cmn neg negs mov and orr eor ands bic bics orn eon tst mvn movz movk movn
     lsl lsr asr ror mul madd msub mneg smulh umulh sdiv udiv csel csinc csinv csneg cset csetm cinc cinv cneg ccmp ccmn
-    ubfx sbfx ubfiz sbfiz bfi bfxil sxtb sxth sxtw uxtb uxth extr clz
+    ubfx sbfx ubfiz sbfiz bfi bfxil sxtb sxth sxtw uxtb uxth extr clz rev
     ldr str ldrb strb ldrh strh ldrsb ldrsh ldrsw ldur stur ldurb sturb ldurh sturh ldursb ldursh ldursw ldp stp
     adr adrp b bl cbz cbnz tbz tbnz br blr ret nop brk dmb dsb isb ssbb pssbb dfb
     fmov fadd fsub fmul fdiv fsqrt fneg fabs fcmp fcsel scvtf ucvtf fcvtzs frintm frintp frintz frintn'''.split())

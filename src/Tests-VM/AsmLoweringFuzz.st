@@ -238,7 +238,7 @@ emitInstruction
 	"One instruction (or a short pattern) from the code generators' repertoire; every random value is drawn first, in order."
 	<function>
 	| k a b c e wa w v i i12 m mw s s32 lsb width cond d d1 d2 off boff two lbl |
-	k := self below: 47.
+	k := self below: 48.
 	kind := k asInt32.
 	a := self reg.
 	b := self reg.
@@ -352,6 +352,12 @@ emitInstruction
 		(s bitAnd: 3) = 2 ifTrue: [asm ccmp: b imm: ((i >> 3) rem: 63) asInt64 - 31 nzcv: (self nzcv: i) cond: cond].
 		(s bitAnd: 3) = 3 ifTrue: [asm ccmn: b imm: ((i >> 3) rem: 63) asInt64 - 31 nzcv: (self nzcv: i) cond: cond].
 		^asm cset: a cond: (lsb rem: 14) asInt32].
+	k = 46 ifTrue: [
+		"rev (W or X) between another's flags and a select on them: it leaves the flags"
+		self emitFlagSetter.
+		asm failed ifFalse: [kind := k asInt32].
+		asm rev: a + w with: b + w.
+		^asm csel: c with: c with: e cond: cond].
 	"a floating point compare and a select or branch on it"
 	two = 0
 		ifTrue: [asm fcmp: d with: d1]

@@ -984,6 +984,89 @@ testRangesOfBytesAndCharacters
 		self should: [o map: s with: short] raise: Error.
 		self assert: (o map: s with: t) equals: expected]
 !
+testMultiByteAccessorsAreInline
+	"uint16At: int16At: uint32At: uint32At:put: and the big-endian loads of bytes, and at: and at:put: of 32-bit words, are inline: one bounds check for all the bytes an access reads (every size and offset, aligned or not, against the bytes they are made of), the bytes reversed for the big-endian ones. Out of bounds (by one byte; at 0; an object shorter than the access) and a stored value that is no SmallInteger 0 to 2^32 - 1 deoptimize: the primitive fails and its method's body runs. A counted loop checks the bounds of its accesses once, where it is entered, against the last offset a 4-byte load may start at."
+	| o le be s16 b c words |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	#('u16: b at: i ^b uint16At: i' 'i16: b at: i ^b int16At: i' 'u32: b at: i ^b uint32At: i' 'be16: b at: i ^b uint16BigEndianAt: i'
+		'ibe16: b at: i ^b int16BigEndianAt: i' 'be32: b at: i ^b uint32BigEndianAt: i' 'put32: b at: i value: v ^b uint32At: i put: v'
+		'word: w at: i ^w at: i' 'word: w at: i put: v ^w at: i put: v' 'sum32: b to: n | s | s := 0. 1 to: n do: [:i | s := s + (b uint32At: i)]. ^s'
+		'edgeA: b at: i ^b uint32At: i' 'edgeB: b at: i ^b uint32At: i' 'edgeC: b at: i ^b uint32At: i' 'edgeD: b at: i ^b uint32At: i'
+		'edgeE: b at: i ^b int16BigEndianAt: i' 'edgeF: b at: i value: v ^b uint32At: i put: v' 'edgeG: b at: i value: v ^b uint32At: i put: v') do: [:each | self define: each].
+	o := JitRuntimeTestSubject new.
+	le := [:x :i :n | (n - 1 to: 0 by: -1) inject: 0 into: [:acc :k | (acc bitShift: 8) + (x at: i + k)]].
+	be := [:x :i :n | (0 to: n - 1) inject: 0 into: [:acc :k | (acc bitShift: 8) + (x at: i + k)]].
+	s16 := [:v | v >= 16r8000 ifTrue: [v - 16r10000] ifFalse: [v]].
+	b := ByteArray new: 9.
+	1 to: 9 do: [:i | b at: i put: i * 73 + 11 \\ 256].
+	words := Bitmap new: 5.
+	1 to: 2000 do: [:k | | i |
+		i := k \\ 6 + 1.
+		self assert: (o u16: b at: i) equals: (le value: b value: i value: 2).
+		self assert: (o i16: b at: i) equals: (s16 value: (le value: b value: i value: 2)).
+		self assert: (o u32: b at: i) equals: (le value: b value: i value: 4).
+		self assert: (o be16: b at: i) equals: (be value: b value: i value: 2).
+		self assert: (o ibe16: b at: i) equals: (s16 value: (be value: b value: i value: 2)).
+		self assert: (o be32: b at: i) equals: (be value: b value: i value: 4).
+		#(#edgeA:at: #edgeB:at: #edgeC:at: #edgeD:at:) do: [:each | self assert: (o perform: each with: b with: i) equals: (le value: b value: i value: 4)].
+		self assert: (o edgeE: b at: i) equals: (s16 value: (be value: b value: i value: 2)).
+		c := ByteArray new: 9.
+		self assert: (o put32: c at: i value: k * 16r1234567 \\ 16r100000000) equals: k * 16r1234567 \\ 16r100000000.
+		self assert: (o edgeF: c at: i value: k) equals: k.
+		self assert: (o edgeG: c at: i value: k) equals: k.
+		self assert: (le value: c value: i value: 4) equals: k.
+		self assert: (o word: words at: k \\ 5 + 1 put: 16rFFFFFFFF - k) equals: 16rFFFFFFFF - k.
+		self assert: (o word: words at: k \\ 5 + 1) equals: 16rFFFFFFFF - k.
+		self assert: (o sum32: b to: 6) equals: ((1 to: 6) inject: 0 into: [:s :j | s + (le value: b value: j value: 4)])].
+	self stressed ifFalse: [
+		self deny: ((self listingOf: #u32:at:) includesSubstring: 'inline cache').
+		self assert: ((self listingOf: #u32:at:) includesSubstring: 'fewer bytes than it reads').
+		self assert: ((self listingOf: #be32:at:) includesSubstring: 'big-endian: the bytes reversed').
+		self assert: ((self listingOf: #ibe16:at:) includesSubstring: 'big-endian: the bytes reversed').
+		self assert: ((self listingOf: #put32:at:value:) includesSubstring: 'a SmallInteger 0 to 2^32 - 1?').
+		self assert: ((self listingOf: #word:at:) includesSubstring: '32-bit words: 2 per slot').
+		self assert: ((self listingOf: #word:at:put:) includesSubstring: '32-bit words: 2 per slot').
+		self assert: ((self listingOf: #sum32:to:) includesSubstring: 'within bounds: checked once before the loop')].
+	"every size and offset within bounds, through the code compiled above"
+	0 to: 9 do: [:n | | x |
+		x := ByteArray new: n.
+		1 to: n do: [:i | x at: i put: i * 37 + 200 \\ 256].
+		1 to: n - 1 do: [:i |
+			self assert: (o u16: x at: i) equals: (le value: x value: i value: 2).
+			self assert: (o i16: x at: i) equals: (s16 value: (le value: x value: i value: 2)).
+			self assert: (o be16: x at: i) equals: (be value: x value: i value: 2).
+			self assert: (o ibe16: x at: i) equals: (s16 value: (be value: x value: i value: 2))].
+		1 to: n - 3 do: [:i |
+			self assert: (o u32: x at: i) equals: (le value: x value: i value: 4).
+			self assert: (o be32: x at: i) equals: (be value: x value: i value: 4).
+			c := x copy.
+			self assert: (o put32: c at: i value: 16r89ABCDEF) equals: 16r89ABCDEF.
+			self assert: (le value: c value: i value: 4) equals: 16r89ABCDEF.
+			self assert: (c copyFrom: 1 to: i - 1) equals: (x copyFrom: 1 to: i - 1).
+			self assert: (c copyFrom: i + 4 to: n) equals: (x copyFrom: i + 4 to: n)].
+		n >= 4 ifTrue: [self assert: (o sum32: x to: n - 3) equals: ((1 to: n - 3) inject: 0 into: [:s :j | s + (le value: x value: j value: 4)])]].
+	"out of bounds, each case a site's first failure: the inline check's"
+	self should: [o edgeA: (ByteArray new: 5) at: 3] raise: Error.
+	self should: [o edgeB: b at: 0] raise: Error.
+	self should: [o edgeC: (ByteArray new: 3) at: 1] raise: Error.
+	self should: [o edgeD: (ByteArray new: 1) at: 1] raise: Error.
+	self should: [o edgeE: (ByteArray new: 0) at: 1] raise: Error.
+	self should: [o sum32: b to: 7] raise: Error.
+	self should: [o word: words at: 6] raise: Error.
+	"stored values out of range: the primitive fails, its body stores the low 32 bits of two's complement"
+	c := ByteArray new: 4.
+	self assert: (o edgeF: c at: 1 value: -1) equals: -1.
+	self assert: c equals: #[255 255 255 255].
+	self assert: (o edgeG: c at: 1 value: 16r100000001) equals: 16r100000001.
+	self assert: c equals: #[1 0 0 0].
+	self should: [o word: words at: 1 put: 16r100000000] raise: Error.
+	self assert: (o word: words at: 1) equals: 16rFFFFFFFF - 2000.
+	3 timesRepeat: [
+		self assert: (o u32: b at: 6) equals: (le value: b value: 6 value: 4).
+		self assert: (o sum32: b to: 6) equals: ((1 to: 6) inject: 0 into: [:s :j | s + (le value: b value: j value: 4)]).
+		self should: [o u32: b at: 7] raise: Error.
+		self should: [o put32: b copy at: 7 value: 1] raise: Error]
+!
 testAnOuterTempALoopWritesIsItsValue
 	"An outer temp that one store on every turn of a loop that sends nothing writes is a value of the loop (a phi), stored every turn: reads after the store, the loop's later turns and the block's home see the right value, whatever the temp held when the loop began (a Float fails the SmallInteger guard at the loop's entry, a sum beyond SmallIntegers its add); not one another closure also reads."
 	| o a big |

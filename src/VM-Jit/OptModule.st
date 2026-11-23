@@ -1,6 +1,6 @@
 JitCompiler subclass: #OptModule
 	instanceVariableNames: 'memory interpreter gc libc feedback'
-	classVariableNames: 'BF_DEOPT BF_LIVE BF_LOOP BF_SEALED SI_PERFORMED LOC_CONST LOC_DREG LOC_INT LOC_RAW LOC_REG LOC_SLOT LOC_SMI LOC_SUNK NF_ALLOC NF_BLOCKCALL NF_REPLACE NF_W32 NF_PTRS NF_DEAD NF_EQONLY NF_GUARD NF_HOISTED NF_LAZY NF_INRANGE NF_MUTABLE NF_NOBOUNDS NF_PURE O_BRANCH O_CALL O_CAST O_CHECKINT O_CLASSIS O_CLASSOF O_CLOSURE O_CONST O_OUTERLOAD O_OUTERSTORE O_UNBOXF O_BOXF O_FARITH O_FCMP O_BOTHINT O_FSQRT O_IMOD O_IDIV O_ISHIFT O_IXOR O_NOTINTS O_HOMESLOT O_LOADSLOT O_STORESLOT O_CHARCONV O_MKARRAY O_DEOPT O_EQ O_GOTO O_GUARDCLASS O_GUARDCLOSURE O_GUARDEQ O_GUARDINT O_GUARDLE O_GUARDMUTABLE E_BYTE E_CHAR E_PTR O_IADD O_IAND O_ICMP O_INDEXLOAD O_INDEXSTORE O_SIZE O_IMUL O_IOR O_ISUB O_LOADFIELD O_NE O_NOP O_OUTERSLOT O_PARAM O_PHI O_RETURN O_SEND O_STOREFIELD O_STRCMP O_STRHASH O_LAST OPT_ANA_MAX OPT_DEF_SIZE OPT_MAX_ACTS OPT_MAX_BLOCKS OPT_MAX_EDGES OPT_MAX_NODES OPT_MAX_OPERANDS OPT_MAX_STATES OPT_PCB_MAX R_DBL R_INT R_NONE R_OOP SP_ALLOC SP_CALL SP_ENTRY SP_GUARD SP_LOOP T_ANY T_BOOL T_CHAR T_FLOAT T_NIL T_OBJ T_SMI'
+	classVariableNames: 'BF_DEOPT BF_LIVE BF_LOOP BF_SEALED SI_PERFORMED LOC_CONST LOC_DREG LOC_INT LOC_RAW LOC_REG LOC_SLOT LOC_SMI LOC_SUNK NF_ALLOC NF_BLOCKCALL NF_REPLACE NF_W32 NF_PTRS NF_DEAD NF_EQONLY NF_GUARD NF_HOISTED NF_LAZY NF_INRANGE NF_MUTABLE NF_NOBOUNDS NF_PURE O_BRANCH O_CALL O_CAST O_CHECKINT O_CLASSIS O_CLASSOF O_CLOSURE O_CONST O_OUTERLOAD O_OUTERSTORE O_UNBOXF O_BOXF O_FARITH O_FCMP O_BOTHINT O_FSQRT O_IMOD O_IDIV O_ISHIFT O_IXOR O_NOTINTS O_HOMESLOT O_LOADSLOT O_STORESLOT O_CHARCONV O_MKARRAY O_DEOPT O_EQ O_GOTO O_GUARDCLASS O_GUARDCLOSURE O_GUARDEQ O_GUARDINT O_GUARDLE O_GUARDMUTABLE E_BYTE E_CHAR E_PTR E_W32 E_U16 E_I16 E_U32 E_U16BE E_I16BE E_U32BE O_IADD O_IAND O_ICMP O_INDEXLOAD O_INDEXSTORE O_SIZE O_IMUL O_IOR O_ISUB O_LOADFIELD O_NE O_NOP O_OUTERSLOT O_PARAM O_PHI O_RETURN O_SEND O_STOREFIELD O_STRCMP O_STRHASH O_LAST OPT_ANA_MAX OPT_DEF_SIZE OPT_MAX_ACTS OPT_MAX_BLOCKS OPT_MAX_EDGES OPT_MAX_NODES OPT_MAX_OPERANDS OPT_MAX_STATES OPT_PCB_MAX R_DBL R_INT R_NONE R_OOP SP_ALLOC SP_CALL SP_ENTRY SP_GUARD SP_LOOP T_ANY T_BOOL T_CHAR T_FLOAT T_NIL T_OBJ T_SMI'
 	package: 'VM-Jit'!
 
 OptModule comment: 'I am the abstract class of the optimizing tier''s modules (docs/jit.md, Optimizing tier): I connect them to the VM and to each other, and hold their shared constants (the IR''s opcodes, representations, types, flags; the deoptimization metadata''s location kinds) and the object model''s helpers they need (as VMCoreModule does for the VM''s core).
@@ -94,6 +94,15 @@ initialize
 	E_PTR := 0.
 	E_BYTE := 1.
 	E_CHAR := 2.
+	"32-bit words (SmallIntegers 0 to 2^32 - 1)"
+	E_W32 := 3.
+	"bytes read and written at a 1-based byte offset, any alignment (uint16At: int16At: uint32At: uint32At:put:, the big-endian forms): little-endian and big-endian"
+	E_U16 := 4.
+	E_I16 := 5.
+	E_U32 := 6.
+	E_U16BE := 7.
+	E_I16BE := 8.
+	E_U32BE := 9.
 	"representations"
 	R_NONE := 0.
 	R_OOP := 1.
@@ -222,4 +231,22 @@ methodPrimitive: m
 	| p |
 	p := self loadRef: m at: CM_PRIMITIVE.
 	^(self isInt: p) ifTrue: [((self intVal: p) bitAnd: CM_PRIM_MASK) asInt32] ifFalse: [0]
+! !
+
+!OptModule methodsFor: 'element kinds'!
+isByteOffset: ek
+	"Element kind ek (E_*) is indexed by a byte offset and reads more than one byte (uint16At: and friends)."
+	^ek >= E_U16
+!
+elementBytes: ek
+	"How far apart the elements of kind ek are: an index step's bytes."
+	ek = E_PTR ifTrue: [^8].
+	ek = E_W32 ifTrue: [^4].
+	^1
+!
+accessBytes: ek
+	"How many bytes an access of kind ek reads or writes."
+	(ek = E_U16 or: [ek = E_I16 or: [ek = E_U16BE or: [ek = E_I16BE]]]) ifTrue: [^2].
+	(ek = E_U32 or: [ek = E_U32BE]) ifTrue: [^4].
+	^self elementBytes: ek
 ! !

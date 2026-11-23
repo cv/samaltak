@@ -3,7 +3,7 @@ Object subclass: #Amd64Disassembler
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-Amd64Disassembler comment: 'I print x86-64 instructions as GNU objdump -d -M intel does (its mnemonics, Intel operand order, hex immediates, absolute branch targets, [rip+disp] with the address it refers to after #, the REX prefix an instruction does not use as rex.W ...), for what Amd64Assembler emits and the rest of the general purpose and scalar double instructions around it: add or adc sbb and sub xor cmp test, mov movabs lea movzx movsx movsxd xchg, inc dec not neg mul imul div idiv, shifts and rotates, bt bts btr btc, cmovcc setcc, push pop, jmp jcc call ret, cbw..cqo, nop int3 ud2; movsd movapd movupd movq movd addsd subsd mulsd divsd sqrtsd minsd maxsd ucomisd comisd cvtsi2sd cvttsd2si cvtsd2si andpd andnpd orpd xorpd. Anything else (other prefixes among them) prints as .byte 0x.. and takes one byte.
+Amd64Disassembler comment: 'I print x86-64 instructions as GNU objdump -d -M intel does (its mnemonics, Intel operand order, hex immediates, absolute branch targets, [rip+disp] with the address it refers to after #, the REX prefix an instruction does not use as rex.W ...), for what Amd64Assembler emits and the rest of the general purpose and scalar double instructions around it: add or adc sbb and sub xor cmp test, mov movabs lea movzx movsx movsxd xchg, inc dec not neg mul imul div idiv, shifts and rotates, bt bts btr btc, bswap, cmovcc setcc, push pop, jmp jcc call ret, cbw..cqo, nop int3 ud2; movsd movapd movupd movq movd addsd subsd mulsd divsd sqrtsd minsd maxsd ucomisd comisd cvtsi2sd cvttsd2si cvtsd2si andpd andnpd orpd xorpd. Anything else (other prefixes among them) prints as .byte 0x.. and takes one byte.
 listingOfBytes:at:annotations: prints JIT output with its Arm64CodeAnnotations (bytecodes, comments, labels, symbols), the data words after its instructions (literals, an oop pool, inline caches'' words) as .quad.
 
 	Amd64Disassembler new textFor: #[16r48 16r8B 16r7B 16r08] at: 0	"mov    rdi,QWORD PTR [rbx+0x8]"'!
@@ -44,7 +44,7 @@ twoByteOpcodes
 		setcc setcc setcc setcc setcc setcc setcc setcc setcc setcc setcc setcc setcc setcc setcc setcc
 		nil nil nil bitTest nil nil nil nil nil nil nil bitTest nil nil nil imul
 		nil nil nil bitTest nil nil movExtend movExtend nil nil bitTestImmediate bitTest nil nil movExtend movExtend
-		nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil
+		nil nil nil nil nil nil nil nil bswap bswap bswap bswap bswap bswap bswap bswap
 		nil nil nil nil nil nil movqToMemory nil nil nil nil nil nil nil nil nil
 		nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil
 		nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil nil)
@@ -526,6 +526,10 @@ cmov
 	size := self operandSize.
 	self modrm.
 	^self op: 'cmov' , (self condition: (opcode bitAnd: 15)) with: {self reg: size. self rm: size}
+!
+bswap
+	"0F C8-CF bswap r32 (r64 with REX.W)"
+	^self op: 'bswap' with: {self register: (opcode bitAnd: 7) + (self extension: 1) size: self operandSize}
 !
 setcc
 	"0F 90-9F setcc Eb"
