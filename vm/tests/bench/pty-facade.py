@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Attribute PTY facade overhead in one headless VM per JIT mode (Linux)."""
+"""Attribute legacy PTY facade overhead in one headless VM per JIT mode (Linux)."""
 import argparse
 import csv
 import hashlib
@@ -13,6 +13,7 @@ import sys
 HISTORY = "3ceae5316bd3cc180b594e989a0752c85df4782c"  # d124cd9^
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
+BINDING_FILE = HERE / "pty-facade-binding.st"
 VARIANTS = ("control", "direct", "prebound_reused", "prebound_fresh",
             "lookup", "on_do", "original", "forced_fallback")
 OPS = ("foreground", "resize")
@@ -36,18 +37,12 @@ def build_benchmark(candidate_file, candidate_selectors):
     call = method(source, "call: descriptor with: arguments ifUnavailable: fallback")
     lookup = method(source, "bindingFor: descriptor")
     setup = [
-        "(PseudoTerminal class compiledMethodAt: #primForeground:) primitiveName = 'ptyForeground' "
-        "ifFalse: [self error: 'expected current direct ptyForeground primitive']",
-        "(PseudoTerminal class compiledMethodAt: #primResize:rows:columns:) primitiveName = 'ptyResize' "
-        "ifFalse: [self error: 'expected current direct ptyResize primitive']",
-        "PlatformFFI addClassVarNamed: 'Bindings'",
-        "PlatformFFI classVarNamed: 'Bindings' put: nil",
-        compile_st(call, "PlatformFFI"),
-        compile_st(lookup, "PlatformFFI"),
+        compile_st(call, "PTYBenchBinding"),
+        compile_st(lookup.replace("FFI bind:", "self bind:"), "PTYBenchBinding"),
         compile_st("benchLookup: descriptor with: arguments ifUnavailable: fallback\n"
-                   "\t^(self bindingFor: descriptor) invoke: arguments", "PlatformFFI"),
+                   "\t^(self bindingFor: descriptor) invoke: arguments", "PTYBenchBinding"),
         compile_st("benchInvoke: binding with: arguments ifUnavailable: fallback\n"
-                   "\t^binding invoke: arguments", "PlatformFFI"),
+                   "\t^binding invoke: arguments", "PTYBenchBinding"),
     ]
     declarations, prepare, checks, selections = [], [], [], []
     for op, title, more, args, primitive, control in (
@@ -56,8 +51,14 @@ def build_benchmark(candidate_file, candidate_selectors):
     ):
         orig_header = f"prim{title}: aHandle{more}"
         legacy_header = f"legacy{title}: aHandle{more}"
-        orig = method(source, orig_header)
-        legacy = method(source, legacy_header)
+        orig = method(source, orig_header).replace("PlatformFFI", "PTYBenchBinding")
+        selector_suffix = ":" if op == "foreground" else ":rows:columns:"
+        direct_selector = "legacy" + title + selector_suffix
+        call_args = "h rows: 24 columns: 80" if more else "h"
+        setup.append(f"((PseudoTerminal class includesSelector: #{direct_selector}) "
+                     f"and: [(PseudoTerminal class compiledMethodAt: #{direct_selector}) "
+                     f"primitiveName = '{primitive}']) "
+                     f"ifFalse: [self error: 'expected #{direct_selector} to be the {primitive} primitive']")
         descriptor = re.search(r"#\(call 'platform' .*?\) i32\)", orig).group()
         fallback = re.search(r"ifUnavailable: (\[.*?\])", orig).group(1)
         # Also used by the preflight; this is deliberately a native argument rejection.
@@ -66,13 +67,12 @@ def build_benchmark(candidate_file, candidate_selectors):
         args_name = f"PTYBench{title}Arguments"
         declarations.extend([f"Smalltalk at: #{name} put: nil" for name in (binding_name, args_name)])
         prepare.extend([
-            f"Smalltalk at: #{binding_name} put: (FFI bind: {descriptor})",
+            f"Smalltalk at: #{binding_name} put: (PTYBenchBinding bind: {descriptor})",
             f"Smalltalk at: #{args_name} put: {args.replace('aHandle', 'h').replace('rows', '24').replace('columns', '80')}",
         ])
-        setup.append(compile_st(legacy, "PseudoTerminal"))
         variants = (
             ("benchControl", orig.split("\n")[0] + f"\n\t^{control}"),
-            ("prim", None),
+            ("legacy", None),
             ("benchPreboundReused", orig.replace("call: " + descriptor, "benchInvoke: " + binding_name)
              .replace(args, args_name).replace(fallback, "nil")),
             ("benchPreboundFresh", orig.replace("call: " + descriptor, "benchInvoke: " + binding_name)
@@ -84,7 +84,6 @@ def build_benchmark(candidate_file, candidate_selectors):
             ("benchForcedFallback", orig.replace(args, bad_args)),
         )
         selectors = []
-        selector_suffix = ":" if op == "foreground" else ":rows:columns:"
         for prefix, body in variants:
             selectors.append(prefix + title + selector_suffix)
             if body is not None:
@@ -93,26 +92,21 @@ def build_benchmark(candidate_file, candidate_selectors):
                 if descriptor in variant:
                     # Different methods may hold different descriptor literal identities.
                     # Prewarm every key, never a cache miss during a timed batch.
-                    prepare.append(f"PlatformFFI bindingFor: ((PseudoTerminal class "
+                    prepare.append(f"PTYBenchBinding bindingFor: ((PseudoTerminal class "
                                    f"compiledMethodAt: #{selectors[-1]}) literals detect: "
                                    "[:lit | lit class == Array and: [lit notEmpty and: [lit first == #call]]])")
+        successful_calls = [f"PseudoTerminal benchOriginal{title}: {call_args}"]
         if candidate_selectors:
             candidate = candidate_selectors[len(selections)]
             selectors.append(candidate)
-            candidate_call = f"PseudoTerminal {candidate.split(':')[0]}: h" + (" rows: 24 columns: 80" if more else "")
-            direct_selector = f"prim{title}:" + ("rows:columns:" if more else "")
-            trap = compile_st(orig_header + "\n self error: 'candidate fell back'", "PseudoTerminal")
-            checks.append(
-                f"[| original | original := PseudoTerminal class compiledMethodAt: #{direct_selector}. "
-                f"{trap}. "
-                f"[{candidate_call}] ensure: [PseudoTerminal class addSelector: #{direct_selector} withMethod: original]] value"
-            )
+            successful_calls.append(f"PseudoTerminal {candidate.split(':')[0]}: {call_args}")
         selections.append(selectors)
+        trap = compile_st(f"{legacy_header}\n self error: 'unexpected {op} fallback'", "PseudoTerminal")
         checks.extend([
-            compile_st(f"{legacy_header}\n self error: 'original {op} fell back'", "PseudoTerminal"),
-            f"PseudoTerminal benchOriginal{title}: h" + (" rows: 24 columns: 80" if more else ""),
-            compile_st(legacy, "PseudoTerminal"),
-            f"(PlatformFFI call: {descriptor} with: {bad_args.replace('rows', '24').replace('columns', '80')} "
+            f"[| direct | direct := PseudoTerminal class compiledMethodAt: #{direct_selector}. "
+            f"[{trap}. {'. '.join(successful_calls)}] ensure: ["
+            f"PseudoTerminal class addSelector: #{direct_selector} withMethod: direct]] value",
+            f"(PTYBenchBinding call: {descriptor} with: {bad_args.replace('rows', '24').replace('columns', '80')} "
             f"ifUnavailable: [#rejected]) == #rejected ifFalse: [self error: 'expected FFI {op} rejection']",
         ])
     if candidate_file is not None:
@@ -219,7 +213,8 @@ def main():
     csv_out = csv.writer(sys.stdout, lineterminator="\n")
     csv_out.writerow(("jit", "phase", "round", "slot", "op", "variant", "calls", "us", "bytes"))
     for jit in args.jit:
-        proc = subprocess.run([vm, "--jit", jit, "--eden", "16", image, "--headless", "--eval", expr],
+        proc = subprocess.run([vm, "--jit", jit, "--eden", "16", image, "--headless",
+                               "--load", BINDING_FILE, "--eval", expr],
                               text=True, capture_output=True, env=env, timeout=600)
         data = [line.split(",")[1:] for line in proc.stdout.splitlines() if line.startswith("pty-facade,")]
         if (proc.returncode or "pty-facade-ok" not in proc.stdout or

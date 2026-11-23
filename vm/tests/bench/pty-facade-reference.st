@@ -14,14 +14,6 @@ primResize: aHandle rows: rows columns: columns
 	result := PlatformFFI call: #(call 'platform' 'pty_resize' (i64 i64 i64) i32)
 		with: {aHandle. rows. columns} ifUnavailable: [^self legacyResize: aHandle rows: rows columns: columns].
 	^result = 0 ifTrue: [nil] ifFalse: [self]
-!
-legacyForeground: aHandle
-	<primitive: 'ptyForeground'>
-	^nil
-!
-legacyResize: aHandle rows: rows columns: columns
-	<primitive: 'ptyResize'>
-	^nil
 ! !
 
 !PlatformFFI class methodsFor: 'benchmark reference'!

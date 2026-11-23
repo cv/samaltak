@@ -1,4 +1,4 @@
-# Headless PTY facade attribution
+# Headless legacy PTY facade attribution
 
 On Linux with SDL3, OpenSSL and shaderc installed, build the platform VM and
 matching image from a clean checkout, then run:
@@ -17,12 +17,15 @@ timed process startup. The child is ready and blocked on input. Constant
 resize uses the PTY's existing dimensions.
 
 The driver reconstructs the facade from the bundled reference fixture
-(extracted from `d124cd9^`) in memory; no Git history is needed. The two current primitive methods stay in use
-for the direct rows, and their primitive names are checked at runtime.
-The reconstructed methods preserve historical bodies and result conversion
-except for the ablated expression. Each variant uses the same loop, caller
-block shape and one outer send to the PTY class. FFI ablations retain a helper
-send with the same arity. Control is not subtracted.
+(extracted from `d124cd9^`) in memory; no Git history is needed. The direct
+rows use the image's `legacyForeground:` and `legacyResize:rows:columns:`;
+the driver checks their primitive names. The facade rows use a private
+benchmark binding over `ffiBind`/`ffiInvoke` to retain the old Array/word
+bridge. The production `primForeground:` and `primResize:rows:columns:`
+wrappers are not replaced or timed here; use `wrapped-ffi.py` for those.
+Each variant uses the same loop, caller block shape and one outer send to
+the PTY class. FFI ablations retain a helper send with the same arity.
+Control is not subtracted.
 
 | Variant | What runs |
 |---|---|
@@ -47,11 +50,9 @@ change between variants.
 
 ## Candidate
 
-The bundled fixture adds a per-site binding with the non-signaling
-`tryInvoke:` and either fresh arguments (`--candidate fresh`) or optional
-last-tuple memoization (`--candidate memo`). If the newer non-signaling
-binder is absent, the fixture uses an exception handler only for cold bind;
-steady calls follow the same path. The image is not saved.
+The bundled fixture caches a legacy binding per site and uses its
+non-signaling `tryInvoke:` with either fresh arguments (`--candidate fresh`)
+or last-tuple memoization (`--candidate memo`). The image is not saved.
 
 ```sh
 vm/tests/bench/pty-facade.py --candidate fresh > /tmp/pty-fresh.csv 2> /tmp/pty-fresh.txt
@@ -63,11 +64,12 @@ The separate `--vary-resize` case alternates 24×80 and 25×81 on the same PTY,
 checking both writes with the child's `stty size` before timing. Timing
 includes the kernel's resize notification work; compare only within this
 case. For a custom method-only fixture use `--candidate-file` and
-`--candidate-selectors`. Candidate methods should fall back to the current
-direct primitives; preflight traps those methods to detect silent fallback
-on valid arguments.
+`--candidate-selectors`. Candidate methods should fall back to
+`legacyForeground:` and `legacyResize:rows:columns:`. Preflight traps these
+selectors to detect silent fallback on valid arguments, then restores the
+original methods before timing.
 
-## Measured attribution
+## Historical measurements
 
 Linux x86-64 (AMD EPYC 7B13), pinned to CPU 0. Platform GCC build at
 `7492e2a`; one candidate image (with the fresh binding path filed in) for
