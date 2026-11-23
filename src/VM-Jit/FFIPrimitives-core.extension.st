@@ -98,3 +98,49 @@ nativeGetenv: bytes size: n ticket: ticket
 	(self ownedPublish: ticket from: (self cCoerce: val to: 'const uint8_t *') size: (libc strlen: val)) ifFalse: [^-1].
 	^1
 ! !
+
+!FFIPrimitives methodsFor: 'native synchronous text exports'!
+nativeTextStdout: bytes size: n
+	<function>
+	<approvedFFI: 1169 symbol: 'core_stdout_text' arguments: #(13) result: 7>
+	<var: #bytes type: 'const uint8_t *'>
+	<var: #n type: 'uint64_t'>
+	<returns: 'void'>
+	self nativeWriteStdout: bytes size: n
+!
+nativeTextStderr: bytes size: n
+	<function>
+	<approvedFFI: 1170 symbol: 'core_stderr_text' arguments: #(13) result: 7>
+	<var: #bytes type: 'const uint8_t *'>
+	<var: #n type: 'uint64_t'>
+	<returns: 'void'>
+	self nativeWriteStderr: bytes size: n
+!
+nativeTextGetenv: key size: n into: out
+	<function>
+	<approvedFFI: 1172 symbol: 'core_getenv_text' arguments: #(14) result: 15>
+	<var: #key type: 'const char *'>
+	<var: #n type: 'uint64_t'>
+	<var: #out type: 'FFITextBuffer *'>
+	<returns: 'void'>
+	| val size copy |
+	"key[size] is NUL and the input has no embedded NUL. libc's result is
+	 not owned; copy it before the wrapper can safepoint or return."
+	val := libc getenv: key.
+	out allocation notNull ifTrue: [libc free: out allocation].
+	out data: self null.
+	out count: 0.
+	out allocation: self null.
+	val isNull ifTrue: [^self].
+	size := libc strlen: val.
+	size > 67108864 ifTrue: [^self].
+	size <= 512
+		ifTrue: [copy := out small]
+		ifFalse: [
+			copy := self cCoerce: (libc malloc: size) to: 'uint8_t *'.
+			copy isNull ifTrue: [^self].
+			out allocation: copy].
+	libc memcpy: copy from: val size: size.
+	out data: copy.
+	out count: size
+! !

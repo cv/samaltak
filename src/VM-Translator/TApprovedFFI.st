@@ -43,20 +43,29 @@ setFunction: f spec: spec
 	(owner = 'SDLPlatform' and: [self class legacyPlatformNames includes: name]) ifTrue: [self fail: 'name reserved by a legacy FFI export'].
 	tags := spec at: 3.
 	result := spec at: 4.
-	(tags class == Array and: [tags size <= 6 and: [tags allSatisfy: [:tag | #(1 2 3 4 6 8 9 10) includes: tag]]]) ifFalse: [
+	(tags class == Array and: [tags size <= 6 and: [tags allSatisfy: [:tag | #(1 2 3 4 6 8 9 10 13 14) includes: tag]]]) ifFalse: [
 		self fail: 'invalid approved export argument tags'].
-	(#(1 2 3 4 6 7 11) includes: result) ifFalse: [self fail: 'invalid approved export result tag'].
-	(f pragmaAt: #returns:) = (Array with: (result = 11 ifTrue: ['void'] ifFalse: [self scalarType: result])) ifFalse: [self fail: 'result tag does not match explicit native type'].
+	(#(1 2 3 4 6 7 11 12 15) includes: result) ifFalse: [self fail: 'invalid approved export result tag'].
+	(f pragmaAt: #returns:) = (Array with: ((result = 11 or: [result = 15]) ifTrue: ['void'] ifFalse: [self scalarType: result])) ifFalse: [self fail: 'result tag does not match explicit native type'].
 	types := OrderedCollection new.
-	tags do: [:tag |
-		tag = 10
-			ifTrue: [types add: #('const uint64_t *'); add: #('int64_t')]
-			ifFalse: [
-				(#(8 9) includes: tag)
-					ifTrue: [
-						types add: (tag = 8 ifTrue: [#('const uint8_t *' 'const void *')] ifFalse: [#('uint8_t *' 'void *')]).
-						types add: #('uint64_t')]
-					ifFalse: [types add: (Array with: (self scalarType: tag))]]].
+	((tags includes: 13) or: [(tags includes: 14) or: [result = 15]])
+		ifTrue: [
+			(owner = 'FFIPrimitives' and: [
+				(tags = #(13) and: [result = 7]) or: [tags = #(14) and: [result = 15]]])
+				ifFalse: [self fail: 'invalid synchronous text signature'].
+			types add: (result = 7 ifTrue: [#('const uint8_t *')] ifFalse: [#('const char *')]).
+			types add: #('uint64_t').
+			result = 15 ifTrue: [types add: #('FFITextBuffer *')]]
+		ifFalse: [
+			tags do: [:tag |
+				tag = 10
+					ifTrue: [types add: #('const uint64_t *'); add: #('int64_t')]
+					ifFalse: [
+						(#(8 9) includes: tag)
+							ifTrue: [
+								types add: (tag = 8 ifTrue: [#('const uint8_t *' 'const void *')] ifFalse: [#('uint8_t *' 'void *')]).
+								types add: #('uint64_t')]
+							ifFalse: [types add: (Array with: (self scalarType: tag))]]]].
 	result = 11 ifTrue: [
 		(owner = 'FFIPrimitives' and: [tags = #(10 10)]) ifFalse: [self fail: 'invalid owned integer result signature'].
 		types add: #('BigIntegerNativeResult *')].
@@ -70,6 +79,7 @@ setFunction: f spec: spec
 	signature := (signature bitShift: 4) + result
 !
 scalarType: tag
+	tag = 12 ifTrue: [^'int64_t'].
 	^#('int32_t' 'uint32_t' 'int64_t' 'uint64_t' nil 'double' 'void') at: tag
 !
 fail: aString
@@ -112,9 +122,16 @@ printLookup: cFunction rows: rows on: s
 
 !TApprovedFFI methodsFor: 'generating'!
 printCheckWith: args on: s
+	| nullable |
 	testOnly ifTrue: [s nextPutAll: '#ifdef SAMALTAK_FFI_TEST_EXPORTS'; lf].
-	s nextPutAll: '    if ('; nextPutAll: args second; nextPutAll: ' == '; print: signature;
-		nextPutAll: ' && strcmp('; nextPutAll: args first; nextPutAll: ', ';
+	nullable := (signature bitAnd: 15) = 12.
+	s nextPutAll: '    if ('.
+	nullable ifTrue: [s nextPut: $(].
+	s nextPutAll: args second; nextPutAll: ' == '; print: signature.
+	"Tag 12 changes boxing, not the ABI. Keep the exact signed signature for older images."
+	nullable ifTrue: [
+		s nextPutAll: ' || '; nextPutAll: args second; nextPutAll: ' == '; print: signature - 9; nextPut: $)].
+	s nextPutAll: ' && strcmp('; nextPutAll: args first; nextPutAll: ', ';
 		nextPutAll: (CConst value: name type: nil) cString; nextPutAll: ') == 0) {'; lf;
 		nextPutAll: '        *'; nextPutAll: args third; nextPutAll: ' = (uint64_t) '; nextPutAll: native cName; nextPut: $;; lf.
 	self printTracedAddressWith: args on: s.

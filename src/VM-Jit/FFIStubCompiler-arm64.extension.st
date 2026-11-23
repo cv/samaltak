@@ -20,11 +20,21 @@ arm64WrappedCall: address at: j into: buf
 	<var: #j type: 'int32_t'>
 	<var: #buf type: 'uint32_t *'>
 	<returns: 'int32_t'>
-	"movz/movk x16,imm16; blr x16. Neither the target nor helpers need a literal pool."
+	^self arm64WrappedTransfer: address tail: false at: j into: buf
+!
+arm64WrappedTransfer: address tail: tail at: j into: buf
+	<function>
+	<arch: #arm64>
+	<var: #address type: 'uint64_t'>
+	<var: #tail type: 'bool'>
+	<var: #j type: 'int32_t'>
+	<var: #buf type: 'uint32_t *'>
+	<returns: 'int32_t'>
+	"movz/movk x16,imm16; br/blr x16. Neither the target nor helpers need a literal pool."
 	buf at: j put: 16rD2800010 + ((address bitAnd: 16rFFFF) * 32).
 	1 to: 3 do: [:i |
 		buf at: j + i put: (16rF2800010 + (i * 2097152)) asUInt64 + (((address >> (i * 16)) bitAnd: 16rFFFF) * 32)].
-	buf at: j + 4 put: 16rD63F0200.
+	buf at: j + 4 put: (tail ifTrue: [16rD61F0200] ifFalse: [16rD63F0200]).
 	^j + 5
 !
 encodeWrappedArm64: buf target: target types: types count: n result: result operation: operation
@@ -174,37 +184,34 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 	result >= 3 ifTrue: [
 		helper := self wrappedResultHelper: result.
 		helper = 0 ifTrue: [^0].
-		result <= 4 ifTrue: [
-			"The top two signed bits must match (unsigned: both must be zero)."
+		(self wrappedInlineWideResult: result) ifTrue: [
+			"The top two signed bits must match (unsigned or nonnegative: both must be zero)."
 			buf at: j put: (result = 3 ifTrue: [16rCA000409] ifFalse: [16rD37EFC09]). "eor x9,x0,x0,lsl #1 / lsr x9,x0,#62"
 			ok := j + 1.
 			j := j + 2].
-		j := self arm64WrappedCall: helper at: j into: buf.
-		result <= 4 ifTrue: [
+		(self wrappedTailResult: result) ifFalse: [
+			j := self arm64WrappedCall: helper at: j into: buf].
+		(self wrappedInlineWideResult: result) ifTrue: [
 			resultDone := j. "b epilogue (helper returned a boxed oop)"
 			j := j + 1.
 			result = 3
 				ifTrue: [self arm64WrappedBranch: 16rB6F80009 from: ok to: j mask: 16r3FFF into: buf] "tbz x9,#63"
 				ifFalse: [self arm64WrappedBranch: 16rB4000009 from: ok to: j mask: 16r7FFFF into: buf]]]. "cbz x9"
-	result <= 4 ifTrue: [
+	(result <= 2 or: [self wrappedInlineWideResult: result]) ifTrue: [
 		buf at: j put: 16rD37FF800. "lsl x0,x0,#1"
 		buf at: j + 1 put: 16r91000400. "add x0,x0,#1"
 		j := j + 2].
 	epilogue := j.
 	resultDone >= 0 ifTrue: [
 		self arm64WrappedBranch: 16r14000000 from: resultDone to: epilogue mask: 16r3FFFFFF into: buf].
-	n > 0 ifTrue: [
-		0 to: gpSave - 1 do: [:i |
-			buf at: j put: 16rF94003F3 + ((2 + i) * 1024) + i. "ldr x19+i,[sp,#16+i*8]"
-			j := j + 1].
-		0 to: fpSave - 1 do: [:i |
-			buf at: j put: 16rFD4003E8 + ((fpBase quo: 8) + i * 1024) + i. "ldr d8+i,[sp,#fpBase+i*8]"
-			j := j + 1].
-		buf at: j put: 16r910003FF + (localBytes * 1024). "add sp,sp,#localBytes"
-		j := j + 1].
-	buf at: j put: 16rA8C17BFD. "ldp x29,x30,[sp],#16"
-	buf at: j + 1 put: 16rD65F03C0. "ret"
-	j := j + 2.
+	(self wrappedTailResult: result) ifTrue: [
+		j := self arm64RestoreWrappedGP: gpSave asInt32 fp: fpSave asInt32 offset: fpBase asInt32 bytes: localBytes asInt32 hasArgs: n > 0 at: j into: buf.
+		j := self arm64WrappedTransfer: helper tail: true at: j into: buf.
+		failCount = 0 ifTrue: [^j asUInt32 * 4].
+		epilogue := j].
+	j := self arm64RestoreWrappedGP: gpSave asInt32 fp: fpSave asInt32 offset: fpBase asInt32 bytes: localBytes asInt32 hasArgs: n > 0 at: j into: buf.
+	buf at: j put: 16rD65F03C0. "ret"
+	j := j + 1.
 	failCount > 0 ifTrue: [
 		reject := j.
 		buf at: j put: 16rAA1F03E0. "mov x0,xzr (only on rejection before target)"
@@ -216,4 +223,29 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 			self arm64WrappedBranch: rejection from: slow to: reject
 				mask: ((rejection >> 24) = 16r54 ifTrue: [16r7FFFF] ifFalse: [16r3FFF]) asUInt32 into: buf]].
 	^j asUInt32 * 4
+!
+arm64RestoreWrappedGP: gpSave fp: fpSave offset: fpBase bytes: localBytes hasArgs: hasArgs at: start into: buf
+	<function>
+	<arch: #arm64>
+	<var: #gpSave type: 'int32_t'>
+	<var: #fpSave type: 'int32_t'>
+	<var: #fpBase type: 'int32_t'>
+	<var: #localBytes type: 'int32_t'>
+	<var: #hasArgs type: 'bool'>
+	<var: #start type: 'int32_t'>
+	<var: #buf type: 'uint32_t *'>
+	<returns: 'int32_t'>
+	| j |
+	j := start.
+	hasArgs ifTrue: [
+		0 to: gpSave - 1 do: [:i |
+			buf at: j put: 16rF94003F3 + ((2 + i) * 1024) + i. "ldr x19+i,[sp,#16+i*8]"
+			j := j + 1].
+		0 to: fpSave - 1 do: [:i |
+			buf at: j put: 16rFD4003E8 + ((fpBase quo: 8) + i * 1024) + i. "ldr d8+i,[sp,#fpBase+i*8]"
+			j := j + 1].
+		buf at: j put: 16r910003FF + (localBytes * 1024). "add sp,sp,#localBytes"
+		j := j + 1].
+	buf at: j put: 16rA8C17BFD. "ldp x29,x30,[sp],#16"
+	^j + 1
 ! !

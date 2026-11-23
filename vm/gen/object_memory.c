@@ -353,13 +353,13 @@ uint64_t float_oop(double d)
 /* ObjectMemory>>floatVal: */
 double float_val(oop o)
 {
+    oop r_small_float_bits;
     oop r;
     oop x;
     oop v;
-    oop b;
-    if ((o & 7) == 4) {
-        r = o >> 3;
-        b = ({
+    return lt_double_from_bits((o & 7) == 4 ? ({
+    r = o >> 3;
+    r_small_float_bits = ({
     if (r <= 1) {
         v = r << 63;
     } else {
@@ -367,10 +367,7 @@ double float_val(oop o)
         v = (x >> 1) | ((uint64_t)(x << 63));
     }
     v; });
-    } else {
-        b = ((oop *)(o + 16))[0];
-    }
-    return lt_double_from_bits(b);
+    r_small_float_bits; }) : ((oop *)(o + 16))[0]);
 }
 
 /* ObjectMemory>>fnvHash: */
@@ -763,6 +760,36 @@ size_t string_size(oop s)
         return word32_size(s);
     }
     return 0;
+}
+
+/* ObjectMemory>>tryFloatVal:into: */
+bool try_float_val(oop o, double *out)
+{
+    oop r_small_float_bits;
+    oop r;
+    oop x;
+    oop v;
+    oop bits;
+    if ((o & 7) == 4) {
+        bits = ({
+    r = o >> 3;
+    r_small_float_bits = ({
+    if (r <= 1) {
+        v = r << 63;
+    } else {
+        x = r + 8070450532247928832LL;
+        v = (x >> 1) | ((uint64_t)(x << 63));
+    }
+    v; });
+    r_small_float_bits; });
+    } else {
+        if ((o == 0) || ((!((o & 7) == 0)) || (*(uint64_t *)(o + 8) != cls_boxedfloat))) {
+            return false;
+        }
+        bits = ((oop *)(o + 16))[0];
+    }
+    *out = lt_double_from_bits(bits);
+    return true;
 }
 
 /* ObjectMemory>>u64Of:into: */

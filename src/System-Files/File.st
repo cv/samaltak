@@ -208,16 +208,16 @@ primExec: argv
 ffiCandidatePrimPosition: h
 	<ffiSite>
 	| result |
-	result := (self ffiSite: #(call 'platform' 'platform_files_position' (i64) i64)) tryInvoke1: h.
+	result := (self ffiSite: #(call 'platform' 'platform_files_position' (i64) nonNegativeI64)) tryInvoke1: h.
 	result == false ifTrue: [^self primPosition: h].
-	^result < 0 ifTrue: [nil] ifFalse: [result]
+	^result
 !
 ffiCandidatePrimSize: h
 	<ffiSite>
 	| result |
-	result := (self ffiSite: #(call 'platform' 'platform_files_size' (i64) i64)) tryInvoke1: h.
+	result := (self ffiSite: #(call 'platform' 'platform_files_size' (i64) nonNegativeI64)) tryInvoke1: h.
 	result == false ifTrue: [^self primSize: h].
-	^result < 0 ifTrue: [nil] ifFalse: [result]
+	^result
 !
 ffiCandidatePrimRead: h into: bytes startingAt: start count: count
 	| binding result |

@@ -44,6 +44,7 @@ static void ffi_big_integer_mul(const uint64_t *a, int64_t an, const uint64_t *b
 static void ffi_big_integer_quo(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
 static void ffi_big_integer_rem(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
 static void ffi_big_integer_sub(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
+static int64_t ffi_test_non_negative_i64(int64_t value);
 static void invalidate_bindings(void);
 static void invoke_bound_array(oop args);
 static bool marshal(oop o, int32_t tag, uint64_t *out);
@@ -62,6 +63,9 @@ static double native_log(double x);
 static double native_sin(double x);
 static double native_sqrt(double x);
 static int64_t native_test_writable_pair(uint8_t *first, uint64_t first_length, double marker, int32_t status, uint8_t *second, uint64_t second_length);
+static void native_text_getenv(const char *key, uint64_t n, ffi_text_buffer *out);
+static void native_text_stderr(const uint8_t *bytes, uint64_t n);
+static void native_text_stdout(const uint8_t *bytes, uint64_t n);
 static int64_t native_thread_cpu_microseconds(void);
 static double native_trunc(double x);
 static int64_t native_utc_microseconds(void);
@@ -471,7 +475,7 @@ static bool describe_bound_owner(oop owner, int32_t n, ffi_bound_site *desc)
     desc->serial = serial;
     desc->entry = entry;
     result_tag = (uint64_t)binding_result_tags[slot];
-    desc->result_tag = result_tag == 11 ? 6ULL : result_tag;
+    desc->result_tag = result_tag >= 11 ? 6ULL : result_tag;
     desc->token = token;
     desc->owner_addr = (uint64_t)(binding_owners + slot);
     return true;
@@ -576,6 +580,18 @@ static int32_t native_getenv_entry_witness(const void *a1, uint64_t a2, uint64_t
     fprintf(stderr, "\nffi-native-entry 1196\n");
     return native_getenv(a1, a2, a3);
 }
+static void native_text_stdout_entry_witness(const uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 2193\n");
+    native_text_stdout(a1, a2);
+}
+static void native_text_stderr_entry_witness(const uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 2194\n");
+    native_text_stderr(a1, a2);
+}
+static void native_text_getenv_entry_witness(const char *a1, uint64_t a2, ffi_text_buffer *a3) {
+    fprintf(stderr, "\nffi-native-entry 2196\n");
+    native_text_getenv(a1, a2, a3);
+}
 static int32_t owned_reserve_entry_witness(uint32_t a1, uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 5024\n");
     return owned_reserve(a1, a2, a3);
@@ -596,6 +612,12 @@ static int32_t owned_release_entry_witness(uint64_t a1) {
 static int32_t owned_test_entry_witness(uint64_t a1, int32_t a2) {
     fprintf(stderr, "\nffi-native-entry 5028\n");
     return owned_test(a1, a2);
+}
+#endif
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+static int64_t ffi_test_non_negative_i64_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 5118\n");
+    return ffi_test_non_negative_i64(a1);
 }
 #endif
 #ifdef SAMALTAK_FFI_TEST_EXPORTS
@@ -722,6 +744,24 @@ static int32_t ffi_approved_core(const char *approved_name, uint32_t packed_sign
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_getenv_entry_witness;
         return 1196;
     }
+    if (packed_signature == 215 && strcmp(approved_name, "core_stdout_text") == 0) {
+        *target_out = (uint64_t) native_text_stdout;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_text_stdout_entry_witness;
+        return 2193;
+    }
+    if (packed_signature == 215 && strcmp(approved_name, "core_stderr_text") == 0) {
+        *target_out = (uint64_t) native_text_stderr;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_text_stderr_entry_witness;
+        return 2194;
+    }
+    if (packed_signature == 239 && strcmp(approved_name, "core_getenv_text") == 0) {
+        *target_out = (uint64_t) native_text_getenv;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_text_getenv_entry_witness;
+        return 2196;
+    }
     if (packed_signature == 657 && strcmp(approved_name, "ffi_owned_reserve") == 0) {
         *target_out = (uint64_t) owned_reserve;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
@@ -752,6 +792,14 @@ static int32_t ffi_approved_core(const char *approved_name, uint32_t packed_sign
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) owned_test_entry_witness;
         return 5028;
+    }
+#endif
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+    if ((packed_signature == 60 || packed_signature == 51) && strcmp(approved_name, "ffi_test_nonnegative_i64") == 0) {
+        *target_out = (uint64_t) ffi_test_non_negative_i64;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_test_non_negative_i64_entry_witness;
+        return 5118;
     }
 #endif
 #ifdef SAMALTAK_FFI_TEST_EXPORTS
@@ -887,6 +935,12 @@ static void ffi_big_integer_rem(const uint64_t *a, int64_t an, const uint64_t *b
 static void ffi_big_integer_sub(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out)
 {
     magnitude_operation(21, a, an, b, bn, max_heap_bytes, out);
+}
+
+/* FFIPrimitives>>ffiTestNonNegativeI64: */
+static int64_t ffi_test_non_negative_i64(int64_t value)
+{
+    return value;
 }
 
 /* FFIPrimitives>>fillBoundSite:owner:method:selector:arity: */
@@ -1312,6 +1366,52 @@ static int64_t native_test_writable_pair(uint8_t *first, uint64_t first_length, 
     return -8070450532247928832LL + (int64_t)first_length * 16 + (int64_t)second_length + (int64_t)status;
 }
 
+/* FFIPrimitives>>nativeTextGetenv:size:into: */
+static void native_text_getenv(const char *key, uint64_t n, ffi_text_buffer *out)
+{
+    char *val;
+    size_t size;
+    uint8_t *copy;
+    val = getenv(key);
+    if (out->allocation != NULL) {
+        free(out->allocation);
+    }
+    out->data = (const uint8_t *)NULL;
+    out->count = 0;
+    out->allocation = NULL;
+    if (val == NULL) {
+        return;
+    }
+    size = strlen(val);
+    if (size > 67108864) {
+        return;
+    }
+    if (size <= 512) {
+        copy = out->small;
+    } else {
+        copy = (uint8_t *)malloc(size);
+        if (copy == NULL) {
+            return;
+        }
+        out->allocation = copy;
+    }
+    memcpy(copy, val, size);
+    out->data = copy;
+    out->count = size;
+}
+
+/* FFIPrimitives>>nativeTextStderr:size: */
+static void native_text_stderr(const uint8_t *bytes, uint64_t n)
+{
+    native_write_stderr(bytes, n);
+}
+
+/* FFIPrimitives>>nativeTextStdout:size: */
+static void native_text_stdout(const uint8_t *bytes, uint64_t n)
+{
+    native_write_stdout(bytes, n);
+}
+
 /* FFIPrimitives>>nativeThreadCpuMicroseconds */
 static int64_t native_thread_cpu_microseconds(void)
 {
@@ -1686,10 +1786,13 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_ou
         return 0;
     }
     n = (int32_t)count;
-    if (((((int64_t)result_oop) >> 1) < 1) || (((((int64_t)result_oop) >> 1) == 5) || (((((int64_t)result_oop) >> 1) > 7) && ((((int64_t)result_oop) >> 1) != 11)))) {
+    if (((((int64_t)result_oop) >> 1) < 1) || ((((int64_t)result_oop) >> 1) > 15)) {
         return 0;
     }
     result = (int32_t)(((int64_t)result_oop) >> 1);
+    if ((result == 5) || (((result >= 8) && (result <= 10)) || ((result == 13) || (result == 14)))) {
+        return 0;
+    }
     memset(&local, 0, sizeof local);
     library = local;
     memset(&local_2, 0, sizeof local_2);
@@ -1883,6 +1986,11 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
     lib = (const char *)library;
     sig = 0U;
     has_pointer = false;
+    if (result == 15) {
+        if (!((n == 1) && (tags[0] == 14))) {
+            return 0;
+        }
+    }
     has_vetted_argument = result == 11;
     if (has_vetted_argument) {
         if (!(prepared && ((strcmp(lib, "vm:core") == 0) && ((n == 2) && ((tags[0] == 10) && (tags[1] == 10)))))) {
@@ -1891,7 +1999,11 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
     }
     for (i = 0; i <= n - 1; i++) {
         t = tags[i];
-        if ((t < 1) || ((t > 6) && ((t < 8) || (t > 10)))) {
+        if ((t == 13) || (t == 14)) {
+            if (!(prepared && ((strcmp(lib, "vm:core") == 0) && ((n == 1) && (((t == 13) && (result == 7)) || ((t == 14) && (result == 15))))))) {
+                return 0;
+            }
+        } else if ((t < 1) || ((t > 6) && ((t < 8) || (t > 10)))) {
             return 0;
         }
         if ((t == 9) || (t == 10)) {
@@ -1980,7 +2092,7 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
         }
         return ffi_approved_platform(name, (uint32_t)sig, target);
     }
-    if (has_vetted_argument) {
+    if (has_vetted_argument || (result == 12)) {
         return 0;
     }
     *target = (uint64_t)lookup_library(library, lib_len, symbol, sym_len, tags, n, result);

@@ -9,6 +9,8 @@ static oop ffi_box_f64(double value);
 static oop ffi_box_f64_with_gc(double value);
 static oop ffi_box_i64(int64_t value);
 static oop ffi_box_i64_with_gc(int64_t value);
+static oop ffi_box_non_negative_i64(int64_t value);
+static oop ffi_box_non_negative_i64_with_gc(int64_t value);
 static oop ffi_box_owned_integer(big_integer_native_result *out);
 static oop ffi_box_owned_integer_with_gc(big_integer_native_result *out);
 static oop ffi_box_u64(uint64_t value);
@@ -212,6 +214,24 @@ static oop ffi_box_i64_with_gc(int64_t value)
     return ffi_box_i64(value);
 }
 
+/* FFIWrapperHelpers>>ffiBoxNonNegativeI64: */
+static oop ffi_box_non_negative_i64(int64_t value)
+{
+    if (value < 0) {
+        return nil_oop;
+    }
+    return ffi_box_u64((uint64_t)value);
+}
+
+/* FFIWrapperHelpers>>ffiBoxNonNegativeI64WithGC: */
+static oop ffi_box_non_negative_i64_with_gc(int64_t value)
+{
+    if (value < 0) {
+        return nil_oop;
+    }
+    return ffi_box_u64_with_gc((uint64_t)value);
+}
+
 /* FFIWrapperHelpers>>ffiBoxOwnedInteger: */
 static oop ffi_box_owned_integer(big_integer_native_result *out)
 {
@@ -264,6 +284,76 @@ static oop ffi_box_owned_integer_with_gc(big_integer_native_result *out)
     return ffi_box_owned_integer(out);
 }
 
+/* FFIWrapperHelpers>>ffiBoxOwnedText: */
+oop ffi_box_owned_text(ffi_text_buffer *out)
+{
+    const uint8_t *data;
+    uint64_t n;
+    bool r_ascii;
+    uint64_t local;
+    uint64_t *word;
+    uint64_t i;
+    uint64_t padding;
+    uint64_t slots;
+    uint64_t answer;
+    uint8_t *bytes;
+    data = out->data;
+    if (data == NULL) {
+        return nil_oop;
+    }
+    sync_pending_bound_frame();
+    n = out->count;
+    if (({
+    memset(&local, 0, sizeof local);
+    word = &local;
+    i = 0ULL;
+    while (i + 8 <= n) {
+        memcpy(word, data + i, 8);
+        if (((*word) & 9259542123273814144ULL) != 0) {
+            r_ascii = false;
+            goto exit_ascii;
+        }
+        i = i + 8;
+    }
+    while (i < n) {
+        if (data[i] >= 128) {
+            r_ascii = false;
+            goto exit_ascii;
+        }
+        i = i + 1;
+    }
+    r_ascii = true;
+exit_ascii:;
+    r_ascii; })) {
+        padding = (8 - (n & 7)) & 7;
+        slots = (n + padding) / 8;
+        answer = alloc_unfilled_try(cls_bytestring, F_BYTES + (int32_t)padding, slots);
+        if (answer == 0) {
+            answer = nil_oop;
+        } else {
+            bytes = (uint8_t *)(answer + 16);
+            memcpy(bytes, data, n);
+            if (padding > 0) {
+                memset(bytes + n, 0, padding);
+            }
+        }
+    } else {
+        answer = string_from_utf8((const char *)data, n);
+    }
+    if (out->allocation != NULL) {
+        free(out->allocation);
+    }
+    return answer;
+}
+
+/* FFIWrapperHelpers>>ffiBoxOwnedTextWithGC: */
+oop ffi_box_owned_text_with_gc(ffi_text_buffer *out)
+{
+    sync_pending_bound_frame();
+    full_gc();
+    return ffi_box_owned_text(out);
+}
+
 /* FFIWrapperHelpers>>ffiBoxU64: */
 static oop ffi_box_u64(uint64_t value)
 {
@@ -285,14 +375,287 @@ static oop ffi_box_void(void)
     return nil_oop;
 }
 
+/* FFIWrapperHelpers>>ffiPrepareCText:into: */
+bool ffi_prepare_c_text(oop o, ffi_text_buffer *out)
+{
+    bool r_prepare_text;
+    uint64_t c;
+    int32_t fmt;
+    bool byte_array;
+    uint64_t n;
+    uint8_t *bytes;
+    bool r_ascii;
+    uint64_t local;
+    uint64_t *word;
+    uint64_t i;
+    bool ascii;
+    uint64_t capacity;
+    uint8_t *copy;
+    uint64_t r_encode_latin1;
+    uint8_t *p;
+    uint64_t i_2;
+    uint8_t code;
+    size_t local_2;
+    size_t *size;
+    return ({
+    if ((o == 0) || (!((o & 7) == 0))) {
+        r_prepare_text = false;
+        goto exit_prepare_text;
+    }
+    c = *(uint64_t *)(o + 8);
+    fmt = (int32_t)(((*(uint64_t *)o) >> H_FMT_SHIFT) & H_FMT_MASK);
+    byte_array = (c == cls_bytearray) && false;
+    if (!(byte_array || is_kind_of_string(o))) {
+        r_prepare_text = false;
+        goto exit_prepare_text;
+    }
+    out->allocation = NULL;
+    if (byte_array || ((c == cls_bytestring) || (c == object_memory_special(SO_BYTESYMBOL)))) {
+        if ((fmt < F_BYTES) || (fmt >= 24)) {
+            r_prepare_text = false;
+            goto exit_prepare_text;
+        }
+        n = (uint64_t)(uint32_t)*(uint64_t *)o * 8;
+        if (n < (uint64_t)(fmt - F_BYTES)) {
+            r_prepare_text = false;
+            goto exit_prepare_text;
+        }
+        n = n - (uint64_t)(fmt - F_BYTES);
+        bytes = (uint8_t *)(o + 16);
+        ascii = byte_array || ({
+    memset(&local, 0, sizeof local);
+    word = &local;
+    i = 0ULL;
+    while (i + 8 <= n) {
+        memcpy(word, bytes + i, 8);
+        if (((*word) & 9259542123273814144ULL) != 0) {
+            r_ascii = false;
+            goto exit_ascii;
+        }
+        i = i + 8;
+    }
+    while (i < n) {
+        if (bytes[i] >= 128) {
+            r_ascii = false;
+            goto exit_ascii;
+        }
+        i = i + 1;
+    }
+    r_ascii = true;
+exit_ascii:;
+    r_ascii; });
+        if (ascii && false) {
+            out->data = bytes;
+            out->count = n;
+            r_prepare_text = true;
+            goto exit_prepare_text;
+        }
+        if (memchr(bytes, 0, n) != NULL) {
+            r_prepare_text = false;
+            goto exit_prepare_text;
+        }
+        capacity = (ascii ? n : 2 * n) + 1;
+        copy = out->small;
+        if (capacity > 512) {
+            copy = (uint8_t *)malloc(capacity);
+            if (copy == NULL) {
+                r_prepare_text = false;
+                goto exit_prepare_text;
+            }
+            out->allocation = copy;
+        }
+        if (ascii) {
+            memcpy(copy, bytes, n);
+        } else {
+            n = ({
+    p = copy;
+    i_2 = 0ULL;
+    while (i_2 < n) {
+        code = bytes[i_2];
+        if (code >= 128) {
+            *p = (uint8_t)(0xC0 | (code >> 6));
+            p = p + 1;
+            code = (uint8_t)(0x80 | (code & 0x3F));
+        }
+        *p = code;
+        p = p + 1;
+        i_2 = i_2 + 1;
+    }
+    r_encode_latin1 = (uint64_t)(p - copy);
+    r_encode_latin1; });
+        }
+        copy[n] = 0;
+        out->data = copy;
+        out->count = n;
+        r_prepare_text = true;
+        goto exit_prepare_text;
+    }
+    if (!(((fmt == F_W32) || (fmt == 11)) && ((uint64_t)(fmt - F_W32) <= (uint64_t)(uint32_t)*(uint64_t *)o * 2))) {
+        r_prepare_text = false;
+        goto exit_prepare_text;
+    }
+    memset(&local_2, 0, sizeof local_2);
+    size = &local_2;
+    copy = (uint8_t *)utf8_bytes_of(o, size);
+    if (copy == NULL) {
+        r_prepare_text = false;
+        goto exit_prepare_text;
+    }
+    if (memchr(copy, 0, *size) != NULL) {
+        free(copy);
+        r_prepare_text = false;
+        goto exit_prepare_text;
+    }
+    out->data = copy;
+    out->count = *size;
+    out->allocation = copy;
+    r_prepare_text = true;
+exit_prepare_text:;
+    r_prepare_text; });
+}
+
+/* FFIWrapperHelpers>>ffiPrepareCountedText:into: */
+bool ffi_prepare_counted_text(oop o, ffi_text_buffer *out)
+{
+    bool r_prepare_text;
+    uint64_t c;
+    int32_t fmt;
+    bool byte_array;
+    uint64_t n;
+    uint8_t *bytes;
+    bool r_ascii;
+    uint64_t local;
+    uint64_t *word;
+    uint64_t i;
+    bool ascii;
+    uint64_t capacity;
+    uint8_t *copy;
+    uint64_t r_encode_latin1;
+    uint8_t *p;
+    uint64_t i_2;
+    uint8_t code;
+    size_t local_2;
+    size_t *size;
+    return ({
+    if ((o == 0) || (!((o & 7) == 0))) {
+        r_prepare_text = false;
+        goto exit_prepare_text;
+    }
+    c = *(uint64_t *)(o + 8);
+    fmt = (int32_t)(((*(uint64_t *)o) >> H_FMT_SHIFT) & H_FMT_MASK);
+    byte_array = c == cls_bytearray;
+    if (!(byte_array || is_kind_of_string(o))) {
+        r_prepare_text = false;
+        goto exit_prepare_text;
+    }
+    out->allocation = NULL;
+    if (byte_array || ((c == cls_bytestring) || (c == object_memory_special(SO_BYTESYMBOL)))) {
+        if ((fmt < F_BYTES) || (fmt >= 24)) {
+            r_prepare_text = false;
+            goto exit_prepare_text;
+        }
+        n = (uint64_t)(uint32_t)*(uint64_t *)o * 8;
+        if (n < (uint64_t)(fmt - F_BYTES)) {
+            r_prepare_text = false;
+            goto exit_prepare_text;
+        }
+        n = n - (uint64_t)(fmt - F_BYTES);
+        bytes = (uint8_t *)(o + 16);
+        ascii = byte_array || ({
+    memset(&local, 0, sizeof local);
+    word = &local;
+    i = 0ULL;
+    while (i + 8 <= n) {
+        memcpy(word, bytes + i, 8);
+        if (((*word) & 9259542123273814144ULL) != 0) {
+            r_ascii = false;
+            goto exit_ascii;
+        }
+        i = i + 8;
+    }
+    while (i < n) {
+        if (bytes[i] >= 128) {
+            r_ascii = false;
+            goto exit_ascii;
+        }
+        i = i + 1;
+    }
+    r_ascii = true;
+exit_ascii:;
+    r_ascii; });
+        if (ascii) {
+            out->data = bytes;
+            out->count = n;
+            r_prepare_text = true;
+            goto exit_prepare_text;
+        }
+        capacity = (ascii ? n : 2 * n) + 0;
+        copy = out->small;
+        if (capacity > 512) {
+            copy = (uint8_t *)malloc(capacity);
+            if (copy == NULL) {
+                r_prepare_text = false;
+                goto exit_prepare_text;
+            }
+            out->allocation = copy;
+        }
+        if (ascii) {
+            memcpy(copy, bytes, n);
+        } else {
+            n = ({
+    p = copy;
+    i_2 = 0ULL;
+    while (i_2 < n) {
+        code = bytes[i_2];
+        if (code >= 128) {
+            *p = (uint8_t)(0xC0 | (code >> 6));
+            p = p + 1;
+            code = (uint8_t)(0x80 | (code & 0x3F));
+        }
+        *p = code;
+        p = p + 1;
+        i_2 = i_2 + 1;
+    }
+    r_encode_latin1 = (uint64_t)(p - copy);
+    r_encode_latin1; });
+        }
+        out->data = copy;
+        out->count = n;
+        r_prepare_text = true;
+        goto exit_prepare_text;
+    }
+    if (!(((fmt == F_W32) || (fmt == 11)) && ((uint64_t)(fmt - F_W32) <= (uint64_t)(uint32_t)*(uint64_t *)o * 2))) {
+        r_prepare_text = false;
+        goto exit_prepare_text;
+    }
+    memset(&local_2, 0, sizeof local_2);
+    size = &local_2;
+    copy = (uint8_t *)utf8_bytes_of(o, size);
+    if (copy == NULL) {
+        r_prepare_text = false;
+        goto exit_prepare_text;
+    }
+    out->data = copy;
+    out->count = *size;
+    out->allocation = copy;
+    r_prepare_text = true;
+exit_prepare_text:;
+    r_prepare_text; });
+}
+
+/* FFIWrapperHelpers>>ffiReleaseCountedText: */
+oop ffi_release_counted_text(ffi_text_buffer *out)
+{
+    if (out->allocation != NULL) {
+        free(out->allocation);
+    }
+    return nil_oop;
+}
+
 /* FFIWrapperHelpers>>ffiUnboxF64:into: */
 static bool ffi_unbox_f64(oop o, double *out)
 {
-    if ((o == 0) || (!is_float(o))) {
-        return false;
-    }
-    *out = float_val(o);
-    return true;
+    return try_float_val(o, out);
 }
 
 /* FFIWrapperHelpers>>ffiUnboxI32:into: */
@@ -397,6 +760,9 @@ uint64_t wrapped_result_helper(int32_t tag)
         if (tag == 11) {
             return (uint64_t)ffi_box_owned_integer_with_gc;
         }
+        if (tag == 12) {
+            return (uint64_t)ffi_box_non_negative_i64_with_gc;
+        }
     }
     switch (tag) {
     case 3:
@@ -413,6 +779,9 @@ uint64_t wrapped_result_helper(int32_t tag)
         break;
     case 11:
         v = (uint64_t)ffi_box_owned_integer;
+        break;
+    case 12:
+        v = (uint64_t)ffi_box_non_negative_i64;
         break;
     default:
         v = 0ULL;

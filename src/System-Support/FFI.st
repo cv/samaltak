@@ -7,7 +7,7 @@ FFI comment: 'I bind descriptors for registered native exports. A downcall descr
 
 	(FFI bind: #(call ''libm'' ''sqrt'' (f64) f64)) invoke: #(9.0).
 
-Scalar types are i32, u32, i64, u64 and f64. Use void only for a result (answers nil). For a launcher grant, bytesWithLength takes one read-only slice {aByteArray. oneBasedOffset. length} and passes a pointer and the validated length in two of at most six C slots. For vetted built-in exports only, writableBytesWithLength takes the same slice shape but requires a mutable ByteArray and lets the target write inside the slice until return. For memcmp, use (byteSlice byteSlice u64); the comparison count may not exceed either slice length. No argument or result is a native address. Unknown exports, mismatched signatures and rejected arguments signal FFIError. Notification descriptors start with #notification; FFINotification handles their schema.'!
+Scalar types are i32, u32, i64, u64 and f64. Use void only for a result (answers nil). For an approved export, nonNegativeI64 returns nil for a negative int64_t result or the exact Integer otherwise. For a launcher grant, bytesWithLength takes one read-only slice {aByteArray. oneBasedOffset. length} and passes a pointer and the validated length in two of at most six C slots. For vetted built-in exports only, writableBytesWithLength takes the same slice shape but requires a mutable ByteArray and lets the target write inside the slice until return. For memcmp, use (byteSlice byteSlice u64); the comparison count may not exceed either slice length. No argument or result is a native address. Unknown exports, mismatched signatures and rejected arguments signal FFIError. Notification descriptors start with #notification; FFINotification handles their schema.'!
 
 !FFI class methodsFor: 'binding'!
 bind: aDescriptor
@@ -54,15 +54,18 @@ newCallBinding: aDescriptor
 	1 to: types size do: [:i |
 		| tag |
 		tag := self typeTag: (types at: i).
-		tag = 7 ifTrue: [^FFIError signal: '#void is only an FFI result type'].
+		(#(7 11 12 15) includes: tag) ifTrue: [^FFIError signal: 'Result-only FFI type used as an argument'].
 		(tag >= 8) ifTrue: [slots := slots + 1].
 		tags at: i put: tag].
 	slots > 6 ifTrue: [^FFIError signal: 'FFI argument types occupy more than six C slots'].
 	resultTag := self typeTag: result.
-	(resultTag = 5 or: [resultTag >= 8 and: [resultTag ~= 11]]) ifTrue: [^FFIError signal: 'Borrowed types are only FFI argument types'].
-	(((tags includes: 11) or: [resultTag = 11 and: [types ~= #(integerMagnitude integerMagnitude)]]) or:
-		[resultTag = 11 and: [library ~= 'vm:core']]) ifTrue: [
+	(#(5 8 9 10 13 14) includes: resultTag) ifTrue: [^FFIError signal: 'Borrowed types are only FFI argument types'].
+	(resultTag = 11 and: [types ~= #(integerMagnitude integerMagnitude) or: [library ~= 'vm:core']]) ifTrue: [
 		^FFIError signal: 'Owned integer result requires two magnitudes and a trusted core export'].
+	((tags includes: 13) or: [(tags includes: 14) or: [resultTag = 15]]) ifTrue: [
+		(library = 'vm:core' and: [
+			(types = #(countedText) and: [resultTag = 7]) or: [types = #(cText) and: [resultTag = 15]]])
+			ifFalse: [^FFIError signal: 'Synchronous text requires a trusted core signature']].
 	tags beReadOnlyObject.
 	descriptor := {library. symbol. tags. resultTag}.
 	descriptor beReadOnlyObject.
@@ -86,7 +89,7 @@ copyName: anObject
 !
 typeTag: aSymbol
 	| tag |
-	tag := #(i32 u32 i64 u64 byteSlice f64 void bytesWithLength writableBytesWithLength integerMagnitude ownedIntegerMagnitude) identityIndexOf: aSymbol.
+	tag := #(i32 u32 i64 u64 byteSlice f64 void bytesWithLength writableBytesWithLength integerMagnitude ownedIntegerMagnitude nonNegativeI64 countedText cText ownedText) identityIndexOf: aSymbol.
 	tag = 0 ifTrue: [^FFIError signal: 'Unknown FFI type; expected an FFI type Symbol'].
 	^tag
 ! !

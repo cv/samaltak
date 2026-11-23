@@ -1,14 +1,14 @@
 !SDLPlatform methodsFor: 'FFI - files'!
 ffiFilePosition: h
 	<function>
-	<approvedFFI: 505 symbol: 'platform_files_position' arguments: #(3) result: 3>
+	<approvedFFI: 505 symbol: 'platform_files_position' arguments: #(3) result: 12>
 	<var: #h type: 'int64_t'>
 	<returns: 'int64_t'>
 	^files position: h asInt32
 !
 ffiFileSize: h
 	<function>
-	<approvedFFI: 504 symbol: 'platform_files_size' arguments: #(3) result: 3>
+	<approvedFFI: 504 symbol: 'platform_files_size' arguments: #(3) result: 12>
 	<var: #h type: 'int64_t'>
 	<returns: 'int64_t'>
 	^files size: h asInt32

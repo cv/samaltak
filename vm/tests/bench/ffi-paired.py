@@ -55,7 +55,8 @@ def cases(display=False):
     yield "core-utc-us", 152, "core", "coreUtcMicroseconds"
     yield "core-thread-cpu-us", 153, "core", "coreThreadCpuMicroseconds"
     yield "core-float-print-string", 61, "core", "coreFloatPrintString"
-    for stream, key in (("stdout", 169), ("stderr", 170)):
+    yield "core-getenv", 1172, "core", "coreGetenv"
+    for stream, key in (("stdout", 1169), ("stderr", 1170)):
         for size in (8, 256, 4096):
             label = f"{stream}-{size}"
             yield label, key, "scalars", f"stream: #{stream} size: {size} label: '{label}'"
@@ -102,7 +103,7 @@ def run(args, work, case, mode, repetition, schedule, proof_arm):
         "SAMALTAK_NATIVE_GRANTS", "SAMALTAK_VERIFY_GC",
         "SAMALTAK_FFI_TRIAL", "SAMALTAK_OPT_TRACE", "SAMALTAK_FFI_SITE_TRACE",
         "SAMALTAK_FFI_BOX_FULL_GC", "SAMALTAK_FFI_NATIVE_TRACE"}}
-    env["LC_ALL"] = "C"
+    env.update(LC_ALL="C", SAMALTAK_PARITY_VALUE="parity value")
     if not args.display_ci:
         env.pop("DISPLAY", None)
         env.pop("WAYLAND_DISPLAY", None)

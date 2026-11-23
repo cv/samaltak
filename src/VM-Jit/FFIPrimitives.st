@@ -217,7 +217,7 @@ describeBoundOwner: owner arity: n into: desc
 	desc entry: entry.
 	resultTag := (bindingResultTags at: slot) asUInt64.
 	"Opt's descriptor uses the scalar collecting category for any boxer that can GC."
-	desc resultTag: (resultTag = 11 ifTrue: [6 asUInt64] ifFalse: [resultTag]).
+	desc resultTag: (resultTag >= 11 ifTrue: [6 asUInt64] ifFalse: [resultTag]).
 	desc token: token.
 	desc ownerAddr: (self cCoerce: bindingOwners + slot to: 'uint64_t').
 	^true
@@ -287,9 +287,9 @@ prepareEntry: descriptor into: arity result: resultOut
 	count := self byteCount: tagOop.
 	count > 6 ifTrue: [^0].
 	n := count asInt32.
-	((self intVal: resultOop) < 1 or: [(self intVal: resultOop) = 5 or: [
-		(self intVal: resultOop) > 7 and: [(self intVal: resultOop) ~= 11]]]) ifTrue: [^0].
+	((self intVal: resultOop) < 1 or: [(self intVal: resultOop) > 15]) ifTrue: [^0].
 	result := (self intVal: resultOop) asInt32.
+	(result = 5 or: [(result >= 8 and: [result <= 10]) or: [result = 13 or: [result = 14]]]) ifTrue: [^0].
 	library := self local: 'uint8_t[128]'.
 	symbol := self local: 'uint8_t[128]'.
 	libLen := self copyName: libraryOop into: library.
@@ -428,13 +428,18 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 	lib := self cCoerce: library to: 'const char *'.
 	sig := 0 asUInt32.
 	hasPointer := false.
+	result = 15 ifTrue: [(n = 1 and: [(tags at: 0) = 14]) ifFalse: [^0]].
 	hasVettedArgument := result = 11.
 	hasVettedArgument ifTrue: [
 		(prepared and: [(libc strcmp: lib with: 'vm:core') = 0 and: [
 			n = 2 and: [(tags at: 0) = 10 and: [(tags at: 1) = 10]]]]) ifFalse: [^0]].
 	0 to: n - 1 do: [:i |
 		t := tags at: i.
-		(t < 1 or: [t > 6 and: [t < 8 or: [t > 10]]]) ifTrue: [^0].
+		(t = 13 or: [t = 14])
+			ifTrue: [
+				(prepared and: [(libc strcmp: lib with: 'vm:core') = 0 and: [n = 1 and: [
+					(t = 13 and: [result = 7]) or: [t = 14 and: [result = 15]]]]]) ifFalse: [^0]]
+			ifFalse: [(t < 1 or: [t > 6 and: [t < 8 or: [t > 10]]]) ifTrue: [^0]].
 		(t = 9 or: [t = 10]) ifTrue: [
 			prepared ifFalse: [^0].
 			hasVettedArgument := true].
@@ -464,7 +469,7 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 				^target value = 0 ifTrue: [0] ifFalse: [id]]].
 		prepared ifFalse: [^0].
 		^platform ffiApprovedPlatform: name signature: sig asUInt32 into: target].
-	hasVettedArgument ifTrue: [^0].
+	(hasVettedArgument or: [result = 12]) ifTrue: [^0].
 	target value: (self cCoerce: (runtimeNative lookupLibrary: library length: libLen symbol: symbol length: symLen types: tags count: n result: result) to: 'uint64_t').
 	^target value = 0 ifTrue: [0] ifFalse: [FFI_DYNAMIC]
 !

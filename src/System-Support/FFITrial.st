@@ -9,8 +9,8 @@ FFITrial comment: 'Publish reviewed FFI candidates for a workload in a disposabl
 routes
 	"Class name, class side?, public selector, original primitive ID, candidate selector, preserved alias, exact native binding. Only reviewed trial bundles belong here."
 	^#(
-		(#File true #primPosition: 505 #ffiCandidatePrimPosition: #ffiLegacyPrimPosition: #(call 'platform' 'platform_files_position' (i64) i64))
-		(#File true #primSize: 504 #ffiCandidatePrimSize: #ffiLegacyPrimSize: #(call 'platform' 'platform_files_size' (i64) i64)))
+		(#File true #primPosition: 505 #ffiCandidatePrimPosition: #ffiLegacyPrimPosition: #(call 'platform' 'platform_files_position' (i64) nonNegativeI64))
+		(#File true #primSize: 504 #ffiCandidatePrimSize: #ffiLegacyPrimSize: #(call 'platform' 'platform_files_size' (i64) nonNegativeI64)))
 !
 withInstalled: aSelector on: aBehavior do: aBlock
 	| trial |

@@ -867,6 +867,7 @@ typedef struct big_integer_native_result big_integer_native_result;
 typedef struct cache_entry cache_entry;
 typedef struct ffi_bound_site ffi_bound_site;
 typedef struct ffi_owned_row ffi_owned_row;
+typedef struct ffi_text_buffer ffi_text_buffer;
 typedef struct feedback_site feedback_site;
 typedef struct frame frame;
 typedef struct image_header image_header;
@@ -966,6 +967,14 @@ struct ffi_owned_row {
     uint32_t payload_bytes;
 };
 _Static_assert(sizeof(ffi_owned_row) == 32, "the simulator lays out FFIOwnedRow as C does");
+
+struct ffi_text_buffer {
+    const uint8_t *data;
+    uint64_t count;
+    void *allocation;
+    uint8_t small[512];
+};
+_Static_assert(sizeof(ffi_text_buffer) == 536, "the simulator lays out FFITextBuffer as C does");
 
 struct feedback_site {
     oop method;
@@ -1821,6 +1830,11 @@ bool can_publish_code(void);
 uint64_t downcall(uint64_t target, uint8_t *types, int32_t n, int32_t result);
 uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int32_t n, int32_t result, int32_t operation);
 uint64_t publish_code(const uint8_t *bytes, uint32_t size);
+oop ffi_box_owned_text(ffi_text_buffer *out);
+oop ffi_box_owned_text_with_gc(ffi_text_buffer *out);
+bool ffi_prepare_c_text(oop o, ffi_text_buffer *out);
+bool ffi_prepare_counted_text(oop o, ffi_text_buffer *out);
+oop ffi_release_counted_text(ffi_text_buffer *out);
 uint64_t wrapped_argument_helper(int32_t tag);
 uint64_t wrapped_result_helper(int32_t tag);
 void become_forward(oop from, oop to);
@@ -2076,6 +2090,7 @@ uint32_t string_char_at(oop s, uint64_t i);
 uint64_t string_from_utf8(const char *str, size_t n);
 uint32_t string_hash(oop s);
 size_t string_size(oop s);
+bool try_float_val(oop o, double *out);
 bool u64_of(oop o, uint64_t *out);
 char *utf8_bytes_of(oop s, size_t *size);
 char *utf8_of(oop s);

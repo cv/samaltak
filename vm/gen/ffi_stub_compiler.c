@@ -10,26 +10,57 @@ static uint32_t wrapped_count;
 
 #if defined(__x86_64__)
 static uint8_t *emit_x64(uint64_t bits, int32_t count, uint8_t *p);
+static uint32_t encode_text_x64(uint8_t *start, uint64_t target, uint64_t prepare, uint64_t finish, bool owned);
 static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_t *types, int32_t n, int32_t result, int32_t operation);
 static uint32_t encode_x64(uint8_t *start, uint64_t target, uint8_t *types, int32_t n, int32_t result);
 #else
+static int32_t arm64_restore_wrapped_gp(int32_t gp_save, int32_t fp_save, int32_t fp_base, int32_t local_bytes, bool has_args, int32_t start, uint32_t *buf);
 static void arm64_wrapped_branch(uint32_t opcode, int32_t site, int32_t dest, uint32_t mask, uint32_t *buf);
 static int32_t arm64_wrapped_call(uint64_t address, int32_t j, uint32_t *buf);
+static int32_t arm64_wrapped_transfer(uint64_t address, bool tail, int32_t j, uint32_t *buf);
 static uint32_t encode_arm64(uint32_t *buf, uint64_t target, uint8_t *types, int32_t n, int32_t result);
+static uint32_t encode_text_arm64(uint32_t *buf, uint64_t target, uint64_t prepare, uint64_t finish, bool owned);
 static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8_t *types, int32_t n, int32_t result, int32_t operation);
 #endif
 static uint32_t stub_slot_for(uint64_t target, uint32_t key);
 #if defined(__x86_64__)
+static uint8_t *x64_restore_wrapped_stack_at(uint8_t *p);
 static uint8_t *x64_wrapped_call(uint64_t target, uint8_t *p);
 static int32_t ffi_stub_compiler_x64_wrapped_gp(int32_t lane);
 static uint8_t *ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(int32_t reg, int32_t offset, bool restore, uint8_t *p);
+static uint8_t *x64_wrapped_inline_result(int32_t result, uint8_t *p, uint8_t **slow);
 static uint8_t *x64_wrapped_jcc(int32_t condition, uint8_t *p);
 static void x64_wrapped_patch(uint8_t *next, uint8_t *target);
-static uint8_t *x64_wrapped_result(int32_t result, uint8_t *p);
 static uint8_t *x64_wrapped_spill_gp(int32_t gp, int32_t fp, bool restore, uint8_t *p);
+static uint8_t *x64_wrapped_transfer(uint64_t target, bool tail, uint8_t *p);
 static uint8_t *x64_wrapped_xmm(int32_t lane, int32_t offset, bool restore, uint8_t *p);
 #endif
 
+#if !defined(__x86_64__)
+/* FFIStubCompiler>>arm64RestoreWrappedGP:fp:offset:bytes:hasArgs:at:into: */
+static int32_t arm64_restore_wrapped_gp(int32_t gp_save, int32_t fp_save, int32_t fp_base, int32_t local_bytes, bool has_args, int32_t start, uint32_t *buf)
+{
+    int32_t j;
+    int32_t i;
+    int32_t i_2;
+    j = start;
+    if (has_args) {
+        for (i = 0; i <= gp_save - 1; i++) {
+            buf[j] = 0xF94003F3LL + (2 + i) * 1024 + i;
+            j = j + 1;
+        }
+        for (i_2 = 0; i_2 <= fp_save - 1; i_2++) {
+            buf[j] = 0xFD4003E8LL + (fp_base / 8 + i_2) * 1024 + i_2;
+            j = j + 1;
+        }
+        buf[j] = 0x910003FFLL + local_bytes * 1024;
+        j = j + 1;
+    }
+    buf[j] = 0xA8C17BFDLL;
+    return j + 1;
+}
+
+#endif
 #if !defined(__x86_64__)
 /* FFIStubCompiler>>arm64WrappedBranch:from:to:mask:into: */
 static void arm64_wrapped_branch(uint32_t opcode, int32_t site, int32_t dest, uint32_t mask, uint32_t *buf)
@@ -47,12 +78,20 @@ static void arm64_wrapped_branch(uint32_t opcode, int32_t site, int32_t dest, ui
 /* FFIStubCompiler>>arm64WrappedCall:at:into: */
 static int32_t arm64_wrapped_call(uint64_t address, int32_t j, uint32_t *buf)
 {
+    return arm64_wrapped_transfer(address, false, j, buf);
+}
+
+#endif
+#if !defined(__x86_64__)
+/* FFIStubCompiler>>arm64WrappedTransfer:tail:at:into: */
+static int32_t arm64_wrapped_transfer(uint64_t address, bool tail, int32_t j, uint32_t *buf)
+{
     int i;
     buf[j] = 0xD2800010LL + (address & 0xFFFF) * 32;
     for (i = 1; i <= 3; i++) {
         buf[j + i] = (uint64_t)(0xF2800010LL + i * 2097152) + ((address >> (i * 16)) & 0xFFFF) * 32;
     }
-    buf[j + 4] = 0xD63F0200LL;
+    buf[j + 4] = tail ? 0xD61F0200LL : 0xD63F0200LL;
     return j + 5;
 }
 
@@ -228,6 +267,41 @@ static uint32_t encode_arm64(uint32_t *buf, uint64_t target, uint8_t *types, int
 
 #endif
 #if !defined(__x86_64__)
+/* FFIStubCompiler>>encodeTextArm64:target:prepare:finish:owned: */
+static uint32_t encode_text_arm64(uint32_t *buf, uint64_t target, uint64_t prepare, uint64_t finish, bool owned)
+{
+    uint32_t stack_bytes;
+    int32_t rejected;
+    int32_t j;
+    stack_bytes = (uint32_t)((sizeof(ffi_text_buffer) + 15) & 18446744073709551600ULL);
+    buf[0] = 0xD503245FLL;
+    buf[1] = 0xA9BF7BFDLL;
+    buf[2] = 0x910003FDLL;
+    buf[3] = 0xD10003FFLL + stack_bytes * 1024;
+    buf[4] = 0xF9400000LL;
+    buf[5] = 0x910003E1LL;
+    rejected = arm64_wrapped_call(prepare, 6, buf);
+    j = rejected + 1;
+    buf[j] = 0xA94007E0LL;
+    j = j + 1;
+    if (owned) {
+        buf[j] = 0x910003E2LL;
+        j = j + 1;
+    }
+    j = arm64_wrapped_call(target, j, buf);
+    buf[j] = 0x910003E0LL;
+    j = arm64_wrapped_call(finish, j + 1, buf);
+    buf[j] = 0x14000002;
+    arm64_wrapped_branch(0x36000000, rejected, j + 1, 0x3FFF, buf);
+    buf[j + 1] = 0xAA1F03E0LL;
+    buf[j + 2] = 0x910003FFLL + stack_bytes * 1024;
+    buf[j + 3] = 0xA8C17BFDLL;
+    buf[j + 4] = 0xD65F03C0LL;
+    return (uint32_t)(j + 5) * 4;
+}
+
+#endif
+#if !defined(__x86_64__)
 /* FFIStubCompiler>>encodeWrappedArm64:target:types:count:result:operation: */
 static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8_t *types, int32_t n, int32_t result, int32_t operation)
 {
@@ -258,10 +332,8 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
     int64_t i_5;
     int64_t i_6;
     int32_t epilogue;
-    int64_t i_7;
-    int64_t i_8;
     int32_t reject;
-    int64_t i_9;
+    int64_t i_7;
     gp = 0;
     fp = 0;
     gp32 = 0U;
@@ -416,13 +488,15 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
         if (helper == 0) {
             return 0;
         }
-        if (result <= 4) {
+        if ((result == 3) || ((result == 4) || (result == 12))) {
             buf[j] = result == 3 ? 0xCA000409LL : 0xD37EFC09LL;
             ok = j + 1;
             j = j + 2;
         }
-        j = arm64_wrapped_call(helper, j, buf);
-        if (result <= 4) {
+        if (!((result == 6) || (result == 7))) {
+            j = arm64_wrapped_call(helper, j, buf);
+        }
+        if ((result == 3) || ((result == 4) || (result == 12))) {
             result_done = j;
             j = j + 1;
             if (result == 3) {
@@ -432,7 +506,7 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
             }
         }
     }
-    if (result <= 4) {
+    if ((result <= 2) || ((result == 3) || ((result == 4) || (result == 12)))) {
         buf[j] = 0xD37FF800LL;
         buf[j + 1] = 0x91000400LL;
         j = j + 2;
@@ -441,28 +515,24 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
     if (result_done >= 0) {
         arm64_wrapped_branch(0x14000000, result_done, epilogue, 0x3FFFFFF, buf);
     }
-    if (n > 0) {
-        for (i_7 = 0; i_7 <= gp_save - 1; i_7++) {
-            buf[j] = 0xF94003F3LL + (2 + i_7) * 1024 + i_7;
-            j = j + 1;
+    if ((result == 6) || (result == 7)) {
+        j = arm64_restore_wrapped_gp((int32_t)gp_save, (int32_t)fp_save, (int32_t)fp_base, (int32_t)local_bytes, n > 0, j, buf);
+        j = arm64_wrapped_transfer(helper, true, j, buf);
+        if (fail_count == 0) {
+            return (uint32_t)j * 4;
         }
-        for (i_8 = 0; i_8 <= fp_save - 1; i_8++) {
-            buf[j] = 0xFD4003E8LL + (fp_base / 8 + i_8) * 1024 + i_8;
-            j = j + 1;
-        }
-        buf[j] = 0x910003FFLL + local_bytes * 1024;
-        j = j + 1;
+        epilogue = j;
     }
-    buf[j] = 0xA8C17BFDLL;
-    buf[j + 1] = 0xD65F03C0LL;
-    j = j + 2;
+    j = arm64_restore_wrapped_gp((int32_t)gp_save, (int32_t)fp_save, (int32_t)fp_base, (int32_t)local_bytes, n > 0, j, buf);
+    buf[j] = 0xD65F03C0LL;
+    j = j + 1;
     if (fail_count > 0) {
         reject = j;
         buf[j] = 0xAA1F03E0LL;
         arm64_wrapped_branch(0x14000000, j + 1, epilogue, 0x3FFFFFF, buf);
         j = j + 2;
-        for (i_9 = 0; i_9 <= fail_count - 1; i_9++) {
-            slow = reject_sites[i_9];
+        for (i_7 = 0; i_7 <= fail_count - 1; i_7++) {
+            slow = reject_sites[i_7];
             rejection = buf[slow];
             arm64_wrapped_branch(rejection, slow, reject, (uint32_t)((rejection >> 24) == 0x54 ? 0x7FFFF : 0x3FFF), buf);
         }
@@ -480,6 +550,38 @@ static uint8_t *emit_x64(uint64_t bits, int32_t count, uint8_t *p)
         p[i] = (uint8_t)(bits >> (i * 8));
     }
     return p + count;
+}
+
+#endif
+#if defined(__x86_64__)
+/* FFIStubCompiler>>encodeTextX64:target:prepare:finish:owned: */
+static uint32_t encode_text_x64(uint8_t *start, uint64_t target, uint64_t prepare, uint64_t finish, bool owned)
+{
+    uint64_t stack_bytes;
+    uint8_t *p;
+    uint8_t *rejected;
+    uint8_t *done;
+    stack_bytes = (uint64_t)((sizeof(ffi_text_buffer) + 15) & 18446744073709551600ULL) + 8;
+    p = emit_x64(4196274163ULL, 4, start);
+    p = emit_x64((stack_bytes << 24) | 0xEC8148, 7, p);
+    p = emit_x64(253477297032008ULL, 6, p);
+    p = x64_wrapped_call(prepare, p);
+    p = emit_x64(49284ULL, 2, p);
+    rejected = x64_wrapped_jcc(4, p);
+    p = emit_x64(607947592ULL, 4, rejected);
+    p = emit_x64(34971355976ULL, 5, p);
+    if (owned) {
+        p = emit_x64(14846280ULL, 3, p);
+    }
+    p = x64_wrapped_call(target, p);
+    p = emit_x64(15173960ULL, 3, p);
+    p = x64_wrapped_call(finish, p);
+    done = emit_x64(747ULL, 2, p);
+    x64_wrapped_patch(rejected, done);
+    p = emit_x64(49201ULL, 2, done);
+    p = emit_x64((stack_bytes << 24) | 0xC48148, 7, p);
+    p = emit_x64(195ULL, 1, p);
+    return (uint32_t)(p - start);
 }
 
 #endif
@@ -502,9 +604,11 @@ static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_
     int32_t reg;
     int rex;
     int i_2;
-    uint8_t *jump;
-    uint8_t *rejected;
+    uint8_t *local_2;
+    uint8_t **wide_result_slow;
+    bool tail;
     uint8_t *epilogue;
+    uint8_t *rejected;
     int64_t i_3;
     memset(&local, 0, sizeof local);
     fail_sites = local;
@@ -600,27 +704,42 @@ static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_
         p = emit_x64(344205856076ULL, 5, p);
     }
     p = x64_wrapped_call(target, p);
+    memset(&local_2, 0, sizeof local_2);
+    wide_result_slow = &local_2;
+    *wide_result_slow = (uint8_t *)NULL;
+    tail = (result == 6) || (result == 7);
     if (result == 11) {
         p = emit_x64(344209526088ULL, 5, p);
         p = x64_wrapped_call(wrapped_result_helper(result), p);
+    } else if (!tail) {
+        p = x64_wrapped_inline_result(result, p, wide_result_slow);
+    }
+    epilogue = p;
+    if (result == 11) {
+        p = emit_x64((stack_bytes << 24) | 0xC48148, 7, p);
+        p = emit_x64(23617ULL, 2, p);
     } else {
-        p = x64_wrapped_result(result, p);
+        p = x64_restore_wrapped_stack_at(p);
+    }
+    p = tail ? x64_wrapped_transfer(wrapped_result_helper(result), true, p) : emit_x64(195ULL, 1, p);
+    if (*wide_result_slow != NULL) {
+        x64_wrapped_patch(*wide_result_slow, p);
+        p = x64_restore_wrapped_stack_at(p);
+        p = x64_wrapped_transfer(wrapped_result_helper(result), true, p);
     }
     if (failed > 0) {
-        jump = emit_x64(235ULL, 2, p);
-        rejected = jump;
-        p = emit_x64(49201ULL, 2, rejected);
-        epilogue = p;
-        jump[-1] = (uint8_t)(epilogue - jump);
+        rejected = p;
+        p = emit_x64(49201ULL, 2, p);
+        if (tail) {
+            p = x64_restore_wrapped_stack_at(p);
+            p = emit_x64(195ULL, 1, p);
+        } else {
+            p = emit_x64(233ULL, 5, p);
+            x64_wrapped_patch(p, epilogue);
+        }
         for (i_3 = 0; i_3 <= failed - 1; i_3++) {
             x64_wrapped_patch(start + fail_sites[i_3], rejected);
         }
-    }
-    if (result == 11) {
-        p = emit_x64((stack_bytes << 24) | 0xC48148, 7, p);
-        p = emit_x64(12803137ULL, 3, p);
-    } else {
-        p = emit_x64(54989056056263496ULL, 7, p);
     }
     return (uint32_t)(p - start);
 }
@@ -684,6 +803,7 @@ static uint32_t encode_x64(uint8_t *start, uint64_t target, uint8_t *types, int3
 /* FFIStubCompiler>>entryFor:argumentTags:count:returnTag:operation: */
 uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int32_t n, int32_t result, int32_t operation)
 {
+    bool text;
     uint32_t key;
     int32_t lanes;
     int32_t i;
@@ -692,15 +812,26 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     uint32_t local[512];
     uint32_t *buf;
     uint8_t *p;
+    uint8_t tag_2;
+    uint64_t prepare;
+    uint64_t r_text_result_helper;
+    uint64_t finish;
     uint32_t size;
     uint64_t entry;
-    if ((target == 0) || ((n < 0) || ((n > 6) || ((result < 1) || (((result > 7) && (result != 11)) || (result == 5)))))) {
+    if ((target == 0) || ((n < 0) || (n > 6))) {
+        return 0;
+    }
+    if (!(((result >= 1) && ((result <= 7) && (result != 5))) || ((result == 11) || ((result == 12) || (result == 15))))) {
         return 0;
     }
     if ((n > 0) && (types == NULL)) {
         return 0;
     }
     if (!can_publish_code()) {
+        return 0;
+    }
+    text = (n == 1) && ((operation == 0) && (((types[0] == 13) && (result == 7)) || ((types[0] == 14) && (result == 15))));
+    if ((result == 15) && (!text)) {
         return 0;
     }
     if (result == 11) {
@@ -715,14 +846,14 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     } else if (!(operation == 0)) {
         return 0;
     }
-    key = (uint32_t)(16 + operation * 8 + result);
+    key = (uint32_t)result;
     lanes = n;
     for (i = 0; i <= n - 1; i++) {
         tag = types[i];
-        if ((tag == 0) || ((tag == 7) || ((tag > 10) || ((tag == 5) && (operation == 0))))) {
+        if ((tag == 0) || ((tag == 7) || (((tag > 10) && (!text)) || ((tag == 5) && (operation == 0))))) {
             return 0;
         }
-        if ((tag >= 8) && (tag <= 10)) {
+        if (text || ((tag >= 8) && (tag <= 10))) {
             lanes = lanes + 1;
         }
         key = (uint32_t)((((uint64_t)key) << 4) | tag);
@@ -730,7 +861,7 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     if (lanes > 6) {
         return 0;
     }
-    key = (uint32_t)(key | 0x80000000LL);
+    key = (uint32_t)(key | (((uint64_t)operation) << 28) | 0x80000000LL);
     slot = stub_slot_for(target, key);
     if (stub_entries[slot] != 0) {
         return stub_entries[slot];
@@ -741,7 +872,25 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     memset(&local, 0, sizeof local);
     buf = local;
     p = (uint8_t *)buf;
-    size = encode_wrapped_x64(p, target, types, n, result, operation);
+    if (text) {
+        tag_2 = types[0];
+        prepare = (uint64_t)(tag_2 == 13 ? ffi_prepare_counted_text : ffi_prepare_c_text);
+        finish = ({
+    if (result == 7) {
+        r_text_result_helper = (uint64_t)ffi_release_counted_text;
+        goto exit_text_result_helper;
+    }
+    if (getenv("SAMALTAK_FFI_BOX_FULL_GC") != NULL) {
+        r_text_result_helper = (uint64_t)ffi_box_owned_text_with_gc;
+        goto exit_text_result_helper;
+    }
+    r_text_result_helper = (uint64_t)ffi_box_owned_text;
+exit_text_result_helper:;
+    r_text_result_helper; });
+        size = encode_text_x64(p, target, prepare, finish, result == 15);
+    } else {
+        size = encode_wrapped_x64(p, target, types, n, result, operation);
+    }
     if ((size == 0) || (size > FFI_WRAPPED_BYTES)) {
         return 0;
     }
@@ -759,6 +908,7 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
 /* FFIStubCompiler>>entryFor:argumentTags:count:returnTag:operation: */
 uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int32_t n, int32_t result, int32_t operation)
 {
+    bool text;
     uint32_t key;
     int32_t lanes;
     int32_t i;
@@ -767,15 +917,26 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     uint32_t local[512];
     uint32_t *buf;
     uint8_t *p;
+    uint8_t tag_2;
+    uint64_t prepare;
+    uint64_t r_text_result_helper;
+    uint64_t finish;
     uint32_t size;
     uint64_t entry;
-    if ((target == 0) || ((n < 0) || ((n > 6) || ((result < 1) || (((result > 7) && (result != 11)) || (result == 5)))))) {
+    if ((target == 0) || ((n < 0) || (n > 6))) {
+        return 0;
+    }
+    if (!(((result >= 1) && ((result <= 7) && (result != 5))) || ((result == 11) || ((result == 12) || (result == 15))))) {
         return 0;
     }
     if ((n > 0) && (types == NULL)) {
         return 0;
     }
     if (!can_publish_code()) {
+        return 0;
+    }
+    text = (n == 1) && ((operation == 0) && (((types[0] == 13) && (result == 7)) || ((types[0] == 14) && (result == 15))));
+    if ((result == 15) && (!text)) {
         return 0;
     }
     if (result == 11) {
@@ -790,14 +951,14 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     } else if (!(operation == 0)) {
         return 0;
     }
-    key = (uint32_t)(16 + operation * 8 + result);
+    key = (uint32_t)result;
     lanes = n;
     for (i = 0; i <= n - 1; i++) {
         tag = types[i];
-        if ((tag == 0) || ((tag == 7) || ((tag > 10) || ((tag == 5) && (operation == 0))))) {
+        if ((tag == 0) || ((tag == 7) || (((tag > 10) && (!text)) || ((tag == 5) && (operation == 0))))) {
             return 0;
         }
-        if ((tag >= 8) && (tag <= 10)) {
+        if (text || ((tag >= 8) && (tag <= 10))) {
             lanes = lanes + 1;
         }
         key = (uint32_t)((((uint64_t)key) << 4) | tag);
@@ -805,7 +966,7 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     if (lanes > 6) {
         return 0;
     }
-    key = (uint32_t)(key | 0x80000000LL);
+    key = (uint32_t)(key | (((uint64_t)operation) << 28) | 0x80000000LL);
     slot = stub_slot_for(target, key);
     if (stub_entries[slot] != 0) {
         return stub_entries[slot];
@@ -816,7 +977,25 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     memset(&local, 0, sizeof local);
     buf = local;
     p = (uint8_t *)buf;
-    size = encode_wrapped_arm64(buf, target, types, n, result, operation);
+    if (text) {
+        tag_2 = types[0];
+        prepare = (uint64_t)(tag_2 == 13 ? ffi_prepare_counted_text : ffi_prepare_c_text);
+        finish = ({
+    if (result == 7) {
+        r_text_result_helper = (uint64_t)ffi_release_counted_text;
+        goto exit_text_result_helper;
+    }
+    if (getenv("SAMALTAK_FFI_BOX_FULL_GC") != NULL) {
+        r_text_result_helper = (uint64_t)ffi_box_owned_text_with_gc;
+        goto exit_text_result_helper;
+    }
+    r_text_result_helper = (uint64_t)ffi_box_owned_text;
+exit_text_result_helper:;
+    r_text_result_helper; });
+        size = encode_text_arm64(buf, target, prepare, finish, result == 15);
+    } else {
+        size = encode_wrapped_arm64(buf, target, types, n, result, operation);
+    }
     if ((size == 0) || (size > FFI_WRAPPED_BYTES)) {
         return 0;
     }
@@ -863,13 +1042,18 @@ static uint32_t stub_slot_for(uint64_t target, uint32_t key)
 }
 
 #if defined(__x86_64__)
+/* FFIStubCompiler>>x64RestoreWrappedStackAt: */
+static uint8_t *x64_restore_wrapped_stack_at(uint8_t *p)
+{
+    return emit_x64(101435597685576ULL, 6, p);
+}
+
+#endif
+#if defined(__x86_64__)
 /* FFIStubCompiler>>x64WrappedCall:at: */
 static uint8_t *x64_wrapped_call(uint64_t target, uint8_t *p)
 {
-    uint8_t *q;
-    q = emit_x64(47945ULL, 2, p);
-    q = emit_x64(target, 8, q);
-    return emit_x64(13893441ULL, 3, q);
+    return x64_wrapped_transfer(target, false, p);
 }
 
 #endif
@@ -896,6 +1080,33 @@ static uint8_t *ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(int32_t reg, 
 
 #endif
 #if defined(__x86_64__)
+/* FFIStubCompiler>>x64WrappedInlineResult:at:slow: */
+static uint8_t *x64_wrapped_inline_result(int32_t result, uint8_t *p, uint8_t **slow)
+{
+    uint8_t *q;
+    q = p;
+    if (result == 1) {
+        q = emit_x64(12608328ULL, 3, q);
+    }
+    if (result == 2) {
+        q = emit_x64(49289ULL, 2, q);
+    }
+    if (result <= 2) {
+        return emit_x64(4299459912ULL, 5, q);
+    }
+    q = emit_x64(13076808ULL, 3, q);
+    if (result == 3) {
+        q = emit_x64(12583240ULL, 3, q);
+        *slow = x64_wrapped_jcc(0, q);
+        return emit_x64(29918024ULL, 4, *slow);
+    }
+    q = emit_x64(1055441224ULL, 4, q);
+    *slow = x64_wrapped_jcc(5, q);
+    return emit_x64(5356424520ULL, 5, *slow);
+}
+
+#endif
+#if defined(__x86_64__)
 /* FFIStubCompiler>>x64WrappedJcc:at: */
 static uint8_t *x64_wrapped_jcc(int32_t condition, uint8_t *p)
 {
@@ -908,50 +1119,6 @@ static uint8_t *x64_wrapped_jcc(int32_t condition, uint8_t *p)
 static void x64_wrapped_patch(uint8_t *next, uint8_t *target)
 {
     emit_x64((uint64_t)(uint32_t)(target - next), 4, next - 4);
-}
-
-#endif
-#if defined(__x86_64__)
-/* FFIStubCompiler>>x64WrappedResult:at: */
-static uint8_t *x64_wrapped_result(int32_t result, uint8_t *p)
-{
-    uint8_t *q;
-    uint64_t helper;
-    uint8_t *slow;
-    uint8_t *done;
-    q = p;
-    if (result == 1) {
-        q = emit_x64(12608328ULL, 3, q);
-    }
-    if (result == 2) {
-        q = emit_x64(49289ULL, 2, q);
-    }
-    if (result <= 2) {
-        return emit_x64(4299459912ULL, 5, q);
-    }
-    helper = wrapped_result_helper(result);
-    if (result >= 6) {
-        return x64_wrapped_call(helper, q);
-    }
-    q = emit_x64(13076808ULL, 3, q);
-    if (result == 3) {
-        q = emit_x64(12583240ULL, 3, q);
-        slow = x64_wrapped_jcc(0, q);
-        q = emit_x64(29918024ULL, 4, slow);
-    } else {
-        q = emit_x64(1055899976ULL, 4, q);
-        slow = x64_wrapped_jcc(5, q);
-        q = emit_x64(4299459912ULL, 5, slow);
-    }
-    done = emit_x64(233ULL, 5, q);
-    x64_wrapped_patch(slow, done);
-    q = done;
-    if (result == 4) {
-        q = emit_x64(13076808ULL, 3, q);
-    }
-    q = x64_wrapped_call(helper, q);
-    x64_wrapped_patch(done, q);
-    return q;
 }
 
 #endif
@@ -970,6 +1137,17 @@ static uint8_t *x64_wrapped_spill_gp(int32_t gp, int32_t fp, bool restore, uint8
         q = x64_wrapped_xmm(i_2, (gp + i_2) * 8, restore, q);
     }
     return q;
+}
+
+#endif
+#if defined(__x86_64__)
+/* FFIStubCompiler>>x64WrappedTransfer:tail:at: */
+static uint8_t *x64_wrapped_transfer(uint64_t target, bool tail, uint8_t *p)
+{
+    uint8_t *q;
+    q = emit_x64(47945ULL, 2, p);
+    q = emit_x64(target, 8, q);
+    return emit_x64((uint64_t)(tail ? 0xE3FF41 : 0xD3FF41), 3, q);
 }
 
 #endif

@@ -144,16 +144,31 @@ isFloat: o
 	<function>
 	^(o bitAnd: 7) = 4 or: [(self isPtr: o) and: [(self rawClass: o) = clsBoxedfloat]]
 !
+smallFloatBits: o
+	| r |
+	r := o >> 3.
+	^r <= 1 ifTrue: [r << 63] ifFalse: [self rotr1: r + (896 << 53)]
+!
 floatVal: o
 	"o must be a Float."
 	<function>
-	| b r |
+	^self doubleFromBits: ((o bitAnd: 7) = 4
+		ifTrue: [self smallFloatBits: o]
+		ifFalse: [(self slotsOf: o) at: 0])
+!
+tryFloatVal: o into: out
+	"Fuse the type check and unboxing; every IEEE bit pattern is a valid result."
+	<function>
+	<var: #out type: 'double *'>
+	<returns: 'bool'>
+	| bits |
 	(o bitAnd: 7) = 4
-		ifTrue: [
-			r := o >> 3.
-			b := r <= 1 ifTrue: [r << 63] ifFalse: [self rotr1: r + (896 << 53)]]
-		ifFalse: [b := (self slotsOf: o) at: 0].
-	^self doubleFromBits: b
+		ifTrue: [bits := self smallFloatBits: o]
+		ifFalse: [
+			(o = 0 or: [(self isPtr: o) not or: [(self rawClass: o) ~= clsBoxedfloat]]) ifTrue: [^false].
+			bits := (self slotsOf: o) at: 0].
+	out value: (self doubleFromBits: bits).
+	^true
 !
 floatOop: d
 	"A SmallFloat64 if d has one, else a new BoxedFloat64 (may allocate)."

@@ -31,13 +31,15 @@ wrappedResultHelper: tag
 		tag = 3 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxI64WithGC:) to: 'uint64_t'].
 		tag = 4 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxU64WithGC:) to: 'uint64_t'].
 		tag = 6 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxF64WithGC:) to: 'uint64_t'].
-		tag = 11 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxOwnedIntegerWithGC:) to: 'uint64_t']].
+		tag = 11 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxOwnedIntegerWithGC:) to: 'uint64_t'].
+		tag = 12 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxNonNegativeI64WithGC:) to: 'uint64_t']].
 	^tag caseOf: {
 		[3] -> [self cCoerce: (self functionPointer: #ffiBoxI64:) to: 'uint64_t'].
 		[4] -> [self cCoerce: (self functionPointer: #ffiBoxU64:) to: 'uint64_t'].
 		[6] -> [self cCoerce: (self functionPointer: #ffiBoxF64:) to: 'uint64_t'].
 		[7] -> [self cCoerce: (self functionPointer: #ffiBoxVoid) to: 'uint64_t'].
-		[11] -> [self cCoerce: (self functionPointer: #ffiBoxOwnedInteger:) to: 'uint64_t']}
+		[11] -> [self cCoerce: (self functionPointer: #ffiBoxOwnedInteger:) to: 'uint64_t'].
+		[12] -> [self cCoerce: (self functionPointer: #ffiBoxNonNegativeI64:) to: 'uint64_t']}
 		otherwise: [0 asUInt64]
 ! !
 
@@ -85,9 +87,7 @@ ffiUnboxF64: o into: out
 	<var: #o type: 'oop'>
 	<var: #out type: 'double *'>
 	<returns: 'bool'>
-	(o = 0 or: [(memory isFloat: o) not]) ifTrue: [^false].
-	out value: (memory floatVal: o).
-	^true
+	^memory tryFloatVal: o into: out
 !
 ffiBorrowSlice: slice into: out length: length
 	<function>
@@ -153,6 +153,13 @@ ffiBoxF64: value
 	jit syncPendingBoundFrame.
 	^memory floatOop: value
 !
+ffiBoxNonNegativeI64: value
+	<function>
+	<var: #value type: 'int64_t'>
+	<returns: 'oop'>
+	value < 0 ifTrue: [^memory nilOop].
+	^self ffiBoxU64: value asUInt64
+!
 ffiBoxVoid
 	<function>
 	<returns: 'oop'>
@@ -160,6 +167,13 @@ ffiBoxVoid
 ! !
 
 !FFIWrapperHelpers methodsFor: 'GC stress'!
+ffiBoxNonNegativeI64WithGC: value
+	<function>
+	<var: #value type: 'int64_t'>
+	<returns: 'oop'>
+	value < 0 ifTrue: [^memory nilOop].
+	^self ffiBoxU64WithGC: value asUInt64
+!
 ffiBoxI64WithGC: value
 	<function>
 	<var: #value type: 'int64_t'>

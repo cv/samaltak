@@ -125,6 +125,14 @@ the existing alias `core` retains its meaning. `NO_PLATFORM` and UEFI do not
 expose SDL targets. `<approvedFFITest>` requires a VM built with
 `SAMALTAK_FFI_TEST_EXPORTS`.
 
+Return tag 12 (`nonNegativeI64`) is an approved, prepared result policy for
+`int64_t` exports. The launcher returns `nil` after a negative native result
+and boxes a nonnegative result exactly. Only pre-entry rejection returns
+the launcher's zero sentinel (`tryInvoke*` replies `false`). The same native
+prototype also accepts the signed `i64` result for older images. An older VM
+cannot prepare tag 12, so staged facades fall back to the legacy primitive;
+the explicit trial installer refuses to publish such a route.
+
 A facade can avoid a separate cache by compiling a literal binding at its
 call site:
 

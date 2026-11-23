@@ -23,4 +23,14 @@ coreFloatPrintString
 		candidate: [:n | | value | n timesRepeat: [value := x ffiCandidatePrimPrintString]. value]
 		reset: []
 		expect: [:value | value = '1.0000000000000002']
+!
+coreGetenv
+	| vm name |
+	vm := Smalltalk vm.
+	name := 'SAMALTAK_PARITY_VALUE'.
+	self case: 'core-getenv' repeat: nil
+		direct: [:n | | value | n timesRepeat: [value := vm getenv: name]. value]
+		candidate: [:n | | value | n timesRepeat: [value := vm ffiCandidateGetenv: name]. value]
+		reset: []
+		expect: [:value | value = 'parity value']
 ! !

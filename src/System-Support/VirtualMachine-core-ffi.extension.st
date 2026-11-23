@@ -8,32 +8,21 @@ ffiCandidateThreadCpuMicroseconds
 	^answer
 !
 ffiCandidateStdoutWrite: text
-	| binding bytes |
-	binding := CoreFFI stdoutWrite.
-	binding isNil ifTrue: [^self stdoutWrite: text].
-	bytes := PlatformFFI textBytes: text.
-	bytes isNil ifTrue: [^self stdoutWrite: text].
-	(binding tryInvoke1: {bytes. 1. bytes size}) == false ifTrue: [^self stdoutWrite: text].
+	<ffiSite>
+	((self ffiSite: #(call 'vm:core' 'core_stdout_text' (countedText) void)) tryInvoke1: text) == false
+		ifTrue: [^self stdoutWrite: text].
 	^self
 !
 ffiCandidateStderrWrite: text
-	| binding bytes |
-	binding := CoreFFI stderrWrite.
-	binding isNil ifTrue: [^self stderrWrite: text].
-	bytes := PlatformFFI textBytes: text.
-	bytes isNil ifTrue: [^self stderrWrite: text].
-	(binding tryInvoke1: {bytes. 1. bytes size}) == false ifTrue: [^self stderrWrite: text].
+	<ffiSite>
+	((self ffiSite: #(call 'vm:core' 'core_stderr_text' (countedText) void)) tryInvoke1: text) == false
+		ifTrue: [^self stderrWrite: text].
 	^self
 !
 ffiCandidateGetenv: name
-	| binding bytes slice result |
-	binding := CoreFFI getenv.
-	(binding isNil or: [name isString not]) ifTrue: [^self getenv: name].
-	bytes := PlatformFFI cTextBytes: name.
-	bytes isNil ifTrue: [^self getenv: name].
-	slice := {bytes. 1. bytes size}.
-	result := FFIOwnedOutput captureUpTo: 67108864 do: [:ticket | binding tryInvoke2: slice with: ticket].
-	result == false ifTrue: [^self getenv: name].
-	(result isNil or: [result class == SmallInteger]) ifTrue: [^nil].
-	^PlatformFFI textFromBytes: result
+	<ffiSite>
+	| answer |
+	answer := (self ffiSite: #(call 'vm:core' 'core_getenv_text' (cText) ownedText)) tryInvoke1: name.
+	answer == false ifTrue: [^self getenv: name].
+	^answer
 ! !

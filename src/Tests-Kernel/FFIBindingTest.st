@@ -60,7 +60,13 @@ testInvalidDescriptors
 	  (call 'libm' 'sqrt' ('f64') f64)
 	  (call 'libm' 'sqrt' (void) f64)
 	  (call 'libm' 'sqrt' (ptr) f64)
-	  (call 'libm' 'sqrt' (f64) byteSlice)) do: [:descriptor |
+	  (call 'libm' 'sqrt' (f64) byteSlice)
+	  (call 'libc' 'getenv' (cText) ownedText)
+	  (call 'fixture' 'write' (countedText) void)
+	  (call 'vm:core' 'core_stdout_text' (countedText countedText) void)
+	  (call 'vm:core' 'core_stdout_text' (countedText) i32)
+	  (call 'vm:core' 'core_getenv_text' (cText) void)
+	  (call 'vm:core' 'core_getenv_text' (ownedText) cText)) do: [:descriptor |
 		self should: [FFI bind: descriptor] raise: FFIError].
 	self should: [FFI bind: {#call. 'libm'. 'sqrt', (String with: Character null). #(f64). #f64}]
 		raise: FFIError.

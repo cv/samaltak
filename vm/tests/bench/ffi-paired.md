@@ -13,7 +13,8 @@ python3 vm/tests/bench/ffi-paired.py \
 ```
 
 Without `--case`, run the whole headless suite (including real file I/O,
-numerics, redirected UTF-8 streams, loopback sockets and a PTY). Use `--cpu`
+numerics, a fixed environment lookup, redirected UTF-8 streams, loopback
+sockets and a PTY). Use `--cpu`
 on a reserved Linux CPU when available. `--eden` controls GC pressure for both
 arms. A separate low-eden run helps expose allocation overhead. The headless
 CI job uses `--proof-only`; the display job also captures one non-gating
@@ -39,6 +40,10 @@ control must have zero native entries and the candidate must produce the
 exact expected count **for each export**. Proof and timing use separate
 processes so instrumentation is not charged to either arm. Binding or
 optimized call-site hits alone are not positive native-entry evidence.
+Stream and environment cases require the counted/owned text exports (declaration
+keys 1169, 1170, 1172), not the retained byte-slice exports. File metadata keeps
+keys 504 and 505; the compatibility test checks signed and nil-on-negative
+boxing against those same targets.
 
 `plan.json` records the inputs, host/modes and artifact SHA-256s;
 `pairs.csv` keeps every wall/CPU duration and allocation, GC and JIT delta;

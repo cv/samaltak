@@ -781,13 +781,13 @@ int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signatu
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_write_entry_witness;
         return 1527;
     }
-    if (packed_signature == 51 && strcmp(approved_name, "platform_files_size") == 0) {
+    if ((packed_signature == 60 || packed_signature == 51) && strcmp(approved_name, "platform_files_size") == 0) {
         *target_out = (uint64_t) ffi_file_size;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_size_entry_witness;
         return 1528;
     }
-    if (packed_signature == 51 && strcmp(approved_name, "platform_files_position") == 0) {
+    if ((packed_signature == 60 || packed_signature == 51) && strcmp(approved_name, "platform_files_position") == 0) {
         *target_out = (uint64_t) ffi_file_position;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_position_entry_witness;
