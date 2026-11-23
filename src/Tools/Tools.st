@@ -253,6 +253,14 @@ openTerminal
 	^Terminal open
 ! !
 
+!Tools class methodsFor: 'screenshots'!
+freezeReadouts
+	"Show fixed values where the tools show how fast the machine is or how busy (the Mandelbrot's time to render, the Process Browser's CPU column and load meters) and stop updating them: for screenshots that must not depend on the machine or its load (tests/nv/world_test.sh). Answer whether a Mandelbrot still renders (its time is frozen once it is done)."
+	ProcessBrowser allInstances do: [:each | each freezeReadings].
+	MandelbrotView allInstances do: [:each | each freezeSeconds].
+	^MandelbrotView allInstances anySatisfy: [:each | each progressText notNil]
+! !
+
 !Tools class methodsFor: 'processes'!
 isSystemProcess: aProcess
 	"Processes the tools do not stop: the VM's and the window system's own (above user priority), and the idle process."

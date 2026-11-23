@@ -1,8 +1,9 @@
 #!/bin/sh
 # make test-nv, part 3: the World hosted on an NvComputeGPU (SAMALTAK_GPU=nv: Graphics-NV, the raster kernels on this
 # machine's NVIDIA GPU, presenting through SDL_GPU) on a private Xvfb, against the same World on a SoftwareGPU
-# (SAMALTAK_GPU=software), both on the recording clock: the screenshots must be equal but for the live statistics (the top
-# bar's frame time and the Process Browser's CPU column, which show each device's own numbers).
+# (SAMALTAK_GPU=software), both on the recording clock: the screenshots must be equal but for the top bar's frame time,
+# which shows each device's own. The readouts of the machine's speed and load (the Mandelbrot's time to render, the
+# Process Browser's CPU column and load meters) are frozen first (Tools freezeReadouts), once the Mandelbrot is done.
 #   tests/nv/world_test.sh [OUT]
 set -e
 OUT=${1:-build}
@@ -23,6 +24,11 @@ for gpu in nv software; do
 	DISPLAY=$D SAMALTAK_GPU=$gpu $CTL --session $S open --image "$OUT/samaltak.image" --window-size 1920x1080 --work-clock >/dev/null
 	$CTL --session $S wait idle 20000 >/dev/null || true
 	$CTL --session $S wait 4000 >/dev/null
+	n=0
+	while [ "$($CTL --session $S eval 'Tools freezeReadouts')" != false ]; do
+		n=$((n + 1)); [ $n -lt 60 ] || { echo "world_test: the Mandelbrot did not finish rendering on $gpu"; exit 1; }
+		$CTL --session $S wait 1000 >/dev/null
+	done
 	# every window drawn again at the end of its animations: a device that composes only on change (SoftwareGPU) may
 	# otherwise still show a cross-fade's last step
 	$CTL --session $S eval "World current windows do: [:w | w invalidate]. 0" >/dev/null

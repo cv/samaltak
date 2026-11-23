@@ -1,5 +1,5 @@
 ToolPane subclass: #ProcessBrowser
-	instanceVariableNames: 'table stack source debugButton suspendButton terminateButton countLabel lastSample cpu shownCpu shownMeters states rawStates rowKeys rows stackKey meters'
+	instanceVariableNames: 'table stack source debugButton suspendButton terminateButton countLabel lastSample cpu shownCpu shownMeters states rawStates rowKeys rows stackKey meters refresher frozen'
 	classVariableNames: ''
 	package: 'Tools'!
 
@@ -86,10 +86,16 @@ selectProcess: aProcess
 !ProcessBrowser methodsFor: 'sampling'!
 refresh
 	"Re-read every Process (my window's Process, 4 Hz), and once a second their CPU (readingsOf:at:). The table is drawn again only when a row shows something else, and laid out again only when the Processes or their order changed."
-	| now procs sorted keys |
+	| now procs |
+	frozen == true ifTrue: [^self].
 	now := Time microsecondClockValue.
 	procs := Processor allProcesses.
 	(lastSample isNil or: [now - lastSample first >= 1000000]) ifTrue: [self readingsOf: procs at: now].
+	self show: procs
+!
+show: procs
+	"The rows of procs, their states as updateStatesOf: has them, the buttons and the stack."
+	| sorted keys |
 	self updateStatesOf: procs.
 	sorted := (procs asSortedCollection: [:a :b | self process: a sortsBefore: b]) asArray.
 	keys := sorted collect: [:p | self rowKeyOf: p].
@@ -423,7 +429,25 @@ menuFor: aProcess
 !
 startRefreshing
 	self refresh.
-	self every: 250 do: [self refresh]
+	refresher := self every: 250 do: [self refresh]
+!
+freezeReadings
+	"Stop refreshing and show fixed readings where I show the machine's load: no CPU for any Process, the meters at 0, and the Processes as at a moment when none of them was ready to run, if there is one within 5 s (Tools freezeReadouts). In my window's Process, as a refresh."
+	| w |
+	refresher isNil ifFalse: [refresher cancel. refresher := nil].
+	w := self window.
+	w isNil ifTrue: [^self freezeNow].
+	w sync: [self freezeNow]
+!
+freezeNow
+	| tries |
+	frozen := true.
+	cpu := IdentityDictionary new.
+	meters isNil ifFalse: [meters meters: {'cpu' -> 0.0. 'jit' -> 0.0. 'gpu' -> 0.0}].
+	tries := 0.
+	[states := IdentityDictionary new.
+	 self show: Processor allProcesses.
+	 (rows anySatisfy: [:row | (row at: 4) = 'ready']) and: [(tries := tries + 1) < 50]] whileTrue: [(Delay forMilliseconds: 100) wait]
 ! !
 
 !ProcessBrowser class methodsFor: 'opening'!

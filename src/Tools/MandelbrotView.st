@@ -186,6 +186,12 @@ reset
 ! !
 
 !MandelbrotView methodsFor: 'status'!
+freezeSeconds
+	"Show 1.0 s as the last rendering's time, whatever it took (Tools freezeReadouts); not while rendering."
+	(rendering == true or: [lastSeconds isNil]) ifTrue: [^self].
+	lastSeconds := 1.0.
+	self updateStatus
+!
 updateStatus
 	status clear.
 	status add: maxIterations printString, ' iterations · ×', self zoomFactor printString style: #mono.
