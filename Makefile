@@ -8,6 +8,9 @@ SHELL = $(CURDIR)/tests/timed-sh $@
 endif
 
 VM := vm/build/samaltak
+# The C compiles' jobs (the VM's, the UEFI application's): one per CPU, unless make already runs jobs at once (-j).
+NPROC := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)
+BUILD_JOBS = $(if $(findstring jobserver,$(MAKEFLAGS)),,-j$(NPROC))
 # What the test targets build first: image (always rebuilt), or fresh-image (only when src/, boot/ or the VM are newer:
 # tests/stages.sh builds once, then runs stages at once).
 TEST_IMAGE ?= image
@@ -218,8 +221,8 @@ UEFI_PIN = $(UEFI_AFFINITY)
 uefi-ui uefi-control: UEFI_PIN = $(if $(filter undefined,$(origin UEFI_AFFINITY)),big,$(UEFI_AFFINITY))
 QEMU_UEFI = $(QEMU_UEFI_MACHINE) -smp $(UEFI_CPUS) -m $(UEFI_MEM) -no-reboot \
 	-nic user,model=$(UEFI_NIC)$(if $(UEFI_CONTROL_PORT),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_CONTROL_PORT)-:7341)$(UEFI_DISPLAY_FWD) -global $(UEFI_NIC).romfile= \
-	-device virtio-rng-pci -drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/vars.fd \
-	-drive format=raw,file=fat:rw:$(UEFI)/esp -drive format=raw,file=$(UEFI)/image.disk \
+	-device virtio-rng-pci -drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI_RUN)/vars.fd \
+	-drive format=raw,file=fat:rw:$(UEFI_RUN)/esp -drive format=raw,file=$(UEFI_RUN)/image.disk \
 	$(if $(filter %@usb-storage,$(UEFI_DISKS)),-device qemu-xhci$(comma)id=disks) $(foreach disk,$(UEFI_DISKS),$(call UEFI_DISK,$(disk)))
 # More disks for the image's files (docs/files.md): UEFI_DISKS, raw disk images FILE@DEVICE, DEVICE nvme, virtio-blk-pci
 # or usb-storage, attached read-only. UEFI_EXT4_DISK is an ext4 file system of the fixture tests/uefi/ext4 (and a file
@@ -245,29 +248,42 @@ $(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT): $(OUT)/samaltak.image vm/uefi.mk
 	rm -rf $(UEFI)/gen
 	mkdir -p $(UEFI)/esp/EFI/BOOT
 	$(VM) $(OUT)/samaltak.image --headless --eval "[VMTranslator generateVMInto: '$(UEFI)/gen' os: #uefi arch: #$(UEFI_ARCH). 'ok'] on: Error do: [:e | Transcript show: e messageText; cr. Smalltalk quit: 1]"
-	$(MAKE) -f vm/uefi.mk GEN=$(UEFI)/gen OBJ=$(UEFI)/obj UEFI_TARGET=$(UEFI_TARGET) UEFI_COMMIT="$$(git describe --always --dirty --abbrev=12 2>/dev/null)"
+	$(MAKE) $(BUILD_JOBS) -f vm/uefi.mk GEN=$(UEFI)/gen OBJ=$(UEFI)/obj UEFI_TARGET=$(UEFI_TARGET) UEFI_COMMIT="$$(git describe --always --dirty --abbrev=12 2>/dev/null)"
 	$(VM) $(OUT)/samaltak.image --headless --eval "UefiImageWriter new convert: '$(UEFI)/obj/samaltak.elf' to: '$(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT)'"
 $(UEFI)/image.disk: $(OUT)/samaltak.image
 	$(VM) $(OUT)/samaltak.image --headless --eval "UefiImageDisk new write: '$(OUT)/samaltak.image' to: '$(UEFI)/image.disk'"
 	truncate -s $(UEFI_DISK_MB)M $(UEFI)/image.disk
+# UEFI_RUN: the directory of a boot's state, its ESP (esp/: the EFI application and samaltak.args), image disk, firmware
+# variables (vars.fd) and console.log: $(UEFI) by default; another (test-uefi's parts, so that they boot at once) gets
+# copies of $(UEFI)'s EFI application and image disk the first time (a snapshot stays in it). UEFI_SLOT: a command QEMU
+# runs under (test-uefi: tests/with-slot, a test slot each).
+UEFI_RUN ?= $(UEFI)
+UEFI_SLOT ?=
+CP_SPARSE := $(if $(filter Darwin,$(shell uname -s)),-c,--sparse=always)
+UEFI_RUN_DIR = $(if $(filter-out $(UEFI),$(UEFI_RUN)),mkdir -p $(UEFI_RUN)/esp/EFI/BOOT \
+	&& { [ -f $(UEFI_RUN)/esp/EFI/BOOT/$(UEFI_BOOT) ] || cp $(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT) $(UEFI_RUN)/esp/EFI/BOOT/; } \
+	&& { [ -f $(UEFI_RUN)/image.disk ] || cp $(CP_SPARSE) $(UEFI)/image.disk $(UEFI_RUN)/image.disk; })
 uefi-run: uefi
 	$(MAKE) uefi-boot
 uefi-boot:
-	printf '%s\n' --max-heap $(UEFI_HEAP) disk: $(UEFI_ARGS) > $(UEFI)/esp/samaltak.args
-	cp $(OVMF_VARS) $(UEFI)/vars.fd
-	tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) -nographic | tee $(UEFI)/console.log
-	@grep -q 'samaltak: exit 0' $(UEFI)/console.log
+	$(UEFI_RUN_DIR)
+	printf '%s\n' --max-heap $(UEFI_HEAP) disk: $(UEFI_ARGS) > $(UEFI_RUN)/esp/samaltak.args
+	cp $(OVMF_VARS) $(UEFI_RUN)/vars.fd
+	$(UEFI_SLOT) tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) -nographic | tee $(UEFI_RUN)/console.log
+	@grep -q 'samaltak: exit 0' $(UEFI_RUN)/console.log
 uefi-ui: uefi
-	rm -f $(UEFI)/esp/samaltak.args && umask 077 && printf '%s\n' --max-heap $(UEFI_HEAP) disk: --window-size $(UEFI_SCREEN) $(UEFI_DISPLAY_ARGS) > $(UEFI)/esp/samaltak.args
-	$(call DISPLAY_PASSWORD,$(UEFI)/esp,$(if $(UEFI_DISPLAY),$(UEFI_DISPLAY_PASSWORD_FILE)),$(UEFI)/esp/samaltak.args)
-	cp $(OVMF_VARS) $(UEFI)/vars.fd
+	$(UEFI_RUN_DIR)
+	rm -f $(UEFI_RUN)/esp/samaltak.args && umask 077 && printf '%s\n' --max-heap $(UEFI_HEAP) disk: --window-size $(UEFI_SCREEN) $(UEFI_DISPLAY_ARGS) > $(UEFI_RUN)/esp/samaltak.args
+	$(call DISPLAY_PASSWORD,$(UEFI_RUN)/esp,$(if $(UEFI_DISPLAY),$(UEFI_DISPLAY_PASSWORD_FILE)),$(UEFI_RUN)/esp/samaltak.args)
+	cp $(OVMF_VARS) $(UEFI_RUN)/vars.fd
 	$(if $(UEFI_DISPLAY)$(UEFI_VNC),,$(UEFI_WINDOW)) tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) $(UEFI_QEMU_DISPLAY) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 uefi-control: uefi
-	rm -f $(UEFI)/esp/samaltak.args && umask 077 && printf '%s\n' --max-heap $(UEFI_HEAP) disk: --control --control-host 0.0.0.0 --control-port 7341 \
-		$${UEFI_CONTROL_TOKEN:+--control-token "$$UEFI_CONTROL_TOKEN"} $(UEFI_DISPLAY_ARGS) $(UEFI_CONTROL_ARGS) > $(UEFI)/esp/samaltak.args
-	$(call DISPLAY_PASSWORD,$(UEFI)/esp,$(if $(UEFI_DISPLAY),$(UEFI_DISPLAY_PASSWORD_FILE)),$(UEFI)/esp/samaltak.args)
-	cp $(OVMF_VARS) $(UEFI)/vars.fd
-	tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) $(if $(UEFI_DISPLAY)$(UEFI_VNC),$(UEFI_QEMU_DISPLAY),-display none) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
+	$(UEFI_RUN_DIR)
+	rm -f $(UEFI_RUN)/esp/samaltak.args && umask 077 && printf '%s\n' --max-heap $(UEFI_HEAP) disk: --control --control-host 0.0.0.0 --control-port 7341 \
+		$${UEFI_CONTROL_TOKEN:+--control-token "$$UEFI_CONTROL_TOKEN"} $(UEFI_DISPLAY_ARGS) $(UEFI_CONTROL_ARGS) > $(UEFI_RUN)/esp/samaltak.args
+	$(call DISPLAY_PASSWORD,$(UEFI_RUN)/esp,$(if $(UEFI_DISPLAY),$(UEFI_DISPLAY_PASSWORD_FILE)),$(UEFI_RUN)/esp/samaltak.args)
+	cp $(OVMF_VARS) $(UEFI_RUN)/vars.fd
+	$(UEFI_SLOT) tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) $(if $(UEFI_DISPLAY)$(UEFI_VNC),$(UEFI_QEMU_DISPLAY),-display none) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest ContextTest ExceptionTest FloatTest FractionTest \
 	HashingTest ImmutabilityTest IntegerTest LazyContextTest MarriedContextTest MessageNotUnderstoodTest ObjectTest ProcessTest \
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \
@@ -287,60 +303,89 @@ UEFI_FILES := | f | f := [:x | Smalltalk vm stderrWrite: 'files ', x, (String wi
 UEFI_MP := 1 to: 300 do: [:i | Compiler evaluate: '3 + 4 * ', i printString]. Smalltalk vm stderrWrite: 'mp bg jobs ', Smalltalk vm statistics optBackgroundJobs printString, (String with: Character lf)
 UEFI_RESET := Smalltalk vm stderrWrite: 'menu ', ((ToolsMenu worldMenuAt: nil) selectableItems collect: [:i | i label]) asArray printString, (String with: Character lf). Firmware restart
 UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot: Smalltalk vm imagePath) ifTrue: ['resumed ', (Smalltalk at: 'UefiMark' asSymbol) printString, ' ', (SecureRandom default nextBytes: 16) hex] ifFalse: ['saved']
+# test-uefi's parts boot at once (make -j UEFI_TEST_JOBS, default nproc / 2; 1: one after another), each QEMU holding
+# one of the machine's test slots (tests/with-slot), each part in a boot directory of its own, $(UEFI)/run-<part>
+# (UEFI_RUN), its output shown when it ends (make -O); the snapshot's three boots one after another in theirs. Every
+# part runs to its end (-k), and the boot directories stay for a look when one fails.
+UEFI_TEST_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2); echo $$(( n > 1 ? n / 2 : 1 )))
+UEFI_TEST_PARTS = tests lowspace mp cpu1 reset world world-gpu files fat rfb net $(if $(filter-out virtio-net-pci,$(UEFI_NIC)),nic) snapshot
+# make 3.81 (macOS's) has no -O: there the parts run one after another
+UEFI_TEST_SYNC := $(if $(filter 3.%,$(MAKE_VERSION)),-j1,-j$(UEFI_TEST_JOBS) -O --no-print-directory)
+UEFI_PART_RUN = $(UEFI)/run-$(patsubst test-uefi-part-%,%,$@)
+UEFI_PART_BOOT = $(MAKE) uefi-boot UEFI_RUN=$(UEFI_PART_RUN) UEFI_SLOT=tests/with-slot
+UEFI_PART_LOG = $(UEFI_PART_RUN)/console.log
+# what starts a samaltak-ctl session (make uefi-control) for a part: its boot directory and slot, and none of this make's
+# flags (its -O would hold the session's console back until QEMU ends)
+UEFI_PART_ENV = MAKEFLAGS= UEFI_RUN=$(UEFI_PART_RUN) UEFI_SLOT=tests/with-slot UEFI_AFFINITY=$(UEFI_AFFINITY) OUT=$(OUT)
 test-uefi:
-	rm -f $(UEFI)/image.disk
-	$(MAKE) uefi-run UEFI_ARGS='--headless --test $(UEFI_TESTS)'
-	grep -q "^samaltak: $(UEFI_CPUS) CPUs" $(UEFI)/console.log
-	$(MAKE) uefi-boot UEFI_HEAP_MB=128 UEFI_ARGS='--headless --test LowSpaceTest StackOverflowTest'
-	$(MAKE) uefi-boot UEFI_ARGS="--headless --eval \"$(UEFI_MP)\""
-	$(if $(filter-out 1,$(UEFI_CPUS)),grep -qE "^mp bg jobs [1-9]" $(UEFI)/console.log)
-	$(MAKE) uefi-boot UEFI_CPUS=1 UEFI_ARGS='--headless --test SoftwareGPUTest SoftwareGPUBandsTest JitOptBackgroundTest'
-	grep -q "^samaltak: 1 CPUs" $(UEFI)/console.log
-	-$(MAKE) uefi-boot UEFI_ARGS="--headless --eval \"$(UEFI_RESET)\""
-	grep -q "^samaltak: reset cold" $(UEFI)/console.log && grep -q "'Restart' 'Warm restart' 'Power off'" $(UEFI)/console.log
-	$(MAKE) uefi-boot UEFI_ARGS="--eval \"$(UEFI_WORLD)\""
-	grep -qE "^world [0-9]+@[0-9]+ true 123@45" $(UEFI)/console.log
-	$(MAKE) uefi-boot UEFI_GPU=virtio-gpu-pci UEFI_ARGS="--window-size 1920x1080 --eval \"$(UEFI_WORLD)\""
-	grep -qE "^world 1920@1080 true 123@45" $(UEFI)/console.log
-	$(MAKE) $(UEFI_EXT4_DISK) $(UEFI_EXT4_GPT_DISK)
-	$(MAKE) uefi-boot UEFI_DISKS="$(UEFI_EXT4_DISK)@nvme $(UEFI_EXT4_GPT_DISK)@virtio-blk-pci" UEFI_ARGS="--headless --eval \"$(UEFI_FILES)\""
-	while read -r line; do grep -qF "$$line" $(UEFI)/console.log || { echo "test-uefi: files: no line: $$line"; exit 1; }; done < tests/uefi/files.expected
-	$(MAKE) test-uefi-fat
-	UEFI_AFFINITY=$(UEFI_AFFINITY) OUT=$(OUT) tests/remote/rfb_test.sh --uefi
-	UEFI_AFFINITY=$(UEFI_AFFINITY) OUT=$(OUT) tools/samaltak-ctl --session uefi-test open --uefi --headless
-	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); \
+	rm -rf $(UEFI)/image.disk $(UEFI)/run-*
+	$(MAKE) uefi $(UEFI_EXT4_DISK) $(UEFI_EXT4_GPT_DISK)
+	$(MAKE) -k $(UEFI_TEST_SYNC) $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS))
+	rm -rf $(UEFI)/image.disk $(UEFI)/run-*
+test-uefi-part-tests:
+	$(UEFI_PART_BOOT) UEFI_ARGS='--headless --test $(UEFI_TESTS)'
+	grep -q "^samaltak: $(UEFI_CPUS) CPUs" $(UEFI_PART_LOG)
+test-uefi-part-lowspace:
+	$(UEFI_PART_BOOT) UEFI_HEAP_MB=128 UEFI_ARGS='--headless --test LowSpaceTest StackOverflowTest'
+test-uefi-part-mp:
+	$(UEFI_PART_BOOT) UEFI_ARGS="--headless --eval \"$(UEFI_MP)\""
+	$(if $(filter-out 1,$(UEFI_CPUS)),grep -qE "^mp bg jobs [1-9]" $(UEFI_PART_LOG))
+test-uefi-part-cpu1:
+	$(UEFI_PART_BOOT) UEFI_CPUS=1 UEFI_ARGS='--headless --test SoftwareGPUTest SoftwareGPUBandsTest JitOptBackgroundTest'
+	grep -q "^samaltak: 1 CPUs" $(UEFI_PART_LOG)
+test-uefi-part-reset:
+	-$(UEFI_PART_BOOT) UEFI_ARGS="--headless --eval \"$(UEFI_RESET)\""
+	grep -q "^samaltak: reset cold" $(UEFI_PART_LOG) && grep -q "'Restart' 'Warm restart' 'Power off'" $(UEFI_PART_LOG)
+test-uefi-part-world:
+	$(UEFI_PART_BOOT) UEFI_ARGS="--eval \"$(UEFI_WORLD)\""
+	grep -qE "^world [0-9]+@[0-9]+ true 123@45" $(UEFI_PART_LOG)
+test-uefi-part-world-gpu:
+	$(UEFI_PART_BOOT) UEFI_GPU=virtio-gpu-pci UEFI_ARGS="--window-size 1920x1080 --eval \"$(UEFI_WORLD)\""
+	grep -qE "^world 1920@1080 true 123@45" $(UEFI_PART_LOG)
+test-uefi-part-files:
+	$(UEFI_PART_BOOT) UEFI_DISKS="$(UEFI_EXT4_DISK)@nvme $(UEFI_EXT4_GPT_DISK)@virtio-blk-pci" UEFI_ARGS="--headless --eval \"$(UEFI_FILES)\""
+	while read -r line; do grep -qF "$$line" $(UEFI_PART_LOG) || { echo "test-uefi: files: no line: $$line"; exit 1; }; done < tests/uefi/files.expected
+test-uefi-part-fat:
+	$(MAKE) test-uefi-fat UEFI_RUN=$(UEFI_PART_RUN) UEFI_SLOT=tests/with-slot
+test-uefi-part-rfb:
+	$(UEFI_PART_ENV) tests/remote/rfb_test.sh --uefi
+test-uefi-part-net:
+	$(UEFI_PART_ENV) tools/samaltak-ctl --session uefi-test open --uefi --headless
+	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); N=$(UEFI_PART_RUN)/net.log; \
 	TP=$$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'); \
-	tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET_DRIVER)" > $(UEFI)/net.log; ok=$$?; \
-	[ $$ok = 0 ] && { tests/remote/auth_test.sh --session uefi-test >> $(UEFI)/net.log; ok=$$?; }; \
-	[ $$ok = 0 ] && { tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET)" >> $(UEFI)/net.log; ok=$$?; }; \
-	[ $$ok = 0 ] && { tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET_BULK)" >> $(UEFI)/net.log; ok=$$?; }; \
-	[ $$ok = 0 ] && { tools/tls-test-server.sh $(UEFI)/tls $$TP; ok=$$?; }; \
-	[ $$ok = 0 ] && { CA=$$(cat $(UEFI)/tls/ca.hex); tools/samaltak-ctl --session uefi-test eval "$(UEFI_HTTPS)" >> $(UEFI)/net.log; ok=$$?; \
-		kill $$(cat $(UEFI)/tls/pid); }; \
-	tools/samaltak-ctl --session uefi-test close; cat $(UEFI)/net.log; [ $$ok = 0 ] && grep -q pong $(UEFI)/net.log && grep -q "'bulk true" $(UEFI)/net.log \
-		&& grep -q "'driver $(call UEFI_DRIVER,$(UEFI_NIC))'" $(UEFI)/net.log && grep -q "'https 200 " $(UEFI)/net.log
-	$(if $(filter-out virtio-net-pci,$(UEFI_NIC)),$(MAKE) test-uefi-nic UEFI_NIC=virtio-net-pci)
-	$(MAKE) uefi-boot UEFI_ARGS="--headless --eval \"$(UEFI_SNAPSHOT)\""
-	grep -q "'saved'" $(UEFI)/console.log
-	$(MAKE) uefi-boot UEFI_ARGS=--headless
-	grep -o "'resumed 42 [0-9A-F]*'" $(UEFI)/console.log > $(UEFI)/resumed.txt && [ -s $(UEFI)/resumed.txt ]
-	$(MAKE) uefi-boot UEFI_ARGS=--headless
-	grep -o "'resumed 42 [0-9A-F]*'" $(UEFI)/console.log | { read -r again; [ -n "$$again" ] && [ "$$again" != "$$(cat $(UEFI)/resumed.txt)" ]; } \
+	tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET_DRIVER)" > $$N; ok=$$?; \
+	[ $$ok = 0 ] && { tests/remote/auth_test.sh --session uefi-test >> $$N; ok=$$?; }; \
+	[ $$ok = 0 ] && { tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET)" >> $$N; ok=$$?; }; \
+	[ $$ok = 0 ] && { tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET_BULK)" >> $$N; ok=$$?; }; \
+	[ $$ok = 0 ] && { tools/tls-test-server.sh $(UEFI_PART_RUN)/tls $$TP; ok=$$?; }; \
+	[ $$ok = 0 ] && { CA=$$(cat $(UEFI_PART_RUN)/tls/ca.hex); tools/samaltak-ctl --session uefi-test eval "$(UEFI_HTTPS)" >> $$N; ok=$$?; \
+		kill $$(cat $(UEFI_PART_RUN)/tls/pid); }; \
+	tools/samaltak-ctl --session uefi-test close; cat $$N; [ $$ok = 0 ] && grep -q pong $$N && grep -q "'bulk true" $$N \
+		&& grep -q "'driver $(call UEFI_DRIVER,$(UEFI_NIC))'" $$N && grep -q "'https 200 " $$N
+test-uefi-part-nic:
+	$(MAKE) test-uefi-nic UEFI_NIC=virtio-net-pci UEFI_RUN=$(UEFI_PART_RUN) UEFI_SLOT=tests/with-slot
+test-uefi-part-snapshot:
+	$(UEFI_PART_BOOT) UEFI_ARGS="--headless --eval \"$(UEFI_SNAPSHOT)\""
+	grep -q "'saved'" $(UEFI_PART_LOG)
+	$(UEFI_PART_BOOT) UEFI_ARGS=--headless
+	grep -o "'resumed 42 [0-9A-F]*'" $(UEFI_PART_LOG) > $(UEFI_PART_RUN)/resumed.txt && [ -s $(UEFI_PART_RUN)/resumed.txt ]
+	$(UEFI_PART_BOOT) UEFI_ARGS=--headless
+	grep -o "'resumed 42 [0-9A-F]*'" $(UEFI_PART_LOG) | { read -r again; [ -n "$$again" ] && [ "$$again" != "$$(cat $(UEFI_PART_RUN)/resumed.txt)" ]; } \
 		|| { echo 'test-uefi: a snapshot resumed twice answered the same SecureRandom bytes'; exit 1; }
-	rm $(UEFI)/image.disk
 # test-uefi-fat: writable FAT volumes and crash reports (tests/uefi/fat.sh): the VM booted from a FAT32 EFI system
 # partition image (QEMU's fat:rw: directory loses writes) with FAT disks to write, read-only and nearly full, what it
 # wrote checked with mtools and fsck.fat; then a forced fatal error: its report on the ESP, the panel, a key, the reset.
-UEFI_ESP_DRIVE := -drive format=raw,file=fat:rw:$(UEFI)/esp
+UEFI_ESP_DRIVE = -drive format=raw,file=fat:rw:$(UEFI_RUN)/esp
 test-uefi-fat: $(UEFI_EXT4_DISK)
-	QEMU='$(subst $(UEFI_ESP_DRIVE),,$(QEMU_UEFI))' UEFI=$(UEFI) VARS=$(OVMF_VARS) BOOT=$(UEFI_BOOT) EXT4=$(UEFI_EXT4_DISK) sh tests/uefi/fat.sh
+	$(UEFI_RUN_DIR)
+	QEMU='$(subst $(UEFI_ESP_DRIVE),,$(QEMU_UEFI))' UEFI=$(UEFI_RUN) VARS=$(OVMF_VARS) BOOT=$(UEFI_BOOT) EXT4=$(UEFI_EXT4_DISK) $(UEFI_SLOT) sh tests/uefi/fat.sh
 test-uefi-nic:
-	UEFI_NIC=$(UEFI_NIC) UEFI_AFFINITY=$(UEFI_AFFINITY) OUT=$(OUT) tools/samaltak-ctl --session uefi-test open --uefi --headless
-	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); \
-	tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET_DRIVER)" > $(UEFI)/net.log; ok=$$?; \
-	[ $$ok = 0 ] && { tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET)" >> $(UEFI)/net.log; ok=$$?; }; \
-	tools/samaltak-ctl --session uefi-test close; cat $(UEFI)/net.log; [ $$ok = 0 ] && grep -q pong $(UEFI)/net.log \
-		&& grep -q "'driver $(call UEFI_DRIVER,$(UEFI_NIC))'" $(UEFI)/net.log
+	MAKEFLAGS= UEFI_RUN=$(UEFI_RUN) UEFI_SLOT=$(UEFI_SLOT) UEFI_NIC=$(UEFI_NIC) UEFI_AFFINITY=$(UEFI_AFFINITY) OUT=$(OUT) tools/samaltak-ctl --session uefi-test-nic open --uefi --headless
+	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test-nic.json); \
+	tools/samaltak-ctl --session uefi-test-nic eval "$(UEFI_NET_DRIVER)" > $(UEFI_RUN)/net.log; ok=$$?; \
+	[ $$ok = 0 ] && { tools/samaltak-ctl --session uefi-test-nic eval "$(UEFI_NET)" >> $(UEFI_RUN)/net.log; ok=$$?; }; \
+	tools/samaltak-ctl --session uefi-test-nic close; cat $(UEFI_RUN)/net.log; [ $$ok = 0 ] && grep -q pong $(UEFI_RUN)/net.log \
+		&& grep -q "'driver $(call UEFI_DRIVER,$(UEFI_NIC))'" $(UEFI_RUN)/net.log
 
 # A boot disk for real hardware (docs/uefi.md, Real hardware): USB_IMAGE, one file to write onto a USB stick (dd) or to boot
 # in QEMU, a GPT disk of three partitions: 1 the EFI system partition (FAT32 of USB_ESP_MB: EFI/BOOT/$(UEFI_BOOT) and
@@ -493,4 +538,4 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-fat test-uefi-nic usb-image usb-disk usb-run usb-boot test-usb-image test-install test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels test video mindblown-video jit-video clean
+.PHONY: $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS)) all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-fat test-uefi-nic usb-image usb-disk usb-run usb-boot test-usb-image test-install test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels test video mindblown-video jit-video clean

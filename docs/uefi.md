@@ -8,7 +8,7 @@ The VM runs as a UEFI application on x86-64 and arm64, with its UI on the firmwa
     make uefi-ui UEFI_DISPLAY=1 UEFI_GPU=virtio-gpu-pci UEFI_SCREEN=1920x1080   # on the image's own VNC (RFB) server on 127.0.0.1:5901 instead, QEMU without a display (password: ~/.samaltak-vnc where present; docs/remote.md, Remote display)
     make uefi-ui UEFI_VNC=1 UEFI_GPU=virtio-gpu-pci UEFI_SCREEN=1920x1080   # on QEMU's VNC server on 127.0.0.1:5901, the fallback (password: ~/.samaltak-vnc)
     make uefi-control UEFI_CONTROL_PORT=7341        # no window; its control service on 127.0.0.1:7341 (samaltak-ctl open --uefi; token: docs/remote.md)
-    make test-uefi                                  # the tests that need no platform layer, the World, the network, a snapshot
+    make test-uefi                                  # the tests that need no platform layer, the World, the network, a snapshot: its parts boot at once (UEFI_TEST_JOBS), each in $(OUT)/uefi-$(UEFI_ARCH)/run-<part> (UEFI_RUN), kept when one fails
     make usb-image                                  # $(OUT)/uefi-$(UEFI_ARCH)/usb.img: a boot disk to dd onto a USB stick (Real hardware)
     make usb-image USB_DIAG=1                       # the same, booting into FirmwareDiagnostics first, then the World
     make usb-image USB_CONTROL=1                    # with the control service on the network, for samaltak-ctl connect (docs/remote.md)

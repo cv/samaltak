@@ -34,7 +34,10 @@ Check with `context.get().projectFunctions`.
 - The gate builds once in its fresh worktree, then runs its stages at once (`tests/stages.sh`: each stage a make
   process with its own log, printed when it ends with a line `stage <target>: passed|FAILED (exit N) in N s`, then
   `stages: all passed|FAILED: ...`), and every Smalltalk suite sharded over several VMs (`tests/st_suite.sh`,
-  SAMALTAK_TEST_JOBS, default min(nproc / 2, 8); 1: one VM), each VM on an Xvfb of its own. Shards are balanced by the
+  SAMALTAK_TEST_JOBS, default min(nproc / 2, 8); 1: one VM), each VM on an Xvfb of its own, and test-uefi's QEMU boots
+  at once (UEFI_TEST_JOBS, each in `OUT/uefi-<arch>/run-<part>`, kept when one fails). The log ends with a timeline:
+  each stage's span, then the build's and the slowest stage's steps (the critical path); all stages' with
+  `tests/timeline.sh build/gate-runs/<id>.timeline all`. Shards are balanced by the
   class times in this directory's `build/test-times` (the gate's runs keep them up to date). All test VMs on the
   machine share SAMALTAK_TEST_SLOTS slots (default nproc / 2, flock files in `/tmp/samaltak-test-slots-<uid>`), so
   concurrent gates wait for each other's VMs instead of each starting 8 per stage. It tests HEAD's committed tree only
