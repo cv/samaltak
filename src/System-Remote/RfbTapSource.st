@@ -20,6 +20,17 @@ bgraOf: aRectangle
 	t pixelOrder == #rgba ifTrue: [self swapRedBlue: bytes].
 	^bytes
 !
+bgraOfAll: rects
+	"One read of all of rects (hosted: one request to the compositor, between two frames). A rectangle the screen no longer holds whole (it shrank meanwhile, and its new size is full damage) is sent black."
+	| t all |
+	t := self tap.
+	t isNil ifTrue: [^super bgraOfAll: rects].
+	all := t readAll: rects.
+	^rects with: all collect: [:r :bytes | | b |
+		b := bytes size = (r area * 4) ifTrue: [bytes] ifFalse: [ByteArray new: r area * 4].
+		t pixelOrder == #rgba ifTrue: [self swapRedBlue: b].
+		b]
+!
 pointScale
 	"Hosted, the World's points are displayScale pixels; the firmware display works in pixels."
 	(Smalltalk at: #FirmwareDisplay ifAbsent: [nil]) ifNotNil: [:c | c current isNil ifFalse: [^1]].

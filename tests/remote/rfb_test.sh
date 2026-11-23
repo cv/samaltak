@@ -1,5 +1,5 @@
 #!/bin/sh
-# The image's remote display (RfbServer, docs/remote.md) seen by RFB clients (tests/remote/rfb_client.py): RFB 3.3 with
+# The image's remote display (RfbServer, docs/remote.md: the frame tap's screen, hosted and on UEFI) seen by RFB clients (tests/remote/rfb_client.py): RFB 3.3 with
 # VNC authentication and ZRLE (as macOS Screen Sharing), RFB 3.8 with VeNCrypt-Plain and Raw in another pixel format,
 # None never offered; the decoded framebuffer equals the image's own screenshot pixel for pixel at first, after typing,
 # after a window move, after keys sent through RFB, and for a client that asked for nothing for a while; a wrong
@@ -43,8 +43,8 @@ fi
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["token"])' "$DIR/$SAMALTAK_SESSION.json" > "$WORK/token"
 $CTL eval 'SourceFiler default enabled: false. 1' >/dev/null
 i=0; until $CTL wait '@w1' 10000 >/dev/null 2>&1 || [ $i -ge 300 ]; do i=$((i + 1)); sleep 0.2; done
-# only the Workspace: the Process Browser's columns and the Mandelbrot window change by themselves
-$CTL eval '(World current windows reject: [:w | w title = '\''Workspace'\'']) do: [:w | w close]. 1' >/dev/null
+# the Workspace and the System Browser over it: the Process Browser's columns and the Mandelbrot window change by themselves
+$CTL eval '(World current windows reject: [:w | w title = '\''Workspace'\'' or: [w title beginsWith: '\''System Browser'\'']]) do: [:w | w close]. 1' >/dev/null
 $CTL wait idle 5000 >/dev/null
 
 python3 -u - "$PORT" "$WORK" "$CTL" <<'EOF'
@@ -123,7 +123,12 @@ def in_sync(name, *clients, tries=12):
 
 try:
     top_rows = int(float(ctl('eval', TOP)))
-    print('     %s; comparing below the top bar: from row %d' % (ctl('eval', 'RfbServer current source class name'), top_rows))
+    source = ctl('eval', 'RfbServer current source class name').strip("#'")
+    if source == 'RfbTapSource':
+        ok('the screen comes from the frame tap (%s windows open)' % ctl('eval', 'World current windows size'))
+    else:
+        fail('the screen comes from %s, not the frame tap' % source)
+    print('     comparing below the top bar: from row %d' % top_rows)
     t0 = time.time()
     a = connect('RFB 3.3, ZRLE', '3.3', 'vnc', password, ['zrle', 'copyrect', 'cursor', 'desktopsize', 'lastrect'])
     first_ms, first_bytes = (time.time() - t0) * 1000, a.bytes_read

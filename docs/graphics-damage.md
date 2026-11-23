@@ -267,7 +267,12 @@ bytes moved would be the next step.
 `FrameTap current` is the firmware screen's tap on UEFI (told by `present:width:height:rects:` the rectangles its caller
 gave, however the Blts are merged, and `#full` by the whole-frame present; pixels read from the cursor-free BGRA shadow
 copy under its lock) and hosted the Compositor's (told after `show:clear:damage:`, `#full` for whole frames; pixels the
-surface's RGBA, read back in the compositor's Process). Each `FrameTapListener` (one per client) gathers up to 32
+surface's RGBA, read back in the compositor's Process). Hosted, the surface is the frame in its own pixels (the composite
+list's `pixelExtent`: a 640x400 World at scale 2 is 1280x800 even where X11 reports the window's pixels as 640x400, and
+the blit to the swapchain scales), and the remote pointer is not in it: it is a DisplayList of its own, drawn over a
+copy of the surface that the window shows, with its own damage. The RFB server reads one update's rectangles in one
+request between two frames (1280x800 under lavapipe: about 1.5 ms for the whole frame, 30 µs for a 120x40 rectangle),
+at most `--display-rate` (60) updates a second per client, spaced by at least the last one's cost. Each `FrameTapListener` (one per client) gathers up to 32
 rectangles until it takes them, full on a whole frame or a new size, and its semaphore is signalled when its damage stops
 being empty. FrameTapTest and FrameTapCompositionTest rebuild the screen from the damage and the pixels read.
 

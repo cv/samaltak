@@ -445,7 +445,7 @@ wakeIn: milliseconds
 !
 sendUpdate
 	"One FramebufferUpdate of what changed inside the client's request: DesktopSize, Cursor, CopyRects, then the damaged rectangles."
-	| start region rects mv resize cursorNow fmt enc streaming cursor out count |
+	| start region rects mv resize cursorNow fmt enc streaming cursor out count pixels k |
 	start := Time millisecondClockValue.
 	lock critical: [
 		pendingFormat isNil ifFalse: [format := pendingFormat. pendingFormat := nil].
@@ -485,8 +485,13 @@ sendUpdate
 		self putRect: ((m at: 2) extent: (m at: 1) extent) encoding: 1 on: out.
 		self put16: (m at: 1) left on: out.
 		self put16: (m at: 1) top on: out].
+	rects := rects collect: [:r | r intersect: source bounds].
+	pixels := source bgraOfAll: (rects reject: [:r | r isEmpty]).
+	k := 0.
 	rects do: [:r |
-		self putPixelsOf: r format: fmt encoding: enc on: out.
+		r isEmpty
+			ifTrue: [self putRect: (r origin extent: 0 @ 0) encoding: 0 on: out]
+			ifFalse: [self putPixelsOf: r bgra: (pixels at: (k := k + 1)) format: fmt encoding: enc on: out].
 		(streaming and: [out position > 65536]) ifTrue: [
 			self send: out contents.
 			out := WriteStream on: (ByteArray new: 4096)]].
@@ -498,10 +503,15 @@ sendUpdate
 	rectsSent := rectsSent + count
 !
 putPixelsOf: aRectangle format: fmt encoding: enc on: out
-	| r pixels |
+	| r |
 	r := aRectangle intersect: source bounds.
 	r isEmpty ifTrue: [^self putRect: (aRectangle origin extent: 0 @ 0) encoding: 0 on: out].
-	pixels := fmt convertBgra: (source bgraOf: r) count: r width * r height.
+	self putPixelsOf: r bgra: (source bgraOf: r) format: fmt encoding: enc on: out
+!
+putPixelsOf: r bgra: bytes format: fmt encoding: enc on: out
+	"r (within the screen) from its BGRA8 rows, as the client's format and encoding."
+	| pixels |
+	pixels := fmt convertBgra: bytes count: r width * r height.
 	self putRect: r encoding: enc on: out.
 	enc = 16
 		ifTrue: [out nextPutAll: (zrle encode: pixels width: r width height: r height format: fmt)]

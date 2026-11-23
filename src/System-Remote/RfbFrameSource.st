@@ -24,6 +24,10 @@ bgraOf: aRectangle
 	"aRectangle's pixels (within my extent): BGRA8 rows, width * height * 4 bytes."
 	^self subclassResponsibility
 !
+bgraOfAll: rects
+	"The pixels of each of rects (within my extent, not empty) as bgraOf: answers them: one update's, read together where a subclass can."
+	^rects collect: [:r | self bgraOf: r]
+!
 cursor
 	^RfbCursor arrow
 !
