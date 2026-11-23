@@ -1,5 +1,5 @@
 UIWindowsTestCase subclass: #DamageCompositionTest
-	instanceVariableNames: 'check'
+	instanceVariableNames: 'check elapsed'
 	classVariableNames: ''
 	package: 'Tests-UI-Windows'!
 
@@ -21,21 +21,30 @@ assertNoMismatches
 	self assert: check mismatches = 0 description: check report
 !
 presentedDuring: aBlock
-	| before |
+	"How many frames were presented while aBlock ran and the World settled; elapsed: how long that took (ms)."
+	| before t0 |
 	before := world compositor presentedCount.
+	t0 := Time millisecondClockValue.
 	aBlock value.
 	self settle.
+	elapsed := Time millisecondClockValue - t0.
 	^world compositor presentedCount - before
+!
+readouts
+	"How many frames the top bar's readout, refreshed twice a second, may have presented in the last presentedDuring: (more frames take longer on a loaded machine)."
+	^elapsed // 500 + 1
 ! !
 
 !DamageCompositionTest methodsFor: 'tests'!
 testUnchangedWorldPresentsNothing
 	"At most the top bar's readout, refreshed twice a second, rides along."
-	| v |
+	| v n |
 	v := RecordingTestView new color: Color ultramarine; yourself.
 	self open: v title: 'Blue' at: (100 @ 100 extent: 300 @ 200).
-	self assert: (self presentedDuring: [world waitForFrames: 5]) <= 1.
-	self assert: (self presentedDuring: [v invalidate. world waitForFrames: 3]) <= 1
+	n := self presentedDuring: [world waitForFrames: 5].
+	self assert: n <= self readouts description: n printString, ' frames presented in ', elapsed printString, ' ms'.
+	n := self presentedDuring: [v invalidate. world waitForFrames: 3].
+	self assert: n <= self readouts description: n printString, ' frames presented in ', elapsed printString, ' ms'
 !
 testStreamedTextRendersPartOfTheLayer
 	| v w |
@@ -90,7 +99,7 @@ testOpaqueWindowAboveHidesDamage
 			self settle]].
 	self assert: a layer lastDamage notNil description: 'the window under was rendered in part'.
 	"At most the top bar's readout, refreshed twice a second."
-	self assert: hidden <= 2.
+	self assert: hidden <= (self readouts max: 2) description: hidden printString, ' frames presented in ', elapsed printString, ' ms'.
 	b close.
 	self settle.
 	self assert: (self presentedDuring: [a content add: 'seen line']) > 0.

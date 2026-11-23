@@ -79,6 +79,29 @@ testFrameRecordsAreRecorded
 	self assert: ((frames select: [:f | f gpu > 0]) allSatisfy: [:f | f gpu < 1000000]).
 	self assert: (world topBar statsText includesSubstring: 'fps')
 !
+testSlowFramesLeaveTimeToOtherProcesses
+	"Frames that take longer than a tick while something changes every frame leave the Processes below the compositor time to run: without rest they would never run again (a window whose Process cannot run shows it busy, frame after frame, which DamageCompositionTest hung on under load)."
+	| w probe count me priority |
+	w := self open: (RecordingTestView new color: Color ultramarine; yourself) title: 'Animated' at: (100 @ 100 extent: 200 @ 150).
+	w requestAnimationFrames: [:ms | true].
+	count := 0.
+	self fork: [[count := count + 1. (Delay forMilliseconds: 2) wait] repeat].
+	probe := SlowFrameProbe new milliseconds: 3 * world compositor tickMilliseconds; yourself.
+	probe setCompositor: world compositor.
+	me := Processor activeProcess.
+	priority := me priority.
+	[Compositor probe: probe.
+	 me priority: Compositor priority + 1.
+	 (Delay forMilliseconds: 300) wait.
+	 count := 0.
+	 (Delay forMilliseconds: 1000) wait]
+		ensure: [
+			me priority: priority.
+			Compositor probe: nil].
+	self assert: probe frames > 5 description: 'the compositor drew slow frames'.
+	"2 ms naps with a fifth of the CPU: dozens; starved: none"
+	self assert: count > 20 description: count printString, ' turns of a Process below the compositor in 1 s'
+!
 testRequestsRunWhileFramesAreInFlight
 	"With maxFramesInFlight frames unfinished on the GPU (here fences that never complete) the compositor skips its ticks, but a request gets its frame at the next one."
 	| c ticks frames |

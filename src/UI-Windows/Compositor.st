@@ -7,7 +7,7 @@ Compositor comment: 'I am the compositor: a Process at priority 70 woken by the 
 
 Composition is damage-limited (docs/graphics-damage.md): I keep the screen surface between frames and draw a frame only where it differs from the last one presented, the damage (a DamageRegion): the composite list is drawn item by item (the desk, each window, the top bar, overlays, toasts, tooltip, curtain, pointer), each compared with the same item of the last frame (DisplayListDiff: a window moved damages its old and new rectangle, the top bar its readout), plus what each layer rendered again changed inside its window (Layer>>lastDamage), plus the items whose order changed. A frame without damage is not presented at all; DisplayWindow>>show:clear:damage: renders and presents only the damage where the path allows. DamageCheck verifies it, and DamageCheck forcesFull turns it off.
 
-I present when something changed (World>>changed, animations, requests), and with World presentsContinuously: true (measurements) every tick. The top bar''s readout refreshes at most twice a second and only rides along (TopBar>>updateAt:presenting:): it makes no frames of its own but one, to show the settled numbers three seconds after the last frame, which is not counted in it, so it settles instead of measuring the frames it makes. On a device that renders in software (UEFI) I rest after each frame as long as the frame took, so that the other Processes keep at least half of the CPU: after 20 ticks without a change I stop the vsync semaphore and sleep until World>>changed wakes me (or 500 ms pass, for the top bar''s statistics). Each tick I also poll the GPUTimer for finished frames'' GPU times; while maxFramesInFlight frames are unfinished on the GPU I skip the tick (except when recording, which waits for each frame''s readback, and while a request waits: its caller is blocked until I ran it).
+I present when something changed (World>>changed, animations, requests), and with World presentsContinuously: true (measurements) every tick. The top bar''s readout refreshes at most twice a second and only rides along (TopBar>>updateAt:presenting:): it makes no frames of its own but one, to show the settled numbers three seconds after the last frame, which is not counted in it, so it settles instead of measuring the frames it makes. On a device that renders in software (UEFI) I rest after each frame as long as the frame took, so that the other Processes keep at least half of the CPU, and after a frame that took a tick or more elsewhere (a slow GPU, a machine under load) a quarter of it, so that they still run: after 20 ticks without a change I stop the vsync semaphore and sleep until World>>changed wakes me (or 500 ms pass, for the top bar''s statistics). Each tick I also poll the GPUTimer for finished frames'' GPU times; while maxFramesInFlight frames are unfinished on the GPU I skip the tick (except when recording, which waits for each frame''s readback, and while a request waits: its caller is blocked until I ran it).
 
 GPU work of other Processes (screenshots, recording) runs in my Process between frames: do: aBlock / sync: aBlock.'!
 
@@ -271,7 +271,18 @@ frame
 	presenting := true.
 	self present: t0 now: now.
 	presenting := false.
-	renderer device isSoftware ifTrue: [restMs := Time microsecondClockValue - t0 // 1000]
+	self restAfterFrameFrom: t0
+!
+restAfterFrameFrom: t0
+	"On a device that renders in software I rest as long as the frame took, so that the other Processes keep at least half of the CPU. Elsewhere, after a frame that took a tick or more, the next one is due at once, and at my priority nothing below me would run again while something keeps changing (a window busy because its Process cannot run shows it, frame after frame): then I rest a quarter of the frame's time, which leaves the others a fifth. Not while recording (the recorder paces the frames)."
+	| ms |
+	ms := Time microsecondClockValue - t0 // 1000.
+	renderer device isSoftware ifTrue: [^restMs := ms].
+	(recorder isNil and: [ms >= self tickMilliseconds]) ifTrue: [restMs := ms // 4 max: 1]
+!
+tickMilliseconds
+	"A tick: skip display refreshes (tickTimeout is one and a half)."
+	^(tickTimeout ifNil: [25]) * 2 // 3 max: 1
 !
 frameOnWorkClock
 	"A frame on the recording clock: its work does not move the clock (the time of the GPU driver's calls is noise, in every recording another one), unless the CPU work of the previous frame did not fit in a tick: that would have missed a refresh of a real screen, and the clock passes the excess. GPU time is reported only (the fences' latencies are milliseconds of queueing: no measure of a frame's GPU work). The real time a recorded frame waits for the GPU and for the reader does not move the clock either, even while it keeps pace with real time: a reader slower than the ticks would otherwise leave the clock behind for good, each tick due as the frame before it ends, and no other Process would run."
