@@ -11,11 +11,12 @@ Where ZLib can deflate a stream (deflate:final:, png-neon/rfb-prep''s streaming,
 deflate: bytes
 	"The next piece of the stream: bytes compressed and flushed to a byte boundary (with the zlib header the first time)."
 	| out body |
-	out := WriteStream on: (ByteArray new: bytes size + (bytes size // 65535 + 1 * 5) + 2).
+	body := self streamingDeflate: bytes.
+	(body notNil and: [started == true]) ifTrue: [^body].
+	out := WriteStream on: (ByteArray new: (body ifNil: [bytes size + (bytes size // 65535 + 1 * 5)] ifNotNil: [:b | b size]) + 2).
 	started == true ifFalse: [
 		started := true.
 		out nextPut: 16r78; nextPut: 16r01].
-	body := self streamingDeflate: bytes.
 	body isNil
 		ifTrue: [self stored: bytes on: out]
 		ifFalse: [out nextPutAll: body].

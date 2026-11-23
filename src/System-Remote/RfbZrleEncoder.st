@@ -1,9 +1,9 @@
 Object subclass: #RfbZrleEncoder
-	instanceVariableNames: 'zstream bpp cp cpOffset pixels width out'
+	instanceVariableNames: 'zstream bpp cp cpOffset pixels width out runStarts runLengths runIndexes runCount paletteOffsets paletteSize slotKeys slotIndexes slotGenerations generation'
 	classVariableNames: ''
 	package: 'System-Remote'!
 
-RfbZrleEncoder comment: 'I encode rectangles in ZRLE (RFC 6143, 7.7.6) for one RFB connection, over its one zlib stream (RfbZStream). A rectangle is cut into 64x64 tiles, left to right, top to bottom; each tile is coded the cheapest of five ways, judged from one pass over it that counts its colours (up to 127) and its runs: solid (one CPIXEL), packed palette (2-16 colours, 1, 2 or 4 bits an index, rows byte-aligned), plain RLE (CPIXEL and run length), palette RLE (2-127 colours, an index byte, run lengths after the long ones), or raw. A run''s length L is L - 1 as bytes of 255 and a last byte below it. Pixels come in the client''s format (RfbPixelFormat convertBgra:count:), CPIXELs cut out of them (cpixelSize, cpixelOffset).'!
+RfbZrleEncoder comment: 'I encode rectangles in ZRLE (RFC 6143, 7.7.6) for one RFB connection, over its one zlib stream (RfbZStream). A rectangle is cut into 64x64 tiles, left to right, top to bottom; each tile is coded the cheapest of five ways, judged from one pass over it that finds its runs and its colours (up to 127, in a small open-addressed table reused from tile to tile), which the coding then uses without looking at the pixels again: solid (one CPIXEL), packed palette (2-16 colours, 1, 2 or 4 bits an index, rows byte-aligned), plain RLE (CPIXEL and run length), palette RLE (2-127 colours, an index byte, run lengths after the long ones), or raw. A run''s length L is L - 1 as bytes of 255 and a last byte below it. Pixels come in the client''s format (RfbPixelFormat convertBgra:count:), CPIXELs cut out of them (cpixelSize, cpixelOffset).'!
 
 !RfbZrleEncoder methodsFor: 'encoding'!
 encode: clientPixels width: w height: h format: aFormat
@@ -16,6 +16,17 @@ encode: clientPixels width: w height: h format: aFormat
 		at: 3 put: ((data size bitShift: -8) bitAnd: 255);
 		at: 4 put: (data size bitAnd: 255);
 		yourself), data
+!
+encode: clientPixels width: w height: h format: aFormat on: aStream
+	"encode:width:height:format:'s bytes onto aStream."
+	| data |
+	data := zstream deflate: (self tiles: clientPixels width: w height: h format: aFormat).
+	aStream
+		nextPut: ((data size bitShift: -24) bitAnd: 255);
+		nextPut: ((data size bitShift: -16) bitAnd: 255);
+		nextPut: ((data size bitShift: -8) bitAnd: 255);
+		nextPut: (data size bitAnd: 255);
+		nextPutAll: data
 !
 tiles: clientPixels width: w height: h format: aFormat
 	"The uncompressed tile data of a rectangle."
@@ -50,37 +61,18 @@ putRunLength: n
 	out nextPut: rest
 !
 tileX: tx y: ty width: tw height: th
-	| palette offsets prev run plainCost paletteRleCost tooMany n rawCost packedCost bits best choice account |
-	palette := Dictionary new.
-	offsets := OrderedCollection new.
-	prev := nil.
-	run := 0.
-	plainCost := 0.
-	paletteRleCost := 0.
-	tooMany := false.
-	account := [:length |
-		plainCost := plainCost + cp + ((length - 1) // 255) + 1.
-		paletteRleCost := paletteRleCost + (length = 1 ifTrue: [1] ifFalse: [2 + ((length - 1) // 255)])].
-	0 to: th - 1 do: [:y | | row |
-		row := (ty + y) * width + tx * bpp + 1.
-		0 to: tw - 1 do: [:x | | o v |
-			o := row + (x * bpp).
-			v := self valueAt: o.
-			v = prev
-				ifTrue: [run := run + 1]
-				ifFalse: [
-					prev isNil ifFalse: [account value: run].
-					prev := v.
-					run := 1.
-					(tooMany or: [palette includesKey: v]) ifFalse: [
-						palette size >= 127
-							ifTrue: [tooMany := true]
-							ifFalse: [palette at: v put: palette size. offsets add: o]]]]].
-	account value: run.
-	n := palette size.
+	| n tooMany plainCost paletteRleCost rawCost packedCost bits best choice |
+	tooMany := self scanX: tx y: ty width: tw height: th.
+	n := paletteSize.
 	(tooMany not and: [n = 1]) ifTrue: [
 		out nextPut: 1.
-		^self putCpixelAt: offsets first].
+		^self putCpixelAt: (paletteOffsets at: 1)].
+	plainCost := 0.
+	paletteRleCost := 0.
+	1 to: runCount do: [:i | | length |
+		length := runLengths at: i.
+		plainCost := plainCost + cp + ((length - 1) // 255) + 1.
+		paletteRleCost := paletteRleCost + (length = 1 ifTrue: [1] ifFalse: [2 + ((length - 1) // 255)])].
 	rawCost := tw * th * cp.
 	best := rawCost.
 	choice := #raw.
@@ -92,11 +84,74 @@ tileX: tx y: ty width: tw height: th
 			packedCost < best ifTrue: [best := packedCost. choice := #packed]].
 		n * cp + paletteRleCost < best ifTrue: [best := n * cp + paletteRleCost. choice := #paletteRle]].
 	choice == #raw ifTrue: [^self rawX: tx y: ty width: tw height: th].
-	choice == #plainRle ifTrue: [^self plainRleX: tx y: ty width: tw height: th].
+	choice == #plainRle ifTrue: [
+		out nextPut: 128.
+		^1 to: runCount do: [:i |
+			self putCpixelAt: (runStarts at: i).
+			self putRunLength: (runLengths at: i)]].
 	out nextPut: (choice == #packed ifTrue: [n] ifFalse: [128 + n]).
-	offsets do: [:o | self putCpixelAt: o].
-	choice == #packed ifTrue: [^self packedX: tx y: ty width: tw height: th palette: palette bits: bits].
-	self paletteRleX: tx y: ty width: tw height: th palette: palette
+	1 to: n do: [:i | self putCpixelAt: (paletteOffsets at: i)].
+	choice == #packed ifTrue: [^self packedWidth: tw bits: bits].
+	1 to: runCount do: [:i | | index length |
+		index := runIndexes at: i.
+		length := runLengths at: i.
+		length = 1
+			ifTrue: [out nextPut: index]
+			ifFalse: [
+				out nextPut: index + 128.
+				self putRunLength: length]]
+!
+scanX: tx y: ty width: tw height: th
+	"One pass over a tile in raster order (across its rows): its runs of equal pixels (runStarts, runLengths, runCount) and its palette (up to 127 colours, indexed in the order they first start a run: paletteOffsets, paletteSize, and each run's index, runIndexes). Answer whether it has more colours than that."
+	| prev run count tooMany |
+	self newPalette.
+	count := 0.
+	run := 0.
+	prev := nil.
+	tooMany := false.
+	0 to: th - 1 do: [:y | | o stop |
+		o := (ty + y) * width + tx * bpp + 1.
+		stop := o + (tw * bpp).
+		[o < stop] whileTrue: [| v |
+			v := bpp = 4 ifTrue: [pixels uint32At: o] ifFalse: [self valueAt: o].
+			v = prev
+				ifTrue: [run := run + 1]
+				ifFalse: [
+					count > 0 ifTrue: [runLengths at: count put: run].
+					count := count + 1.
+					runStarts at: count put: o.
+					prev := v.
+					run := 1.
+					tooMany ifFalse: [| index |
+						index := self paletteIndexOf: v at: o.
+						index isNil ifTrue: [tooMany := true] ifFalse: [runIndexes at: count put: index]]].
+			o := o + bpp]].
+	runLengths at: count put: run.
+	runCount := count.
+	^tooMany
+!
+newPalette
+	"An empty palette: the slots of an earlier one are stale by their generation."
+	paletteSize := 0.
+	generation := generation + 1.
+	generation > 16r3FFFFFFF ifTrue: [
+		slotGenerations atAllPut: 0.
+		generation := 1]
+!
+paletteIndexOf: v at: offset
+	"v's index in the palette (0-based), added as the next one (first seen at offset) if it is new and there is room; nil if there is none. An open-addressed table of 256 slots."
+	| h |
+	h := ((v bitXor: (v bitShift: -7)) bitXor: (v bitShift: -17)) bitAnd: 255.
+	[(slotGenerations at: h + 1) = generation] whileTrue: [
+		(slotKeys at: h + 1) = v ifTrue: [^slotIndexes at: h + 1].
+		h := h + 1 bitAnd: 255].
+	paletteSize >= 127 ifTrue: [^nil].
+	slotGenerations at: h + 1 put: generation.
+	slotKeys at: h + 1 put: v.
+	slotIndexes at: h + 1 put: paletteSize.
+	paletteSize := paletteSize + 1.
+	paletteOffsets at: paletteSize put: offset.
+	^paletteSize - 1
 !
 rawX: tx y: ty width: tw height: th
 	out nextPut: 0.
@@ -109,55 +164,35 @@ rawX: tx y: ty width: tw height: th
 			ifTrue: [out nextPutAll: (pixels copyFrom: row to: row + (tw * bpp) - 1)]
 			ifFalse: [0 to: tw - 1 do: [:x | self putCpixelAt: row + (x * bpp)]]]
 !
-packedX: tx y: ty width: tw height: th palette: palette bits: bits
-	0 to: th - 1 do: [:y | | row acc count |
-		row := (ty + y) * width + tx * bpp + 1.
-		acc := 0.
-		count := 0.
-		0 to: tw - 1 do: [:x |
-			acc := (acc bitShift: bits) + (palette at: (self valueAt: row + (x * bpp))).
+packedWidth: tw bits: bits
+	"The runs' palette indices, bits each, packed into bytes, each row of the tile byte-aligned."
+	| acc count x |
+	acc := 0.
+	count := 0.
+	x := 0.
+	1 to: runCount do: [:i | | index |
+		index := runIndexes at: i.
+		(runLengths at: i) timesRepeat: [
+			acc := (acc bitShift: bits) + index.
 			count := count + bits.
-			count = 8 ifTrue: [out nextPut: acc. acc := 0. count := 0]].
-		count > 0 ifTrue: [out nextPut: (acc bitShift: 8 - count)]]
-!
-runsX: tx y: ty width: tw height: th do: aBlock
-	"aBlock value: offset value: length for each run of equal pixels, in raster order across the tile's rows."
-	| prev start run |
-	prev := nil.
-	run := 0.
-	0 to: th - 1 do: [:y | | row |
-		row := (ty + y) * width + tx * bpp + 1.
-		0 to: tw - 1 do: [:x | | o v |
-			o := row + (x * bpp).
-			v := self valueAt: o.
-			v = prev
-				ifTrue: [run := run + 1]
-				ifFalse: [
-					prev isNil ifFalse: [aBlock value: start value: run].
-					prev := v.
-					start := o.
-					run := 1]]].
-	aBlock value: start value: run
-!
-plainRleX: tx y: ty width: tw height: th
-	out nextPut: 128.
-	self runsX: tx y: ty width: tw height: th do: [:o :length |
-		self putCpixelAt: o.
-		self putRunLength: length]
-!
-paletteRleX: tx y: ty width: tw height: th palette: palette
-	self runsX: tx y: ty width: tw height: th do: [:o :length | | index |
-		index := palette at: (self valueAt: o).
-		length = 1
-			ifTrue: [out nextPut: index]
-			ifFalse: [
-				out nextPut: index + 128.
-				self putRunLength: length]]
+			count = 8 ifTrue: [out nextPut: acc. acc := 0. count := 0].
+			x := x + 1.
+			x = tw ifTrue: [
+				count > 0 ifTrue: [out nextPut: (acc bitShift: 8 - count). acc := 0. count := 0].
+				x := 0]]]
 ! !
 
 !RfbZrleEncoder methodsFor: 'initialization'!
 initialize
-	zstream := RfbZStream new
+	zstream := RfbZStream new.
+	runStarts := Array new: 4096.
+	runLengths := Array new: 4096.
+	runIndexes := Array new: 4096.
+	paletteOffsets := Array new: 127.
+	slotKeys := Array new: 256.
+	slotIndexes := Array new: 256.
+	slotGenerations := Array new: 256 withAll: 0.
+	generation := 0
 ! !
 
 !RfbZrleEncoder methodsFor: 'accessing'!

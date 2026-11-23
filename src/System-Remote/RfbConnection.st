@@ -517,7 +517,7 @@ putPixelsOf: r bgra: bytes format: fmt encoding: enc on: out
 	pixels := fmt convertBgra: bytes count: r width * r height.
 	self putRect: r encoding: enc on: out.
 	enc = 16
-		ifTrue: [out nextPutAll: (zrle encode: pixels width: r width height: r height format: fmt)]
+		ifTrue: [zrle encode: pixels width: r width height: r height format: fmt on: out]
 		ifFalse: [out nextPutAll: pixels]
 !
 putCursor: anRfbCursor format: fmt on: out
