@@ -1,6 +1,6 @@
 Object subclass: #GPUPrimitives
 	instanceVariableNames: ''
-	classVariableNames: ''
+	classVariableNames: 'CloseWindowCall DisplayScaleCall RefreshRateCall TextInputAreaCall WindowVisibilityCall SetCursorCall'
 	package: 'Graphics-GPU'!
 
 GPUPrimitives comment: 'I am the VM''s GPU and window primitives (SDL3, SDL_GPU; docs/platform.md): GPUPlatform''s backend where the VM has them. On failure I signal a GPUError carrying the platform''s last error message.'!
@@ -158,9 +158,11 @@ openWindow: w height: h title: title flags: flags
 	^self fail: 'windowOpen'
 !
 closeWindow: window
-	| result |
-	result := PlatformFFI call: #(call 'platform' 'platform_windows_close' (i64) i32)
-		with: {window} ifUnavailable: [^self legacyCloseWindow: window].
+	| binding result |
+	binding := CloseWindowCall ifNil: [
+		CloseWindowCall := PlatformFFI bind: #(call 'platform' 'platform_windows_close' (i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {window}].
+	result == false ifTrue: [^self legacyCloseWindow: window].
 	result = 0 ifTrue: [^self fail: 'windowClose'].
 	^self
 !
@@ -173,16 +175,20 @@ windowPixelSize: window
 	^self fail: 'windowPixelSize'
 !
 windowDisplayScale: window
-	| result |
-	result := PlatformFFI call: #(call 'platform' 'platform_windows_display_scale' (i64) f64)
-		with: {window} ifUnavailable: [^self legacyWindowDisplayScale: window].
+	| binding result |
+	binding := DisplayScaleCall ifNil: [
+		DisplayScaleCall := PlatformFFI bind: #(call 'platform' 'platform_windows_display_scale' (i64) f64)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {window}].
+	result == false ifTrue: [^self legacyWindowDisplayScale: window].
 	result < 0 ifTrue: [^self fail: 'windowDisplayScale'].
 	^result
 !
 windowRefreshRate: window
-	| result |
-	result := PlatformFFI call: #(call 'platform' 'platform_windows_refresh_rate' (i64) f64)
-		with: {window} ifUnavailable: [^self legacyWindowRefreshRate: window].
+	| binding result |
+	binding := RefreshRateCall ifNil: [
+		RefreshRateCall := PlatformFFI bind: #(call 'platform' 'platform_windows_refresh_rate' (i64) f64)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {window}].
+	result == false ifTrue: [^self legacyWindowRefreshRate: window].
 	result < 0 ifTrue: [^self fail: 'windowRefreshRate'].
 	^result
 !
@@ -201,23 +207,29 @@ window: window x: x y: y
 	^false
 !
 window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
-	| result |
-	result := PlatformFFI call: #(call 'platform' 'platform_windows_set_text_input_area' (i64 i64 i64 i64 i64 i64) i32)
-		with: {window. x. y. w. h. cursorX} ifUnavailable: [^self legacyWindow: window textInputAreaX: x y: y width: w height: h cursor: cursorX].
+	| binding result |
+	binding := TextInputAreaCall ifNil: [
+		TextInputAreaCall := PlatformFFI bind: #(call 'platform' 'platform_windows_set_text_input_area' (i64 i64 i64 i64 i64 i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {window. x. y. w. h. cursorX}].
+	result == false ifTrue: [^self legacyWindow: window textInputAreaX: x y: y width: w height: h cursor: cursorX].
 	result = 0 ifTrue: [^self fail: 'windowSetTextInputArea'].
 	^self
 !
 showWindow: window
-	| result |
-	result := PlatformFFI call: #(call 'platform' 'platform_windows_show' (i64 i32) i32)
-		with: {window. 1} ifUnavailable: [^self legacyShowWindow: window].
+	| binding result |
+	binding := WindowVisibilityCall ifNil: [
+		WindowVisibilityCall := PlatformFFI bind: #(call 'platform' 'platform_windows_show' (i64 i32) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {window. 1}].
+	result == false ifTrue: [^self legacyShowWindow: window].
 	result = 0 ifTrue: [^self fail: 'windowShow'].
 	^self
 !
 hideWindow: window
-	| result |
-	result := PlatformFFI call: #(call 'platform' 'platform_windows_show' (i64 i32) i32)
-		with: {window. 0} ifUnavailable: [^self legacyHideWindow: window].
+	| binding result |
+	binding := WindowVisibilityCall ifNil: [
+		WindowVisibilityCall := PlatformFFI bind: #(call 'platform' 'platform_windows_show' (i64 i32) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {window. 0}].
+	result == false ifTrue: [^self legacyHideWindow: window].
 	result = 0 ifTrue: [^self fail: 'windowHide'].
 	^self
 !
@@ -239,9 +251,11 @@ vsyncSemaphore: externalIndex
 	^self fail: 'vsyncSemaphore'
 !
 setCursor: kind
-	| result |
-	result := PlatformFFI call: #(call 'platform' 'platform_windows_set_cursor' (i64) i32)
-		with: {kind} ifUnavailable: [^self legacySetCursor: kind].
+	| binding result |
+	binding := SetCursorCall ifNil: [
+		SetCursorCall := PlatformFFI bind: #(call 'platform' 'platform_windows_set_cursor' (i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {kind}].
+	result == false ifTrue: [^self legacySetCursor: kind].
 	result = 0 ifTrue: [^self fail: 'setCursor'].
 	^self
 !

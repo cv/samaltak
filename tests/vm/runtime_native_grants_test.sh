@@ -52,7 +52,10 @@ uint64_t ffi_test_checksum_two(uint64_t seed, const uint8_t *a, size_t na,
     return ffi_test_checksum(ffi_test_checksum(seed, a, na), b, nb) + tail;
 }
 
-void ffi_test_void(void) {}
+static uint32_t calls;
+void ffi_test_void(void) { ++calls; }
+int32_t ffi_test_count_calls(int32_t result) { ++calls; return result; }
+uint32_t ffi_test_calls(void) { return calls; }
 int32_t ffi_test_ungranted(int32_t a, int32_t b)
 {
     return a - b;
@@ -99,6 +102,8 @@ expect true "$IMAGE" --headless --eval "
 SAMALTAK_NATIVE_GRANTS="$PAIR
 $MIX
 $VOID
+fixture|ffi_test_count_calls|i32(i32)|$LIB
+fixture|ffi_test_calls|u32()|$LIB
 $CHECKSUM
 $CHECKSUM_TWO
 fixture|ffi_test_i32|i32(i32)|$LIB
@@ -128,6 +133,19 @@ expect true "$IMAGE" --headless --eval "
         binding primInvoke: (binding instVarNamed: 'id')
             library: 'fixture' symbol: 'ffi_test_i32_pair'
             types: #[2 1] result: 1 arguments: #(11 5)]"
+
+# Rejection must precede native entry. A completed zero or void result is not rejection.
+expect true "$IMAGE" --headless --eval "
+    | zero void count |
+    zero := PlatformFFI bind: #(call 'fixture' 'ffi_test_count_calls' (i32) i32).
+    void := PlatformFFI bind: #(call 'fixture' 'ffi_test_void' () void).
+    count := PlatformFFI bind: #(call 'fixture' 'ffi_test_calls' () u32).
+    (zero tryInvoke: #(0.0)) == false ifFalse: [^false].
+    (count tryInvoke: #()) == 0 ifFalse: [^false].
+    (zero tryInvoke: #(0)) == 0 ifFalse: [^false].
+    (count tryInvoke: #()) == 1 ifFalse: [^false].
+    (void tryInvoke: #()) isNil ifFalse: [^false].
+    (count tryInvoke: #()) == 2"
 
 # Build the edges with arithmetic too, so both literals and the VM's limb output
 # cross the native boundary; reject values that would fit only if truncated.
@@ -226,9 +244,14 @@ reject_manifest "$too_many"
 SNAP="$TMP/granted.image"
 expect 0 "$IMAGE" --headless --eval "
     | binding |
-    binding := FFI bind: #(call 'fixture' 'ffi_test_i32_pair' (i32 i32) i32).
+    binding := PlatformFFI bind: #(call 'fixture' 'ffi_test_i32_pair' (i32 i32) i32).
     (Smalltalk snapshot: '$SNAP') ifTrue: [
-        ^[binding invoke: #(12 3)] on: FFIError do: [:e | -999]].
+        | result |
+        result := binding tryInvoke: #(12 3).
+        result == false ifTrue: [
+            ^[binding invoke: #(12 3). 'expected FFIError']
+                on: FFIError do: [:e | -999]].
+        ^result].
     0"
 SAMALTAK_NATIVE_GRANTS="fixture|ffi_test_ungranted|i32(i32,i32)|$LIB" expect -999 "$SNAP" --headless
 SAMALTAK_NATIVE_GRANTS="$MIX

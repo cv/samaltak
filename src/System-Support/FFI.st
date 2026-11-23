@@ -23,6 +23,13 @@ bind: aDescriptor
 
 !FFI class methodsFor: 'private'!
 bindCall: aDescriptor
+	^self bindCall: aDescriptor signalIfUnavailable: true
+!
+tryBindCall: aDescriptor
+	"Private to PlatformFFI. A valid call descriptor with no available export answers nil."
+	^self bindCall: aDescriptor signalIfUnavailable: false
+!
+bindCall: aDescriptor signalIfUnavailable: signalIfUnavailable
 	| library symbol types result tags resultTag id slots |
 	aDescriptor size = 5 ifFalse: [
 		^FFIError signal: 'Expected #(call library symbol argumentTypes resultType)'].
@@ -45,6 +52,9 @@ bindCall: aDescriptor
 	(resultTag = 5 or: [resultTag = 8]) ifTrue: [^FFIError signal: 'Byte slices are only FFI argument types'].
 	tags beReadOnlyObject.
 	id := self primBind: library symbol: symbol types: tags result: resultTag.
+	id isNil ifTrue: [
+		signalIfUnavailable ifTrue: [^FFIError signal: 'No matching FFI export: ', library, ' / ', symbol].
+		^nil].
 	^FFIBinding new initializeID: id library: library symbol: symbol types: tags result: resultTag
 !
 copyName: anObject
@@ -71,5 +81,5 @@ typeTag: aSymbol
 !
 primBind: library symbol: symbol types: tags result: resultTag
 	<primitive: 'ffiBind'>
-	^FFIError signal: 'No matching FFI export: ', library, ' / ', symbol
+	^nil
 ! !

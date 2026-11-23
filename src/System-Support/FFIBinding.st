@@ -15,6 +15,14 @@ invoke: arguments
 ! !
 
 !FFIBinding methodsFor: 'private'!
+tryInvoke: arguments
+	"Private to PlatformFFI. The VM checks the binding and arguments. Only pre-call rejection answers false; a completed native call may answer 0 or nil, but never false."
+	^self tryPrimInvoke: id library: library symbol: symbol types: tags result: resultTag arguments: arguments
+!
+tryPrimInvoke: anID library: aLibrary symbol: aSymbol types: argumentTags result: aResultTag arguments: arguments
+	<primitive: 'ffiInvoke'>
+	^false
+!
 initializeID: anID library: aLibrary symbol: aSymbol types: argumentTags result: aResultTag
 	id := anID.
 	library := aLibrary.

@@ -1,6 +1,6 @@
 Object subclass: #PseudoTerminal
 	instanceVariableNames: 'handle pid exitStatus semaphore semaphoreIndex session'
-	classVariableNames: 'LastActivity Open Session'
+	classVariableNames: 'CloseCall LastActivity Open Session'
 	package: 'System-Files'!
 
 PseudoTerminal comment: 'I am the master side of a pseudo-terminal whose slave side runs a child process (a shell), over the platform''s pty primitives (vm/platform/README.md). Reading and writing never block: readInto: answers nil when nothing is pending, write:from:count: nil when the terminal is full. My semaphore is signaled (once, then re-armed by the next read or blocked write) when output arrives, the child side closes, or a blocked write may continue: drain until nil, then wait.
@@ -212,9 +212,11 @@ primWait: aHandle blocking: aBoolean
 	^false
 !
 primClose: aHandle
-	| result |
-	result := PlatformFFI call: #(call 'platform' 'pty_close' (i64) i32)
-		with: {aHandle} ifUnavailable: [^self legacyClose: aHandle].
+	| binding result |
+	binding := CloseCall ifNil: [
+		CloseCall := PlatformFFI bind: #(call 'platform' 'pty_close' (i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {aHandle}].
+	result == false ifTrue: [^self legacyClose: aHandle].
 	^result = 0 ifTrue: [nil] ifFalse: [self]
 ! !
 

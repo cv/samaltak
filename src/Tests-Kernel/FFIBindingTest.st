@@ -84,6 +84,15 @@ testInvalidArguments
 	self should: [bind invoke: #('2.0' 1)] raise: FFIError.
 	self should: [bind invoke: #(2.0 2147483648)] raise: FFIError
 !
+testPlatformInvocationDistinguishesRejectionFromZero
+	| binding |
+	self assert: (PlatformFFI bind: #(call 'not-a-granted-library' 'missing' () void)) isNil.
+	binding := PlatformFFI bind: #(call 'libm' 'ilogb' (f64) i32).
+	self assert: (binding tryInvoke: #(1.0)) identicalTo: 0.
+	self assert: (binding tryInvoke: #(1)) identicalTo: false.
+	self assert: (binding tryInvoke: #()) identicalTo: false.
+	self assert: (binding tryInvoke: #(2.0)) identicalTo: 1
+!
 testCompareByteSlices
 	| compare left right |
 	compare := FFI bind: #(call 'libc' 'memcmp' (byteSlice byteSlice u64) i32).
