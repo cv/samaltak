@@ -8,7 +8,6 @@ static int64_t scratch_limbs;
 static void large_integer_primitives_add(bool subtract);
 static void large_integer_primitives_answer(uint64_t *r, int64_t n, bool neg);
 static void bit_op(int op);
-static int large_integer_primitives_compare(uint64_t *a, int64_t na, uint64_t *b, int64_t nb);
 static int64_t difference(uint64_t *a, int64_t na, uint64_t *b, int64_t nb, uint64_t *r);
 static void large_integer_primitives_divide(int mode);
 static void large_integer_primitives_divide_count_by_count_quotient_remainder_work(uint64_t *a, int64_t na, uint64_t *b, int64_t nb, uint64_t *q, uint64_t *r, uint64_t *w);
@@ -39,6 +38,12 @@ static void large_integer_primitives_add(bool subtract)
     bool bneg;
     uint64_t *r;
     int64_t n;
+    uint64_t *a_2;
+    int64_t na;
+    uint64_t *b_2;
+    int64_t nb;
+    int r_compare;
+    int64_t i;
     memset(&local, 0, sizeof local);
     a = &local;
     memset(&local_2, 0, sizeof local_2);
@@ -60,7 +65,26 @@ static void large_integer_primitives_add(bool subtract)
         large_integer_primitives_answer(r, n, a->neg);
         return;
     }
-    if (large_integer_primitives_compare(a->limbs, a->count, b->limbs, b->count) >= 0) {
+    a_2 = a->limbs;
+    na = a->count;
+    b_2 = b->limbs;
+    nb = b->count;
+    if (({
+    if (na != nb) {
+        r_compare = na < nb ? -1 : 1;
+        goto exit_compare;
+    }
+    i = na - 1;
+    while ((i >= 0) && (a_2[i] == b_2[i])) {
+        i = i - 1;
+    }
+    if (i < 0) {
+        r_compare = 0;
+        goto exit_compare;
+    }
+    r_compare = a_2[i] < b_2[i] ? -1 : 1;
+exit_compare:;
+    r_compare; }) >= 0) {
         large_integer_primitives_answer(r, difference(a->limbs, a->count, b->limbs, b->count, r), a->neg);
     } else {
         large_integer_primitives_answer(r, difference(b->limbs, b->count, a->limbs, a->count, r), bneg);
@@ -78,6 +102,12 @@ static void large_integer_primitives_add(bool subtract)
     bool bneg;
     uint64_t *r;
     int64_t n;
+    uint64_t *a_2;
+    int64_t na;
+    uint64_t *b_2;
+    int64_t nb;
+    int r_compare;
+    int64_t i;
     memset(&local, 0, sizeof local);
     a = &local;
     memset(&local_2, 0, sizeof local_2);
@@ -99,7 +129,26 @@ static void large_integer_primitives_add(bool subtract)
         large_integer_primitives_answer(r, n, a->neg);
         return;
     }
-    if (large_integer_primitives_compare(a->limbs, a->count, b->limbs, b->count) >= 0) {
+    a_2 = a->limbs;
+    na = a->count;
+    b_2 = b->limbs;
+    nb = b->count;
+    if (({
+    if (na != nb) {
+        r_compare = na < nb ? -1 : 1;
+        goto exit_compare;
+    }
+    i = na - 1;
+    while ((i >= 0) && (a_2[i] == b_2[i])) {
+        i = i - 1;
+    }
+    if (i < 0) {
+        r_compare = 0;
+        goto exit_compare;
+    }
+    r_compare = a_2[i] < b_2[i] ? -1 : 1;
+exit_compare:;
+    r_compare; }) >= 0) {
         large_integer_primitives_answer(r, difference(a->limbs, a->count, b->limbs, b->count, r), a->neg);
     } else {
         large_integer_primitives_answer(r, difference(b->limbs, b->count, a->limbs, a->count, r), bneg);
@@ -250,23 +299,6 @@ static void bit_op(int op)
 }
 
 #endif
-/* LargeIntegerPrimitives>>compare:count:with:count: */
-static int large_integer_primitives_compare(uint64_t *a, int64_t na, uint64_t *b, int64_t nb)
-{
-    int64_t i;
-    if (na != nb) {
-        return na < nb ? -1 : 1;
-    }
-    i = na - 1;
-    while ((i >= 0) && (a[i] == b[i])) {
-        i = i - 1;
-    }
-    if (i < 0) {
-        return 0;
-    }
-    return a[i] < b[i] ? -1 : 1;
-}
-
 /* LargeIntegerPrimitives>>difference:count:minus:count:into: */
 static int64_t difference(uint64_t *a, int64_t na, uint64_t *b, int64_t nb, uint64_t *r)
 {
@@ -305,8 +337,12 @@ static void large_integer_primitives_divide(int mode)
     uint64_t *w;
     uint64_t *q;
     uint64_t *rem;
-    int64_t qn;
+    uint64_t *a_2;
+    uint64_t *b_2;
+    int r_compare;
     int64_t i;
+    int64_t qn;
+    int64_t i_2;
     int64_t rn;
     bool neg;
     bool floored;
@@ -334,11 +370,28 @@ static void large_integer_primitives_divide(int mode)
     }
     q = w;
     rem = w + (na + 2);
-    if (large_integer_primitives_compare(a->limbs, na, b->limbs, nb) < 0) {
+    a_2 = a->limbs;
+    b_2 = b->limbs;
+    if (({
+    if (na != nb) {
+        r_compare = na < nb ? -1 : 1;
+        goto exit_compare;
+    }
+    i = na - 1;
+    while ((i >= 0) && (a_2[i] == b_2[i])) {
+        i = i - 1;
+    }
+    if (i < 0) {
+        r_compare = 0;
+        goto exit_compare;
+    }
+    r_compare = a_2[i] < b_2[i] ? -1 : 1;
+exit_compare:;
+    r_compare; }) < 0) {
         q[0] = 0;
         qn = 1;
-        for (i = 0; i <= na - 1; i++) {
-            rem[i] = a->limbs[i];
+        for (i_2 = 0; i_2 <= na - 1; i_2++) {
+            rem[i_2] = a->limbs[i_2];
         }
         rn = na;
     } else {
@@ -380,8 +433,12 @@ static void large_integer_primitives_divide(int mode)
     uint64_t *w;
     uint64_t *q;
     uint64_t *rem;
-    int64_t qn;
+    uint64_t *a_2;
+    uint64_t *b_2;
+    int r_compare;
     int64_t i;
+    int64_t qn;
+    int64_t i_2;
     int64_t rn;
     bool neg;
     bool floored;
@@ -409,11 +466,28 @@ static void large_integer_primitives_divide(int mode)
     }
     q = w;
     rem = w + (na + 2);
-    if (large_integer_primitives_compare(a->limbs, na, b->limbs, nb) < 0) {
+    a_2 = a->limbs;
+    b_2 = b->limbs;
+    if (({
+    if (na != nb) {
+        r_compare = na < nb ? -1 : 1;
+        goto exit_compare;
+    }
+    i = na - 1;
+    while ((i >= 0) && (a_2[i] == b_2[i])) {
+        i = i - 1;
+    }
+    if (i < 0) {
+        r_compare = 0;
+        goto exit_compare;
+    }
+    r_compare = a_2[i] < b_2[i] ? -1 : 1;
+exit_compare:;
+    r_compare; }) < 0) {
         q[0] = 0;
         qn = 1;
-        for (i = 0; i <= na - 1; i++) {
-            rem[i] = a->limbs[i];
+        for (i_2 = 0; i_2 <= na - 1; i_2++) {
+            rem[i_2] = a->limbs[i_2];
         }
         rn = na;
     } else {
@@ -861,6 +935,12 @@ void prim_large_compare(void)
     large_operand *b;
     int v;
     uint64_t v_2;
+    uint64_t *a_2;
+    int64_t na;
+    uint64_t *b_2;
+    int64_t nb;
+    int r_compare;
+    int64_t i;
     int c;
     int v_3;
     uint64_t v_4;
@@ -880,7 +960,26 @@ void prim_large_compare(void)
         prim_status = PS_OK;
         return;
     }
-    c = large_integer_primitives_compare(a->limbs, a->count, b->limbs, b->count);
+    a_2 = a->limbs;
+    na = a->count;
+    b_2 = b->limbs;
+    nb = b->count;
+    c = ({
+    if (na != nb) {
+        r_compare = na < nb ? -1 : 1;
+        goto exit_compare;
+    }
+    i = na - 1;
+    while ((i >= 0) && (a_2[i] == b_2[i])) {
+        i = i - 1;
+    }
+    if (i < 0) {
+        r_compare = 0;
+        goto exit_compare;
+    }
+    r_compare = a_2[i] < b_2[i] ? -1 : 1;
+exit_compare:;
+    r_compare; });
     v_3 = a->neg ? 0 - c : c;
     v_4 = (uint64_t)((((int64_t)v_3) << 1) | 1);
     prim_result = v_4;
@@ -897,6 +996,12 @@ void prim_large_compare(void)
     large_operand *b;
     int v;
     uint64_t v_2;
+    uint64_t *a_2;
+    int64_t na;
+    uint64_t *b_2;
+    int64_t nb;
+    int r_compare;
+    int64_t i;
     int c;
     int v_3;
     uint64_t v_4;
@@ -916,7 +1021,26 @@ void prim_large_compare(void)
         prim_status = PS_OK;
         return;
     }
-    c = large_integer_primitives_compare(a->limbs, a->count, b->limbs, b->count);
+    a_2 = a->limbs;
+    na = a->count;
+    b_2 = b->limbs;
+    nb = b->count;
+    c = ({
+    if (na != nb) {
+        r_compare = na < nb ? -1 : 1;
+        goto exit_compare;
+    }
+    i = na - 1;
+    while ((i >= 0) && (a_2[i] == b_2[i])) {
+        i = i - 1;
+    }
+    if (i < 0) {
+        r_compare = 0;
+        goto exit_compare;
+    }
+    r_compare = a_2[i] < b_2[i] ? -1 : 1;
+exit_compare:;
+    r_compare; });
     v_3 = a->neg ? 0 - c : c;
     v_4 = (uint64_t)((((int64_t)v_3) << 1) | 1);
     prim_result = v_4;

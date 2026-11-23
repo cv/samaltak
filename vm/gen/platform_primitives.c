@@ -20,7 +20,7 @@ static uint8_t *memory_arg(int i, int64_t offset, int64_t n, bool writable);
 static bool number_of(uint64_t o, double *d);
 static uint8_t *pointer_slot(oop a, int i);
 static uint8_t *range_args(bool writable, int64_t *h, int64_t *count);
-static bool rect(oop r, int *out);
+static bool platform_primitives_rect(oop r, int *out);
 static int64_t platform_primitives_slot(oop a, int i);
 static char *string_arg(int i);
 static char **string_vector(oop a, bool non_empty);
@@ -1160,7 +1160,7 @@ void prim_gpu_blit(void)
     sr = local;
     memset(&local_2, 0, sizeof local_2);
     dr = local_2;
-    if (bad || ((!rect(prim_base[3], sr)) || (!rect(prim_base[5], dr)))) {
+    if (bad || ((!platform_primitives_rect(prim_base[3], sr)) || (!platform_primitives_rect(prim_base[5], dr)))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -3371,7 +3371,7 @@ void prim_raster_blit(void)
         prim_error_code = -1;
         return;
     }
-    if (!rect(prim_base[2], r)) {
+    if (!platform_primitives_rect(prim_base[2], r)) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -3379,7 +3379,7 @@ void prim_raster_blit(void)
     for (i = 0; i <= 3; i++) {
         sr[i] = (int64_t)r[i];
     }
-    if (!rect(prim_base[4], r)) {
+    if (!platform_primitives_rect(prim_base[4], r)) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -4606,7 +4606,7 @@ static uint8_t *range_args(bool writable, int64_t *h, int64_t *count)
 }
 
 /* PlatformPrimitives>>rect:into: */
-static bool rect(oop r, int *out)
+static bool platform_primitives_rect(oop r, int *out)
 {
     int i;
     uint64_t v;

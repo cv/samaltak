@@ -2,7 +2,9 @@
 /* FFIWrapperHelpers (VM-Jit) */
 #include "samaltak.h"
 
+static bool ffi_borrow_integer(oop o, uint64_t *out, int64_t *count);
 static bool ffi_borrow_slice(oop slice, uint64_t *out, uint64_t *length);
+static bool ffi_borrow_writable_slice(oop slice, uint64_t *out, uint64_t *length);
 static oop ffi_box_f64(double value);
 static oop ffi_box_f64_with_gc(double value);
 static oop ffi_box_i64(int64_t value);
@@ -16,9 +18,45 @@ static bool ffi_unbox_i64(oop o, int64_t *out);
 static bool ffi_unbox_u32(oop o, uint32_t *out);
 static bool ffi_unbox_u64(oop o, uint64_t *out);
 
+/* FFIWrapperHelpers>>ffiBorrowInteger:into:signedCount: */
+static bool ffi_borrow_integer(oop o, uint64_t *out, int64_t *count)
+{
+    int32_t fmt;
+    uint64_t c;
+    bool negative;
+    const uint64_t *p;
+    int64_t n;
+    if ((o & 1) != 0) {
+        *out = 0;
+        *count = ((int64_t)o) >> 1;
+        return true;
+    }
+    if ((o == 0) || (!((o & 7) == 0))) {
+        return false;
+    }
+    fmt = (int32_t)(((*(uint64_t *)o) >> H_FMT_SHIFT) & H_FMT_MASK);
+    if ((fmt < F_BYTES) || (fmt >= 24)) {
+        return false;
+    }
+    c = *(uint64_t *)(o + 8);
+    negative = c == object_memory_special(SO_LARGENEG);
+    if (!(negative || (c == object_memory_special(SO_LARGEPOS)))) {
+        return false;
+    }
+    p = (const uint64_t *)(uint8_t *)(o + 16);
+    n = (int64_t)(uint32_t)*(uint64_t *)o;
+    while ((n > 0) && (p[n - 1] == 0)) {
+        n = n - 1;
+    }
+    *out = (uint64_t)p;
+    *count = negative ? 0 - n : n;
+    return true;
+}
+
 /* FFIWrapperHelpers>>ffiBorrowSlice:into:length: */
 static bool ffi_borrow_slice(oop slice, uint64_t *out, uint64_t *length)
 {
+    bool r_checked_slice;
     uint64_t bytes;
     int32_t fmt;
     uint64_t offset_oop;
@@ -26,42 +64,117 @@ static bool ffi_borrow_slice(oop slice, uint64_t *out, uint64_t *length)
     int64_t start;
     int64_t len;
     uint64_t size;
+    return ({
     if ((slice == 0) || (!((slice & 7) == 0))) {
-        return false;
+        r_checked_slice = false;
+        goto exit_checked_slice;
     }
     if (!((*(uint64_t *)(slice + 8) == cls_array) && (((int32_t)(((*(uint64_t *)slice) >> H_FMT_SHIFT) & H_FMT_MASK) == F_VAR) && ((uint32_t)*(uint64_t *)slice == 3)))) {
-        return false;
+        r_checked_slice = false;
+        goto exit_checked_slice;
     }
     bytes = *(uint64_t *)(slice + 16 + 0);
     if ((bytes == 0) || ((!((bytes & 7) == 0)) || (*(uint64_t *)(bytes + 8) != cls_bytearray))) {
-        return false;
+        r_checked_slice = false;
+        goto exit_checked_slice;
     }
     fmt = (int32_t)(((*(uint64_t *)bytes) >> H_FMT_SHIFT) & H_FMT_MASK);
     if ((fmt < F_BYTES) || (fmt >= 24)) {
-        return false;
+        r_checked_slice = false;
+        goto exit_checked_slice;
     }
     offset_oop = *(uint64_t *)(slice + 16 + 8);
     length_oop = *(uint64_t *)(slice + 16 + 16);
     if (!(((offset_oop & 1) != 0) && ((length_oop & 1) != 0))) {
-        return false;
+        r_checked_slice = false;
+        goto exit_checked_slice;
     }
     start = ((int64_t)offset_oop) >> 1;
     len = ((int64_t)length_oop) >> 1;
     if ((start < 1) || (len < 0)) {
-        return false;
+        r_checked_slice = false;
+        goto exit_checked_slice;
     }
     start = start - 1;
     size = 8 * (uint64_t)(uint32_t)*(uint64_t *)bytes;
     if (size < (uint64_t)(fmt - F_BYTES)) {
-        return false;
+        r_checked_slice = false;
+        goto exit_checked_slice;
     }
     size = size - (uint64_t)(fmt - F_BYTES);
     if (((uint64_t)start > size) || ((uint64_t)len > size - (uint64_t)start)) {
-        return false;
+        r_checked_slice = false;
+        goto exit_checked_slice;
     }
     *out = (uint64_t)((uint8_t *)(bytes + 16) + start);
     *length = (uint64_t)len;
-    return true;
+    r_checked_slice = true;
+exit_checked_slice:;
+    r_checked_slice; });
+}
+
+/* FFIWrapperHelpers>>ffiBorrowWritableSlice:into:length: */
+static bool ffi_borrow_writable_slice(oop slice, uint64_t *out, uint64_t *length)
+{
+    bool r_checked_slice;
+    uint64_t bytes;
+    int32_t fmt;
+    uint64_t offset_oop;
+    uint64_t length_oop;
+    int64_t start;
+    int64_t len;
+    uint64_t size;
+    return ({
+    if ((slice == 0) || (!((slice & 7) == 0))) {
+        r_checked_slice = false;
+        goto exit_checked_slice;
+    }
+    if (!((*(uint64_t *)(slice + 8) == cls_array) && (((int32_t)(((*(uint64_t *)slice) >> H_FMT_SHIFT) & H_FMT_MASK) == F_VAR) && ((uint32_t)*(uint64_t *)slice == 3)))) {
+        r_checked_slice = false;
+        goto exit_checked_slice;
+    }
+    bytes = *(uint64_t *)(slice + 16 + 0);
+    if ((bytes == 0) || ((!((bytes & 7) == 0)) || (*(uint64_t *)(bytes + 8) != cls_bytearray))) {
+        r_checked_slice = false;
+        goto exit_checked_slice;
+    }
+    if (((*(uint64_t *)bytes) & H_IMMUTABLE) != 0) {
+        r_checked_slice = false;
+        goto exit_checked_slice;
+    }
+    fmt = (int32_t)(((*(uint64_t *)bytes) >> H_FMT_SHIFT) & H_FMT_MASK);
+    if ((fmt < F_BYTES) || (fmt >= 24)) {
+        r_checked_slice = false;
+        goto exit_checked_slice;
+    }
+    offset_oop = *(uint64_t *)(slice + 16 + 8);
+    length_oop = *(uint64_t *)(slice + 16 + 16);
+    if (!(((offset_oop & 1) != 0) && ((length_oop & 1) != 0))) {
+        r_checked_slice = false;
+        goto exit_checked_slice;
+    }
+    start = ((int64_t)offset_oop) >> 1;
+    len = ((int64_t)length_oop) >> 1;
+    if ((start < 1) || (len < 0)) {
+        r_checked_slice = false;
+        goto exit_checked_slice;
+    }
+    start = start - 1;
+    size = 8 * (uint64_t)(uint32_t)*(uint64_t *)bytes;
+    if (size < (uint64_t)(fmt - F_BYTES)) {
+        r_checked_slice = false;
+        goto exit_checked_slice;
+    }
+    size = size - (uint64_t)(fmt - F_BYTES);
+    if (((uint64_t)start > size) || ((uint64_t)len > size - (uint64_t)start)) {
+        r_checked_slice = false;
+        goto exit_checked_slice;
+    }
+    *out = (uint64_t)((uint8_t *)(bytes + 16) + start);
+    *length = (uint64_t)len;
+    r_checked_slice = true;
+exit_checked_slice:;
+    r_checked_slice; });
 }
 
 /* FFIWrapperHelpers>>ffiBoxF64: */
@@ -199,6 +312,12 @@ uint64_t wrapped_argument_helper(int32_t tag)
         break;
     case 8:
         v = (uint64_t)ffi_borrow_slice;
+        break;
+    case 9:
+        v = (uint64_t)ffi_borrow_writable_slice;
+        break;
+    case 10:
+        v = (uint64_t)ffi_borrow_integer;
         break;
     default:
         v = 0ULL;

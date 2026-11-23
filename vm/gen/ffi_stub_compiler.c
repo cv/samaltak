@@ -272,7 +272,7 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
             if (tag <= 2) {
                 gp32 = gp32 | (1LL << gp);
             }
-            gp = gp + (tag == 8 ? 2 : 1);
+            gp = gp + ((tag >= 8) && (tag <= 10) ? 2 : 1);
         }
     }
     gp_save = gp + 1;
@@ -339,7 +339,7 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
         }
         buf[j] = 0x910003E1LL;
         j = j + 1;
-        if ((tag == 5) || (tag == 8)) {
+        if ((tag == 5) || ((tag >= 8) && (tag <= 10))) {
             buf[j] = 0x910023E2LL;
             j = j + 1;
         }
@@ -356,7 +356,7 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
             buf[j] = (tag <= 2 ? 0xB94003E0LL : 0xF94003E0LL) + reg;
             j = j + 1;
             gp = gp + 1;
-            if (tag == 8) {
+            if ((tag >= 8) && (tag <= 10)) {
                 buf[j] = 0xF94007E0LL + reg + 1;
                 j = j + 1;
                 gp = gp + 1;
@@ -533,7 +533,7 @@ static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_
         }
         p = x64_wrapped_spill_gp(gp, fp, false, p);
         p = emit_x64(3469025763142371656ULL, 8, p);
-        if ((tag == 5) || (tag == 8)) {
+        if ((tag == 5) || ((tag >= 8) && (tag <= 10))) {
             p = emit_x64(241127689544ULL, 5, p);
         }
         p = x64_wrapped_call(helper, p);
@@ -558,7 +558,7 @@ static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_
             rex = (tag <= 2 ? 0x40 : 0x48) + (reg >> 3);
             p = emit_x64(12617984ULL + (uint64_t)rex + (((uint64_t)(reg & 7)) << 16), 3, p);
             gp = gp + 1;
-            if (tag == 8) {
+            if ((tag >= 8) && (tag <= 10)) {
                 p = ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(ffi_stub_compiler_x64_wrapped_gp(gp), 56, true, p);
                 gp = gp + 1;
             }
@@ -681,10 +681,10 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     lanes = n;
     for (i = 0; i <= n - 1; i++) {
         tag = types[i];
-        if ((tag == 0) || ((tag == 7) || ((tag > 8) || ((tag == 5) && (operation == 0))))) {
+        if ((tag == 0) || ((tag == 7) || ((tag > 10) || ((tag == 5) && (operation == 0))))) {
             return 0;
         }
-        if (tag == 8) {
+        if ((tag >= 8) && (tag <= 10)) {
             lanes = lanes + 1;
         }
         key = (uint32_t)((((uint64_t)key) << 4) | tag);
@@ -751,10 +751,10 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     lanes = n;
     for (i = 0; i <= n - 1; i++) {
         tag = types[i];
-        if ((tag == 0) || ((tag == 7) || ((tag > 8) || ((tag == 5) && (operation == 0))))) {
+        if ((tag == 0) || ((tag == 7) || ((tag > 10) || ((tag == 5) && (operation == 0))))) {
             return 0;
         }
-        if (tag == 8) {
+        if ((tag >= 8) && (tag <= 10)) {
             lanes = lanes + 1;
         }
         key = (uint32_t)((((uint64_t)key) << 4) | tag);

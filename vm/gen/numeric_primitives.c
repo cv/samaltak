@@ -1233,12 +1233,12 @@ exit_int_args_do:;
 /* NumericPrimitives>>printStringOf: */
 static uint64_t print_string_of(double a)
 {
+    char local[64];
+    char *out;
     int lo;
     int hi;
     int mid;
     int nd;
-    char local[64];
-    char *out;
     char local_2[40];
     char *buf;
     char local_3[24];

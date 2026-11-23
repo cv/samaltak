@@ -13,6 +13,10 @@ static fence_watch *watches;
 static gpu_dev *device(int32_t h);
 static gpu_dev *device_of(pf_obj *o);
 static void *fence_watcher(void *unused);
+static int32_t ffi_attribute_width(int32_t format);
+static bool ffi_command_outside_pass(int32_t cmd);
+static bool ffi_rect(int32_t *rect, pf_obj *tex);
+static pf_obj *ffi_resource(int32_t handle, int kind, int32_t pass);
 static pf_obj *get(int32_t h, int kind, char *what);
 static int64_t mono_us(void);
 static SDL_GPURenderPass *platform_gpu_pass(int32_t h);
@@ -207,7 +211,7 @@ bool bind_vertex_buffer(int32_t pass, int32_t slot, int32_t buf, uint32_t offset
 }
 
 /* PlatformGPU>>blit:source:rect:destination:rect:linear: */
-bool blit(int32_t cmd, int32_t src, int *sr, int32_t dst, int *dr, bool linear)
+bool blit(int32_t cmd, int32_t src, int32_t *sr, int32_t dst, int32_t *dr, bool linear)
 {
     pf_obj *c;
     pf_obj *s;
@@ -518,6 +522,7 @@ int32_t platform_gpu_create_shader_source_entry_stage_samplers_uniform_buffers_s
     SDL_GPUShaderCreateInfo *ci;
     SDL_GPUShader *s;
     int32_t r_add;
+    int32_t h_3;
     int32_t h_2;
     size_t local_2;
     size_t *size;
@@ -529,7 +534,8 @@ int32_t platform_gpu_create_shader_source_entry_stage_samplers_uniform_buffers_s
     SDL_GPUShaderCreateInfo *ci_2;
     SDL_GPUShader *s_2;
     int32_t r_add_2;
-    int32_t h_3;
+    int32_t h_5;
+    int32_t h_4;
     int h;
     d = device(dev);
     if (d == NULL) {
@@ -558,11 +564,13 @@ int32_t platform_gpu_create_shader_source_entry_stage_samplers_uniform_buffers_s
         r_create_shader = sdl_fail("SDL_CreateGPUShader");
         goto exit_create_shader;
     }
-    r_create_shader = ({
-    h_2 = platform_common_table_add_pointer(objs, K_SHADER, s);
-    (objs->v + h_2)->dev = dev;
-    r_add = h_2;
+    h_2 = ({
+    h_3 = platform_common_table_add_pointer(objs, K_SHADER, s);
+    (objs->v + h_3)->dev = dev;
+    r_add = h_3;
     r_add; });
+    (objs->v + h_2)->i = stage == PF_STAGE_FRAGMENT ? PF_STAGE_FRAGMENT : PF_STAGE_VERTEX;
+    r_create_shader = h_2;
 exit_create_shader:;
     r_create_shader; });
     }
@@ -593,11 +601,13 @@ exit_create_shader:;
         r_create_shader_2 = sdl_fail("SDL_CreateGPUShader");
         goto exit_create_shader_2;
     }
-    r_create_shader_2 = ({
-    h_3 = platform_common_table_add_pointer(objs, K_SHADER, s_2);
-    (objs->v + h_3)->dev = dev;
-    r_add_2 = h_3;
+    h_4 = ({
+    h_5 = platform_common_table_add_pointer(objs, K_SHADER, s_2);
+    (objs->v + h_5)->dev = dev;
+    r_add_2 = h_5;
     r_add_2; });
+    (objs->v + h_4)->i = stage == PF_STAGE_FRAGMENT ? PF_STAGE_FRAGMENT : PF_STAGE_VERTEX;
+    r_create_shader_2 = h_4;
 exit_create_shader_2:;
     r_create_shader_2; });
     free(spirv);
@@ -605,7 +615,7 @@ exit_create_shader_2:;
 }
 
 /* PlatformGPU>>createShader:spirv:size:entry:stage:samplers:uniformBuffers:storageBuffers:storageTextures: */
-int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures(int32_t dev, const uint8_t *code, size_t n, char *entry, int32_t stage, int32_t samplers, int32_t uniform_buffers, int32_t storage_buffers, int32_t storage_textures)
+int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures(int32_t dev, const uint8_t *code, uint64_t n, char *entry, int32_t stage, int32_t samplers, int32_t uniform_buffers, int32_t storage_buffers, int32_t storage_textures)
 {
     gpu_dev *d;
     Uint8 *code_2;
@@ -615,6 +625,7 @@ int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffe
     SDL_GPUShaderCreateInfo *ci;
     SDL_GPUShader *s;
     int32_t r_add;
+    int32_t h_2;
     int32_t h;
     d = device(dev);
     if (d == NULL) {
@@ -645,11 +656,13 @@ int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffe
         r_create_shader = sdl_fail("SDL_CreateGPUShader");
         goto exit_create_shader;
     }
-    r_create_shader = ({
-    h = platform_common_table_add_pointer(objs, K_SHADER, s);
-    (objs->v + h)->dev = dev;
-    r_add = h;
+    h = ({
+    h_2 = platform_common_table_add_pointer(objs, K_SHADER, s);
+    (objs->v + h_2)->dev = dev;
+    r_add = h_2;
     r_add; });
+    (objs->v + h)->i = stage == PF_STAGE_FRAGMENT ? PF_STAGE_FRAGMENT : PF_STAGE_VERTEX;
+    r_create_shader = h;
 exit_create_shader:;
     r_create_shader; });
 }
@@ -712,7 +725,7 @@ static gpu_dev *device_of(pf_obj *o)
 }
 
 /* PlatformGPU>>download:x:y:width:height:into:length: */
-bool download(int32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, void *dst, size_t dst_len)
+bool download(int32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, void *dst, uint64_t dst_len)
 {
     pf_obj *o;
     uint64_t n;
@@ -729,7 +742,9 @@ bool download(int32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, void *dst
     SDL_GPUFence **f;
     uint8_t *p;
     uint32_t *s;
-    uint32_t *t;
+    uint8_t *t;
+    uint32_t local_5;
+    uint32_t *pixel;
     int64_t i;
     uint32_t v;
     o = get(tex, K_TEX, "texture");
@@ -737,7 +752,7 @@ bool download(int32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, void *dst
         return false;
     }
     n = (uint64_t)w * (uint64_t)h * (uint64_t)bytes_per_pixel(o->fmt);
-    if ((x < 0) || ((y < 0) || ((w <= 0) || ((h <= 0) || ((x + w > o->w) || ((y + h > o->h) || (dst_len < n))))))) {
+    if ((x < 0) || ((y < 0) || ((w <= 0) || ((h <= 0) || (((int64_t)x + w > o->w) || (((int64_t)y + h > o->h) || ((n > 0xFFFFFFFFLL) || (dst_len < n)))))))) {
         set_error("bad download region");
         return false;
     }
@@ -795,10 +810,13 @@ bool download(int32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, void *dst
     }
     if (o->fmt == PF_TEX_BGRA8) {
         s = (uint32_t *)p;
-        t = (uint32_t *)dst;
+        t = (uint8_t *)dst;
+        memset(&local_5, 0, sizeof local_5);
+        pixel = &local_5;
         for (i = 0; i <= (int64_t)(n / 4) - 1; i++) {
             v = s[i];
-            t[i] = (v & 0xFF00FF00LL) | ((v >> 16) & 0xFF) | (((uint64_t)(v & 0xFF)) << 16);
+            *pixel = (uint32_t)((v & 0xFF00FF00LL) | ((v >> 16) & 0xFF) | (((uint64_t)(v & 0xFF)) << 16));
+            memcpy(t + i * 4, pixel, 4);
         }
     } else {
         memcpy(dst, p, n);
@@ -892,6 +910,193 @@ static void *fence_watcher(void *unused)
         pthread_mutex_lock(watch_lock);
     }
     __builtin_unreachable();
+}
+
+/* PlatformGPU>>ffiAttributeWidth: */
+static int32_t ffi_attribute_width(int32_t format)
+{
+    int v;
+    switch (format) {
+    case PF_VA_FLOAT2:
+        v = 8;
+        break;
+    case PF_VA_FLOAT3:
+        v = 12;
+        break;
+    case PF_VA_FLOAT4:
+        v = 16;
+        break;
+    case PF_VA_FLOAT:
+        v = 4;
+        break;
+    case PF_VA_UBYTE4_NORM:
+        v = 4;
+        break;
+    case PF_VA_UBYTE4:
+        v = 4;
+        break;
+    case PF_VA_UINT:
+        v = 4;
+        break;
+    case PF_VA_INT:
+        v = 4;
+        break;
+    default:
+        v = 0;
+        break;
+    }
+    return v;
+}
+
+/* PlatformGPU>>ffiCanBeginPass:target: */
+bool ffi_can_begin_pass(int32_t cmd, int32_t tex)
+{
+    pf_obj *c;
+    pf_obj *t;
+    c = get(cmd, K_CMD, "command buffer");
+    t = platform_gpu_target(tex);
+    if ((c == NULL) || (t == NULL)) {
+        return false;
+    }
+    if ((c->dev != t->dev) || ((t->kind == K_SWAP) && (t->i != cmd))) {
+        set_error("render target does not belong to this command buffer");
+        return false;
+    }
+    if ((t->kind == K_TEX) && ((t->i & PF_TEXUSE_COLOR_TARGET) == 0)) {
+        set_error("texture cannot be a color target");
+        return false;
+    }
+    return ffi_command_outside_pass(cmd);
+}
+
+/* PlatformGPU>>ffiCanBindBuffer:to:offset: */
+bool ffi_can_bind_buffer(int32_t buffer, int32_t pass, uint32_t off)
+{
+    pf_obj *b;
+    b = ffi_resource(buffer, K_BUF, pass);
+    if (b == NULL) {
+        return false;
+    }
+    if ((uint64_t)off >= (uint64_t)b->i) {
+        set_error("vertex buffer offset out of bounds");
+        return false;
+    }
+    return true;
+}
+
+/* PlatformGPU>>ffiCanBindPipeline:to: */
+bool ffi_can_bind_pipeline(int32_t pipeline, int32_t pass)
+{
+    return ffi_resource(pipeline, K_PIPE, pass) != NULL;
+}
+
+/* PlatformGPU>>ffiCanBindTexture:sampler:to: */
+bool ffi_can_bind_texture(int32_t texture, int32_t sampler, int32_t pass)
+{
+    pf_obj *t;
+    t = ffi_resource(texture, K_TEX, pass);
+    if (t == NULL) {
+        return false;
+    }
+    if ((t->i & PF_TEXUSE_SAMPLER) == 0) {
+        set_error("texture cannot be sampled");
+        return false;
+    }
+    return ffi_resource(sampler, K_SAMPLER, pass) != NULL;
+}
+
+/* PlatformGPU>>ffiCanBlit:source:rect:destination:rect: */
+bool ffi_can_blit(int32_t cmd, int32_t src, int32_t *sr, int32_t dst, int32_t *dr)
+{
+    pf_obj *c;
+    pf_obj *s;
+    pf_obj *t;
+    c = get(cmd, K_CMD, "command buffer");
+    s = get(src, K_TEX, "texture");
+    t = platform_gpu_target(dst);
+    if ((c == NULL) || ((s == NULL) || (t == NULL))) {
+        return false;
+    }
+    if ((c->dev != s->dev) || ((c->dev != t->dev) || ((t->kind == K_SWAP) && (t->i != cmd)))) {
+        set_error("blit textures do not belong to this command buffer");
+        return false;
+    }
+    if ((src == dst) || (((s->i & PF_TEXUSE_SAMPLER) == 0) || ((t->kind == K_TEX) && ((t->i & PF_TEXUSE_COLOR_TARGET) == 0)))) {
+        set_error("invalid GPU blit texture usage");
+        return false;
+    }
+    if (!(ffi_rect(sr, s) && ffi_rect(dr, t))) {
+        set_error("invalid GPU blit rectangle");
+        return false;
+    }
+    return ffi_command_outside_pass(cmd);
+}
+
+/* PlatformGPU>>ffiCanCreatePipeline:vertex:fragment:stride:attributes:count: */
+bool ffi_can_create_pipeline(int32_t dev, int32_t vs, int32_t fs, int32_t stride, pf_vattr *attrs, int32_t count)
+{
+    pf_obj *v;
+    pf_obj *f;
+    int32_t i;
+    pf_vattr *attr;
+    int32_t bytes;
+    v = get(vs, K_SHADER, "vertex shader");
+    f = get(fs, K_SHADER, "fragment shader");
+    if ((v == NULL) || (f == NULL)) {
+        return false;
+    }
+    if ((v->dev != dev) || ((f->dev != dev) || ((v->i != PF_STAGE_VERTEX) || (f->i != PF_STAGE_FRAGMENT)))) {
+        set_error("pipeline shaders have the wrong owner or stage");
+        return false;
+    }
+    for (i = 0; i <= count - 1; i++) {
+        attr = attrs + i;
+        bytes = ffi_attribute_width(attr->format);
+        if ((bytes == 0) || ((attr->offset < 0) || ((int64_t)attr->offset + bytes > stride))) {
+            set_error("vertex attribute exceeds pipeline stride or has invalid type");
+            return false;
+        }
+    }
+    return true;
+}
+
+/* PlatformGPU>>ffiCommandOutsidePass: */
+static bool ffi_command_outside_pass(int32_t cmd)
+{
+    int32_t i;
+    for (i = 1; i <= objs->n - 1; i++) {
+        if (((objs->v + i)->kind == K_PASS) && ((objs->v + i)->i == cmd)) {
+            set_error("command buffer has an active render pass");
+            return false;
+        }
+    }
+    return true;
+}
+
+/* PlatformGPU>>ffiRect:liesInside: */
+static bool ffi_rect(int32_t *rect, pf_obj *tex)
+{
+    return (rect[0] >= 0) && ((rect[1] >= 0) && ((rect[2] > 0) && ((rect[3] > 0) && (((int64_t)rect[0] + rect[2] <= tex->w) && ((int64_t)rect[1] + rect[3] <= tex->h)))));
+}
+
+/* PlatformGPU>>ffiResource:kind:forPass: */
+static pf_obj *ffi_resource(int32_t handle, int kind, int32_t pass)
+{
+    pf_obj *p;
+    pf_obj *resource;
+    p = get(pass, K_PASS, "render pass");
+    if (p == NULL) {
+        return (pf_obj *)NULL;
+    }
+    resource = get(handle, kind, "GPU resource");
+    if (resource == NULL) {
+        return (pf_obj *)NULL;
+    }
+    if (p->dev != resource->dev) {
+        set_error("GPU resource and render pass belong to different devices");
+        return (pf_obj *)NULL;
+    }
+    return resource;
 }
 
 /* PlatformGPU>>get:kind:what: */
@@ -1345,8 +1550,12 @@ static uint8_t *upload_reserve(gpu_dev *d, uint32_t n, uint32_t *off)
     SDL_GPUTransferBufferCreateInfo local;
     SDL_GPUTransferBufferCreateInfo *ci;
     uint8_t *p;
+    if (n > 0x80000000LL) {
+        set_error("GPU upload exceeds transfer buffer capacity");
+        return (uint8_t *)NULL;
+    }
     need = (n + 15) & 4294967280LL;
-    if (d->up_used + need > d->up_cap) {
+    if ((uint64_t)d->up_used + need > d->up_cap) {
         upload_flush(d);
         if (need > d->up_cap) {
             cap = 0x400000;
@@ -1387,7 +1596,7 @@ static uint8_t *upload_reserve(gpu_dev *d, uint32_t n, uint32_t *off)
 }
 
 /* PlatformGPU>>uploadTexture:data:length:x:y:width:height:bytesPerRow: */
-bool upload_texture(int32_t tex, const void *data, size_t len, int32_t x, int32_t y, int32_t w, int32_t h, int32_t bytes_per_row)
+bool upload_texture(int32_t tex, const void *data, uint64_t len, int32_t x, int32_t y, int32_t w, int32_t h, int32_t bytes_per_row)
 {
     pf_obj *o;
     uint64_t row;
@@ -1405,7 +1614,7 @@ bool upload_texture(int32_t tex, const void *data, size_t len, int32_t x, int32_
         return false;
     }
     row = (uint64_t)w * (uint64_t)bytes_per_pixel(o->fmt);
-    if ((x < 0) || ((y < 0) || ((w <= 0) || ((h <= 0) || ((x + w > o->w) || ((y + h > o->h) || (((uint64_t)bytes_per_row < row) || (len < (uint64_t)(h - 1) * (uint64_t)bytes_per_row + row)))))))) {
+    if ((x < 0) || ((y < 0) || ((w <= 0) || ((h <= 0) || (((int64_t)x + w > o->w) || (((int64_t)y + h > o->h) || ((bytes_per_row <= 0) || ((row * (uint64_t)h > 0x80000000LL) || (((uint64_t)bytes_per_row < row) || (len < (uint64_t)(h - 1) * (uint64_t)bytes_per_row + row)))))))))) {
         set_error("bad texture upload region");
         return false;
     }

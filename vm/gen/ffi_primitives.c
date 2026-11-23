@@ -16,6 +16,10 @@ static ffi_bound_site bound_sites[4096];
 uint64_t bound_trace_counts[3];
 static const char *math_names[10] = {"sin", "cos", "log", "exp", "atan", "sqrt", "fabs", "trunc", "ldexp", "ilogb"};
 static uint32_t math_signatures[10] = {102U, 102U, 102U, 102U, 102U, 102U, 102U, 102U, 1558U, 97U};
+static uint32_t owned_reserved;
+static ffi_owned_row owned_rows[16];
+static uint64_t owned_serial;
+static uint64_t owned_session;
 static const char *platform_names[9] = {"platform_windows_close", "platform_windows_display_scale", "platform_windows_refresh_rate", "platform_windows_show", "platform_windows_set_cursor", "platform_windows_set_text_input_area", "pty_resize", "pty_close", "pty_foreground"};
 static uint32_t platform_signatures[9] = {49U, 54U, 54U, 785U, 49U, 53687089U, 13105U, 49U, 49U};
 
@@ -27,6 +31,8 @@ static oop ffi_primitives_box(uint64_t bits, int32_t tag);
 static void call_bound(uint64_t entry, const oop *args);
 static bool describe_bound_owner(oop owner, int32_t n, ffi_bound_site *desc);
 static bool ensure_binding_session(void);
+static int32_t ffi_approved_core(const char *approved_name, uint32_t packed_signature, uint64_t *target_out);
+static int32_t ffi_big_integer_compare(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn);
 static void invalidate_bindings(void);
 static void invoke_bound_array(oop args);
 static bool marshal(oop o, int32_t tag, uint64_t *out);
@@ -36,14 +42,29 @@ static int32_t native_compare(const void *a, const void *b, uint64_t count);
 static double native_cos(double x);
 static double native_exp(double x);
 static double native_fabs(double x);
+static double native_float_fraction_part(double x);
+static int32_t native_float_print_string(double x, uint8_t *bytes, uint64_t capacity);
+static int32_t native_getenv(const void *bytes, uint64_t n, uint64_t ticket);
 static int32_t native_ilogb(double x);
 static double native_ldexp(double x, int32_t n);
 static double native_log(double x);
 static double native_sin(double x);
 static double native_sqrt(double x);
+static int64_t native_test_writable_pair(uint8_t *first, uint64_t first_length, double marker, int32_t status, uint8_t *second, uint64_t second_length);
+static int64_t native_thread_cpu_microseconds(void);
 static double native_trunc(double x);
+static int64_t native_utc_microseconds(void);
+static void native_write_stderr(const void *bytes, uint64_t n);
+static void native_write_stdout(const void *bytes, uint64_t n);
+static void owned_clear(ffi_owned_row *row);
+static int32_t owned_copy(uint64_t ticket, uint8_t *out, uint64_t length);
+static int32_t owned_release(uint64_t ticket);
+static int32_t owned_reserve(uint32_t capacity, uint8_t *out, uint64_t length);
+static ffi_owned_row *owned_row(uint64_t ticket);
+static int32_t owned_size(uint64_t ticket);
+static int32_t owned_test(uint64_t ticket, int32_t mode);
 static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_out);
-static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, const uint8_t *symbol, size_t sym_len, const uint8_t *tags, int32_t n, int32_t result, uint64_t *target);
+static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, const uint8_t *symbol, size_t sym_len, const uint8_t *tags, int32_t n, int32_t result, bool prepared, uint64_t *target);
 static void trace_bound_primitive(void);
 static void update_binding_owners(bool (*is_dead)(oop *));
 
@@ -127,7 +148,13 @@ static void bind_or_invoke(bool invoke)
     memcpy(tags, (uint8_t *)(tag_object + 16), tag_bytes);
     slots = n;
     for (i_3 = 0; i_3 <= n - 1; i_3++) {
-        if (tags[i_3] == 8) {
+        tag = tags[i_3];
+        if ((tag == 9) || (tag == 10)) {
+            prim_status = PS_FAIL;
+            prim_error_code = -1;
+            return;
+        }
+        if (tag == 8) {
             slots = slots + 1;
         }
     }
@@ -151,7 +178,7 @@ static void bind_or_invoke(bool invoke)
     result = (int32_t)(((int64_t)result_oop) >> 1);
     memset(&local_4, 0, sizeof local_4);
     target = &local_4;
-    id = ffi_primitives_resolve(library, lib_len, symbol, sym_len, tags, n, result, target);
+    id = ffi_primitives_resolve(library, lib_len, symbol, sym_len, tags, n, result, false, target);
     if (id == 0) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -458,6 +485,221 @@ static bool ensure_binding_session(void)
     return true;
 }
 
+/* FFIPrimitives>>ffiApprovedCore:signature:into: */
+#ifndef SAMALTAK_UEFI
+static int32_t ffi_big_integer_compare_entry_witness(const uint64_t * a1, int64_t a2, const uint64_t * a3, int64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1051\n");
+    return ffi_big_integer_compare(a1, a2, a3, a4);
+}
+static double native_float_fraction_part_entry_witness(double a1) {
+    fprintf(stderr, "\nffi-native-entry 1076\n");
+    return native_float_fraction_part(a1);
+}
+static int32_t native_float_print_string_entry_witness(double a1, uint8_t * a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1085\n");
+    return native_float_print_string(a1, a2, a3);
+}
+static int64_t native_utc_microseconds_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 1176\n");
+    return native_utc_microseconds();
+}
+static int64_t native_thread_cpu_microseconds_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 1177\n");
+    return native_thread_cpu_microseconds();
+}
+static void native_write_stdout_entry_witness(const void * a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1193\n");
+    native_write_stdout(a1, a2);
+}
+static void native_write_stderr_entry_witness(const void * a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1194\n");
+    native_write_stderr(a1, a2);
+}
+static int32_t native_getenv_entry_witness(const void * a1, uint64_t a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1196\n");
+    return native_getenv(a1, a2, a3);
+}
+static int32_t owned_reserve_entry_witness(uint32_t a1, uint8_t * a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 5024\n");
+    return owned_reserve(a1, a2, a3);
+}
+static int32_t owned_size_entry_witness(uint64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 5025\n");
+    return owned_size(a1);
+}
+static int32_t owned_copy_entry_witness(uint64_t a1, uint8_t * a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 5026\n");
+    return owned_copy(a1, a2, a3);
+}
+static int32_t owned_release_entry_witness(uint64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 5027\n");
+    return owned_release(a1);
+}
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+static int32_t owned_test_entry_witness(uint64_t a1, int32_t a2) {
+    fprintf(stderr, "\nffi-native-entry 5028\n");
+    return owned_test(a1, a2);
+}
+#endif
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+static int64_t native_test_writable_pair_entry_witness(uint8_t * a1, uint64_t a2, double a3, int32_t a4, uint8_t * a5, uint64_t a6) {
+    fprintf(stderr, "\nffi-native-entry 5119\n");
+    return native_test_writable_pair(a1, a2, a3, a4, a5, a6);
+}
+#endif
+#endif
+static int32_t ffi_approved_core(const char *approved_name, uint32_t packed_signature, uint64_t *target_out)
+{
+#ifndef SAMALTAK_UEFI
+    if (packed_signature == 2721 && strcmp(approved_name, "core_bigint_compare") == 0) {
+        *target_out = (uint64_t) ffi_big_integer_compare;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_compare_entry_witness;
+        return 1051;
+    }
+    if (packed_signature == 102 && strcmp(approved_name, "core_float_fraction_part") == 0) {
+        *target_out = (uint64_t) native_float_fraction_part;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_float_fraction_part_entry_witness;
+        return 1076;
+    }
+    if (packed_signature == 1681 && strcmp(approved_name, "core_float_print_string") == 0) {
+        *target_out = (uint64_t) native_float_print_string;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_float_print_string_entry_witness;
+        return 1085;
+    }
+    if (packed_signature == 3 && strcmp(approved_name, "core_utc_microseconds") == 0) {
+        *target_out = (uint64_t) native_utc_microseconds;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_utc_microseconds_entry_witness;
+        return 1176;
+    }
+    if (packed_signature == 3 && strcmp(approved_name, "core_thread_cpu_microseconds") == 0) {
+        *target_out = (uint64_t) native_thread_cpu_microseconds;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_thread_cpu_microseconds_entry_witness;
+        return 1177;
+    }
+    if (packed_signature == 135 && strcmp(approved_name, "core_stdout_write") == 0) {
+        *target_out = (uint64_t) native_write_stdout;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_write_stdout_entry_witness;
+        return 1193;
+    }
+    if (packed_signature == 135 && strcmp(approved_name, "core_stderr_write") == 0) {
+        *target_out = (uint64_t) native_write_stderr;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_write_stderr_entry_witness;
+        return 1194;
+    }
+    if (packed_signature == 2113 && strcmp(approved_name, "core_getenv") == 0) {
+        *target_out = (uint64_t) native_getenv;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_getenv_entry_witness;
+        return 1196;
+    }
+    if (packed_signature == 657 && strcmp(approved_name, "ffi_owned_reserve") == 0) {
+        *target_out = (uint64_t) owned_reserve;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) owned_reserve_entry_witness;
+        return 5024;
+    }
+    if (packed_signature == 65 && strcmp(approved_name, "ffi_owned_size") == 0) {
+        *target_out = (uint64_t) owned_size;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) owned_size_entry_witness;
+        return 5025;
+    }
+    if (packed_signature == 1169 && strcmp(approved_name, "ffi_owned_copy") == 0) {
+        *target_out = (uint64_t) owned_copy;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) owned_copy_entry_witness;
+        return 5026;
+    }
+    if (packed_signature == 65 && strcmp(approved_name, "ffi_owned_release") == 0) {
+        *target_out = (uint64_t) owned_release;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) owned_release_entry_witness;
+        return 5027;
+    }
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+    if (packed_signature == 1041 && strcmp(approved_name, "ffi_test_owned_octets") == 0) {
+        *target_out = (uint64_t) owned_test;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) owned_test_entry_witness;
+        return 5028;
+    }
+#endif
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+    if (packed_signature == 614803 && strcmp(approved_name, "ffi_test_writable_pair") == 0) {
+        *target_out = (uint64_t) native_test_writable_pair;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_test_writable_pair_entry_witness;
+        return 5119;
+    }
+#endif
+#endif
+    return 0;
+}
+
+/* FFIPrimitives>>ffiBigIntegerCompare:signedCount:with:signedCount: */
+static int32_t ffi_big_integer_compare(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn)
+{
+    const uint64_t *aa;
+    const uint64_t *bb;
+    int64_t na;
+    int64_t nb;
+    uint64_t local;
+    uint64_t *a_small;
+    uint64_t local_2;
+    uint64_t *b_small;
+    int r_compare;
+    int64_t i;
+    int c;
+    if (an < 0 != bn < 0) {
+        return an < 0 ? -1 : 1;
+    }
+    if ((a == NULL) && (b == NULL)) {
+        return an < bn ? -1 : an == bn ? 0 : 1;
+    }
+    aa = a;
+    bb = b;
+    na = an < 0 ? 0 - an : an;
+    nb = bn < 0 ? 0 - bn : bn;
+    if (a == NULL) {
+        memset(&local, 0, sizeof local);
+        a_small = &local;
+        *a_small = (uint64_t)na;
+        aa = a_small;
+        na = na == 0 ? 0 : 1;
+    }
+    if (b == NULL) {
+        memset(&local_2, 0, sizeof local_2);
+        b_small = &local_2;
+        *b_small = (uint64_t)nb;
+        bb = b_small;
+        nb = nb == 0 ? 0 : 1;
+    }
+    c = ({
+    if (na != nb) {
+        r_compare = na < nb ? -1 : 1;
+        goto exit_compare;
+    }
+    i = na - 1;
+    while ((i >= 0) && (aa[i] == bb[i])) {
+        i = i - 1;
+    }
+    if (i < 0) {
+        r_compare = 0;
+        goto exit_compare;
+    }
+    r_compare = aa[i] < bb[i] ? -1 : 1;
+exit_compare:;
+    r_compare; });
+    return an < 0 ? 0 - c : c;
+}
+
 /* FFIPrimitives>>fillBoundSite:owner:method:selector:arity: */
 void fill_bound_site(ffi_bound_site *site, oop owner, oop expected, oop selector, int32_t n)
 {
@@ -622,6 +864,215 @@ static double native_fabs(double x)
     return fabs(x);
 }
 
+/* FFIPrimitives>>nativeFloatFractionPart: */
+static double native_float_fraction_part(double x)
+{
+    double local;
+    double *integral;
+    memset(&local, 0, sizeof local);
+    integral = &local;
+    return modf(x, integral);
+}
+
+/* FFIPrimitives>>nativeFloatPrintString:into:capacity: */
+static int32_t native_float_print_string(double x, uint8_t *bytes, uint64_t capacity)
+{
+    int64_t r_copy_float_decimal;
+    int64_t r_copy_float_decimal_2;
+    int64_t r_copy_float_decimal_3;
+    bool negative;
+    int64_t r_copy_float_decimal_4;
+    int64_t r_copy_float_decimal_5;
+    char local[64];
+    char *buf;
+    int lo;
+    int hi;
+    int mid;
+    int nd;
+    char local_2[40];
+    char *buf_2;
+    char local_3[24];
+    char *digits;
+    bool neg;
+    char *s;
+    int exp;
+    char *o;
+    int i;
+    int i_2;
+    int i_3;
+    int i_4;
+    int i_5;
+    size_t n;
+    int64_t r_copy_float_decimal_6;
+    if (x != x) {
+        return ({
+    if (3 > capacity) {
+        r_copy_float_decimal = -1;
+        goto exit_copy_float_decimal;
+    }
+    memcpy(bytes, "nan", 3);
+    r_copy_float_decimal = 3;
+exit_copy_float_decimal:;
+    r_copy_float_decimal; });
+    }
+    if (!(x - x == 0.0)) {
+        return x < 0.0 ? ({
+    if (4 > capacity) {
+        r_copy_float_decimal_2 = -1;
+        goto exit_copy_float_decimal_2;
+    }
+    memcpy(bytes, "-inf", 4);
+    r_copy_float_decimal_2 = 4;
+exit_copy_float_decimal_2:;
+    r_copy_float_decimal_2; }) : ({
+    if (3 > capacity) {
+        r_copy_float_decimal_3 = -1;
+        goto exit_copy_float_decimal_3;
+    }
+    memcpy(bytes, "inf", 3);
+    r_copy_float_decimal_3 = 3;
+exit_copy_float_decimal_3:;
+    r_copy_float_decimal_3; });
+    }
+    if (x == 0.0) {
+        negative = (lt_bits_of_double(x) >> 63) != 0;
+        return negative ? ({
+    if (4 > capacity) {
+        r_copy_float_decimal_4 = -1;
+        goto exit_copy_float_decimal_4;
+    }
+    memcpy(bytes, "-0.0", 4);
+    r_copy_float_decimal_4 = 4;
+exit_copy_float_decimal_4:;
+    r_copy_float_decimal_4; }) : ({
+    if (3 > capacity) {
+        r_copy_float_decimal_5 = -1;
+        goto exit_copy_float_decimal_5;
+    }
+    memcpy(bytes, "0.0", 3);
+    r_copy_float_decimal_5 = 3;
+exit_copy_float_decimal_5:;
+    r_copy_float_decimal_5; });
+    }
+    memset(&local, 0, sizeof local);
+    buf = local;
+    memset(&local_2, 0, sizeof local_2);
+    buf_2 = local_2;
+    memset(&local_3, 0, sizeof local_3);
+    digits = local_3;
+    lo = 1;
+    hi = 17;
+    while (lo < hi) {
+        mid = (lo + hi) / 2;
+        snprintf(buf_2, 40, "%.*e", mid - 1, x);
+        if (strtod(buf_2, (char **)NULL) == x) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    snprintf(buf_2, 40, "%.*e", lo - 1, x);
+    neg = buf_2[0] == 45;
+    s = neg ? buf_2 + 1 : buf_2;
+    nd = 0;
+    while ((s[0] != 0) && (s[0] != 101)) {
+        if (s[0] != 46) {
+            digits[nd] = s[0];
+            nd = nd + 1;
+        }
+        s = s + 1;
+    }
+    while ((nd > 1) && (digits[nd - 1] == 48)) {
+        nd = nd - 1;
+    }
+    digits[nd] = 0;
+    exp = atoi(s + 1);
+    o = buf;
+    if (neg) {
+        o[0] = 45;
+        o = o + 1;
+    }
+    if ((exp >= -5) && (exp < 16)) {
+        if (exp < 0) {
+            o[0] = 48;
+            o[1] = 46;
+            o = o + 2;
+            for (i = 1; i <= -exp - 1; i++) {
+                o[0] = 48;
+                o = o + 1;
+            }
+            for (i_2 = 0; i_2 <= nd - 1; i_2++) {
+                o[0] = digits[i_2];
+                o = o + 1;
+            }
+        } else {
+            for (i_3 = 0; i_3 <= exp; i_3++) {
+                o[0] = i_3 < nd ? digits[i_3] : 48;
+                o = o + 1;
+            }
+            o[0] = 46;
+            o = o + 1;
+            if (nd > exp + 1) {
+                for (i_4 = exp + 1; i_4 <= nd - 1; i_4++) {
+                    o[0] = digits[i_4];
+                    o = o + 1;
+                }
+            } else {
+                o[0] = 48;
+                o = o + 1;
+            }
+        }
+        o[0] = 0;
+    } else {
+        o[0] = digits[0];
+        o[1] = 46;
+        o = o + 2;
+        if (nd > 1) {
+            for (i_5 = 1; i_5 <= nd - 1; i_5++) {
+                o[0] = digits[i_5];
+                o = o + 1;
+            }
+        } else {
+            o[0] = 48;
+            o = o + 1;
+        }
+        snprintf(o, 16, "e%d", exp);
+    }
+    n = strlen(buf);
+    return ({
+    if (n > capacity) {
+        r_copy_float_decimal_6 = -1;
+        goto exit_copy_float_decimal_6;
+    }
+    memcpy(bytes, buf, n);
+    r_copy_float_decimal_6 = (int32_t)n;
+exit_copy_float_decimal_6:;
+    r_copy_float_decimal_6; });
+}
+
+/* FFIPrimitives>>nativeGetenv:size:ticket: */
+static int32_t native_getenv(const void *bytes, uint64_t n, uint64_t ticket)
+{
+    char *key;
+    char *val;
+    if (!owned_can_produce(ticket)) {
+        return -1;
+    }
+    key = copy_terminated(bytes, n);
+    if (key == NULL) {
+        return -1;
+    }
+    val = getenv(key);
+    free(key);
+    if (val == NULL) {
+        return 0;
+    }
+    if (!owned_publish(ticket, (const uint8_t *)val, strlen(val))) {
+        return -1;
+    }
+    return 1;
+}
+
 /* FFIPrimitives>>nativeIlogb: */
 static int32_t native_ilogb(double x)
 {
@@ -652,10 +1103,102 @@ static double native_sqrt(double x)
     return sqrt(x);
 }
 
+/* FFIPrimitives>>nativeTestWritablePair:length:marker:status:second:length: */
+static int64_t native_test_writable_pair(uint8_t *first, uint64_t first_length, double marker, int32_t status, uint8_t *second, uint64_t second_length)
+{
+    int64_t i;
+    int64_t i_2;
+    for (i = 0; i <= (int64_t)first_length - 1; i++) {
+        first[i] = (uint8_t)(first[i] + 1);
+    }
+    for (i_2 = 0; i_2 <= (int64_t)second_length - 1; i_2++) {
+        second[i_2] = (uint8_t)(second[i_2] + 2);
+    }
+    if (!(marker == 1.25)) {
+        return -72;
+    }
+    if (status == -71) {
+        return (int64_t)status;
+    }
+    return -8070450532247928832LL + (int64_t)first_length * 16 + (int64_t)second_length + (int64_t)status;
+}
+
+/* FFIPrimitives>>nativeThreadCpuMicroseconds */
+static int64_t native_thread_cpu_microseconds(void)
+{
+    struct timespec local;
+    struct timespec *ts;
+    int64_t seconds;
+    int64_t fraction;
+    int64_t r_checked_microseconds;
+    int64_t us;
+    memset(&local, 0, sizeof local);
+    ts = &local;
+    if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts) != 0) {
+        return VM_INT_MIN;
+    }
+    seconds = ts->tv_sec;
+    fraction = ts->tv_nsec / 1000;
+    return ({
+    if ((seconds < -4611686018428LL) || (seconds > 4611686018427LL)) {
+        r_checked_microseconds = VM_INT_MIN;
+        goto exit_checked_microseconds;
+    }
+    us = seconds * 1000000 + fraction;
+    r_checked_microseconds = (us >= VM_INT_MIN) && (us <= VM_INT_MAX) ? us : VM_INT_MIN;
+exit_checked_microseconds:;
+    r_checked_microseconds; });
+}
+
 /* FFIPrimitives>>nativeTrunc: */
 static double native_trunc(double x)
 {
     return trunc(x);
+}
+
+/* FFIPrimitives>>nativeUtcMicroseconds */
+static int64_t native_utc_microseconds(void)
+{
+    struct timeval local;
+    struct timeval *tv;
+    int64_t seconds;
+    int32_t fraction;
+    int64_t r_checked_microseconds;
+    int64_t us;
+    memset(&local, 0, sizeof local);
+    tv = &local;
+    if (gettimeofday(tv, NULL) != 0) {
+        return VM_INT_MIN;
+    }
+    seconds = tv->tv_sec;
+    fraction = tv->tv_usec;
+    return ({
+    if ((seconds < -4611686018428LL) || (seconds > 4611686018427LL)) {
+        r_checked_microseconds = VM_INT_MIN;
+        goto exit_checked_microseconds;
+    }
+    us = seconds * 1000000 + fraction;
+    r_checked_microseconds = (us >= VM_INT_MIN) && (us <= VM_INT_MAX) ? us : VM_INT_MIN;
+exit_checked_microseconds:;
+    r_checked_microseconds; });
+}
+
+/* FFIPrimitives>>nativeWriteStderr:size: */
+static void native_write_stderr(const void *bytes, uint64_t n)
+{
+    if (n != 0) {
+        fwrite(bytes, 1, n, stderr);
+    }
+    fflush(stderr);
+}
+
+/* FFIPrimitives>>nativeWriteStdout:size: */
+static void native_write_stdout(const void *bytes, uint64_t n)
+{
+    if (n != 0) {
+        fwrite(bytes, 1, n, stdout);
+    }
+    fflush(stdout);
 }
 
 /* FFIPrimitives>>newBoundSite */
@@ -669,6 +1212,247 @@ ffi_bound_site *new_bound_site(void)
     bound_site_count = bound_site_count + 1;
     site->owner_addr = 0;
     return site;
+}
+
+/* FFIPrimitives>>ownedAdopt:from:size:capacity: */
+bool owned_adopt(uint64_t ticket, uint8_t *allocation, uint64_t size, uint64_t capacity)
+{
+    ffi_owned_row *row;
+    if ((ticket == 0) || ((size > capacity) || (capacity == 0 ? allocation != NULL : allocation == NULL))) {
+        return false;
+    }
+    row = owned_row(ticket);
+    if ((row == NULL) || ((row->state != 1) || (capacity > (uint64_t)row->capacity))) {
+        return false;
+    }
+    row->bytes = allocation;
+    row->payload_bytes = (uint32_t)size;
+    row->state = 2;
+    return true;
+}
+
+/* FFIPrimitives>>ownedCanProduce: */
+bool owned_can_produce(uint64_t ticket)
+{
+    ffi_owned_row *row;
+    if (ticket == 0) {
+        return false;
+    }
+    row = owned_row(ticket);
+    if ((row == NULL) || (row->state != 0)) {
+        return false;
+    }
+    row->state = 1;
+    return true;
+}
+
+/* FFIPrimitives>>ownedClear: */
+static void owned_clear(ffi_owned_row *row)
+{
+    if (row->bytes != NULL) {
+        free(row->bytes);
+    }
+    owned_reserved = owned_reserved - row->capacity;
+    row->bytes = (uint8_t *)NULL;
+    row->payload_bytes = 0;
+    row->capacity = 0;
+    row->ticket = 0;
+}
+
+/* FFIPrimitives>>ownedCopy:into:length: */
+static int32_t owned_copy(uint64_t ticket, uint8_t *out, uint64_t length)
+{
+    ffi_owned_row *row;
+    if (ticket == 0) {
+        return 0;
+    }
+    row = owned_row(ticket);
+    if ((row == NULL) || ((row->state != 2) || (length != (uint64_t)row->payload_bytes))) {
+        return 0;
+    }
+    if (length != 0) {
+        memcpy(out, row->bytes, length);
+    }
+    return 1;
+}
+
+/* FFIPrimitives>>ownedPublish:from:size: */
+bool owned_publish(uint64_t ticket, const uint8_t *bytes, uint64_t size)
+{
+    ffi_owned_row *row;
+    uint8_t *copy;
+    if (ticket == 0) {
+        return false;
+    }
+    row = owned_row(ticket);
+    if ((row == NULL) || ((row->state != 1) || (size > (uint64_t)row->capacity))) {
+        return false;
+    }
+    if (size == 0) {
+        return owned_adopt(ticket, (uint8_t *)NULL, 0ULL, 0ULL);
+    }
+    if (bytes == NULL) {
+        return false;
+    }
+    copy = (uint8_t *)malloc(size);
+    if (copy == NULL) {
+        return false;
+    }
+    memcpy(copy, bytes, size);
+    if (owned_adopt(ticket, copy, size, size)) {
+        return true;
+    }
+    free(copy);
+    return false;
+}
+
+/* FFIPrimitives>>ownedRelease: */
+static int32_t owned_release(uint64_t ticket)
+{
+    ffi_owned_row *row;
+    if (ticket == 0) {
+        return 0;
+    }
+    row = owned_row(ticket);
+    if (row == NULL) {
+        return 0;
+    }
+    owned_clear(row);
+    return 1;
+}
+
+/* FFIPrimitives>>ownedReserve:ticketBytes:length: */
+static int32_t owned_reserve(uint32_t capacity, uint8_t *out, uint64_t length)
+{
+    int i;
+    ffi_owned_row *row;
+    uint64_t local;
+    uint64_t *nonce;
+    uint64_t ticket;
+    int i_2;
+    if (!(length == 8)) {
+        return 0;
+    }
+    for (i = 0; i <= 7; i++) {
+        if (out[i] != 0) {
+            return 0;
+        }
+    }
+    if (capacity > 67108864U - owned_reserved) {
+        return 0;
+    }
+    row = owned_row(0ULL);
+    if (row == NULL) {
+        return 0;
+    }
+    if (owned_session == 0) {
+        memset(&local, 0, sizeof local);
+        nonce = &local;
+        if (getentropy(nonce, 8) != 0) {
+            return 0;
+        }
+        owned_session = (*nonce) & 4611686018427387903ULL;
+        if (owned_session == 0) {
+            return 0;
+        }
+    }
+    if (owned_serial == 4611686018427387903ULL) {
+        return 0;
+    }
+    owned_serial = owned_serial + 1;
+    if (owned_serial == owned_session) {
+        if (owned_serial == 4611686018427387903ULL) {
+            return 0;
+        }
+        owned_serial = owned_serial + 1;
+    }
+    ticket = owned_session ^ owned_serial;
+    row->capacity = capacity;
+    row->state = 0;
+    row->ticket = ticket;
+    owned_reserved = owned_reserved + capacity;
+    for (i_2 = 0; i_2 <= 7; i_2++) {
+        out[i_2] = (uint8_t)(ticket >> (8 * i_2));
+    }
+    return 1;
+}
+
+/* FFIPrimitives>>ownedRow: */
+static ffi_owned_row *owned_row(uint64_t ticket)
+{
+    int i;
+    ffi_owned_row *row;
+    for (i = 0; i <= 15; i++) {
+        row = owned_rows + i;
+        if (row->ticket == ticket) {
+            return row;
+        }
+    }
+    return (ffi_owned_row *)NULL;
+}
+
+/* FFIPrimitives>>ownedSize: */
+static int32_t owned_size(uint64_t ticket)
+{
+    ffi_owned_row *row;
+    if (ticket == 0) {
+        return -1;
+    }
+    row = owned_row(ticket);
+    if ((row == NULL) || (row->state != 2)) {
+        return -1;
+    }
+    return (int32_t)row->payload_bytes;
+}
+
+/* FFIPrimitives>>ownedTest:mode: */
+static int32_t owned_test(uint64_t ticket, int32_t mode)
+{
+    char *enabled;
+    uint8_t local[5];
+    uint8_t *bytes;
+    uint8_t *copy;
+    bool published;
+    enabled = getenv("SAMALTAK_FFI_OWNED_TEST");
+    if ((enabled == NULL) || (strcmp(enabled, "1") != 0)) {
+        return -37;
+    }
+    if (!owned_can_produce(ticket)) {
+        return -29;
+    }
+    if (mode == 0) {
+        return 0;
+    }
+    if (mode < 0) {
+        return -17;
+    }
+    if (mode == 2) {
+        return owned_publish(ticket, (const uint8_t *)NULL, 0ULL) ? 1 : -23;
+    }
+    if (mode == 4) {
+        return 1;
+    }
+    memset(&local, 0, sizeof local);
+    bytes = local;
+    bytes[0] = 0;
+    bytes[1] = 255;
+    bytes[2] = 65;
+    bytes[3] = 128;
+    bytes[4] = 0;
+    if (mode == 3) {
+        copy = (uint8_t *)malloc(5ULL);
+        if (copy == NULL) {
+            return -23;
+        }
+        memcpy(copy, bytes, 5ULL);
+        published = owned_adopt(ticket, copy, 5ULL, 5ULL);
+        if (!published) {
+            free(copy);
+        }
+    } else {
+        published = owned_publish(ticket, bytes, 5ULL);
+    }
+    return published ? 1 : -23;
 }
 
 /* FFIPrimitives>>prepareEntry:into:result: */
@@ -731,7 +1515,7 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_ou
     memcpy(tags, (uint8_t *)(tag_oop + 16), count);
     slots = n;
     for (i = 0; i <= n - 1; i++) {
-        if (tags[i] == 8) {
+        if (tags[i] >= 8) {
             slots = slots + 1;
         }
     }
@@ -740,7 +1524,7 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_ou
     }
     memset(&local_4, 0, sizeof local_4);
     target = &local_4;
-    id = ffi_primitives_resolve(library, lib_len, symbol, sym_len, tags, n, result, target);
+    id = ffi_primitives_resolve(library, lib_len, symbol, sym_len, tags, n, result, true, target);
     if (id == 0) {
         return 0;
     }
@@ -892,13 +1676,14 @@ void reset_bound_sites(void)
     bound_site_count = 0;
 }
 
-/* FFIPrimitives>>resolve:length:symbol:length:types:count:result:into: */
-static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, const uint8_t *symbol, size_t sym_len, const uint8_t *tags, int32_t n, int32_t result, uint64_t *target)
+/* FFIPrimitives>>resolve:length:symbol:length:types:count:result:prepared:into: */
+static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, const uint8_t *symbol, size_t sym_len, const uint8_t *tags, int32_t n, int32_t result, bool prepared, uint64_t *target)
 {
     const char *name;
     const char *lib;
     int64_t sig;
     bool has_pointer;
+    bool has_vetted_argument;
     int32_t i;
     uint8_t t;
     int i_2;
@@ -909,10 +1694,17 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
     lib = (const char *)library;
     sig = 0U;
     has_pointer = false;
+    has_vetted_argument = false;
     for (i = 0; i <= n - 1; i++) {
         t = tags[i];
-        if ((t < 1) || ((t > 6) && (t != 8))) {
+        if ((t < 1) || ((t > 6) && ((t < 8) || (t > 10)))) {
             return 0;
+        }
+        if ((t == 9) || (t == 10)) {
+            if (!prepared) {
+                return 0;
+            }
+            has_vetted_argument = true;
         }
         if (t == 5) {
             has_pointer = true;
@@ -975,6 +1767,12 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
     if (has_pointer) {
         return 0;
     }
+    if (strcmp(lib, "vm:core") == 0) {
+        if (!prepared) {
+            return 0;
+        }
+        return ffi_approved_core(name, (uint32_t)sig, target);
+    }
     if (strcmp(lib, "platform") == 0) {
         for (i_3 = 0; i_3 <= 8; i_3++) {
             if ((sig == platform_signatures[i_3]) && (strcmp(name, platform_names[i_3]) == 0)) {
@@ -983,6 +1781,12 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
                 return *target == 0 ? 0 : id;
             }
         }
+        if (!prepared) {
+            return 0;
+        }
+        return ffi_approved_platform(name, (uint32_t)sig, target);
+    }
+    if (has_vetted_argument) {
         return 0;
     }
     *target = (uint64_t)lookup_library(library, lib_len, symbol, sym_len, tags, n, result);

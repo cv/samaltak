@@ -376,7 +376,7 @@ static char *variable(char *prefix, char **envp)
 }
 
 /* PlatformPtys>>wait:block:status:done: */
-bool platform_ptys_wait(int32_t p, bool block, int *status, bool *done)
+bool platform_ptys_wait(int32_t p, bool block, int32_t *status, bool *done)
 {
     pty_child *c;
     c = platform_ptys_child(p);

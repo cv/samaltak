@@ -272,6 +272,8 @@ typedef void (*prim_fn)(void);
 #define FFI_BOUND_SITE_LIMIT 4096
 #define FFI_DYNAMIC 65536
 #define FFI_MEMCMP 11
+#define FFI_OWNED_BYTE_LIMIT 67108864
+#define FFI_OWNED_LIMIT 16
 #define FFI_PLATFORM_BASE 32
 #define FFI_STUB_BYTES 256
 #define FFI_STUB_LIMIT 1024
@@ -564,6 +566,7 @@ typedef void (*prim_fn)(void);
 #define PF_MOD_CMD 8
 #define PF_MOD_CTRL 2
 #define PF_MOD_SHIFT 1
+#define PF_OWNED_NAMES 16
 #define PF_POLL_US 1000
 #define PF_PRIM_LINES 2
 #define PF_PRIM_LINE_STRIP 3
@@ -861,6 +864,7 @@ typedef struct baseline_pic baseline_pic;
 typedef struct baseline_site baseline_site;
 typedef struct cache_entry cache_entry;
 typedef struct ffi_bound_site ffi_bound_site;
+typedef struct ffi_owned_row ffi_owned_row;
 typedef struct feedback_site feedback_site;
 typedef struct frame frame;
 typedef struct image_header image_header;
@@ -882,12 +886,14 @@ typedef struct gpu_dev gpu_dev;
 typedef struct lookup_request lookup_request;
 typedef struct pf_event pf_event;
 typedef struct pf_obj pf_obj;
+typedef struct pf_owned_names pf_owned_names;
 typedef struct pf_stat pf_stat;
 typedef struct pf_table pf_table;
 typedef struct pf_vattr pf_vattr;
 typedef struct pty_child pty_child;
 typedef struct raster_state raster_state;
 typedef struct sock_sems sock_sems;
+typedef struct tls_send_retry tls_send_retry;
 #endif
 
 struct baseline_pic {
@@ -939,6 +945,15 @@ struct ffi_bound_site {
     oop token;
 };
 _Static_assert(sizeof(ffi_bound_site) == 48, "the simulator lays out FFIBoundSite as C does");
+
+struct ffi_owned_row {
+    uint64_t ticket;
+    uint32_t state;
+    uint32_t capacity;
+    uint8_t *bytes;
+    uint32_t payload_bytes;
+};
+_Static_assert(sizeof(ffi_owned_row) == 32, "the simulator lays out FFIOwnedRow as C does");
 
 struct feedback_site {
     oop method;
@@ -1264,6 +1279,13 @@ struct pf_obj {
 };
 _Static_assert(sizeof(pf_obj) == 40, "the simulator lays out PfObj as C does");
 
+struct pf_owned_names {
+    uint64_t ticket;
+    char **names;
+    uint32_t count;
+};
+_Static_assert(sizeof(pf_owned_names) == 24, "the simulator lays out PfOwnedNames as C does");
+
 struct pf_stat {
     bool exists;
     bool is_dir;
@@ -1326,6 +1348,13 @@ struct sock_sems {
     bool write_armed;
 };
 _Static_assert(sizeof(sock_sems) == 12, "the simulator lays out SockSems as C does");
+
+struct tls_send_retry {
+    tls_send_retry *next;
+    int32_t handle;
+    uint64_t count;
+};
+_Static_assert(sizeof(tls_send_retry) == 24, "the simulator lays out TLSSendRetry as C does");
 
 #endif
 extern primitive_entry vm_primitive_table[];
@@ -1759,6 +1788,9 @@ void configure_bound_site_trace(void);
 size_t copy_name(oop name, uint8_t *buf);
 void fill_bound_site(ffi_bound_site *site, oop owner, oop expected, oop selector, int32_t n);
 ffi_bound_site *new_bound_site(void);
+bool owned_adopt(uint64_t ticket, uint8_t *allocation, uint64_t size, uint64_t capacity);
+bool owned_can_produce(uint64_t ticket);
+bool owned_publish(uint64_t ticket, const uint8_t *bytes, uint64_t size);
 void prim_ffi_bind(void);
 void prim_ffi_bound_invoke(void);
 void prim_ffi_bound_invoke_array(void);
@@ -1785,6 +1817,7 @@ void remember(oop o);
 void scavenge(void);
 void walk_old_space(void (*fn)(uint64_t, void *), void *data);
 void walk_young_space(void (*fn)(uint64_t, void *), void *data);
+int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signature, uint64_t *target_out);
 uint64_t ffi_target(int32_t id);
 void platform_interface_init(void);
 void platform_interface_poll(void);
@@ -1947,6 +1980,7 @@ void prim_large_mul(void);
 void prim_large_quo(void);
 void prim_large_rem(void);
 void prim_large_sub(void);
+char *copy_terminated(const void *bytes, uint64_t count);
 void prim_char_from_value(void);
 void prim_char_value(void);
 void prim_float_abs(void);
@@ -2237,6 +2271,7 @@ int32_t platform_common_table_count(pf_table *t, int kind);
 void platform_common_table_remove(pf_table *t, int32_t h);
 int64_t dropped(void);
 bool platform_events_next(pf_event *out);
+bool peek_for_ffi(pf_event *out);
 void pump(void);
 void platform_events_push(pf_event *e);
 void set_semaphore(int32_t index);
@@ -2252,9 +2287,13 @@ bool platform_files_flush(int32_t f);
 int32_t platform_files_handle_count(void);
 bool platform_files_mkfifo(char *path);
 int32_t platform_files_open(char *path, int32_t mode);
+const char *owned_name(uint64_t ticket, uint32_t index);
+void owned_names_publish(pf_owned_names *row, char **names, uint32_t count, uint8_t *out);
+pf_owned_names *owned_names_room(uint8_t *receipt, uint64_t cap);
 off_t position(int32_t f);
-bool process_wait(int64_t pid, bool block, int *status, bool *done);
+bool process_wait(int64_t pid, bool block, int32_t *status, bool *done);
 ssize_t platform_files_read(int32_t f, void *buf, uint64_t n);
+int32_t release_owned_names(uint64_t ticket);
 bool platform_files_rename(char *from, char *to);
 bool seek(int32_t f, int64_t pos);
 off_t platform_files_size(int32_t f);
@@ -2267,7 +2306,7 @@ int begin_pass(int32_t cmd, int32_t tex, float *clear);
 bool bind_pipeline(int32_t pass, int32_t pipe);
 bool bind_texture(int32_t pass, int32_t slot, int32_t tex, int32_t sampler);
 bool bind_vertex_buffer(int32_t pass, int32_t slot, int32_t buf, uint32_t offset);
-bool blit(int32_t cmd, int32_t src, int *sr, int32_t dst, int *dr, bool linear);
+bool blit(int32_t cmd, int32_t src, int32_t *sr, int32_t dst, int32_t *dr, bool linear);
 int bytes_per_pixel(int32_t format);
 bool claim_window(int32_t dev, int32_t win);
 void *platform_gpu_compile_shader(char *source, int32_t stage, size_t *size_out);
@@ -2276,13 +2315,19 @@ int32_t create_device(bool debug);
 int32_t create_pipeline(int32_t dev, int32_t vs, int32_t fs, int32_t stride, pf_vattr *attrs, int32_t nattrs, int32_t prim, int32_t blend, int32_t target_format);
 int32_t create_sampler(int32_t dev, bool linear, bool repeat);
 int32_t platform_gpu_create_shader_source_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures(int32_t dev, void *source, char *entry, int32_t stage, int32_t samplers, int32_t uniform_buffers, int32_t storage_buffers, int32_t storage_textures);
-int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures(int32_t dev, const uint8_t *code, size_t n, char *entry, int32_t stage, int32_t samplers, int32_t uniform_buffers, int32_t storage_buffers, int32_t storage_textures);
+int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures(int32_t dev, const uint8_t *code, uint64_t n, char *entry, int32_t stage, int32_t samplers, int32_t uniform_buffers, int32_t storage_buffers, int32_t storage_textures);
 int32_t create_texture(int32_t dev, int32_t w, int32_t h, int32_t format, int32_t usage);
-bool download(int32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, void *dst, size_t dst_len);
+bool download(int32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, void *dst, uint64_t dst_len);
 bool draw(int32_t pass, int32_t vertex_count, int32_t first_vertex);
 bool end_pass(int32_t pass);
 int fence_done(int32_t fence);
 int64_t fence_elapsed(int32_t fence);
+bool ffi_can_begin_pass(int32_t cmd, int32_t tex);
+bool ffi_can_bind_buffer(int32_t buffer, int32_t pass, uint32_t off);
+bool ffi_can_bind_pipeline(int32_t pipeline, int32_t pass);
+bool ffi_can_bind_texture(int32_t texture, int32_t sampler, int32_t pass);
+bool ffi_can_blit(int32_t cmd, int32_t src, int32_t *sr, int32_t dst, int32_t *dr);
+bool ffi_can_create_pipeline(int32_t dev, int32_t vs, int32_t fs, int32_t stride, pf_vattr *attrs, int32_t count);
 void platform_gpu_handle_counts(int64_t *out);
 void platform_gpu_init(void);
 bool push_uniforms(int32_t cmd_or_pass, int32_t stage, int32_t slot, const void *data, uint32_t n);
@@ -2295,7 +2340,7 @@ int submit(int32_t cmd, bool want_fence, bool *ok);
 int swapchain_format(int32_t dev, int32_t win);
 bool texture_size(int32_t tex, int *w, int *h, int *format);
 bool upload_buffer(int32_t buf, const void *data, uint32_t n, uint32_t dst_offset);
-bool upload_texture(int32_t tex, const void *data, size_t len, int32_t x, int32_t y, int32_t w, int32_t h, int32_t bytes_per_row);
+bool upload_texture(int32_t tex, const void *data, uint64_t len, int32_t x, int32_t y, int32_t w, int32_t h, int32_t bytes_per_row);
 bool wait_fence(int32_t fence);
 bool wait_idle(int32_t dev);
 void window_closing(int32_t win);
@@ -2426,7 +2471,7 @@ bool platform_ptys_close(int32_t p);
 pid_t foreground(int32_t p);
 bool resize(int32_t p, int32_t rows, int32_t cols);
 int32_t platform_ptys_spawn(char **argv, char **envp, char *cwd, int32_t rows, int32_t cols, int64_t *pid_out);
-bool platform_ptys_wait(int32_t p, bool block, int *status, bool *done);
+bool platform_ptys_wait(int32_t p, bool block, int32_t *status, bool *done);
 void blit_pixels(uint8_t *src, int64_t src_w, int64_t src_h, int32_t src_fmt, int64_t *sr, uint8_t *dst, int64_t dst_w, int64_t dst_h, int32_t dst_fmt, int64_t *dr, bool linear);
 void platform_raster_copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode);
 void platform_raster_fill(uint8_t *pixels, int64_t n, int bpp, uint32_t v);
@@ -2458,8 +2503,10 @@ ssize_t platform_sockets_send(int32_t s, const void *buf, uint64_t n);
 bool platform_tls_close(int32_t h);
 int handshake(int32_t h);
 int64_t platform_tls_recv(int32_t h, void *buf, uint64_t n);
+int64_t recv_borrowed(int32_t h, void *buf, uint64_t n);
 bool platform_tls_semaphores(int32_t h, int32_t read_index, int32_t write_index);
 int64_t platform_tls_send(int32_t h, const void *buf, uint64_t n);
+int64_t send_owned(int32_t h, const void *buf, uint64_t n);
 int32_t platform_tls_start(int32_t s, char *host_name);
 bool notifications(bool enabled);
 bool platform_vsync_pending(void);
@@ -2490,6 +2537,7 @@ void platform_windows_shutdown(void);
 bool platform_windows_size(int32_t win, int *w, int *h);
 bool video_init(void);
 bool video_inited(void);
+int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signature, uint64_t *target_out);
 uint64_t ffi_target(int32_t id);
 void platform_interface_init(void);
 void platform_interface_poll(void);

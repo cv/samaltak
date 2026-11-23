@@ -42,6 +42,16 @@ bool platform_events_next(pf_event *out)
     return true;
 }
 
+/* PlatformEvents>>peekForFFI: */
+bool peek_for_ffi(pf_event *out)
+{
+    if (q_len == 0) {
+        return false;
+    }
+    *out = *(q + q_head);
+    return true;
+}
+
 /* PlatformEvents>>pump */
 void pump(void)
 {
