@@ -37,6 +37,13 @@ static void init_table(void)
     }
 }
 
+/* PrimitiveTable>>installTraceFunction:for: */
+void install_trace_function(prim_fn fn, int n)
+{
+    init_table();
+    by_number[n] = fn;
+}
+
 /* PrimitiveTable>>isLeaf: */
 bool is_leaf(int64_t n)
 {

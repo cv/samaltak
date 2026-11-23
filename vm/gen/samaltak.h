@@ -269,6 +269,7 @@ typedef void (*prim_fn)(void);
 #define FB_OVERFLOW 8
 #define FFI_BINDING_LIMIT 4096
 #define FFI_BOUND_REJECTED 1
+#define FFI_BOUND_SITE_LIMIT 4096
 #define FFI_DYNAMIC 65536
 #define FFI_MEMCMP 11
 #define FFI_PLATFORM_BASE 32
@@ -307,13 +308,14 @@ typedef void (*prim_fn)(void);
 #define JIT_FLAG_CALLS 65536
 #define JIT_FLAG_DEOPT 524288
 #define JIT_FLAG_EAGER 262144
+#define JIT_FLAG_FFI_SITE 4194304
 #define JIT_FLAG_FLOAT 2048
 #define JIT_FLAG_FUSE 2
 #define JIT_FLAG_GVN 131072
 #define JIT_FLAG_HOIST 1048576
 #define JIT_FLAG_IC 16
 #define JIT_FLAG_INLINE 16384
-#define JIT_FLAG_LAST 2097152
+#define JIT_FLAG_LAST 4194304
 #define JIT_FLAG_LIVE 2097152
 #define JIT_FLAG_MEGA 64
 #define JIT_FLAG_NOTES 8
@@ -395,6 +397,7 @@ typedef void (*prim_fn)(void);
 #define NATIVE_NOTIFY_VOID 251
 #define NF_ALLOC 8
 #define NF_BLOCKCALL 16
+#define NF_BOUNDFFI 16384
 #define NF_DEAD 2
 #define NF_EQONLY 8192
 #define NF_GUARD 4
@@ -459,6 +462,7 @@ typedef void (*prim_fn)(void);
 #define OUT_ARRAY 12
 #define OUT_BARRIER 3
 #define OUT_BOTTOM 6
+#define OUT_BOUND_FILL 13
 #define OUT_DEOPT 1
 #define OUT_INTERRUPT 2
 #define OUT_LAZY 4
@@ -856,6 +860,7 @@ typedef void (*prim_fn)(void);
 typedef struct baseline_pic baseline_pic;
 typedef struct baseline_site baseline_site;
 typedef struct cache_entry cache_entry;
+typedef struct ffi_bound_site ffi_bound_site;
 typedef struct feedback_site feedback_site;
 typedef struct frame frame;
 typedef struct image_header image_header;
@@ -924,6 +929,16 @@ struct cache_entry {
     uint8_t set_ivar[4];
 };
 _Static_assert(sizeof(cache_entry) == 64, "the simulator lays out CacheEntry as C does");
+
+struct ffi_bound_site {
+    uint64_t owner_addr;
+    uint64_t serial_addr;
+    uint64_t serial;
+    uint64_t entry;
+    uint64_t result_tag;
+    oop token;
+};
+_Static_assert(sizeof(ffi_bound_site) == 48, "the simulator lays out FFIBoundSite as C does");
 
 struct feedback_site {
     oop method;
@@ -1042,8 +1057,9 @@ struct jit_state {
     uint64_t cstack_limit;
     int64_t stress;
     uint64_t dump[64];
+    uint64_t pending_bound_frame;
 };
-_Static_assert(sizeof(jit_state) == 832, "the simulator lays out JitState as C does");
+_Static_assert(sizeof(jit_state) == 840, "the simulator lays out JitState as C does");
 
 struct large_operand {
     uint64_t *limbs;
@@ -1125,6 +1141,7 @@ struct opt_node {
     int64_t aux;
     int64_t aux2;
     uint64_t tcls;
+    oop ffi_owner;
     int64_t lo;
     int64_t hi;
     int16_t reg;
@@ -1137,7 +1154,7 @@ struct opt_node {
     int32_t bcact;
     int32_t bcpc;
 };
-_Static_assert(sizeof(opt_node) == 120, "the simulator lays out OptNode as C does");
+_Static_assert(sizeof(opt_node) == 128, "the simulator lays out OptNode as C does");
 
 struct opt_out {
     int32_t kind;
@@ -1146,8 +1163,9 @@ struct opt_out {
     int32_t label;
     int32_t resume;
     int32_t pos;
+    uint64_t ffi_site_addr;
 };
-_Static_assert(sizeof(opt_out) == 24, "the simulator lays out OptOut as C does");
+_Static_assert(sizeof(opt_out) == 32, "the simulator lays out OptOut as C does");
 
 struct opt_state {
     int32_t parent;
@@ -1352,6 +1370,8 @@ extern int32_t prim_index;
 extern uint64_t cache_base;
 extern uint64_t cache_limit;
 extern uint64_t cache_top;
+extern bool bound_site_trace;
+extern uint64_t bound_trace_counts[3];
 extern uint64_t eden_box[2];
 extern uint64_t eden_hi;
 extern uint64_t eden_lo;
@@ -1735,12 +1755,17 @@ void prim_display_flush(void);
 void prim_display_next_event(void);
 void prim_display_open(void);
 void prim_display_text(void);
+void configure_bound_site_trace(void);
 size_t copy_name(oop name, uint8_t *buf);
+void fill_bound_site(ffi_bound_site *site, oop owner, oop expected, oop selector, int32_t n);
+ffi_bound_site *new_bound_site(void);
 void prim_ffi_bind(void);
 void prim_ffi_bound_invoke(void);
 void prim_ffi_bound_invoke_array(void);
 void prim_ffi_invoke(void);
 void prim_ffi_prepare(void);
+void ffi_primitives_print_bound_site_trace(void);
+void reset_bound_sites(void);
 bool can_publish_code(void);
 uint64_t downcall(uint64_t target, uint8_t *types, int32_t n, int32_t result);
 uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int32_t n, int32_t result, int32_t operation);
@@ -1895,6 +1920,7 @@ int64_t opt_stat(int32_t i);
 bool parse_flags(char *s);
 void perf_map_at(uint64_t start, uint64_t n, const char *name);
 int64_t primitive_number_named(char *name);
+void jit_runtime_print_bound_site_trace(void);
 uint64_t push_context(frame *f);
 void release_memory(void);
 void jit_runtime_resume(frame *f);
@@ -1903,6 +1929,7 @@ void set_flags(uint32_t f);
 bool set_mode(int32_t m);
 oop special_fast(int32_t k, oop *base);
 void jit_runtime_start(void);
+void sync_pending_bound_frame(void);
 uint64_t jit_runtime_tier_up(frame *f, int64_t loop);
 uint64_t jit_runtime_widow(frame *f);
 uint64_t write_barrier(oop o, oop v);
@@ -2080,6 +2107,7 @@ uint64_t stack_full(frame *f);
 uint64_t opt_runtime_tier_up(frame *f, int64_t loop);
 uint64_t unit_entry_of(uint64_t m, int64_t s);
 void opt_runtime_young_roots(void (*fn)(oop *));
+void install_trace_function(prim_fn fn, int n);
 bool is_leaf(int64_t n);
 bool is_tryable(int64_t n);
 prim_fn primitive_table_lookup(int64_t n);

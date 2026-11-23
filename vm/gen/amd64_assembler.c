@@ -1022,6 +1022,9 @@ void call_c_from_send(uint64_t function)
     int64_t tn;
     uint64_t v_5;
     int64_t n_8;
+    int64_t r_source;
+    int64_t rm;
+    int64_t rex_5;
     uint64_t v_6;
     int64_t n_9;
     int64_t n_10;
@@ -1139,11 +1142,23 @@ exit_op:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
+    rm = ({
+    r_source = 0;
+    goto exit_source;
+    amd64_assembler_load(X9, X64_R11);
+    r_source = X64_R11;
+exit_source:;
+    r_source; });
+    rex_5 = 0LL | ((rm >> 3) & 1);
     v_6 = 0ULL;
     n_9 = 0;
+    if (rex_5 != 0) {
+        v_6 = v_6 | (((uint64_t)(0x40 | rex_5)) << (8 * n_9));
+        n_9 = n_9 + 1;
+    }
     v_6 = v_6 | (255LL << (8 * n_9));
     n_9 = n_9 + 1;
-    v_6 = v_6 | (208LL << (8 * n_9));
+    v_6 = v_6 | (((uint64_t)(208LL | (rm & 7))) << (8 * n_9));
     n_10 = n_9 + 1;
     if (asm_pc + 8 <= asm_limit) {
         *(uint64_t *)asm_pc = v_6;
@@ -1151,6 +1166,7 @@ exit_op:;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
+    asm_flags = X64_FL_NONE;
     v_7 = 0ULL;
     n_11 = 0;
     v_7 = v_7 | (72LL << (8 * n_11));

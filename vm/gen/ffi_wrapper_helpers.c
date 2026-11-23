@@ -4,8 +4,11 @@
 
 static bool ffi_borrow_slice(oop slice, uint64_t *out, uint64_t *length);
 static oop ffi_box_f64(double value);
+static oop ffi_box_f64_with_gc(double value);
 static oop ffi_box_i64(int64_t value);
+static oop ffi_box_i64_with_gc(int64_t value);
 static oop ffi_box_u64(uint64_t value);
+static oop ffi_box_u64_with_gc(uint64_t value);
 static oop ffi_box_void(void);
 static bool ffi_unbox_f64(oop o, double *out);
 static bool ffi_unbox_i32(oop o, int32_t *out);
@@ -64,22 +67,49 @@ static bool ffi_borrow_slice(oop slice, uint64_t *out, uint64_t *length)
 /* FFIWrapperHelpers>>ffiBoxF64: */
 static oop ffi_box_f64(double value)
 {
+    sync_pending_bound_frame();
     return float_oop(value);
+}
+
+/* FFIWrapperHelpers>>ffiBoxF64WithGC: */
+static oop ffi_box_f64_with_gc(double value)
+{
+    sync_pending_bound_frame();
+    full_gc();
+    return ffi_box_f64(value);
 }
 
 /* FFIWrapperHelpers>>ffiBoxI64: */
 static oop ffi_box_i64(int64_t value)
 {
+    sync_pending_bound_frame();
     if (value == (-0x7FFFFFFFFFFFFFFFLL - 1)) {
         return large_int_from(9223372036854775808ULL, true);
     }
     return int64_oop(value);
 }
 
+/* FFIWrapperHelpers>>ffiBoxI64WithGC: */
+static oop ffi_box_i64_with_gc(int64_t value)
+{
+    sync_pending_bound_frame();
+    full_gc();
+    return ffi_box_i64(value);
+}
+
 /* FFIWrapperHelpers>>ffiBoxU64: */
 static oop ffi_box_u64(uint64_t value)
 {
+    sync_pending_bound_frame();
     return large_int_from(value, false);
+}
+
+/* FFIWrapperHelpers>>ffiBoxU64WithGC: */
+static oop ffi_box_u64_with_gc(uint64_t value)
+{
+    sync_pending_bound_frame();
+    full_gc();
+    return ffi_box_u64(value);
 }
 
 /* FFIWrapperHelpers>>ffiBoxVoid */
@@ -181,6 +211,17 @@ uint64_t wrapped_argument_helper(int32_t tag)
 uint64_t wrapped_result_helper(int32_t tag)
 {
     uint64_t v;
+    if (getenv("SAMALTAK_FFI_BOX_FULL_GC") != NULL) {
+        if (tag == 3) {
+            return (uint64_t)ffi_box_i64_with_gc;
+        }
+        if (tag == 4) {
+            return (uint64_t)ffi_box_u64_with_gc;
+        }
+        if (tag == 6) {
+            return (uint64_t)ffi_box_f64_with_gc;
+        }
+    }
     switch (tag) {
     case 3:
         v = (uint64_t)ffi_box_i64;

@@ -30,6 +30,13 @@ initTable
 		names at: e number put: e name.
 		flags at: e number put: e flags]
 !
+installTraceFunction: fn for: n
+	"Install an opt-in instrumentation wrapper before the interpreter fills any method caches. Keep the primitive's number, name and flags."
+	<function>
+	<var: #fn type: 'prim_fn'>
+	self initTable.
+	byNumber at: n put: fn
+!
 lookup: n
 	<function>
 	self initTable.

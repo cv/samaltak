@@ -92,6 +92,7 @@ primQuit
 	<notTryable>
 	| c |
 	c := self arg0.
+	jit printBoundSiteTrace.
 	libc fflush: libc stdout.
 	libc fflush: libc stderr.
 	platform shutdown.

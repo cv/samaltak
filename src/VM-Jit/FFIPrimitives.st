@@ -1,6 +1,6 @@
 VMPrimitiveModule subclass: #FFIPrimitives
-	instanceVariableNames: 'ffiStubs runtimeNative mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingArities'
-	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED'
+	instanceVariableNames: 'ffiStubs runtimeNative mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingArities bindingResultTags bindingSerial bindingSerials boundSites boundSiteCount boundSiteTrace boundTraceCounts'
+	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED FFI_BOUND_SITE_LIMIT'
 	package: 'VM-Jit'!
 
 FFIPrimitives comment: 'Prepare resolves an approved symbol and exact signature to a process-local wrapper. A bound send uses a session-tagged index checked against a VM-managed weak receiver reference. Saved images rebind from the symbolic descriptor. Native code must not reenter the VM or retain borrowed memory.'!
@@ -11,7 +11,10 @@ declarations
 	^#((ffiStubs FFIStubCompiler) (runtimeNative RuntimeNativeLoader)
 		(bindingSession uint64_t) (bindingCount int32_t)
 		(bindingOwners 'oop[FFI_BINDING_LIMIT]') (bindingEntries 'uint64_t[FFI_BINDING_LIMIT]')
-		(bindingArities 'uint8_t[FFI_BINDING_LIMIT]')
+		(bindingArities 'uint8_t[FFI_BINDING_LIMIT]') (bindingResultTags 'uint8_t[FFI_BINDING_LIMIT]')
+		(bindingSerial uint64_t) (bindingSerials 'uint64_t[FFI_BINDING_LIMIT]')
+		(boundSites 'FFIBoundSite[FFI_BOUND_SITE_LIMIT]') (boundSiteCount int32_t)
+		(boundSiteTrace bool) (boundTraceCounts 'uint64_t[3]')
 		(mathNames 'const char *[10]' #('sin' 'cos' 'log' 'exp' 'atan' 'sqrt' 'fabs' 'trunc' 'ldexp' 'ilogb'))
 		(mathSignatures 'uint32_t[10]' #(16r66 16r66 16r66 16r66 16r66 16r66 16r66 16r66 16r616 16r61))
 		(platformNames 'const char *[9]' #('platform_windows_close' 'platform_windows_display_scale' 'platform_windows_refresh_rate'
@@ -24,13 +27,14 @@ initialize
 	FFI_PLATFORM_BASE := 32.
 	FFI_DYNAMIC := 65536.
 	FFI_BINDING_LIMIT := 4096.
+	FFI_BOUND_SITE_LIMIT := 4096.
 	FFI_BOUND_REJECTED := 1
 ! !
 
 !FFIPrimitives methodsFor: 'bound primitives'!
 primFFIPrepare
 	<vmPrimitive: 263 name: 'ffiPrepare'>
-	| owner arity entry slot |
+	| owner arity entry slot result |
 	self argCount = 0 ifFalse: [^self fail].
 	owner := self receiver.
 	arity := self local: 'int32_t'.
@@ -38,7 +42,8 @@ primFFIPrepare
 	entry = FFI_BOUND_REJECTED ifTrue: [^self fail].
 	entry ~= 0 ifTrue: [^self answerBool: true].
 	ffiStubs canPublishCode ifFalse: [^self fail].
-	entry := self prepareEntry: (self loadRef: owner at: 0) into: arity.
+	result := self local: 'int32_t'.
+	entry := self prepareEntry: (self loadRef: owner at: 0) into: arity result: result.
 	entry = 0 ifTrue: [^self fail].
 	self ensureBindingSession ifFalse: [^self fail].
 	slot := self bindingSlotFor: owner.
@@ -51,6 +56,10 @@ primFFIPrepare
 	bindingOwners at: slot put: owner.
 	bindingEntries at: slot put: entry.
 	bindingArities at: slot put: arity value asUInt8.
+	bindingResultTags at: slot put: result value asUInt8.
+	"The image token may recur when a weak slot is reused. Machine code checks a separate, never-reused serial. On exhaustion, keep serving the ordinary primitive."
+	bindingSerial < 16rFFFFFFFFFFFFFFFF ifTrue: [bindingSerial := bindingSerial + 1].
+	bindingSerials at: slot put: (bindingSerial = 16rFFFFFFFFFFFFFFFF ifTrue: [0] ifFalse: [bindingSerial]).
 	self storeRef: owner at: 1 put: (self intOop: ((bindingSession bitOr: slot asUInt64) asInt64)).
 	self answerBool: true
 !
@@ -90,6 +99,74 @@ callBound: entry args: args
 	self answer: (answer = 0 ifTrue: [memory falseOop] ifFalse: [answer])
 ! !
 
+!FFIPrimitives methodsFor: 'bound send site tracing'!
+configureBoundSiteTrace
+	"Instrument at VM startup and code generation only; untraced primitives and compiled sends pay no per-call cost."
+	<function>
+	boundSiteTrace := (libc getenv: 'SAMALTAK_FFI_SITE_TRACE') notNull.
+	boundSiteTrace ifTrue: [
+		primitives installTraceFunction: (self functionPointer: #traceBoundPrimitive) for: 264]
+!
+traceBoundPrimitive
+	<function>
+	boundTraceCounts at: 2 put: (boundTraceCounts at: 2) + 1.
+	self primFFIBoundInvoke
+!
+boundSiteHitAddress
+	^boundSiteTrace ifTrue: [self cCoerce: boundTraceCounts to: 'uint64_t'] ifFalse: [0 asUInt64]
+!
+boundSiteMissAddress
+	^boundSiteTrace ifTrue: [self cCoerce: boundTraceCounts + 1 to: 'uint64_t'] ifFalse: [0 asUInt64]
+!
+printBoundSiteTrace
+	<function>
+	boundSiteTrace ifTrue: [
+		libc fprintf: libc stderr format: 'ffi-site trace hits=%llu misses=%llu primitive=%llu
+' with: (boundTraceCounts at: 0) with: (boundTraceCounts at: 1) with: (boundTraceCounts at: 2)]
+! !
+
+!FFIPrimitives methodsFor: 'bound send sites'!
+newBoundSite
+	"Native writable data, independent of executable-page write protection. A failed compile can consume a row until the next cache flush."
+	<function>
+	<returns: 'FFIBoundSite *'>
+	| site |
+	boundSiteCount = FFI_BOUND_SITE_LIMIT ifTrue: [^self null].
+	site := boundSites + boundSiteCount.
+	boundSiteCount := boundSiteCount + 1.
+	site ownerAddr: 0.
+	^site
+!
+resetBoundSites
+	"Only after all code referencing the rows has been dropped."
+	<function>
+	boundSiteCount := 0
+!
+fillBoundSiteFunction
+	^self cCoerce: (self functionPointer: #fillBoundSite:owner:method:selector:arity:) to: 'uint64_t'
+!
+fillBoundSite: site owner: owner method: expected selector: selector arity: n
+	"Cold pre-send learning. The ordinary send still runs, whether or not this fills the monomorphic row."
+	<function>
+	<var: #site type: 'FFIBoundSite *'>
+	<var: #owner type: 'oop'>
+	<var: #expected type: 'oop'>
+	<var: #selector type: 'oop'>
+	<var: #n type: 'int32_t'>
+	| ownerAddr |
+	ownerAddr := site ownerAddr.
+	ownerAddr ~= 0 ifTrue: [
+		"A live site is monomorphic. A dead/revoked binding can be replaced after normal rebinding."
+		((self uint64At: ownerAddr) ~= 0 and: [(self uint64At: site serialAddr) = site serial]) ifTrue: [^self].
+		site ownerAddr: 0].
+	(expected = 0 or: [selector = 0]) ifTrue: [^self].
+	(self isBindingShape: owner) ifFalse: [^self].
+	(interpreter lookupMethod: (interpreter receiverClass: owner) selector: selector) = expected ifFalse: [^self].
+	((interpreter methodPrim: expected) bitAnd: CM_PRIM_MASK) = 264 ifFalse: [^self].
+	(self loadRef: expected at: CM_NUMARGS) = (self intOop: n) ifFalse: [^self].
+	self describeBoundOwner: owner arity: n into: site
+! !
+
 !FFIPrimitives methodsFor: 'binding slots'!
 isBindingShape: owner
 	<var: #owner type: 'oop'>
@@ -115,6 +192,29 @@ boundEntry: owner into: arity
 	(slot >= bindingCount or: [(bindingOwners at: slot) ~= owner]) ifTrue: [^FFI_BOUND_REJECTED].
 	arity value: (bindingArities at: slot) asInt32.
 	^bindingEntries at: slot
+!
+describeBoundOwner: owner arity: n into: desc
+	"Compiler/miss path only. Never prepares a binding or allocates. The owner address points at the existing weak GC slot, not a copy of the oop."
+	<function>
+	<var: #owner type: 'oop'>
+	<var: #n type: 'int32_t'>
+	<var: #desc type: 'FFIBoundSite *'>
+	<returns: 'bool'>
+	| arity entry token slot serial |
+	arity := self local: 'int32_t'.
+	entry := self boundEntry: owner into: arity.
+	(entry = 0 or: [entry = FFI_BOUND_REJECTED or: [arity value ~= n]]) ifTrue: [^false].
+	token := self loadRef: owner at: 1.
+	slot := ((self intVal: token) asUInt64 bitAnd: (FFI_BINDING_LIMIT - 1) asUInt64) asInt32.
+	serial := bindingSerials at: slot.
+	serial = 0 ifTrue: [^false].
+	desc serialAddr: (self cCoerce: bindingSerials + slot to: 'uint64_t').
+	desc serial: serial.
+	desc entry: entry.
+	desc resultTag: (bindingResultTags at: slot) asUInt64.
+	desc token: token.
+	desc ownerAddr: (self cCoerce: bindingOwners + slot to: 'uint64_t').
+	^true
 !
 ensureBindingSession
 	<function>
@@ -159,10 +259,11 @@ invalidateBindings
 	bindingCount := 0.
 	bindingSession := 0
 !
-prepareEntry: descriptor into: arity
+prepareEntry: descriptor into: arity result: resultOut
 	<function>
 	<var: #descriptor type: 'oop'>
 	<var: #arity type: 'int32_t *'>
+	<var: #resultOut type: 'int32_t *'>
 	<var: #n type: 'int32_t'>
 	<var: #result type: 'int32_t'>
 	<var: #slots type: 'int32_t'>
@@ -197,6 +298,7 @@ prepareEntry: descriptor into: arity
 	id = 0 ifTrue: [^0].
 	operation := id = FFI_MEMCMP ifTrue: [1] ifFalse: [0].
 	arity value: n.
+	resultOut value: result.
 	^ffiStubs entryFor: target value argumentTags: tags count: n returnTag: result operation: operation
 ! !
 
@@ -519,4 +621,16 @@ nativeCompare: a with: b count: count
 	<returns: 'int32_t'>
 	count = 0 ifTrue: [^0].
 	^libc memcmp: a with: b size: count
+! !
+
+VMStruct subclass: #FFIBoundSite
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-Jit'!
+
+FFIBoundSite comment: 'Process-local descriptor for an optimized positional send. The guard compares the weak owner and serial at their stable addresses. The token is an immediate, never an image pointer. The wrapper entry outlives the JIT code cache.'!
+
+!FFIBoundSite class methodsFor: 'declaring'!
+fields
+	^#((ownerAddr uint64_t) (serialAddr uint64_t) (serial uint64_t) (entry uint64_t) (resultTag uint64_t) (token oop))
 ! !

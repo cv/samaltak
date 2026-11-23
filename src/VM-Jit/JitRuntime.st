@@ -1,6 +1,6 @@
 VMCoreModule subclass: #JitRuntime
-	instanceVariableNames: 'stubs baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending releasePending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned perfMap'
-	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_LIVE JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
+	instanceVariableNames: 'stubs baseline brt cache ffi asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending releasePending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned perfMap'
+	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FFI_SITE JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_LIVE JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
 	package: 'VM-Jit'!
 
 JitRuntime comment: 'The runtime every compiler''s machine code runs on (docs/jit.md, Shared runtime): configuration (--jit, --jit-threshold, --jit-osr, --jit-flags, --jit-cache), the compiled methods (JitMethod headers in the code cache, found by the method''s identity hash; their methods are GC roots, young ones listed for scavenges), the interpreter''s hooks (activated:, resume:, backJump:), the functions machine code calls (interrupt:, interruptAtEntry:, closure:, makeArray:, widow:, writeBarrier:value:), code cache flushes, statistics.
@@ -9,7 +9,7 @@ Machine code runs the interpreter''s frames: x19 the Frame, x20 its slots, x21 t
 
 !JitRuntime class methodsFor: 'declaring'!
 declarations
-	^#((stubs JitStubs) (baseline JitBaselineCompiler) (brt JitBaselineRuntime) (cache CodeCache) (asm JitAssembler) (analysis BytecodeAnalysis)
+	^#((stubs JitStubs) (baseline JitBaselineCompiler) (brt JitBaselineRuntime) (cache CodeCache) (ffi FFIPrimitives) (asm JitAssembler) (analysis BytecodeAnalysis)
 		(feedback JitFeedback) (optimizer OptRuntime)
 		(jitMode int32_t) (jitFlags uint32_t) (jitThreshold int64_t 2) (jitOsrThreshold int64_t 50) (jitOptThreshold int64_t 1000) (jitCacheMB int64_t 64)
 		(cacheOpened bool) (flushPending bool) (releasePending bool) (invalidations uint64_t)
@@ -49,7 +49,8 @@ initialize
 	JIT_FLAG_DEOPT := 524288.
 	JIT_FLAG_HOIST := 1048576.
 	JIT_FLAG_LIVE := 2097152.
-	JIT_FLAG_LAST := JIT_FLAG_LIVE.
+	JIT_FLAG_FFI_SITE := 4194304.
+	JIT_FLAG_LAST := JIT_FLAG_FFI_SITE.
 	JIT_TABLE_SIZE := 65536.
 	JIT_MAX_YOUNG := 4096.
 	JIT_MAX_MAP := 32768.
@@ -138,6 +139,9 @@ unboxFlag
 !
 callsFlag
 	^JIT_FLAG_CALLS
+!
+ffiSiteFlag
+	^JIT_FLAG_FFI_SITE
 !
 allocFlag
 	^JIT_FLAG_ALLOC
@@ -260,6 +264,7 @@ flagNamed: name length: n
 	(self is: name length: n named: 'live') ifTrue: [^JIT_FLAG_LIVE].
 	(self is: name length: n named: 'unbox') ifTrue: [^JIT_FLAG_UNBOX].
 	(self is: name length: n named: 'calls') ifTrue: [^JIT_FLAG_CALLS].
+	(self is: name length: n named: 'ffi-site') ifTrue: [^JIT_FLAG_FFI_SITE].
 	(self is: name length: n named: 'eager') ifTrue: [^JIT_FLAG_EAGER].
 	(self is: name length: n named: 'deopt') ifTrue: [^JIT_FLAG_DEOPT].
 	^0
@@ -289,6 +294,7 @@ flagName: bit
 	bit = JIT_FLAG_LIVE ifTrue: [^'live'].
 	bit = JIT_FLAG_UNBOX ifTrue: [^'unbox'].
 	bit = JIT_FLAG_CALLS ifTrue: [^'calls'].
+	bit = JIT_FLAG_FFI_SITE ifTrue: [^'ffi-site'].
 	bit = JIT_FLAG_EAGER ifTrue: [^'eager'].
 	^'deopt'
 !
@@ -340,6 +346,7 @@ start
 	"After the image is loaded. Where machine code does not run (in the simulator) the JIT stays off, whatever --jit says."
 	<function>
 	| t |
+	ffi configureBoundSiteTrace.
 	t := self primitiveTable.
 	0 to: self primitiveCount - 1 do: [:i |
 		(libc strcmp: (t + i) name with: 'perform') = 0 ifTrue: [performFn := (t + i) function].
@@ -347,6 +354,10 @@ start
 	self refreshState.
 	cache canRunCode ifFalse: [jitMode := JIT_NONE].
 	(jitMode ~= JIT_NONE and: [self ensureOpen not]) ifTrue: [self fatal: 'cannot open a %lld MB code cache' with: jitCacheMB]
+!
+printBoundSiteTrace
+	<function>
+	ffi printBoundSiteTrace
 !
 ensureOpen
 	"Map the code cache and generate the stubs, once."
@@ -929,6 +940,7 @@ flushCode
 	youngCount := 0.
 	youngOverflow := false.
 	cacheOpened ifTrue: [cache flush].
+	ffi resetBoundSites.
 	optimizer flushed.
 	brt flushed.
 	interpreter flushMethodCache.
@@ -1157,6 +1169,18 @@ run: frame at: address
 ! !
 
 !JitRuntime methodsFor: 'called by machine code'!
+pendingBoundFrameOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #pendingBoundFrame) to: 'int64_t'
+!
+syncPendingBoundFrame
+	"The direct FFI caller published its SP_CALL pc and sp. Only result boxing can collect, and the native target must not reenter the VM. No marker for ordinary primitive calls."
+	<function>
+	| f |
+	f := stateBlock pendingBoundFrame.
+	f = 0 ifTrue: [^self].
+	stateBlock pendingBoundFrame: 0.
+	self sync: (self cCoerce: f to: 'Frame *')
+!
 sync: f
 	"Machine code stored f's pc and sp: f is the top frame (baseline frames suspended below it become canonical too)."
 	self baselineCode ifTrue: [
@@ -1606,7 +1630,7 @@ fields
 		(edenBox uint64_t) (hashBox uint64_t) (lcgMul uint64_t) (lcgAdd uint64_t)
 		(tagClasses 'oop[8]') (blockClass oop) (byteStringClass oop) (byteArrayClass oop) (boxedFloatClass oop) (wordArrayClass oop) (byteSymbolClass oop) (contextClass oop)
 		(megaCache uint64_t) (blockCache uint64_t) (result oop) (ecode int64_t) (primRet uint64_t)
-		(cstackLimit uint64_t) (stress int64_t) (dump 'uint64_t[64]'))
+		(cstackLimit uint64_t) (stress int64_t) (dump 'uint64_t[64]') (pendingBoundFrame uint64_t))
 ! !
 
 VMStruct subclass: #JitMethod

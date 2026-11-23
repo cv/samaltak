@@ -283,6 +283,9 @@ static void print_node(int32_t n)
         fputs(" ]", stderr);
     }
     fprintf(stderr, " aux=%lld", (long long)nd->aux);
+    if ((nd->flags & NF_BOUNDFFI) != 0) {
+        fputs(nd->ffi_owner == 0 ? " bound-ffi (learn)" : " bound-ffi (seed)", stderr);
+    }
     if (nd->state >= 0) {
         fprintf(stderr, " st=%d", nd->state);
     }

@@ -24,6 +24,11 @@ wrappedResultHelper: tag
 	<function>
 	<var: #tag type: 'int32_t'>
 	<returns: 'uint64_t'>
+	"Select stress entry points when emitting the wrapper, not on every call."
+	(libc getenv: 'SAMALTAK_FFI_BOX_FULL_GC') notNull ifTrue: [
+		tag = 3 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxI64WithGC:) to: 'uint64_t'].
+		tag = 4 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxU64WithGC:) to: 'uint64_t'].
+		tag = 6 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxF64WithGC:) to: 'uint64_t']].
 	^tag caseOf: {
 		[3] -> [self cCoerce: (self functionPointer: #ffiBoxI64:) to: 'uint64_t'].
 		[4] -> [self cCoerce: (self functionPointer: #ffiBoxU64:) to: 'uint64_t'].
@@ -114,6 +119,7 @@ ffiBoxI64: value
 	<function>
 	<var: #value type: 'int64_t'>
 	<returns: 'oop'>
+	jit syncPendingBoundFrame.
 	value = -16r8000000000000000 ifTrue: [^memory largeIntFrom: 16r8000000000000000 asUInt64 negative: true].
 	^memory int64Oop: value
 !
@@ -121,16 +127,44 @@ ffiBoxU64: value
 	<function>
 	<var: #value type: 'uint64_t'>
 	<returns: 'oop'>
+	jit syncPendingBoundFrame.
 	^memory largeIntFrom: value negative: false
 !
 ffiBoxF64: value
 	<function>
 	<var: #value type: 'double'>
 	<returns: 'oop'>
+	jit syncPendingBoundFrame.
 	^memory floatOop: value
 !
 ffiBoxVoid
 	<function>
 	<returns: 'oop'>
 	^memory nilOop
+! !
+
+!FFIWrapperHelpers methodsFor: 'GC stress'!
+ffiBoxI64WithGC: value
+	<function>
+	<var: #value type: 'int64_t'>
+	<returns: 'oop'>
+	jit syncPendingBoundFrame.
+	gc fullGC.
+	^self ffiBoxI64: value
+!
+ffiBoxU64WithGC: value
+	<function>
+	<var: #value type: 'uint64_t'>
+	<returns: 'oop'>
+	jit syncPendingBoundFrame.
+	gc fullGC.
+	^self ffiBoxU64: value
+!
+ffiBoxF64WithGC: value
+	<function>
+	<var: #value type: 'double'>
+	<returns: 'oop'>
+	jit syncPendingBoundFrame.
+	gc fullGC.
+	^self ffiBoxF64: value
 ! !

@@ -111,6 +111,7 @@ void prim_quit(void)
 {
     oop c;
     c = prim_nargs > 0 ? prim_base[1] : nil_oop;
+    jit_runtime_print_bound_site_trace();
     fflush(stdout);
     fflush(stderr);
     platform_interface_shutdown();

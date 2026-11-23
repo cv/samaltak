@@ -6,7 +6,14 @@ static uint8_t binding_arities[4096];
 static int32_t binding_count;
 static uint64_t binding_entries[4096];
 static oop binding_owners[4096];
+static uint8_t binding_result_tags[4096];
+static uint64_t binding_serial;
+static uint64_t binding_serials[4096];
 static uint64_t binding_session;
+static int32_t bound_site_count;
+bool bound_site_trace;
+static ffi_bound_site bound_sites[4096];
+uint64_t bound_trace_counts[3];
 static const char *math_names[10] = {"sin", "cos", "log", "exp", "atan", "sqrt", "fabs", "trunc", "ldexp", "ilogb"};
 static uint32_t math_signatures[10] = {102U, 102U, 102U, 102U, 102U, 102U, 102U, 102U, 1558U, 97U};
 static const char *platform_names[9] = {"platform_windows_close", "platform_windows_display_scale", "platform_windows_refresh_rate", "platform_windows_show", "platform_windows_set_cursor", "platform_windows_set_text_input_area", "pty_resize", "pty_close", "pty_foreground"};
@@ -18,6 +25,7 @@ static bool ffi_primitives_borrow(oop slice, uint64_t *out, uint64_t *length);
 static uint64_t bound_entry(oop owner, int32_t *arity);
 static oop ffi_primitives_box(uint64_t bits, int32_t tag);
 static void call_bound(uint64_t entry, const oop *args);
+static bool describe_bound_owner(oop owner, int32_t n, ffi_bound_site *desc);
 static bool ensure_binding_session(void);
 static void invalidate_bindings(void);
 static void invoke_bound_array(oop args);
@@ -34,8 +42,9 @@ static double native_log(double x);
 static double native_sin(double x);
 static double native_sqrt(double x);
 static double native_trunc(double x);
-static uint64_t prepare_entry(oop descriptor, int32_t *arity);
+static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_out);
 static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, const uint8_t *symbol, size_t sym_len, const uint8_t *tags, int32_t n, int32_t result, uint64_t *target);
+static void trace_bound_primitive(void);
 static void update_binding_owners(bool (*is_dead)(oop *));
 
 /* FFIPrimitives>>bindOrInvoke: */
@@ -353,6 +362,15 @@ static void call_bound(uint64_t entry, const oop *args)
     prim_status = PS_OK;
 }
 
+/* FFIPrimitives>>configureBoundSiteTrace */
+void configure_bound_site_trace(void)
+{
+    bound_site_trace = getenv("SAMALTAK_FFI_SITE_TRACE") != NULL;
+    if (bound_site_trace) {
+        install_trace_function(trace_bound_primitive, 264);
+    }
+}
+
 /* FFIPrimitives>>copyName:into: */
 size_t copy_name(oop name, uint8_t *buf)
 {
@@ -389,6 +407,36 @@ size_t copy_name(oop name, uint8_t *buf)
     return n;
 }
 
+/* FFIPrimitives>>describeBoundOwner:arity:into: */
+static bool describe_bound_owner(oop owner, int32_t n, ffi_bound_site *desc)
+{
+    int32_t local;
+    int32_t *arity;
+    uint64_t entry;
+    uint64_t token;
+    int32_t slot;
+    uint64_t serial;
+    memset(&local, 0, sizeof local);
+    arity = &local;
+    entry = bound_entry(owner, arity);
+    if ((entry == 0) || ((entry == FFI_BOUND_REJECTED) || (*arity != n))) {
+        return false;
+    }
+    token = *(uint64_t *)(owner + 16 + 8);
+    slot = (int32_t)(((uint64_t)(((int64_t)token) >> 1)) & 4095ULL);
+    serial = binding_serials[slot];
+    if (serial == 0) {
+        return false;
+    }
+    desc->serial_addr = (uint64_t)(binding_serials + slot);
+    desc->serial = serial;
+    desc->entry = entry;
+    desc->result_tag = (uint64_t)binding_result_tags[slot];
+    desc->token = token;
+    desc->owner_addr = (uint64_t)(binding_owners + slot);
+    return true;
+}
+
 /* FFIPrimitives>>ensureBindingSession */
 static bool ensure_binding_session(void)
 {
@@ -408,6 +456,40 @@ static bool ensure_binding_session(void)
     }
     register_weak_owners(update_binding_owners, invalidate_bindings);
     return true;
+}
+
+/* FFIPrimitives>>fillBoundSite:owner:method:selector:arity: */
+void fill_bound_site(ffi_bound_site *site, oop owner, oop expected, oop selector, int32_t n)
+{
+    uint64_t owner_addr;
+    int64_t r_method_prim;
+    uint64_t p;
+    owner_addr = site->owner_addr;
+    if (owner_addr != 0) {
+        if ((*(uint64_t *)owner_addr != 0) && (*(uint64_t *)site->serial_addr == site->serial)) {
+            return;
+        }
+        site->owner_addr = 0;
+    }
+    if ((expected == 0) || (selector == 0)) {
+        return;
+    }
+    if (!((owner != 0) && ((owner & 7) == 0) && (((int32_t)(((*(uint64_t *)owner) >> H_FMT_SHIFT) & H_FMT_MASK) == F_FIXED) && (((uint32_t)*(uint64_t *)owner == 2) && (((*(uint64_t *)owner) & H_IMMUTABLE) != 0))))) {
+        return;
+    }
+    if (!(lookup_method((owner & 7) != 0 ? tag_class[owner & 7] : *(uint64_t *)(owner + 8), selector) == expected)) {
+        return;
+    }
+    if (!((({
+    p = *(uint64_t *)(expected + 16 + 56);
+    r_method_prim = (p & 1) != 0 ? ((int64_t)p) >> 1 : 0;
+    r_method_prim; }) & CM_PRIM_MASK) == 264)) {
+        return;
+    }
+    if (!(*(uint64_t *)(expected + 16 + 32) == (uint64_t)((((int64_t)n) << 1) | 1))) {
+        return;
+    }
+    describe_bound_owner(owner, n, site);
 }
 
 /* FFIPrimitives>>invalidateBindings */
@@ -576,8 +658,21 @@ static double native_trunc(double x)
     return trunc(x);
 }
 
-/* FFIPrimitives>>prepareEntry:into: */
-static uint64_t prepare_entry(oop descriptor, int32_t *arity)
+/* FFIPrimitives>>newBoundSite */
+ffi_bound_site *new_bound_site(void)
+{
+    ffi_bound_site *site;
+    if (bound_site_count == FFI_BOUND_SITE_LIMIT) {
+        return (ffi_bound_site *)NULL;
+    }
+    site = bound_sites + bound_site_count;
+    bound_site_count = bound_site_count + 1;
+    site->owner_addr = 0;
+    return site;
+}
+
+/* FFIPrimitives>>prepareEntry:into:result: */
+static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_out)
 {
     int32_t n;
     int32_t slots;
@@ -651,6 +746,7 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity)
     }
     operation = id == FFI_MEMCMP ? 1 : 0;
     *arity = n;
+    *result_out = result;
     return ffi_stub_compiler_entry_for(*target, tags, n, result, operation);
 }
 
@@ -711,6 +807,8 @@ void prim_ffi_prepare(void)
     int32_t local;
     int32_t *arity;
     uint64_t entry;
+    int32_t local_2;
+    int32_t *result;
     int32_t slot;
     int64_t v;
     uint64_t v_2;
@@ -738,7 +836,9 @@ void prim_ffi_prepare(void)
         prim_error_code = -1;
         return;
     }
-    entry = prepare_entry(*(uint64_t *)(owner + 16 + 0), arity);
+    memset(&local_2, 0, sizeof local_2);
+    result = &local_2;
+    entry = prepare_entry(*(uint64_t *)(owner + 16 + 0), arity, result);
     if (entry == 0) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -763,6 +863,11 @@ void prim_ffi_prepare(void)
     binding_owners[slot] = owner;
     binding_entries[slot] = entry;
     binding_arities[slot] = (uint8_t)*arity;
+    binding_result_tags[slot] = (uint8_t)*result;
+    if (binding_serial < 0xFFFFFFFFFFFFFFFFULL) {
+        binding_serial = binding_serial + 1;
+    }
+    binding_serials[slot] = binding_serial == 0xFFFFFFFFFFFFFFFFULL ? 0 : binding_serial;
     v = (int64_t)(binding_session | ((uint64_t)slot));
     v_2 = (uint64_t)((v << 1) | 1);
     *(uint64_t *)(owner + 16 + 8) = v_2;
@@ -771,6 +876,20 @@ void prim_ffi_prepare(void)
     }
     prim_result = true_oop;
     prim_status = PS_OK;
+}
+
+/* FFIPrimitives>>printBoundSiteTrace */
+void ffi_primitives_print_bound_site_trace(void)
+{
+    if (bound_site_trace) {
+        fprintf(stderr, "ffi-site trace hits=%llu misses=%llu primitive=%llu\n", (unsigned long long)bound_trace_counts[0], (unsigned long long)bound_trace_counts[1], (unsigned long long)bound_trace_counts[2]);
+    }
+}
+
+/* FFIPrimitives>>resetBoundSites */
+void reset_bound_sites(void)
+{
+    bound_site_count = 0;
 }
 
 /* FFIPrimitives>>resolve:length:symbol:length:types:count:result:into: */
@@ -868,6 +987,13 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
     }
     *target = (uint64_t)lookup_library(library, lib_len, symbol, sym_len, tags, n, result);
     return *target == 0 ? 0 : FFI_DYNAMIC;
+}
+
+/* FFIPrimitives>>traceBoundPrimitive */
+static void trace_bound_primitive(void)
+{
+    bound_trace_counts[2] = bound_trace_counts[2] + 1;
+    prim_ffi_bound_invoke();
 }
 
 /* FFIPrimitives>>updateBindingOwners: */
