@@ -111,29 +111,11 @@ renderRow: y
 	scale := span / form width.
 	ci := centerY + ((y - (form height / 2.0)) * scale).
 	0 to: form width - 1 do: [:x |
-		bits at: base + x + 1 put: (self pixelFor: (self escapeTimeAt: (Complex real: centerX + ((x - half) * scale) imaginary: ci)))]
+		bits at: base + x + 1 put: (self pixelFor: (self escapeTimeAtReal: centerX + ((x - half) * scale) imaginary: ci))]
 !
 escapeTimeAt: c
 	"The number of iterations of z := z squared + c until |z| > 4 (at most maxIterations); escapeMagnitude keeps |z|² for smooth colouring. Periodicity checking (Brent): z is compared with a value saved at doubling intervals; when the orbit comes back within the tolerance (Euclidean distance) it is periodic, so c is inside the set and answers maxIterations at once."
-	| z n saved period limit tolerance dx dy |
-	z := Complex zero.
-	saved := z.
-	n := 0.
-	period := 0.
-	limit := 2.
-	tolerance := self class periodicityTolerance squared.
-	[n < maxIterations and: [z squaredMagnitude <= 16.0]] whileTrue: [
-		z := z squared + c.
-		n := n + 1.
-		dx := z real - saved real.
-		dy := z imaginary - saved imaginary.
-		(dx * dx) + (dy * dy) < tolerance ifTrue: [^maxIterations].
-		(period := period + 1) = limit ifTrue: [
-			saved := z.
-			period := 0.
-			limit := limit * 2]].
-	escapeMagnitude := z squaredMagnitude.
-	^n
+	^self escapeTimeAtReal: c real imaginary: c imaginary
 !
 pixelFor: n
 	"Premultiplied RGBA8 of an escape time (black inside), smoothed like the prototype."
@@ -161,6 +143,31 @@ scheduleRender
 	"Render again soon (after a resize), once."
 	pendingRender isNil ifFalse: [pendingRender cancel].
 	pendingRender := self after: 200 do: [self render]
+!
+escapeTimeAtReal: cr imaginary: ci
+	"escapeTimeAt: on unboxed components: z := z squared + c in Float temporaries, reusing the squares for |z|², without a Complex per step."
+	| zr zi zr2 zi2 n savedR savedI period limit tolerance dx dy |
+	zr := zi := zr2 := zi2 := savedR := savedI := 0.0.
+	n := 0.
+	period := 0.
+	limit := 2.
+	tolerance := self class periodicityTolerance squared.
+	[n < maxIterations and: [zr2 + zi2 <= 16.0]] whileTrue: [
+		zi := (zr + zr) * zi + ci.
+		zr := zr2 - zi2 + cr.
+		zr2 := zr * zr.
+		zi2 := zi * zi.
+		n := n + 1.
+		dx := zr - savedR.
+		dy := zi - savedI.
+		(dx * dx) + (dy * dy) < tolerance ifTrue: [^maxIterations].
+		(period := period + 1) = limit ifTrue: [
+			savedR := zr.
+			savedI := zi.
+			period := 0.
+			limit := limit * 2]].
+	escapeMagnitude := zr2 + zi2.
+	^n
 ! !
 
 !MandelbrotView methodsFor: 'zooming'!
