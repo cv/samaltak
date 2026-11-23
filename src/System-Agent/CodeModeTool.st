@@ -21,7 +21,7 @@ spec
 	^Dictionary new
 		at: 'type' put: 'custom';
 		at: 'name' put: self name;
-		at: 'description' put: 'Run Smalltalk code in the live image. The input is raw Smalltalk source (statements or an expression), not JSON. Answers the id of the resulting object (o1, o2, ...) and its printString; later code can use the id as a variable bound to that object.';
+		at: 'description' put: 'Run Smalltalk code in the live image. The input is raw Smalltalk source (statements or an expression), not JSON. Answers the id of the resulting object (o1, o2, ...) and its printString; later code can use the id as a variable bound to that object. Begin with a comment of a few words saying what the code does, e.g. "Find the agent classes"; it is shown as the cell''s title.';
 		at: 'format' put: (Dictionary new at: 'type' put: 'text'; yourself);
 		yourself
 !

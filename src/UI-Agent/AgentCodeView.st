@@ -3,13 +3,18 @@ AgentItemView subclass: #AgentCodeView
 	classVariableNames: ''
 	package: 'UI-Agent'!
 
-AgentCodeView comment: 'I show a code-mode cell (the mock''s .call): a frame with a CODE-MODE header, the source highlighted as the editors do (TextHighlighter, Theme syntax styles), and below a dotted rule the result: its object id boxed (oN) and its printString, or the error of a failed cell, or ''running…''. Lines too long for my width are cut.'!
+AgentCodeView comment: 'I show a code-mode cell (the mock''s .call): a frame with a CODE-MODE header (and the cell''s leading comment, its caption), the source highlighted as the editors do (TextHighlighter, Theme syntax styles), and below a dotted rule the result: its object id boxed (oN) and its printString, or the error of a failed cell, or ''running…''. Lines too long for my width are cut.'!
 
 !AgentCodeView methodsFor: 'accessing'!
 source
-	"The cell's source as I draw it: tabs as spaces, no trailing newlines."
+	"The cell's source as I draw it: without the comment that is my caption, tabs as spaces, no trailing newlines."
 	| s |
-	s := (item text copyReplaceAll: (String with: Character tab) with: '    ') copyWithout: Character cr.
+	s := item text.
+	self caption isNil ifFalse: [
+		s := s trimLeft.
+		s := s copyFrom: (s indexOf: $" startingAt: 2) + 1 to: s size.
+		s := s copyFrom: ((1 to: s size) detect: [:i | (s at: i) isSeparator not] ifNone: [s size + 1]) to: s size].
+	s := (s copyReplaceAll: (String with: Character tab) with: '    ') copyWithout: Character cr.
 	^s trimRight
 !
 sourceLines
@@ -33,6 +38,26 @@ codeFont
 !
 resultFont
 	^self theme font: #codeSmall
+!
+caption
+	"The words of a code-mode cell's leading comment, its title; nil when it has none."
+	| text stop words |
+	item kind == #code ifFalse: [^nil].
+	text := item text trimLeft.
+	(text notEmpty and: [text first = $"]) ifFalse: [^nil].
+	stop := text indexOf: $" startingAt: 2.
+	stop = 0 ifTrue: [^nil].
+	words := (text copyFrom: 2 to: stop - 1) substrings.
+	words isEmpty ifTrue: [^nil].
+	words := words inject: words first into: [:all :each | all == each ifTrue: [all] ifFalse: [all, ' ', each]].
+	^words size > 60 ifTrue: [(words first: 59), '…'] ifFalse: [words]
+!
+title
+	"The header: the tool that ran me, my caption, and what replaced me in the context."
+	| title |
+	title := item kind == #tests ifTrue: ['Run-tests'] ifFalse: ['Code-mode'].
+	self caption isNil ifFalse: [title := title, ' · ', self caption].
+	^item isEdited ifTrue: [title, ' · ', item edit] ifFalse: [title]
 ! !
 
 !AgentCodeView methodsFor: 'layout'!
@@ -93,10 +118,4 @@ drawResultAt: aPoint on: aCanvas
 	self resultLines do: [:line |
 		aCanvas drawString: line at: x @ y font: (item result isNil ifTrue: [self theme font: #smallItalic] ifFalse: [font]) color: self theme ink.
 		y := y + font lineHeight]
-!
-title
-	"The header: the tool that ran me, and what replaced me in the context."
-	| title |
-	title := item kind == #tests ifTrue: ['Run-tests'] ifFalse: ['Code-mode'].
-	^item isEdited ifTrue: [title, ' · ', item edit] ifFalse: [title]
 ! !
