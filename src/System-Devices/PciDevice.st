@@ -125,6 +125,11 @@ mem32At: offset bar: index
 	(firmware isError: (self pci: 16 with: 2 with: index with: offset with: 1 with: scratch)) ifTrue: [^nil].
 	^Machine uint32At: scratch
 !
+mem32At: offset bar: index put: aValue
+	"Write the 32-bit register at offset in memory BAR index through the firmware (PCI I/O Mem.Write). Answer whether it could."
+	Machine uint32At: scratch put: aValue.
+	^(firmware isError: (self pci: 24 with: 2 with: index with: offset with: 1 with: scratch)) not
+!
 barAddress: index
 	"The address of memory BAR index (64-bit ones take two), nil if it is an I/O BAR."
 	| low |

@@ -522,3 +522,42 @@ firmware (no NVIDIA GPU).
   message, events before a reply, errors, and `NvDevice open:over:` the GSP transport up to the class list.
 
 All of these tests need no GPU and run in `make test-core` and, in QEMU, `make test-uefi`.
+
+## 10. Step 3 groundwork: the boot, against a fake GB10
+
+`NvGspBoot` (System-NV) is the boot of section 2 as code: `prepare` (all of 2.2 in DMA memory: boot loader, radix-3
+image, signature, FMC, the seven LIBOS log buffers of a release build on GB10B, LOGINIT, LOGINTR, LOGRM, LOGMNOC, LOGDBG,
+LOGROOT, LOGKRNL, the queues, the system heap, GSP_ARGUMENTS_CACHED, the LIBOS arguments ending in RMARGS, WprMeta with
+the 133 MB WPR heap of GB10B, the FMC parameters, the SEC2 message), `check`, `sendChainOfTrust`, `waitForRelease`,
+`startRiscv` and `waitForInitDone` (the register sequence of 2.3, each wait with the 4 s default and, when it runs
+out, the mailboxes), then an `NvGspTransport` on the queues whose doorbell writes `NV_PGSP_QUEUE_HEAD(0)`. `queue:`
+puts RPCs in the command queue before the boot as nvidia.ko does with SET_SYSTEM_INFO and SET_REGISTRY.
+
+New facts from the source on the way **[src]**: the WPR heap (`gspFwHeapSize`) on GB10B is 22 MB (LIBOS 3 bare-metal OS
+carveout) + 14 MB + 1 MB (96 KB a GB, 1 GB without video memory) + 96 MB (48 KB × 2048 channels), clamped to 88-280 MB:
+133 MB (`_kgspCalculateFwHeapSize`, kernel_gsp.c 5542-5590; gsp_fw_heap.h 32-110); LIBOS 3 logs as listed above with the
+kernel's (kgspHasLibosKernelLogging is true for GB10B; kernel_gsp.c 3152-3240), each buffer holding its put pointer and
+its pages' addresses (3070-3105); `bDmemStack` is true by default (4539); nvidia.ko reads `EMEMC(0)` back after the words
+and checks it advanced by their count (kernel_sec2_gb10b.c 182-210).
+
+Safety, before anything is written: `check` refuses another chip (`NV_PMC_BOOT_42` not 16r1AB) and a GSP that SEC2
+does not hold (`HWCFG2` not the PRI error: someone booted it), and the SEC2 queue must be idle. On the GPU the registers
+are an `NvBar0` on the PciDevice: it writes only the registers of the boot's write list (EMEMC/EMEMD, SEC2 queue 0, FALCON_OS,
+the GSP doorbell) and refuses any other before it happens; `NvBar0 on: gpu dryRun: true` records the writes without
+making them, and `NvGspBoot dryRun` goes as far as the chain of trust with it.
+
+Tested against `NvFakeGb10` (Tests-NV): SEC2's EMEM channel and queue, a SEC2 that checks the message, the FMC's SHA-384,
+the FMC parameters, WprMeta, the boot loader, the radix-3 image, the LIBOS and GSP arguments and the queues' page table;
+the FMC's lockdown with its parameters' address in the mailboxes; GSP-RM (NvFakeGsp) starting when FALCON_OS is written,
+reading the queued RPCs and sending GSP_INIT_DONE. `NvGspBootTest`: the 221 writes in order, what the fake saw, RPCs
+before and after the boot, the refusals before any write, a bad hash, an FMC error, no GSP_INIT_DONE, the wrong firmware
+version, the write list and the dry run.
+
+On the dedicated Spark (once the firmware loads, step 3 next), the first run is the dry run:
+
+	d := PciDevice in: Firmware current detect: [:p | NvProbe isNvidiaGpu: p].
+	(NvGspBoot registers: (NvBar0 on: d dryRun: true) memory: (NvPciDmaMemory on: d) firmware: aFirmware) dryRun
+
+It reads registers and allocates DMA memory but writes nothing to the GPU. Open for the real run: `PciDevice allocate:`
+takes memory below 4 GB (about 600 MB here: the 512 MB system heap, the 75 MB image), and the GPU must master the bus
+(the probe's `command` line shows whether the GOP driver left it on).

@@ -41,6 +41,10 @@ events
 gpuId: anInteger
 	gpuId := anInteger
 !
+sequence: anInteger
+	"The next RPC's sequence number (after RPCs sent before me: NvGspBoot's)."
+	sequence := anInteger
+!
 timeoutMs: anInteger
 	"How long to wait for a reply: RM's default GPU timeout is 4 s (osGetTimeoutParams)."
 	timeoutMs := anInteger

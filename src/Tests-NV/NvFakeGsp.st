@@ -3,7 +3,7 @@ Object subclass: #NvFakeGsp
 	classVariableNames: ''
 	package: 'Tests-NV'!
 
-NvFakeGsp comment: 'I am GSP-RM''s side of the message queues for tests (NvGspTransportTest): I make the status queue''s header as GSP does when it boots, and on each ring of the doorbell read every command message (the queue checks its checksum and sequence number), keep it in received, and answer it on the status queue as GSP-RM would: GSP_RM_ALLOC records the object (an unknown parent: status NV_ERR_INVALID_OBJECT_PARENT), GSP_RM_CONTROL runs the block in answers for its command on the parameters (a ByteArray) if there is one, FREE forgets the object and its children (unknown: NV_ERR_INVALID_OBJECT_HANDLE), anything else gets rpc_result NV_ERR_NOT_SUPPORTED. eventsBefore: n sends n UCODE_LIBOS_PRINT events before each reply.'!
+NvFakeGsp comment: 'I am GSP-RM''s side of the message queues for tests (NvGspTransportTest): I make the status queue''s header as GSP does when it boots, and on each ring of the doorbell read every command message (the queue checks its checksum and sequence number), keep it in received, and answer it on the status queue as GSP-RM would: GSP_RM_ALLOC records the object (an unknown parent: status NV_ERR_INVALID_OBJECT_PARENT), GSP_RM_CONTROL runs the block in answers for its command on the parameters (a ByteArray) if there is one, FREE forgets the object and its children (unknown: NV_ERR_INVALID_OBJECT_HANDLE), GSP_SET_SYSTEM_INFO and SET_REGISTRY get no reply (they are sent before the boot, without waiting), anything else gets rpc_result NV_ERR_NOT_SUPPORTED; sendEvent:result: sends an event. eventsBefore: n sends n UCODE_LIBOS_PRINT events before each reply.'!
 
 !NvFakeGsp class methodsFor: 'instance creation'!
 on: anNvGspQueues
@@ -52,6 +52,8 @@ answer: anRpc
 	| function reply |
 	eventsBefore timesRepeat: [endpoint send: (NvGsp rpcFunction: (NvGsp function: #UCODE_LIBOS_PRINT) length: 0 sequence: 0)].
 	function := anRpc u32At: 12.
+	"Sent before the boot without waiting for a reply (kgspQueueAsyncInitRpcs): GSP answers none."
+	({NvGsp function: #GSP_SET_SYSTEM_INFO. NvGsp function: #SET_REGISTRY} includes: function) ifTrue: [^self].
 	reply := NvStruct on: anRpc bytes copy.
 	((anRpc u32At: 0) = NvGsp headerVersion and: [(anRpc u32At: 4) = (NvGsp constant: 'NV_VGPU_MSG_SIGNATURE_VALID')])
 		ifFalse: [^self reply: reply result: 16r1F].
@@ -59,6 +61,10 @@ answer: anRpc
 	function = (NvGsp function: #GSP_RM_CONTROL) ifTrue: [^self reply: reply result: 0 status: (self control: reply) at: 32 + 12].
 	function = (NvGsp function: #FREE) ifTrue: [^self reply: reply result: 0 status: (self free: reply) at: 32 + 12].
 	self reply: reply result: 16r56
+!
+sendEvent: aSymbol result: anInteger
+	"An event (GSP_INIT_DONE, ...) on the status queue."
+	endpoint send: ((NvGsp rpcFunction: (NvGsp function: aSymbol) length: 0 sequence: 0) at: 'rpc_result' put: anInteger; at: 'rpc_result_private' put: anInteger; yourself)
 !
 alloc: anRpc
 	| parent |

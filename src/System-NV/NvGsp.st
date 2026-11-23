@@ -229,8 +229,8 @@ libosArguments: regions
 	^page
 !
 logBuffers
-	"The LIBOS log buffers of a release build, {name. bytes}, in order (kgspInitLogging: kernel_gsp.c 3152-3165): the names are the tasks' log ids."
-	^#(#('LOGINIT' 16r10000) #('LOGINTR' 16r10000) #('LOGRM' 16r10000) #('LOGMNOC' 16r10000) #('LOGDEBUG' 16r10000) #('LOGROOT' 16r1000))
+	"The LIBOS log buffers of a release build on GB10B (LIBOS 3), {name. bytes}, in order (kernel_gsp.c 3152-3240): init, interrupt, RM, MNOC, debugger and root tasks, then the LIBOS kernel's (kgspHasLibosKernelLogging is true for GB10B); the names are the tasks' memory ids (nv-firmware-chip-family-select.h 107-113, 151)."
+	^#(#('LOGINIT' 16r10000) #('LOGINTR' 16r10000) #('LOGRM' 16r10000) #('LOGMNOC' 16r10000) #('LOGDBG' 16r10000) #('LOGROOT' 16r1000) #('LOGKRNL' 16r10000))
 !
 arguments: sharedMemory pageTableEntries: count commandQueue: cmdOffset statusQueue: statOffset heap: heapAddress size: heapSize
 	"GSP_ARGUMENTS_CACHED (kgspPopulateGspRmInitArgs_IMPL, kernel_gsp.c 4511-4575): the message queues' shared memory and, as the GB10 has no video memory, GSP-RM's heap in system memory."
