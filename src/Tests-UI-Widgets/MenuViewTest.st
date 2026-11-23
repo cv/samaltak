@@ -95,6 +95,15 @@ testPreferredExtentFitsItems
 	self assert: e x >= 210.
 	self assert: e y equals: (view itemTops last + 21 + 3 + 1)
 !
+testItemsInsetAlikeAtTopAndBottom
+	"Between the frame (or the title's rule) and the first item as much space as between the last item and the frame: with a title and without."
+	| untitled v |
+	self assert: view itemTops first equals: 1 + view titleHeight + 3.
+	untitled := Menu new add: 'Agent' action: []; add: 'Quit' action: []; yourself.
+	v := untitled asMenuView.
+	self assert: v itemTops first - 1 equals: 3.
+	self assert: v preferredExtent y - 1 - ((v itemTops last) + (v heightOf: untitled items last)) equals: 3
+!
 testRemoteRows
 	| rows |
 	rows := view remoteChildren.
