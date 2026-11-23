@@ -33,6 +33,11 @@ directories
 reveal: aPath
 	self in: window do: [browser reveal: aPath]
 !
+resizeTo: aPoint
+	"Resize the window and wait until it laid out its content: that is a step it queues (Window>>queueResize), which may run only after the test read the layout half of it."
+	self in: window do: [window bounds: (window bounds origin extent: aPoint)].
+	self in: window do: [nil]
+!
 tokenTypeAt: anInteger
 	"The viewer scans its text when it draws, in its window's Process: read there."
 	^self in: window do: [browser viewer tokenTypeAt: anInteger]
@@ -310,7 +315,7 @@ testLargeFileOpensFastAndDrawsOnlyTheRowsShown
 testColumnsScrollSideways
 	| columns |
 	columns := browser columns.
-	self in: window do: [window bounds: (window bounds origin extent: 900 @ 500)].
+	self resizeTo: 900 @ 500.
 	"Three columns and the preview: the preview at the right edge, the first column out of view."
 	self reveal: 'src/Tools/FileBrowser.st'.
 	self assert: columns scrollTotal > columns width.
@@ -318,8 +323,8 @@ testColumnsScrollSideways
 	self assert: columns preview bounds right equals: columns width.
 	self assert: (browser listAt: 1) bounds right <= 0.
 	"Wider, then narrower again: the end stays in view."
-	self in: window do: [window bounds: (window bounds origin extent: 1300 @ 500)].
-	self in: window do: [window bounds: (window bounds origin extent: 900 @ 500)].
+	self resizeTo: 1300 @ 500.
+	self resizeTo: 900 @ 500.
 	self assert: columns preview bounds right equals: columns width.
 	"Four columns: left, left brings the first back."
 	self reveal: 'vm/platform/tests'.
@@ -362,7 +367,7 @@ testRemoteNames
 testRetainedDrawing
 	| mismatch |
 	View verifyDrawing: true.
-	[self in: window do: [window bounds: (window bounds origin extent: 900 @ 500)].
+	[self resizeTo: 900 @ 500.
 	 self reveal: 'vm/gen/interpreter.c'.
 	 self in: window do: [browser viewer scrollOffset: 4000; selectFrom: 9000 to: 9400].
 	 self moveTo: (self pointOfSegment: 2).
