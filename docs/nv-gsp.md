@@ -53,7 +53,7 @@ with the reasoning. Path abbreviations (all in open-gpu-kernel-modules): `gsp/` 
 | (Turing GSP-RM, not used on GB10) | `/lib/firmware/nvidia/580.178.04/gsp_tu10x.bin` | 30,483,544 B | **[obs]** |
 | GSP-FMC, production signed | `nvidia.ko`: `gen/g_bindata_kgspGetBinArchiveGspRmFmcGfwProdSigned_GB10B.c` (`g_gsp_gb10b_dyn_prd_gfw_image.bin`) | 195,912 B image, 48 B hash (SHA-384), 384 B signature, 384 B public key | uncompressed C array, lines 31-38, 12291-12405 **[src]** |
 | GSP-FMC, debug signed | `gen/g_bindata_kgspGetBinArchiveGspRmFmcGfwDebugSigned_GB10B.c` | same sizes | **[src]** |
-| GSP-RM boot loader (RISC-V) | `gen/g_bindata_kgspGetBinArchiveGspRmBoot_GB10B.c`: `UCODE_IMAGE_PROD`/`_DBG` + `UCODE_DESC_PROD`/`_DBG` | 196,608 B + 84 B (`RM_RISCV_UCODE_DESC`) | lines 31-38, 12352-12391, 24706-24711 **[src]** |
+| GSP-RM boot loader (RISC-V) | `gen/g_bindata_kgspGetBinArchiveGspRmBoot_GB10B.c`: `UCODE_IMAGE_PROD`/`_DBG` + `UCODE_DESC_PROD`/`_DBG` | 196,608 B + 84 B (`RM_RISCV_UCODE_DESC`) | images uncompressed, descriptors raw deflate (section 11); lines 31-38, 12352-12391, 24706-24711 **[src]** |
 | log decoder `gsp_log_ga10x.bin` | not installed | - | DGX OS's package does not ship it (brief F1) **[obs]** |
 
 Both `.bin` files come from the package `nvidia-firmware-580-580.178.04` **[obs]**. Nothing else is loaded for the GPU:
@@ -561,3 +561,39 @@ On the dedicated Spark (once the firmware loads, step 3 next), the first run is 
 It reads registers and allocates DMA memory but writes nothing to the GPU. Open for the real run: `PciDevice allocate:`
 takes memory below 4 GB (about 600 MB here: the 512 MB system heap, the 75 MB image), and the GPU must master the bus
 (the probe's `command` line shows whether the GOP driver left it on).
+
+## 11. The firmware for the image
+
+`tools/nv-gsp-firmware.sh OUTDIR` puts what a GB10 GSP boot needs in a directory, for a volume the UEFI image mounts (an
+ext4 such as the Spark's own DGX OS root, or the ESP): `gsp_ga10x.bin` copied from the installed driver (`GSP_BIN` to
+take it from elsewhere; its `.fwversion` must be 580.178.04), and under `gb10b/` the arrays nvidia.ko is built with, cut
+from open-gpu-kernel-modules' generated bindata sources at the 580.178.04 tag: `fmc-prod.{image,hash,sig,pkey}`,
+`fmc-debug.*`, `boot-prod.{image,desc}`, `boot-debug.*`, and `SHA256SUMS`. It ships nothing: the repository holds the
+tool, not the files (section 1.3). On this Spark:
+
+	3b89a63f2e7a0b496113d6e727564e902456fd81017b21d35d3eaba76b24dab2  gsp_ga10x.bin
+	8371a29f1c68da89b73bdc87af477c37f0b4e05939c58379d0e3d29efc5575b5  gb10b/boot-debug.desc
+	709b88a88fc7ae9bd56b010bcc0a8269d4d40b3c0454aa5b366e8d562d83a404  gb10b/boot-debug.image
+	8371a29f1c68da89b73bdc87af477c37f0b4e05939c58379d0e3d29efc5575b5  gb10b/boot-prod.desc
+	427a691d8453f02548d395f40ac900eb0d5b8ea864e8f14f958eef890ba400a2  gb10b/boot-prod.image
+	155a0cc3d8eb6b2446b09ecf6d7ade4dd20dc14387cbb9574f49f3cfb3781a95  gb10b/fmc-debug.hash
+	51a665a76e354a15009ca506958b6092377843ae50a97fb1ccf0612da0d05cf5  gb10b/fmc-debug.image
+	7b3d6981aad093ee023a8ceb67b686dbb7c1c72acd97db3107aff59edd2c814c  gb10b/fmc-debug.pkey
+	15206650aff639d2c2394348565bc864608d390e82732770c79bd18c50943c57  gb10b/fmc-debug.sig
+	f0389f3a9ce3bb6093e80bfc924bbe2a4ece0199b080a37f64bc1fef63f7500c  gb10b/fmc-prod.hash
+	b13ead4b9a6b8a0d268f3094cc4f4521d6be8a9a525edbc9a8f3f397c86f1f2e  gb10b/fmc-prod.image
+	e9bbc669c27ad8827b5bbc2b2f52fdb47718659a651088869a5f3b11d2df7816  gb10b/fmc-prod.pkey
+	9db429257a18e7c5c1a3df185001c671e21bec4e94c719a574d2ce72e2e07272  gb10b/fmc-prod.sig
+
+Found on the way **[src, obs]**: the FMC archives' `UCODE_HASH` is the SHA-384 of their `UCODE_IMAGE` (the tool checks it;
+NvFakeGb10's SEC2 checks the same); the images are stored uncompressed, but the boot loader's descriptors are raw deflate
+(28 bytes for 84; bindata's `utilGzAllocate`), which the tool inflates; prod and debug boot loaders differ, their
+descriptors do not: version 5, manifest 0 + 0xA00, monitor data 0xA00 + 0xA600, monitor code 0xB000 + 0x24D00, monitor
+enabled, and `appVersion` 0, so `FALCON_OS` is written 0 on GB10B.
+
+In the image, `NvGspFirmware fromDirectory: '/mnt/nv-firmware' debug: false` loads it (`NvElf` takes `.fwimage`,
+`.fwversion` and `.fwsignature_gb10y` from gsp_ga10x.bin; `debug:` as the probe's fuse line says) and `problems` lists
+what is wrong with it. Loaded from this Spark's files and booted against NvFakeGb10, the whole path runs: the real FMC
+passes the fake SEC2's hash check and the real 75 MB GSP-RM image comes back whole through its radix-3 tables (17
+buffers, 74,692 KB with a token heap). `NvGspFirmwareTest` (everywhere) uses a synthetic gsp_ga10x.bin;
+`NvGspFirmwareFileTest` (`make test-nv`) the installed one.

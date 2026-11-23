@@ -10,6 +10,36 @@ gspImage: image signature: signature version: aString fmcImage: fmc hash: hash s
 	^self new setGspImage: image signature: signature version: aString fmcImage: fmc hash: hash signature: fmcSignature publicKey: key bootImage: boot descriptor: anRmRiscvUcodeDesc
 ! !
 
+!NvGspFirmware class methodsFor: 'loading'!
+signatureSection
+	"GB10B's signature section of gsp_ga10x.bin: the prefix (not confidential computing, kgspGetSignatureSectionNamePrefix_GB100) and the chip family's name (_kgspGetSectionNameForPrefix, kernel_gsp.c 4796-4840; nv-firmware.h 60)."
+	^'.fwsignature_gb10y'
+!
+fromDirectory: aPath debug: aBoolean
+	"The firmware tools/nv-gsp-firmware.sh put in aPath: gsp_ga10x.bin and gb10b/, the debug- or production-signed FMC and boot loader (as the fuse says: NvProbe reads it)."
+	| kind fmc boot |
+	kind := aBoolean ifTrue: ['debug'] ifFalse: ['prod'].
+	fmc := [:ext | File readBytes: aPath, '/gb10b/fmc-', kind, '.', ext].
+	boot := [:ext | File readBytes: aPath, '/gb10b/boot-', kind, '.', ext].
+	^self gspBin: (File readBytes: aPath, '/gsp_ga10x.bin')
+		fmcImage: (fmc value: 'image') hash: (fmc value: 'hash') signature: (fmc value: 'sig') publicKey: (fmc value: 'pkey')
+		bootImage: (boot value: 'image') descriptor: (boot value: 'desc')
+!
+gspBin: gspBinBytes fmcImage: fmc hash: hash signature: signature publicKey: key bootImage: boot descriptor: descBytes
+	"From gsp_ga10x.bin's bytes (its .fwimage, .fwversion and GB10B signature sections) and the bindata files' bytes (the descriptor an RM_RISCV_UCODE_DESC's 84)."
+	| elf image version gspSignature desc |
+	elf := NvElf on: gspBinBytes.
+	image := elf sectionNamed: '.fwimage'.
+	image isNil ifTrue: [^self error: 'gsp_ga10x.bin: no .fwimage section'].
+	version := (elf sectionNamed: '.fwversion') ifNil: [^self error: 'gsp_ga10x.bin: no .fwversion section'].
+	version := (version copyUpTo: 0) asString.
+	gspSignature := (elf sectionNamed: self signatureSection) ifNil: [^self error: 'gsp_ga10x.bin: no ', self signatureSection, ' section'].
+	desc := NvGsp struct: 'RM_RISCV_UCODE_DESC'.
+	descBytes size = desc size ifFalse: [^self error: 'boot loader descriptor of ', descBytes size printString, ' bytes, not ', desc size printString].
+	desc bytesAt: 0 put: descBytes.
+	^self gspImage: image signature: gspSignature version: version fmcImage: fmc hash: hash signature: signature publicKey: key bootImage: boot descriptor: desc
+! !
+
 !NvGspFirmware class methodsFor: 'versions'!
 driverVersion
 	"The driver whose firmware and structures these are; gsp_ga10x.bin's .fwversion must be it (kernel_gsp.c 4731-4775)."
