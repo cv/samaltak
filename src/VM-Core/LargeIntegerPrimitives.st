@@ -80,6 +80,8 @@ answer: r count: n negative: neg
 sum: a count: na plus: b count: nb into: r
 	"r := a + b (na >= nb); answer its limbs (na + 1 at most)."
 	<function>
+	<var: #a type: 'const uint64_t *'>
+	<var: #b type: 'const uint64_t *'>
 	<var: #carry type: 'uint64_t'>
 	<var: #x type: 'uint64_t'>
 	<var: #t type: 'uint64_t'>
@@ -103,6 +105,8 @@ sum: a count: na plus: b count: nb into: r
 difference: a count: na minus: b count: nb into: r
 	"r := a - b (a >= b, na >= nb); answer its limbs (na at most)."
 	<function>
+	<var: #a type: 'const uint64_t *'>
+	<var: #b type: 'const uint64_t *'>
 	<var: #borrow type: 'uint64_t'>
 	<var: #x type: 'uint64_t'>
 	<var: #y type: 'uint64_t'>
@@ -124,6 +128,8 @@ difference: a count: na minus: b count: nb into: r
 product: a count: na times: b count: nb into: r
 	"r (na + nb limbs) := a * b, schoolbook: a row per limb of a (na >= 1), so a short a makes few passes over b; the first row writes r, the others add to it; each step a 64 x 64 bit product with what it adds (mul64:by:plus:plus:high:)."
 	<function>
+	<var: #a type: 'const uint64_t *'>
+	<var: #b type: 'const uint64_t *'>
 	<var: #ai type: 'uint64_t'>
 	<var: #carry type: 'uint64_t'>
 	| ai carry hi |
@@ -158,6 +164,8 @@ estimate: qhat times: v exceeds: rhat low: u
 divide: a count: na by: b count: nb quotient: q remainder: r work: w
 	"q (na - nb + 1 limbs) := a quo: b and r (nb limbs) := a rem: b, for a >= b > 0 without leading zero limbs: short division by one limb, else Knuth's algorithm D (TAOCP 4.3.1) on a copy of a (w: na + 1 limbs) and b as they are: each quotient limb estimated from the top limbs of both shifted so that b's top bit is set (normalized: limb:of:shiftedBy:), 128 by 64 bits (div128:low:by:remainder:); subtracting its multiple of b from the remainder is the shifted subtraction scaled back, borrow and all, so neither number is shifted, nor the remainder back."
 	<function>
+	<var: #a type: 'const uint64_t *'>
+	<var: #b type: 'const uint64_t *'>
 	<var: #d type: 'uint64_t'>
 	<var: #vTop type: 'uint64_t'>
 	<var: #vNext type: 'uint64_t'>
@@ -233,6 +241,7 @@ divide: a count: na by: b count: nb quotient: q remainder: r work: w
 limb: i of: x shiftedBy: s
 	"Limb i of x << s (s < 64): x's limb i shifted, below it what limb i - 1 shifts out (limb 0 has none below)."
 	<function>
+	<var: #x type: 'const uint64_t *'>
 	<returns: 'uint64_t'>
 	(s = 0 or: [i = 0]) ifTrue: [^((x at: i) << s) asUInt64].
 	^((x at: i) << s) asUInt64 bitOr: (x at: i - 1) >> (64 - s)
@@ -252,6 +261,7 @@ leadingZeros: x
 shift: x count: n left: k into: r
 	"r (n + (k quo: 64) + 1 limbs) := x << k."
 	<function>
+	<var: #x type: 'const uint64_t *'>
 	<var: #carry type: 'uint64_t'>
 	<var: #v type: 'uint64_t'>
 	| limbs bits carry v |
@@ -272,6 +282,7 @@ shift: x count: n left: k into: r
 shift: x count: n right: k into: r
 	"r (n - (k quo: 64) limbs, k < 64 n) := x >> k; answer whether 1 bits were shifted out."
 	<function>
+	<var: #x type: 'const uint64_t *'>
 	<var: #next type: 'uint64_t'>
 	| limbs bits lost next |
 	limbs := k quo: 64.
@@ -303,6 +314,7 @@ increment: x count: n
 lowest: x count: n
 	"The index of x's lowest nonzero limb; n if there is none."
 	<function>
+	<var: #x type: 'const uint64_t *'>
 	| i |
 	i := 0.
 	[i < n and: [(x at: i) = 0]] whileTrue: [i := i + 1].
@@ -499,5 +511,5 @@ LargeOperand comment: 'An Integer operand of LargeIntegerPrimitives: its magnitu
 
 !LargeOperand class methodsFor: 'declaring'!
 fields
-	^#((limbs 'uint64_t *') (count int64_t) (neg bool) (small 'uint64_t[1]'))
+	^#((limbs 'const uint64_t *') (count int64_t) (neg bool) (small 'uint64_t[1]'))
 ! !

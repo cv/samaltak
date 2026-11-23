@@ -75,3 +75,33 @@ regionFrom: integers
 		offset := offset + 4].
 	^bytes
 ! !
+
+!GPUPlatformFFI class methodsFor: 'owned shader compiler output'!
+shaderOutputFrom: producer
+	"One receipt and at most one producer invocation. False alone means no entry."
+	<ffiSite>
+	| receipt copy release status token count result offset page |
+	receipt := ByteArray new: 16.
+	copy := self ffiSite: #(call 'platform' 'platform_gpu_shader_copy' (u64 u64 writableBytesWithLength) i32).
+	release := self ffiSite: #(call 'platform' 'platform_gpu_shader_release' (u64) i32).
+	[
+		status := producer value: receipt.
+		status == false ifTrue: [^false].
+		status = 1 ifFalse: [^GPUPrimitives fail: 'gpuCompileShader'].
+		token := FFIWire uint64At: 1 in: receipt.
+		count := FFIWire uint64At: 9 in: receipt.
+		(token > 0 and: [count <= 16r7FFFFFFF8]) ifFalse: [^GPUPrimitives fail: 'gpuCompileShader'].
+		result := ByteArray new: count.
+		offset := 0.
+		[offset < count] whileTrue: [
+			page := 1048576 min: count - offset.
+			(copy tryInvoke3: token with: offset with: {result. offset + 1. page}) = 1
+				ifFalse: [^GPUPrimitives fail: 'gpuCompileShader'].
+			offset := offset + page].
+		^result
+	] ensure: [
+		"Read the receipt even if an unwind interrupted delivery of native status."
+		token := FFIWire uint64At: 1 in: receipt.
+		token = 0 ifFalse: [
+			(release tryInvoke1: token) == false ifTrue: [FFIError signal: 'GPU shader output release refused']]]
+! !

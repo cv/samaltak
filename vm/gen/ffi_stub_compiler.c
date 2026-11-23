@@ -244,6 +244,7 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
     int64_t fp_base;
     int64_t fp_save;
     int64_t local_bytes;
+    int64_t integer_out;
     int64_t i_2;
     int64_t i_3;
     int32_t local[16];
@@ -282,6 +283,10 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
     fp_base = 16 + gp_save * 8;
     fp_save = fp;
     local_bytes = (fp_base + fp_save * 8 + 15) & -16LL;
+    integer_out = local_bytes;
+    if (result == 11) {
+        local_bytes = local_bytes + (int32_t)((sizeof(big_integer_native_result) + 15) & 18446744073709551600ULL);
+    }
     buf[0] = 0xD503245FLL;
     buf[1] = 0xA9BF7BFDLL;
     buf[2] = 0x910003FDLL;
@@ -388,7 +393,15 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
         buf[j] = 0x1E604100 + i_6 * 32 + i_6;
         j = j + 1;
     }
+    if (result == 11) {
+        buf[j] = 0x910003E4LL + integer_out * 1024;
+        j = j + 1;
+    }
     j = arm64_wrapped_call(target, j, buf);
+    if (result == 11) {
+        buf[j] = 0x910003E0LL + integer_out * 1024;
+        j = j + 1;
+    }
     result_done = -1;
     if (result == 1) {
         buf[j] = 0x93407C00LL;
@@ -480,6 +493,7 @@ static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_
     uint32_t *fail_sites;
     int64_t failed;
     uint8_t *p;
+    uint64_t stack_bytes;
     int32_t i;
     uint8_t tag;
     uint64_t helper;
@@ -498,7 +512,13 @@ static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_
     gp = 0;
     fp = 0;
     p = emit_x64(92642345881587ULL, 6, start);
-    p = emit_x64(71082642114380616ULL, 7, p);
+    stack_bytes = 80 + (uint64_t)((sizeof(big_integer_native_result) + 15) & 18446744073709551600ULL);
+    if (result == 11) {
+        p = emit_x64((stack_bytes << 24) | 0xEC8148, 7, p);
+        p = emit_x64(16550217ULL, 3, p);
+    } else {
+        p = emit_x64(71082642114380616ULL, 7, p);
+    }
     for (i = 0; i <= n - 1; i++) {
         tag = types[i];
         helper = wrapped_argument_helper(tag);
@@ -576,8 +596,16 @@ static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_
             failed = failed + 1;
         }
     }
+    if (result == 11) {
+        p = emit_x64(344205856076ULL, 5, p);
+    }
     p = x64_wrapped_call(target, p);
-    p = x64_wrapped_result(result, p);
+    if (result == 11) {
+        p = emit_x64(344209526088ULL, 5, p);
+        p = x64_wrapped_call(wrapped_result_helper(result), p);
+    } else {
+        p = x64_wrapped_result(result, p);
+    }
     if (failed > 0) {
         jump = emit_x64(235ULL, 2, p);
         rejected = jump;
@@ -588,7 +616,12 @@ static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_
             x64_wrapped_patch(start + fail_sites[i_3], rejected);
         }
     }
-    p = emit_x64(54989056056263496ULL, 7, p);
+    if (result == 11) {
+        p = emit_x64((stack_bytes << 24) | 0xC48148, 7, p);
+        p = emit_x64(12803137ULL, 3, p);
+    } else {
+        p = emit_x64(54989056056263496ULL, 7, p);
+    }
     return (uint32_t)(p - start);
 }
 
@@ -661,7 +694,7 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     uint8_t *p;
     uint32_t size;
     uint64_t entry;
-    if ((target == 0) || ((n < 0) || ((n > 6) || ((result < 1) || ((result > 7) || (result == 5)))))) {
+    if ((target == 0) || ((n < 0) || ((n > 6) || ((result < 1) || (((result > 7) && (result != 11)) || (result == 5)))))) {
         return 0;
     }
     if ((n > 0) && (types == NULL)) {
@@ -669,6 +702,11 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     }
     if (!can_publish_code()) {
         return 0;
+    }
+    if (result == 11) {
+        if (!((n == 2) && ((operation == 0) && ((types[0] == 10) && (types[1] == 10))))) {
+            return 0;
+        }
     }
     if (operation == 1) {
         if (!((n == 3) && ((result == 1) && ((types[0] == 5) && ((types[1] == 5) && (types[2] == 4)))))) {
@@ -731,7 +769,7 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     uint8_t *p;
     uint32_t size;
     uint64_t entry;
-    if ((target == 0) || ((n < 0) || ((n > 6) || ((result < 1) || ((result > 7) || (result == 5)))))) {
+    if ((target == 0) || ((n < 0) || ((n > 6) || ((result < 1) || (((result > 7) && (result != 11)) || (result == 5)))))) {
         return 0;
     }
     if ((n > 0) && (types == NULL)) {
@@ -739,6 +777,11 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     }
     if (!can_publish_code()) {
         return 0;
+    }
+    if (result == 11) {
+        if (!((n == 2) && ((operation == 0) && ((types[0] == 10) && (types[1] == 10))))) {
+            return 0;
+        }
     }
     if (operation == 1) {
         if (!((n == 3) && ((result == 1) && ((types[0] == 5) && ((types[1] == 5) && (types[2] == 4)))))) {

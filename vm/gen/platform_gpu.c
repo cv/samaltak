@@ -2,28 +2,36 @@
 /* PlatformGPU (VM-Platform) */
 #include "samaltak.h"
 
+static int32_t draw_binding_epoch = 1;
 static int32_t npending;
 static int32_t nwatches;
 static pf_table objs[1];
+static uint64_t shader_output_serial;
+static uint64_t shader_output_session;
+static gpu_shader_output shader_outputs[16];
 static pthread_cond_t watch_cond[1];
 static pthread_mutex_t watch_lock[1];
 static bool watcher_started;
 static fence_watch *watches;
 
+static void clear_shader_output(gpu_shader_output *row);
 static gpu_dev *device(int32_t h);
 static gpu_dev *device_of(pf_obj *o);
+static void discard_shader_outputs(void);
 static void *fence_watcher(void *unused);
 static int32_t ffi_attribute_width(int32_t format);
 static bool ffi_command_outside_pass(int32_t cmd);
 static bool ffi_rect(int32_t *rect, pf_obj *tex);
 static pf_obj *ffi_resource(int32_t handle, int kind, int32_t pass);
 static pf_obj *get(int32_t h, int kind, char *what);
+static void invalidate_draw_bindings(void);
 static int64_t mono_us(void);
 static SDL_GPURenderPass *platform_gpu_pass(int32_t h);
 static void platform_gpu_release(int32_t h);
 static void release_device(int32_t dh);
 static int sdl_fail(char *what);
 static SDL_GPUTextureFormat sdl_format(int f);
+static gpu_shader_output *shader_output_row(uint64_t ticket);
 static pf_obj *platform_gpu_target(int32_t tex);
 static void unwatch(int32_t h);
 static void upload_flush(gpu_dev *d);
@@ -103,6 +111,33 @@ int32_t acquire_swapchain(int32_t cmd, int32_t win, int *w, int *h)
     return sh;
 }
 
+/* PlatformGPU>>adoptShaderOutput:bytes:count:receipt: */
+bool adopt_shader_output(gpu_shader_output *row, uint8_t *payload, uint64_t n, uint8_t *out)
+{
+    uint64_t ticket;
+    int i;
+    int i_2;
+    if (n > 34359738360ULL) {
+        set_error("GPU shader output cannot fit a ByteArray");
+        return false;
+    }
+    shader_output_serial = shader_output_serial + 1;
+    if (shader_output_serial == shader_output_session) {
+        shader_output_serial = shader_output_serial + 1;
+    }
+    ticket = shader_output_session ^ shader_output_serial;
+    row->payload = payload;
+    row->payload_bytes = n;
+    row->ticket = ticket;
+    for (i = 0; i <= 7; i++) {
+        out[i + 8] = (uint8_t)(n >> (i * 8));
+    }
+    for (i_2 = 0; i_2 <= 7; i_2++) {
+        out[i_2] = (uint8_t)(ticket >> (i_2 * 8));
+    }
+    return true;
+}
+
 /* PlatformGPU>>beginPass:target:clear: */
 int begin_pass(int32_t cmd, int32_t tex, float *clear)
 {
@@ -112,6 +147,8 @@ int begin_pass(int32_t cmd, int32_t tex, float *clear)
     SDL_GPUColorTargetInfo *ci;
     SDL_GPURenderPass *p;
     int32_t dev;
+    int32_t fmt;
+    int32_t tracked_target;
     int32_t r_add;
     int32_t h_2;
     int32_t h;
@@ -136,21 +173,29 @@ int begin_pass(int32_t cmd, int32_t tex, float *clear)
         return sdl_fail("SDL_BeginGPURenderPass");
     }
     dev = c->dev;
+    fmt = t->fmt;
+    tracked_target = (t->kind == K_TEX) && ((t->dev == dev) && ((t->i & PF_TEXUSE_COLOR_TARGET) != 0)) ? draw_binding_epoch : 0;
     h = ({
     h_2 = platform_common_table_add_pointer(objs, K_PASS, p);
     (objs->v + h_2)->dev = dev;
     r_add = h_2;
     r_add; });
-    (objs->v + h)->i = cmd;
+    if (h > 0) {
+        (objs->v + h)->i = cmd;
+        (objs->v + h)->h = tracked_target;
+        (objs->v + h)->fmt = fmt;
+        c = objs->v + cmd;
+        c->w = c->w == 0 ? h : -1;
+    }
     return h;
 }
 
 /* PlatformGPU>>bindPipeline:pipeline: */
 bool bind_pipeline(int32_t pass, int32_t pipe)
 {
-    SDL_GPURenderPass *p;
+    pf_obj *p;
     pf_obj *o;
-    p = platform_gpu_pass(pass);
+    p = get(pass, K_PASS, "render pass");
     if (p == NULL) {
         return false;
     }
@@ -158,7 +203,8 @@ bool bind_pipeline(int32_t pass, int32_t pipe)
     if (o == NULL) {
         return false;
     }
-    SDL_BindGPUGraphicsPipeline(p, (SDL_GPUGraphicsPipeline *)o->ptr);
+    SDL_BindGPUGraphicsPipeline((SDL_GPURenderPass *)p->ptr, (SDL_GPUGraphicsPipeline *)o->ptr);
+    p->w = (p->dev == o->dev) && (p->fmt == o->fmt) ? pipe : -1;
     return true;
 }
 
@@ -294,10 +340,34 @@ bool claim_window(int32_t dev, int32_t win)
     return true;
 }
 
+/* PlatformGPU>>clearShaderOutput: */
+static void clear_shader_output(gpu_shader_output *row)
+{
+    free(row->payload);
+    row->ticket = 0;
+    row->payload = (uint8_t *)NULL;
+    row->payload_bytes = 0;
+}
+
 /* PlatformGPU>>compileShader:stage:size: */
 void *platform_gpu_compile_shader(char *source, int32_t stage, size_t *size_out)
 {
     return platform_host_compile_shader(source, stage, size_out);
+}
+
+/* PlatformGPU>>copyShaderOutput:offset:into:capacity: */
+bool copy_shader_output(uint64_t ticket, uint64_t offset, uint8_t *out, uint64_t cap)
+{
+    gpu_shader_output *row;
+    row = shader_output_row(ticket);
+    if ((row == NULL) || ((cap > 1048576) || ((offset > row->payload_bytes) || (cap > row->payload_bytes - offset)))) {
+        set_error("invalid GPU shader output page");
+        return false;
+    }
+    if (cap != 0) {
+        memcpy(out, row->payload + offset, cap);
+    }
+    return true;
 }
 
 /* PlatformGPU>>createBuffer:usage:size: */
@@ -382,7 +452,9 @@ int32_t create_pipeline(int32_t dev, int32_t vs, int32_t fs, int32_t stride, pf_
     SDL_GPUGraphicsPipelineCreateInfo *ci;
     SDL_GPUPrimitiveType v_2;
     SDL_GPUGraphicsPipeline *p;
+    bool procedural;
     int32_t r_add;
+    int32_t h_2;
     int32_t h;
     d = device(dev);
     v = get(vs, K_SHADER, "vertex shader");
@@ -467,11 +539,17 @@ int32_t create_pipeline(int32_t dev, int32_t vs, int32_t fs, int32_t stride, pf_
     if (p == NULL) {
         return sdl_fail("SDL_CreateGPUGraphicsPipeline");
     }
-    return ({
-    h = platform_common_table_add_pointer(objs, K_PIPE, p);
-    (objs->v + h)->dev = dev;
-    r_add = h;
+    procedural = (nattrs == 0) && ((v->dev == dev) && ((f->dev == dev) && ((v->i == PF_STAGE_VERTEX) && ((f->i == PF_STAGE_FRAGMENT) && ((v->w == 1) && (f->w == 1))))));
+    h = ({
+    h_2 = platform_common_table_add_pointer(objs, K_PIPE, p);
+    (objs->v + h_2)->dev = dev;
+    r_add = h_2;
     r_add; });
+    if (h > 0) {
+        (objs->v + h)->fmt = target_format;
+        (objs->v + h)->w = procedural ? 1 : 0;
+    }
+    return h;
 }
 
 /* PlatformGPU>>createSampler:linear:repeat: */
@@ -570,6 +648,7 @@ int32_t platform_gpu_create_shader_source_entry_stage_samplers_uniform_buffers_s
     r_add = h_3;
     r_add; });
     (objs->v + h_2)->i = stage == PF_STAGE_FRAGMENT ? PF_STAGE_FRAGMENT : PF_STAGE_VERTEX;
+    (objs->v + h_2)->w = (samplers == 0) && ((uniform_buffers == 0) && ((storage_buffers == 0) && (storage_textures == 0))) ? 1 : 0;
     r_create_shader = h_2;
 exit_create_shader:;
     r_create_shader; });
@@ -607,6 +686,7 @@ exit_create_shader:;
     r_add_2 = h_5;
     r_add_2; });
     (objs->v + h_4)->i = stage == PF_STAGE_FRAGMENT ? PF_STAGE_FRAGMENT : PF_STAGE_VERTEX;
+    (objs->v + h_4)->w = (samplers == 0) && ((uniform_buffers == 0) && ((storage_buffers == 0) && (storage_textures == 0))) ? 1 : 0;
     r_create_shader_2 = h_4;
 exit_create_shader_2:;
     r_create_shader_2; });
@@ -662,6 +742,7 @@ int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffe
     r_add = h_2;
     r_add; });
     (objs->v + h)->i = stage == PF_STAGE_FRAGMENT ? PF_STAGE_FRAGMENT : PF_STAGE_VERTEX;
+    (objs->v + h)->w = (samplers == 0) && ((uniform_buffers == 0) && ((storage_buffers == 0) && (storage_textures == 0))) ? 1 : 0;
     r_create_shader = h;
 exit_create_shader:;
     r_create_shader; });
@@ -722,6 +803,19 @@ static gpu_dev *device(int32_t h)
 static gpu_dev *device_of(pf_obj *o)
 {
     return (gpu_dev *)platform_common_table_at_kind(objs, o->dev, K_DEV)->ptr;
+}
+
+/* PlatformGPU>>discardShaderOutputs */
+static void discard_shader_outputs(void)
+{
+    int i;
+    gpu_shader_output *row;
+    for (i = 0; i <= 15; i++) {
+        row = shader_outputs + i;
+        if (row->ticket != 0) {
+            clear_shader_output(row);
+        }
+    }
 }
 
 /* PlatformGPU>>download:x:y:width:height:into:length: */
@@ -840,12 +934,17 @@ bool draw(int32_t pass, int32_t vertex_count, int32_t first_vertex)
 /* PlatformGPU>>endPass: */
 bool end_pass(int32_t pass)
 {
-    SDL_GPURenderPass *p;
-    p = platform_gpu_pass(pass);
+    pf_obj *p;
+    pf_obj *c;
+    p = get(pass, K_PASS, "render pass");
     if (p == NULL) {
         return false;
     }
-    SDL_EndGPURenderPass(p);
+    SDL_EndGPURenderPass((SDL_GPURenderPass *)p->ptr);
+    c = platform_common_table_at_kind(objs, (int32_t)p->i, K_CMD);
+    if ((c != NULL) && (c->w == pass)) {
+        c->w = 0;
+    }
     platform_common_table_remove(objs, pass);
     return true;
 }
@@ -1073,6 +1172,31 @@ static bool ffi_command_outside_pass(int32_t cmd)
     return true;
 }
 
+/* PlatformGPU>>ffiDrawEligibility:count:first: */
+int32_t ffi_draw_eligibility(int32_t pass, int32_t n, int32_t first)
+{
+    pf_obj *p;
+    pf_obj *c;
+    pf_obj *pipeline;
+    p = get(pass, K_PASS, "render pass");
+    if (p == NULL) {
+        return -1;
+    }
+    c = platform_common_table_at_kind(objs, (int32_t)p->i, K_CMD);
+    if ((c == NULL) || ((c->w != pass) || ((p->w == 0) || (p->w == -1)))) {
+        set_error("no compatible graphics pipeline bound to the active pass");
+        return -1;
+    }
+    if ((p->h == 0) || ((p->h != draw_binding_epoch) || ((n < 0) || ((first < 0) || ((int64_t)n + first > 0x7FFFFFFF))))) {
+        return 0;
+    }
+    pipeline = platform_common_table_at_kind(objs, p->w, K_PIPE);
+    if (pipeline == NULL) {
+        return 0;
+    }
+    return pipeline->w == 1 ? 1 : 0;
+}
+
 /* PlatformGPU>>ffiRect:liesInside: */
 static bool ffi_rect(int32_t *rect, pf_obj *tex)
 {
@@ -1127,6 +1251,15 @@ void platform_gpu_init(void)
 {
     pthread_mutex_init(watch_lock, (const pthread_mutexattr_t *)NULL);
     pthread_cond_init(watch_cond, (const pthread_condattr_t *)NULL);
+}
+
+/* PlatformGPU>>invalidateDrawBindings */
+static void invalidate_draw_bindings(void)
+{
+    if (draw_binding_epoch == 0) {
+        return;
+    }
+    draw_binding_epoch = draw_binding_epoch == 0x7FFFFFFF ? 0 : draw_binding_epoch + 1;
 }
 
 /* PlatformGPU>>monoUs */
@@ -1184,9 +1317,11 @@ static void platform_gpu_release(int32_t h)
         SDL_ReleaseGPUShader(dv, (SDL_GPUShader *)o->ptr);
         break;
     case K_PIPE:
+        invalidate_draw_bindings();
         SDL_ReleaseGPUGraphicsPipeline(dv, (SDL_GPUGraphicsPipeline *)o->ptr);
         break;
     case K_TEX:
+        invalidate_draw_bindings();
         SDL_ReleaseGPUTexture(dv, (SDL_GPUTexture *)o->ptr);
         break;
     case K_SAMPLER:
@@ -1261,6 +1396,18 @@ bool release_handle(int32_t h)
     } else {
         platform_gpu_release(h);
     }
+    return true;
+}
+
+/* PlatformGPU>>releaseShaderOutput: */
+bool release_shader_output(uint64_t ticket)
+{
+    gpu_shader_output *row;
+    row = shader_output_row(ticket);
+    if (row == NULL) {
+        return false;
+    }
+    clear_shader_output(row);
     return true;
 }
 
@@ -1364,10 +1511,69 @@ char *shader_language(int32_t dev)
     return (char *)NULL;
 }
 
+/* PlatformGPU>>shaderOutputRoom:capacity: */
+gpu_shader_output *shader_output_room(uint8_t *out, uint64_t cap)
+{
+    int i;
+    uint64_t local;
+    uint64_t *nonce;
+    int i_2;
+    gpu_shader_output *row;
+    if (cap != 16) {
+        set_error("wrong GPU shader output receipt size");
+        return (gpu_shader_output *)NULL;
+    }
+    for (i = 0; i <= 15; i++) {
+        if (out[i] != 0) {
+            set_error("GPU shader output requires a fresh receipt");
+            return (gpu_shader_output *)NULL;
+        }
+    }
+    if (shader_output_session == 0) {
+        memset(&local, 0, sizeof local);
+        nonce = &local;
+        if (!((getentropy(nonce, 8) == 0) && (((*nonce) & 4611686018427387903ULL) != 0))) {
+            set_error("cannot initialize GPU shader output tickets");
+            return (gpu_shader_output *)NULL;
+        }
+        shader_output_session = (*nonce) & 4611686018427387903ULL;
+    }
+    if (shader_output_serial >= 4611686018427387902ULL) {
+        set_error("GPU shader output ticket space exhausted");
+        return (gpu_shader_output *)NULL;
+    }
+    for (i_2 = 0; i_2 <= 15; i_2++) {
+        row = shader_outputs + i_2;
+        if (row->ticket == 0) {
+            return row;
+        }
+    }
+    set_error("too many outstanding GPU shader outputs");
+    return (gpu_shader_output *)NULL;
+}
+
+/* PlatformGPU>>shaderOutputRow: */
+static gpu_shader_output *shader_output_row(uint64_t ticket)
+{
+    int i;
+    gpu_shader_output *row;
+    if (ticket == 0) {
+        return (gpu_shader_output *)NULL;
+    }
+    for (i = 0; i <= 15; i++) {
+        row = shader_outputs + i;
+        if (row->ticket == ticket) {
+            return row;
+        }
+    }
+    return (gpu_shader_output *)NULL;
+}
+
 /* PlatformGPU>>shutdown */
 void platform_gpu_shutdown(void)
 {
     int32_t h;
+    discard_shader_outputs();
     for (h = 1; h <= objs->n - 1; h++) {
         if ((objs->v + h)->kind == K_DEV) {
             release_device(h);

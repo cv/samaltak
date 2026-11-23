@@ -372,20 +372,20 @@ ffiGpuPushUniforms: commandOrPass stage: stage slot: slot data: data count: n
 ! !
 
 !SDLPlatform methodsFor: 'GPU FFI - shaders'!
-ffiGpuCompileShader: data count: n stage: stage ticket: ticket
-	"One compiler call. Transfer the compiler's exclusive malloc block to the owner."
+ffiGpuCompileShader: data count: n stage: stage receipt: receipt capacity: cap
+	"One compiler call. Success publishes {ticket. byteCount} as two LE u64 words."
 	<function>
-	<approvedFFI: 461 symbol: 'platform_gpu_compile_shader' arguments: #(8 1 4) result: 1>
+	<approvedFFI: 461 symbol: 'platform_gpu_compile_shader' arguments: #(8 1 9) result: 1>
 	<var: #data type: 'const uint8_t *'>
 	<var: #n type: 'uint64_t'>
 	<var: #stage type: 'int32_t'>
-	<var: #ticket type: 'uint64_t'>
+	<var: #receipt type: 'uint8_t *'>
+	<var: #cap type: 'uint64_t'>
 	<returns: 'int32_t'>
-	| source size code |
+	| source size code row |
 	self ffiGpuOnMainThread ifFalse: [^-1].
-	(ownedFFI ownedCanProduce: ticket) ifFalse: [
-		common setError: 'invalid GPU shader output ticket'.
-		^-1].
+	row := gpu shaderOutputRoom: receipt capacity: cap.
+	row isNull ifTrue: [^-1].
 	source := nativeCountedText copyTerminated: data size: n.
 	source isNull ifTrue: [
 		common setError: 'invalid or unavailable GPU shader source'.
@@ -394,10 +394,28 @@ ffiGpuCompileShader: data count: n stage: stage ticket: ticket
 	code := self cCoerce: (gpu compileShader: source stage: stage size: size) to: 'uint8_t *'.
 	libc free: source.
 	code isNull ifTrue: [^-1].
-	(ownedFFI ownedAdopt: ticket from: code size: size value capacity: size value) ifTrue: [^1].
+	(gpu adoptShaderOutput: row bytes: code count: size value receipt: receipt) ifTrue: [^1].
 	libc free: code.
-	common setError: 'GPU shader output exceeds its reserved capacity'.
 	^-1
+!
+ffiGpuCopyShader: ticket offset: offset into: out capacity: cap
+	<function>
+	<approvedFFI: 1461 symbol: 'platform_gpu_shader_copy' arguments: #(4 4 9) result: 1>
+	<var: #ticket type: 'uint64_t'>
+	<var: #offset type: 'uint64_t'>
+	<var: #out type: 'uint8_t *'>
+	<var: #cap type: 'uint64_t'>
+	<returns: 'int32_t'>
+	self ffiGpuOnMainThread ifFalse: [^0].
+	^(gpu copyShaderOutput: ticket offset: offset into: out capacity: cap) ifTrue: [1] ifFalse: [0]
+!
+ffiGpuReleaseShader: ticket
+	<function>
+	<approvedFFI: 1462 symbol: 'platform_gpu_shader_release' arguments: #(4) result: 1>
+	<var: #ticket type: 'uint64_t'>
+	<returns: 'int32_t'>
+	self ffiGpuOnMainThread ifFalse: [^0].
+	^(gpu releaseShaderOutput: ticket) ifTrue: [1] ifFalse: [0]
 ! !
 
 !SDLPlatform methodsFor: 'GPU FFI - blit'!
@@ -508,4 +526,30 @@ ffiGpuCreatePipeline: dev vertex: vs fragment: fs config: config size: n
 	(gpu ffiCanCreatePipeline: dev vertex: vs fragment: fs stride: stride attributes: attrs count: count) ifFalse: [^0].
 	^gpu createPipeline: dev vertexShader: vs fragmentShader: fs stride: stride attributes: attrs count: count
 		primitive: prim blend: blend targetFormat: format
+! !
+
+!SDLPlatform methodsFor: 'GPU FFI - drawing'!
+ffiGpuDrawEligibility: pass count: n first: first
+	"Read-only preflight (only diagnostic error on invalid state). The draw rechecks it."
+	<function>
+	<approvedFFI: 1450 symbol: 'platform_gpu_draw_eligibility' arguments: #(1 1 1) result: 1>
+	<var: #pass type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #first type: 'int32_t'>
+	<returns: 'int32_t'>
+	self ffiGpuOnMainThread ifFalse: [^-1].
+	^gpu ffiDrawEligibility: pass count: n first: first
+!
+ffiGpuDraw: pass count: n first: first
+	<function>
+	<approvedFFI: 450 symbol: 'platform_gpu_draw' arguments: #(1 1 1) result: 1>
+	<var: #pass type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #first type: 'int32_t'>
+	<returns: 'int32_t'>
+	self ffiGpuOnMainThread ifFalse: [^0].
+	(gpu ffiDrawEligibility: pass count: n first: first) = 1 ifFalse: [
+		common setError: 'GPU draw is not eligible for the procedural path'.
+		^0].
+	^(gpu draw: pass vertices: n first: first) ifTrue: [1] ifFalse: [0]
 ! !

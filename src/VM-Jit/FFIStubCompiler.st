@@ -78,9 +78,11 @@ entryFor: target argumentTags: types count: n returnTag: result operation: opera
 	<var: #operation type: 'int32_t'>
 	<returns: 'uint64_t'>
 	| key slot tag lanes buf p size entry |
-	(target = 0 or: [n < 0 or: [n > 6 or: [result < 1 or: [result > 7 or: [result = 5]]]]]) ifTrue: [^0].
+	(target = 0 or: [n < 0 or: [n > 6 or: [result < 1 or: [(result > 7 and: [result ~= 11]) or: [result = 5]]]]]) ifTrue: [^0].
 	(n > 0 and: [types isNull]) ifTrue: [^0].
 	self canPublishCode ifFalse: [^0].
+	result = 11 ifTrue: [
+		(n = 2 and: [operation = 0 and: [(types at: 0) = 10 and: [(types at: 1) = 10]]]) ifFalse: [^0]].
 	operation = 1 ifTrue: [
 		(n = 3 and: [result = 1 and: [(types at: 0) = 5 and: [(types at: 1) = 5 and: [(types at: 2) = 4]]]]) ifFalse: [^0]
 	] ifFalse: [operation = 0 ifFalse: [^0]].
@@ -385,7 +387,7 @@ encodeWrappedX64: start target: target types: types count: n result: result oper
 	<var: #gp type: 'int32_t'>
 	<var: #fp type: 'int32_t'>
 	<returns: 'uint32_t'>
-	| p failSites failed gp fp tag helper slow done reg rex jump rejected epilogue |
+	| p failSites failed gp fp tag helper slow done reg rex jump rejected epilogue stackBytes |
 	"At most two failure sites per argument plus the two memcmp bounds."
 	failSites := self local: 'uint32_t[14]'.
 	failed := 0.
@@ -395,7 +397,12 @@ encodeWrappedX64: start target: target types: types count: n result: result oper
 	 Stack remains aligned; [rsp+0..47] are spill homes, +48 and +56
 	 are helper outputs, +64 and +72 are memcmp slice lengths."
 	p := self emitX64: 16r5441FA1E0FF3 asUInt64 count: 6 at: start.
-	p := self emitX64: 16rFC894950EC8348 asUInt64 count: 7 at: p.
+	stackBytes := 80 + (((self sizeof: 'BigIntegerNativeResult') + 15) bitClear: 15) asUInt64.
+	result = 11
+		ifTrue: [
+			p := self emitX64: ((stackBytes << 24) bitOr: 16rEC8148) count: 7 at: p. "sub rsp,imm32"
+			p := self emitX64: 16rFC8949 asUInt64 count: 3 at: p]
+		ifFalse: [p := self emitX64: 16rFC894950EC8348 asUInt64 count: 7 at: p].
 	0 to: n - 1 do: [:i |
 		tag := types at: i.
 		helper := self wrappedArgumentHelper: tag.
@@ -461,8 +468,15 @@ encodeWrappedX64: start target: target types: types count: n result: result oper
 			p := self x64WrappedJcc: 7 at: p.
 			failSites at: failed put: (p - start) asUInt32.
 			failed := failed + 1]].
+	result = 11 ifTrue: [
+		"Exact two-magnitude signature: the hidden fifth GP argument is r8."
+		p := self emitX64: 16r5024448D4C asUInt64 count: 5 at: p].
 	p := self x64WrappedCall: target at: p.
-	p := self x64WrappedResult: result at: p.
+	result = 11
+		ifTrue: [
+			p := self emitX64: 16r50247C8D48 asUInt64 count: 5 at: p. "lea rdi,[rsp+80]"
+			p := self x64WrappedCall: (self wrappedResultHelper: result) at: p]
+		ifFalse: [p := self x64WrappedResult: result at: p].
 	failed > 0 ifTrue: [
 		jump := self emitX64: 16rEB asUInt64 count: 2 at: p. "jmp epilogue"
 		rejected := jump.
@@ -472,7 +486,11 @@ encodeWrappedX64: start target: target types: types count: n result: result oper
 		0 to: failed - 1 do: [:i |
 			self x64WrappedPatch: start + (failSites at: i) to: rejected]].
 	"add rsp,80; pop r12; ret"
-	p := self emitX64: 16rC35C4150C48348 asUInt64 count: 7 at: p.
+	result = 11
+		ifTrue: [
+			p := self emitX64: ((stackBytes << 24) bitOr: 16rC48148) count: 7 at: p.
+			p := self emitX64: 16rC35C41 asUInt64 count: 3 at: p]
+		ifFalse: [p := self emitX64: 16rC35C4150C48348 asUInt64 count: 7 at: p].
 	^(p - start) asUInt32
 !
 x64WrappedCall: target at: p

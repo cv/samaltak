@@ -272,11 +272,10 @@ ffiCandidateCompileShader: glsl stage: stage
 	| source result |
 	source := PlatformFFI cTextBytes: glsl.
 	source isNil ifTrue: [^self compileShader: glsl stage: stage].
-	result := FFIOwnedOutput captureUpTo: 67108864 do: [:ticket |
-		(self ffiSite: #(call 'platform' 'platform_gpu_compile_shader' (bytesWithLength i32 u64) i32))
-			tryInvoke3: {source. 1. source size} with: stage with: ticket].
+	result := GPUPlatformFFI shaderOutputFrom: [:receipt |
+		(self ffiSite: #(call 'platform' 'platform_gpu_compile_shader' (bytesWithLength i32 writableBytesWithLength) i32))
+			tryInvoke3: {source. 1. source size} with: stage with: {receipt. 1. 16}].
 	result == false ifTrue: [^self compileShader: glsl stage: stage].
-	result class == ByteArray ifFalse: [^self fail: 'gpuCompileShader'].
 	^result
 ! !
 
@@ -331,4 +330,20 @@ ffiCandidateCreatePipeline: dev vertex: vs fragment: fs stride: stride attribute
 			primitive: prim blend: blend format: format].
 	result = 0 ifTrue: [^self fail: 'gpuCreatePipeline'].
 	^result
+! !
+
+!GPUPrimitives class methodsFor: 'FFI candidates - draw'!
+ffiCandidateDraw: pass count: count first: first
+	<ffiSite>
+	| eligibility result |
+	"The non-drawing query may decline before entry to the drawing operation."
+	eligibility := (self ffiSite: #(call 'platform' 'platform_gpu_draw_eligibility' (i32 i32 i32) i32))
+		tryInvoke3: pass with: count with: first.
+	(eligibility == false or: [eligibility = 0]) ifTrue: [^self draw: pass count: count first: first].
+	eligibility < 0 ifTrue: [^self fail: 'gpuDraw'].
+	result := (self ffiSite: #(call 'platform' 'platform_gpu_draw' (i32 i32 i32) i32))
+		tryInvoke3: pass with: count with: first.
+	result == false ifTrue: [^self draw: pass count: count first: first].
+	result = 1 ifFalse: [^self fail: 'gpuDraw'].
+	^self
 ! !

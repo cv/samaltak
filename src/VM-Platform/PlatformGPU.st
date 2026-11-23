@@ -1,6 +1,6 @@
 VMPlatformModule subclass: #PlatformGPU
-	instanceVariableNames: 'objs logAdapter watches nwatches npending watchLock watchCond watcherStarted'
-	classVariableNames: 'K_BUF K_CMD K_DEV K_FENCE K_PASS K_PIPE K_SAMPLER K_SHADER K_SWAP K_TEX LOG_ERROR_SIZE MAX_CLAIMS'
+	instanceVariableNames: 'objs logAdapter watches nwatches npending watchLock watchCond watcherStarted drawBindingEpoch shaderOutputs shaderOutputSession shaderOutputSerial'
+	classVariableNames: 'K_BUF K_CMD K_DEV K_FENCE K_PASS K_PIPE K_SAMPLER K_SHADER K_SWAP K_TEX LOG_ERROR_SIZE MAX_CLAIMS MAX_SHADER_OUTPUTS'
 	package: 'VM-Platform'!
 
 PlatformGPU comment: 'A thin SDL_GPU wrapper with handles (one table for all kinds; dev = the handle of the object''s device).
@@ -13,7 +13,8 @@ Fence timing: a watcher thread polls the pending fences every 200 µs while any 
 declarations
 	^#((objs 'pf_table[1]') (logAdapter FFISDLLogAdapter)
 		(watches 'fence_watch *') (nwatches int32_t) (npending int32_t) (watchLock 'pthread_mutex_t[1]') (watchCond 'pthread_cond_t[1]')
-		(watcherStarted bool))
+		(watcherStarted bool) (drawBindingEpoch int32_t 1) (shaderOutputs 'gpu_shader_output[MAX_SHADER_OUTPUTS]')
+		(shaderOutputSession uint64_t) (shaderOutputSerial uint64_t))
 !
 initialize
 	K_DEV := 1.
@@ -27,7 +28,8 @@ initialize
 	K_FENCE := 9.
 	K_SWAP := 10.
 	MAX_CLAIMS := 16.
-	LOG_ERROR_SIZE := 2048
+	LOG_ERROR_SIZE := 2048.
+	MAX_SHADER_OUTPUTS := 16
 ! !
 
 !PlatformGPU methodsFor: 'private'!
@@ -289,12 +291,15 @@ createShader: d handle: dev code: code size: n format: format entry: entry stage
 	s isNull ifTrue: [^self sdlFail: 'SDL_CreateGPUShader'].
 	h := self add: K_SHADER pointer: s device: dev.
 	(objs v + h) i: (stage = PF_STAGE_FRAGMENT ifTrue: [PF_STAGE_FRAGMENT] ifFalse: [PF_STAGE_VERTEX]).
+	"Only pipelines with no declared shader resources are eligible for a checked procedural draw."
+	(objs v + h) w: ((samplers = 0 and: [uniformBuffers = 0 and: [storageBuffers = 0 and: [storageTextures = 0]]])
+		ifTrue: [1] ifFalse: [0]).
 	^h
 !
 createPipeline: dev vertexShader: vs fragmentShader: fs stride: stride attributes: attrs count: nattrs primitive: prim blend: blend targetFormat: targetFormat
 	"Attribute i becomes location i in vertex buffer slot 0."
 	<export>
-	| d v f va vb ct bs ci p |
+	| d v f va vb ct bs ci p procedural h |
 	d := self device: dev.
 	v := self get: vs kind: K_SHADER what: 'vertex shader'.
 	f := self get: fs kind: K_SHADER what: 'fragment shader'.
@@ -346,7 +351,13 @@ createPipeline: dev vertexShader: vs fragmentShader: fs stride: stride attribute
 	ci target_info num_color_targets: 1.
 	p := sdlGpu createGraphicsPipeline: d dev info: ci.
 	p isNull ifTrue: [^self sdlFail: 'SDL_CreateGPUGraphicsPipeline'].
-	^self add: K_PIPE pointer: p device: dev
+	procedural := nattrs = 0 and: [v dev = dev and: [f dev = dev and: [
+		v i = PF_STAGE_VERTEX and: [f i = PF_STAGE_FRAGMENT and: [v w = 1 and: [f w = 1]]]]]].
+	h := self add: K_PIPE pointer: p device: dev.
+	h > 0 ifTrue: [
+		(objs v + h) fmt: targetFormat.
+		(objs v + h) w: (procedural ifTrue: [1] ifFalse: [0])].
+	^h
 !
 createTexture: dev width: w height: h format: format usage: usage
 	"usage: PF_TEXUSE_* bits."
@@ -646,7 +657,7 @@ acquireSwapchain: cmd window: win width: w height: h
 beginPass: cmd target: tex clear: clear
 	"clear: RGBA, NULL = load."
 	<export>
-	| c t ci p dev h |
+	| c t ci p dev h fmt trackedTarget |
 	c := self get: cmd kind: K_CMD what: 'command buffer'.
 	t := self target: tex.
 	(c isNull or: [t isNull]) ifTrue: [^0].
@@ -662,8 +673,18 @@ beginPass: cmd target: tex clear: clear
 	p := sdlGpu beginRenderPass: c ptr targets: ci count: 1 depthStencil: self null.
 	p isNull ifTrue: [^self sdlFail: 'SDL_BeginGPURenderPass'].
 	dev := c dev.
+	fmt := t fmt.
+	"Track an ordinary owned color attachment under the current lifetime epoch."
+	trackedTarget := (t kind = K_TEX and: [t dev = dev and: [(t i bitAnd: PF_TEXUSE_COLOR_TARGET) ~= 0]])
+		ifTrue: [drawBindingEpoch] ifFalse: [0].
 	h := self add: K_PASS pointer: p device: dev.
-	(objs v + h) i: cmd.
+	h > 0 ifTrue: [
+		(objs v + h) i: cmd.
+		(objs v + h) h: trackedTarget.
+		(objs v + h) fmt: fmt.
+		"An overlapping legacy pass invalidates certification for this command until it is consumed."
+		c := objs v + cmd.
+		c w: (c w = 0 ifTrue: [h] ifFalse: [-1])].
 	^h
 !
 setViewport: pass x: x y: y width: w height: h
@@ -701,11 +722,12 @@ setScissor: pass x: x y: y width: w height: h
 bindPipeline: pass pipeline: pipe
 	<export>
 	| p o |
-	p := self pass: pass.
+	p := self get: pass kind: K_PASS what: 'render pass'.
 	p isNull ifTrue: [^false].
 	o := self get: pipe kind: K_PIPE what: 'pipeline'.
 	o isNull ifTrue: [^false].
-	sdlGpu bindGraphicsPipeline: p pipeline: o ptr.
+	sdlGpu bindGraphicsPipeline: p ptr pipeline: o ptr.
+	p w: ((p dev = o dev and: [p fmt = o fmt]) ifTrue: [pipe] ifFalse: [-1]).
 	^true
 !
 bindVertexBuffer: pass slot: slot buffer: buf offset: offset
@@ -759,10 +781,12 @@ draw: pass vertices: vertexCount first: firstVertex
 !
 endPass: pass
 	<export>
-	| p |
-	p := self pass: pass.
+	| p c |
+	p := self get: pass kind: K_PASS what: 'render pass'.
 	p isNull ifTrue: [^false].
-	sdlGpu endRenderPass: p.
+	sdlGpu endRenderPass: p ptr.
+	c := common table: objs at: p i asInt32 kind: K_CMD.
+	(c notNull and: [c w = pass]) ifTrue: [c w: 0].
 	common table: objs remove: pass.
 	^true
 !
@@ -921,8 +945,12 @@ release: h
 	dv := (self deviceOf: o) dev.
 	o kind caseOf: {
 		[K_SHADER] -> [sdlGpu releaseShader: dv shader: o ptr].
-		[K_PIPE] -> [sdlGpu releaseGraphicsPipeline: dv pipeline: o ptr].
-		[K_TEX] -> [sdlGpu releaseTexture: dv texture: o ptr].
+		[K_PIPE] -> [
+			self invalidateDrawBindings.
+			sdlGpu releaseGraphicsPipeline: dv pipeline: o ptr].
+		[K_TEX] -> [
+			self invalidateDrawBindings.
+			sdlGpu releaseTexture: dv texture: o ptr].
 		[K_SAMPLER] -> [sdlGpu releaseSampler: dv sampler: o ptr].
 		[K_BUF] -> [sdlGpu releaseBuffer: dv buffer: o ptr].
 		[K_FENCE] -> [
@@ -967,6 +995,7 @@ releaseHandle: h
 !
 shutdown
 	<export>
+	self discardShaderOutputs.
 	1 to: objs n - 1 do: [:h | (objs v + h) kind = K_DEV ifTrue: [self releaseDevice: h]]
 !
 handleCounts: out

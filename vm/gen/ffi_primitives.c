@@ -32,7 +32,18 @@ static void call_bound(uint64_t entry, const oop *args);
 static bool describe_bound_owner(oop owner, int32_t n, ffi_bound_site *desc);
 static bool ensure_binding_session(void);
 static int32_t ffi_approved_core(const char *approved_name, uint32_t packed_signature, uint64_t *target_out);
+static void ffi_big_integer_add(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
+static void ffi_big_integer_bit_and(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
+static void ffi_big_integer_bit_or(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
+static void ffi_big_integer_bit_shift(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
+static void ffi_big_integer_bit_xor(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
 static int32_t ffi_big_integer_compare(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn);
+static void ffi_big_integer_floor_div(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
+static void ffi_big_integer_mod(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
+static void ffi_big_integer_mul(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
+static void ffi_big_integer_quo(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
+static void ffi_big_integer_rem(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
+static void ffi_big_integer_sub(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
 static void invalidate_bindings(void);
 static void invoke_bound_array(oop args);
 static bool marshal(oop o, int32_t tag, uint64_t *out);
@@ -443,6 +454,7 @@ static bool describe_bound_owner(oop owner, int32_t n, ffi_bound_site *desc)
     uint64_t token;
     int32_t slot;
     uint64_t serial;
+    uint64_t result_tag;
     memset(&local, 0, sizeof local);
     arity = &local;
     entry = bound_entry(owner, arity);
@@ -458,7 +470,8 @@ static bool describe_bound_owner(oop owner, int32_t n, ffi_bound_site *desc)
     desc->serial_addr = (uint64_t)(binding_serials + slot);
     desc->serial = serial;
     desc->entry = entry;
-    desc->result_tag = (uint64_t)binding_result_tags[slot];
+    result_tag = (uint64_t)binding_result_tags[slot];
+    desc->result_tag = result_tag == 11 ? 6ULL : result_tag;
     desc->token = token;
     desc->owner_addr = (uint64_t)(binding_owners + slot);
     return true;
@@ -487,15 +500,59 @@ static bool ensure_binding_session(void)
 
 /* FFIPrimitives>>ffiApprovedCore:signature:into: */
 #ifndef SAMALTAK_UEFI
-static int32_t ffi_big_integer_compare_entry_witness(const uint64_t * a1, int64_t a2, const uint64_t * a3, int64_t a4) {
+static void ffi_big_integer_add_entry_witness(const uint64_t *a1, int64_t a2, const uint64_t *a3, int64_t a4, big_integer_native_result *a5) {
+    fprintf(stderr, "\nffi-native-entry 1044\n");
+    ffi_big_integer_add(a1, a2, a3, a4, a5);
+}
+static void ffi_big_integer_sub_entry_witness(const uint64_t *a1, int64_t a2, const uint64_t *a3, int64_t a4, big_integer_native_result *a5) {
+    fprintf(stderr, "\nffi-native-entry 1045\n");
+    ffi_big_integer_sub(a1, a2, a3, a4, a5);
+}
+static void ffi_big_integer_mul_entry_witness(const uint64_t *a1, int64_t a2, const uint64_t *a3, int64_t a4, big_integer_native_result *a5) {
+    fprintf(stderr, "\nffi-native-entry 1046\n");
+    ffi_big_integer_mul(a1, a2, a3, a4, a5);
+}
+static void ffi_big_integer_quo_entry_witness(const uint64_t *a1, int64_t a2, const uint64_t *a3, int64_t a4, big_integer_native_result *a5) {
+    fprintf(stderr, "\nffi-native-entry 1047\n");
+    ffi_big_integer_quo(a1, a2, a3, a4, a5);
+}
+static void ffi_big_integer_rem_entry_witness(const uint64_t *a1, int64_t a2, const uint64_t *a3, int64_t a4, big_integer_native_result *a5) {
+    fprintf(stderr, "\nffi-native-entry 1048\n");
+    ffi_big_integer_rem(a1, a2, a3, a4, a5);
+}
+static void ffi_big_integer_floor_div_entry_witness(const uint64_t *a1, int64_t a2, const uint64_t *a3, int64_t a4, big_integer_native_result *a5) {
+    fprintf(stderr, "\nffi-native-entry 1049\n");
+    ffi_big_integer_floor_div(a1, a2, a3, a4, a5);
+}
+static void ffi_big_integer_mod_entry_witness(const uint64_t *a1, int64_t a2, const uint64_t *a3, int64_t a4, big_integer_native_result *a5) {
+    fprintf(stderr, "\nffi-native-entry 1050\n");
+    ffi_big_integer_mod(a1, a2, a3, a4, a5);
+}
+static int32_t ffi_big_integer_compare_entry_witness(const uint64_t *a1, int64_t a2, const uint64_t *a3, int64_t a4) {
     fprintf(stderr, "\nffi-native-entry 1051\n");
     return ffi_big_integer_compare(a1, a2, a3, a4);
+}
+static void ffi_big_integer_bit_and_entry_witness(const uint64_t *a1, int64_t a2, const uint64_t *a3, int64_t a4, big_integer_native_result *a5) {
+    fprintf(stderr, "\nffi-native-entry 1052\n");
+    ffi_big_integer_bit_and(a1, a2, a3, a4, a5);
+}
+static void ffi_big_integer_bit_or_entry_witness(const uint64_t *a1, int64_t a2, const uint64_t *a3, int64_t a4, big_integer_native_result *a5) {
+    fprintf(stderr, "\nffi-native-entry 1053\n");
+    ffi_big_integer_bit_or(a1, a2, a3, a4, a5);
+}
+static void ffi_big_integer_bit_xor_entry_witness(const uint64_t *a1, int64_t a2, const uint64_t *a3, int64_t a4, big_integer_native_result *a5) {
+    fprintf(stderr, "\nffi-native-entry 1054\n");
+    ffi_big_integer_bit_xor(a1, a2, a3, a4, a5);
+}
+static void ffi_big_integer_bit_shift_entry_witness(const uint64_t *a1, int64_t a2, const uint64_t *a3, int64_t a4, big_integer_native_result *a5) {
+    fprintf(stderr, "\nffi-native-entry 1055\n");
+    ffi_big_integer_bit_shift(a1, a2, a3, a4, a5);
 }
 static double native_float_fraction_part_entry_witness(double a1) {
     fprintf(stderr, "\nffi-native-entry 1076\n");
     return native_float_fraction_part(a1);
 }
-static int32_t native_float_print_string_entry_witness(double a1, uint8_t * a2, uint64_t a3) {
+static int32_t native_float_print_string_entry_witness(double a1, uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1085\n");
     return native_float_print_string(a1, a2, a3);
 }
@@ -507,19 +564,19 @@ static int64_t native_thread_cpu_microseconds_entry_witness(void) {
     fprintf(stderr, "\nffi-native-entry 1177\n");
     return native_thread_cpu_microseconds();
 }
-static void native_write_stdout_entry_witness(const void * a1, uint64_t a2) {
+static void native_write_stdout_entry_witness(const void *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 1193\n");
     native_write_stdout(a1, a2);
 }
-static void native_write_stderr_entry_witness(const void * a1, uint64_t a2) {
+static void native_write_stderr_entry_witness(const void *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 1194\n");
     native_write_stderr(a1, a2);
 }
-static int32_t native_getenv_entry_witness(const void * a1, uint64_t a2, uint64_t a3) {
+static int32_t native_getenv_entry_witness(const void *a1, uint64_t a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1196\n");
     return native_getenv(a1, a2, a3);
 }
-static int32_t owned_reserve_entry_witness(uint32_t a1, uint8_t * a2, uint64_t a3) {
+static int32_t owned_reserve_entry_witness(uint32_t a1, uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 5024\n");
     return owned_reserve(a1, a2, a3);
 }
@@ -527,7 +584,7 @@ static int32_t owned_size_entry_witness(uint64_t a1) {
     fprintf(stderr, "\nffi-native-entry 5025\n");
     return owned_size(a1);
 }
-static int32_t owned_copy_entry_witness(uint64_t a1, uint8_t * a2, uint64_t a3) {
+static int32_t owned_copy_entry_witness(uint64_t a1, uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 5026\n");
     return owned_copy(a1, a2, a3);
 }
@@ -542,7 +599,7 @@ static int32_t owned_test_entry_witness(uint64_t a1, int32_t a2) {
 }
 #endif
 #ifdef SAMALTAK_FFI_TEST_EXPORTS
-static int64_t native_test_writable_pair_entry_witness(uint8_t * a1, uint64_t a2, double a3, int32_t a4, uint8_t * a5, uint64_t a6) {
+static int64_t native_test_writable_pair_entry_witness(uint8_t *a1, uint64_t a2, double a3, int32_t a4, uint8_t *a5, uint64_t a6) {
     fprintf(stderr, "\nffi-native-entry 5119\n");
     return native_test_writable_pair(a1, a2, a3, a4, a5, a6);
 }
@@ -551,11 +608,77 @@ static int64_t native_test_writable_pair_entry_witness(uint8_t * a1, uint64_t a2
 static int32_t ffi_approved_core(const char *approved_name, uint32_t packed_signature, uint64_t *target_out)
 {
 #ifndef SAMALTAK_UEFI
+    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_add") == 0) {
+        *target_out = (uint64_t) ffi_big_integer_add;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_add_entry_witness;
+        return 1044;
+    }
+    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_sub") == 0) {
+        *target_out = (uint64_t) ffi_big_integer_sub;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_sub_entry_witness;
+        return 1045;
+    }
+    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_mul") == 0) {
+        *target_out = (uint64_t) ffi_big_integer_mul;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_mul_entry_witness;
+        return 1046;
+    }
+    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_quo") == 0) {
+        *target_out = (uint64_t) ffi_big_integer_quo;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_quo_entry_witness;
+        return 1047;
+    }
+    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_rem") == 0) {
+        *target_out = (uint64_t) ffi_big_integer_rem;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_rem_entry_witness;
+        return 1048;
+    }
+    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_floordiv") == 0) {
+        *target_out = (uint64_t) ffi_big_integer_floor_div;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_floor_div_entry_witness;
+        return 1049;
+    }
+    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_mod") == 0) {
+        *target_out = (uint64_t) ffi_big_integer_mod;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_mod_entry_witness;
+        return 1050;
+    }
     if (packed_signature == 2721 && strcmp(approved_name, "core_bigint_compare") == 0) {
         *target_out = (uint64_t) ffi_big_integer_compare;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_compare_entry_witness;
         return 1051;
+    }
+    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_bitand") == 0) {
+        *target_out = (uint64_t) ffi_big_integer_bit_and;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_bit_and_entry_witness;
+        return 1052;
+    }
+    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_bitor") == 0) {
+        *target_out = (uint64_t) ffi_big_integer_bit_or;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_bit_or_entry_witness;
+        return 1053;
+    }
+    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_bitxor") == 0) {
+        *target_out = (uint64_t) ffi_big_integer_bit_xor;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_bit_xor_entry_witness;
+        return 1054;
+    }
+    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_bitshift") == 0) {
+        *target_out = (uint64_t) ffi_big_integer_bit_shift;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_bit_shift_entry_witness;
+        return 1055;
     }
     if (packed_signature == 102 && strcmp(approved_name, "core_float_fraction_part") == 0) {
         *target_out = (uint64_t) native_float_fraction_part;
@@ -643,6 +766,36 @@ static int32_t ffi_approved_core(const char *approved_name, uint32_t packed_sign
     return 0;
 }
 
+/* FFIPrimitives>>ffiBigIntegerAdd:signedCount:with:signedCount:out: */
+static void ffi_big_integer_add(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out)
+{
+    magnitude_operation(20, a, an, b, bn, max_heap_bytes, out);
+}
+
+/* FFIPrimitives>>ffiBigIntegerBitAnd:signedCount:with:signedCount:out: */
+static void ffi_big_integer_bit_and(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out)
+{
+    magnitude_operation(28, a, an, b, bn, max_heap_bytes, out);
+}
+
+/* FFIPrimitives>>ffiBigIntegerBitOr:signedCount:with:signedCount:out: */
+static void ffi_big_integer_bit_or(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out)
+{
+    magnitude_operation(29, a, an, b, bn, max_heap_bytes, out);
+}
+
+/* FFIPrimitives>>ffiBigIntegerBitShift:signedCount:with:signedCount:out: */
+static void ffi_big_integer_bit_shift(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out)
+{
+    magnitude_operation(31, a, an, b, bn, max_heap_bytes, out);
+}
+
+/* FFIPrimitives>>ffiBigIntegerBitXor:signedCount:with:signedCount:out: */
+static void ffi_big_integer_bit_xor(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out)
+{
+    magnitude_operation(30, a, an, b, bn, max_heap_bytes, out);
+}
+
 /* FFIPrimitives>>ffiBigIntegerCompare:signedCount:with:signedCount: */
 static int32_t ffi_big_integer_compare(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn)
 {
@@ -698,6 +851,42 @@ static int32_t ffi_big_integer_compare(const uint64_t *a, int64_t an, const uint
 exit_compare:;
     r_compare; });
     return an < 0 ? 0 - c : c;
+}
+
+/* FFIPrimitives>>ffiBigIntegerFloorDiv:signedCount:with:signedCount:out: */
+static void ffi_big_integer_floor_div(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out)
+{
+    magnitude_operation(25, a, an, b, bn, max_heap_bytes, out);
+}
+
+/* FFIPrimitives>>ffiBigIntegerMod:signedCount:with:signedCount:out: */
+static void ffi_big_integer_mod(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out)
+{
+    magnitude_operation(26, a, an, b, bn, max_heap_bytes, out);
+}
+
+/* FFIPrimitives>>ffiBigIntegerMul:signedCount:with:signedCount:out: */
+static void ffi_big_integer_mul(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out)
+{
+    magnitude_operation(22, a, an, b, bn, max_heap_bytes, out);
+}
+
+/* FFIPrimitives>>ffiBigIntegerQuo:signedCount:with:signedCount:out: */
+static void ffi_big_integer_quo(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out)
+{
+    magnitude_operation(23, a, an, b, bn, max_heap_bytes, out);
+}
+
+/* FFIPrimitives>>ffiBigIntegerRem:signedCount:with:signedCount:out: */
+static void ffi_big_integer_rem(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out)
+{
+    magnitude_operation(24, a, an, b, bn, max_heap_bytes, out);
+}
+
+/* FFIPrimitives>>ffiBigIntegerSub:signedCount:with:signedCount:out: */
+static void ffi_big_integer_sub(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out)
+{
+    magnitude_operation(21, a, an, b, bn, max_heap_bytes, out);
 }
 
 /* FFIPrimitives>>fillBoundSite:owner:method:selector:arity: */
@@ -1497,7 +1686,7 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_ou
         return 0;
     }
     n = (int32_t)count;
-    if (((((int64_t)result_oop) >> 1) < 1) || (((((int64_t)result_oop) >> 1) > 7) || ((((int64_t)result_oop) >> 1) == 5))) {
+    if (((((int64_t)result_oop) >> 1) < 1) || (((((int64_t)result_oop) >> 1) == 5) || (((((int64_t)result_oop) >> 1) > 7) && ((((int64_t)result_oop) >> 1) != 11)))) {
         return 0;
     }
     result = (int32_t)(((int64_t)result_oop) >> 1);
@@ -1694,7 +1883,12 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
     lib = (const char *)library;
     sig = 0U;
     has_pointer = false;
-    has_vetted_argument = false;
+    has_vetted_argument = result == 11;
+    if (has_vetted_argument) {
+        if (!(prepared && ((strcmp(lib, "vm:core") == 0) && ((n == 2) && ((tags[0] == 10) && (tags[1] == 10)))))) {
+            return 0;
+        }
+    }
     for (i = 0; i <= n - 1; i++) {
         t = tags[i];
         if ((t < 1) || ((t > 6) && ((t < 8) || (t > 10)))) {

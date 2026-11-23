@@ -9,6 +9,8 @@ static oop ffi_box_f64(double value);
 static oop ffi_box_f64_with_gc(double value);
 static oop ffi_box_i64(int64_t value);
 static oop ffi_box_i64_with_gc(int64_t value);
+static oop ffi_box_owned_integer(big_integer_native_result *out);
+static oop ffi_box_owned_integer_with_gc(big_integer_native_result *out);
 static oop ffi_box_u64(uint64_t value);
 static oop ffi_box_u64_with_gc(uint64_t value);
 static oop ffi_box_void(void);
@@ -210,6 +212,58 @@ static oop ffi_box_i64_with_gc(int64_t value)
     return ffi_box_i64(value);
 }
 
+/* FFIWrapperHelpers>>ffiBoxOwnedInteger: */
+static oop ffi_box_owned_integer(big_integer_native_result *out)
+{
+    uint64_t m;
+    uint64_t top;
+    oop answer;
+    bool neg;
+    int64_t n;
+    const uint64_t *data;
+    int64_t v;
+    int64_t used;
+    answer = nil_oop;
+    if (out->status == 2) {
+        answer = true_oop;
+    }
+    if (out->status == 0) {
+        neg = out->count < 0;
+        n = neg ? 0 - out->count : out->count;
+        data = out->data;
+        m = n == 1 ? data[0] : 0ULL;
+        if ((n <= 1) && (m <= (neg ? 4611686018427387904ULL : 4611686018427387903ULL))) {
+            v = neg ? (int64_t)(0 - m) : (int64_t)m;
+            answer = (uint64_t)((v << 1) | 1);
+        } else if ((n <= 0xFFFFFFFFLL) && ((uint64_t)(16 + 8 * n) <= max_heap_bytes)) {
+            top = data[n - 1];
+            used = 1;
+            while ((used < 8) && ((top >> (8 * used)) != 0)) {
+                used = used + 1;
+            }
+            sync_pending_bound_frame();
+            answer = alloc_unfilled_try(object_memory_special(neg ? SO_LARGENEG : SO_LARGEPOS), F_BYTES + (int32_t)(8 - used), (uint64_t)n);
+            if (answer == 0) {
+                answer = nil_oop;
+            } else {
+                memcpy((uint8_t *)(answer + 16), data, (uint64_t)(n * 8));
+            }
+        }
+    }
+    if (out->allocation != NULL) {
+        free(out->allocation);
+    }
+    return answer;
+}
+
+/* FFIWrapperHelpers>>ffiBoxOwnedIntegerWithGC: */
+static oop ffi_box_owned_integer_with_gc(big_integer_native_result *out)
+{
+    sync_pending_bound_frame();
+    full_gc();
+    return ffi_box_owned_integer(out);
+}
+
 /* FFIWrapperHelpers>>ffiBoxU64: */
 static oop ffi_box_u64(uint64_t value)
 {
@@ -340,6 +394,9 @@ uint64_t wrapped_result_helper(int32_t tag)
         if (tag == 6) {
             return (uint64_t)ffi_box_f64_with_gc;
         }
+        if (tag == 11) {
+            return (uint64_t)ffi_box_owned_integer_with_gc;
+        }
     }
     switch (tag) {
     case 3:
@@ -353,6 +410,9 @@ uint64_t wrapped_result_helper(int32_t tag)
         break;
     case 7:
         v = (uint64_t)ffi_box_void;
+        break;
+    case 11:
+        v = (uint64_t)ffi_box_owned_integer;
         break;
     default:
         v = 0ULL;

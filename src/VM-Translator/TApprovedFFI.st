@@ -45,8 +45,8 @@ setFunction: f spec: spec
 	result := spec at: 4.
 	(tags class == Array and: [tags size <= 6 and: [tags allSatisfy: [:tag | #(1 2 3 4 6 8 9 10) includes: tag]]]) ifFalse: [
 		self fail: 'invalid approved export argument tags'].
-	(#(1 2 3 4 6 7) includes: result) ifFalse: [self fail: 'invalid approved export result tag'].
-	(f pragmaAt: #returns:) = (Array with: (self scalarType: result)) ifFalse: [self fail: 'result tag does not match explicit native type'].
+	(#(1 2 3 4 6 7 11) includes: result) ifFalse: [self fail: 'invalid approved export result tag'].
+	(f pragmaAt: #returns:) = (Array with: (result = 11 ifTrue: ['void'] ifFalse: [self scalarType: result])) ifFalse: [self fail: 'result tag does not match explicit native type'].
 	types := OrderedCollection new.
 	tags do: [:tag |
 		tag = 10
@@ -57,6 +57,9 @@ setFunction: f spec: spec
 						types add: (tag = 8 ifTrue: [#('const uint8_t *' 'const void *')] ifFalse: [#('uint8_t *' 'void *')]).
 						types add: #('uint64_t')]
 					ifFalse: [types add: (Array with: (self scalarType: tag))]]].
+	result = 11 ifTrue: [
+		(owner = 'FFIPrimitives' and: [tags = #(10 10)]) ifFalse: [self fail: 'invalid owned integer result signature'].
+		types add: #('BigIntegerNativeResult *')].
 	parameters := f arguments.
 	(types size <= 6 and: [types size = parameters size]) ifFalse: [self fail: 'wrong native slot count'].
 	types doWithIndex: [:choices :i |

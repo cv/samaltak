@@ -380,6 +380,7 @@ typedef void (*prim_fn)(void);
 #define MAX_PRIM 1024
 #define MAX_RECORDS 64
 #define MAX_ROOTS 1024
+#define MAX_SHADER_OUTPUTS 16
 #define MAX_STORAGE 15360
 #define MAX_VSYNC_BINDINGS 16
 #define MD_KEYS 1
@@ -862,6 +863,7 @@ typedef void (*prim_fn)(void);
 
 typedef struct baseline_pic baseline_pic;
 typedef struct baseline_site baseline_site;
+typedef struct big_integer_native_result big_integer_native_result;
 typedef struct cache_entry cache_entry;
 typedef struct ffi_bound_site ffi_bound_site;
 typedef struct ffi_owned_row ffi_owned_row;
@@ -883,6 +885,7 @@ typedef struct runtime_native_grant runtime_native_grant;
 typedef struct ffi_vsync_subscription ffi_vsync_subscription;
 typedef struct fence_watch fence_watch;
 typedef struct gpu_dev gpu_dev;
+typedef struct gpu_shader_output gpu_shader_output;
 typedef struct lookup_request lookup_request;
 typedef struct pf_event pf_event;
 typedef struct pf_obj pf_obj;
@@ -915,6 +918,15 @@ struct baseline_site {
     uint64_t pic;
 };
 _Static_assert(sizeof(baseline_site) == 32, "the simulator lays out BaselineSite as C does");
+
+struct big_integer_native_result {
+    const uint64_t *data;
+    uint64_t *allocation;
+    int64_t count;
+    int32_t status;
+    uint64_t small[4];
+};
+_Static_assert(sizeof(big_integer_native_result) == 64, "the simulator lays out BigIntegerNativeResult as C does");
 
 struct cache_entry {
     oop cls;
@@ -1077,7 +1089,7 @@ struct jit_state {
 _Static_assert(sizeof(jit_state) == 840, "the simulator lays out JitState as C does");
 
 struct large_operand {
-    uint64_t *limbs;
+    const uint64_t *limbs;
     int64_t count;
     bool neg;
     uint64_t small[1];
@@ -1245,6 +1257,13 @@ struct gpu_dev {
     int32_t claimed[16];
 };
 _Static_assert(sizeof(gpu_dev) == 120, "the simulator lays out GpuDev as C does");
+
+struct gpu_shader_output {
+    uint64_t ticket;
+    uint8_t *payload;
+    uint64_t payload_bytes;
+};
+_Static_assert(sizeof(gpu_shader_output) == 24, "the simulator lays out GpuShaderOutput as C does");
 
 struct lookup_request {
     int32_t fd;
@@ -1968,6 +1987,7 @@ uint64_t jit_runtime_widow(frame *f);
 uint64_t write_barrier(oop o, oop v);
 void jit_runtime_young_roots(void (*fn)(oop *));
 bool jit_stubs_generate(void);
+void magnitude_operation(int32_t op, const uint64_t *left, int64_t an, const uint64_t *right, int64_t bn, uint64_t max_heap, big_integer_native_result *out);
 void prim_large_add(void);
 void prim_large_bit_and(void);
 void prim_large_bit_or(void);
@@ -2302,6 +2322,7 @@ bool platform_files_stat(char *path, pf_stat *s);
 int64_t platform_files_write(int32_t f, const void *buf, uint64_t n);
 int32_t acquire_command_buffer(int32_t dev);
 int32_t acquire_swapchain(int32_t cmd, int32_t win, int *w, int *h);
+bool adopt_shader_output(gpu_shader_output *row, uint8_t *payload, uint64_t n, uint8_t *out);
 int begin_pass(int32_t cmd, int32_t tex, float *clear);
 bool bind_pipeline(int32_t pass, int32_t pipe);
 bool bind_texture(int32_t pass, int32_t slot, int32_t tex, int32_t sampler);
@@ -2310,6 +2331,7 @@ bool blit(int32_t cmd, int32_t src, int32_t *sr, int32_t dst, int32_t *dr, bool 
 int bytes_per_pixel(int32_t format);
 bool claim_window(int32_t dev, int32_t win);
 void *platform_gpu_compile_shader(char *source, int32_t stage, size_t *size_out);
+bool copy_shader_output(uint64_t ticket, uint64_t offset, uint8_t *out, uint64_t cap);
 int32_t create_buffer(int32_t dev, int32_t usage, uint32_t size);
 int32_t create_device(bool debug);
 int32_t create_pipeline(int32_t dev, int32_t vs, int32_t fs, int32_t stride, pf_vattr *attrs, int32_t nattrs, int32_t prim, int32_t blend, int32_t target_format);
@@ -2328,13 +2350,16 @@ bool ffi_can_bind_pipeline(int32_t pipeline, int32_t pass);
 bool ffi_can_bind_texture(int32_t texture, int32_t sampler, int32_t pass);
 bool ffi_can_blit(int32_t cmd, int32_t src, int32_t *sr, int32_t dst, int32_t *dr);
 bool ffi_can_create_pipeline(int32_t dev, int32_t vs, int32_t fs, int32_t stride, pf_vattr *attrs, int32_t count);
+int32_t ffi_draw_eligibility(int32_t pass, int32_t n, int32_t first);
 void platform_gpu_handle_counts(int64_t *out);
 void platform_gpu_init(void);
 bool push_uniforms(int32_t cmd_or_pass, int32_t stage, int32_t slot, const void *data, uint32_t n);
 bool release_handle(int32_t h);
+bool release_shader_output(uint64_t ticket);
 bool set_scissor(int32_t pass, int32_t x, int32_t y, int32_t w, int32_t h);
 bool set_viewport(int32_t pass, float x, float y, float w, float h);
 char *shader_language(int32_t dev);
+gpu_shader_output *shader_output_room(uint8_t *out, uint64_t cap);
 void platform_gpu_shutdown(void);
 int submit(int32_t cmd, bool want_fence, bool *ok);
 int swapchain_format(int32_t dev, int32_t win);

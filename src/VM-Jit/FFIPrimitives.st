@@ -1,5 +1,5 @@
 VMPrimitiveModule subclass: #FFIPrimitives
-	instanceVariableNames: 'ffiStubs runtimeNative mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingArities bindingResultTags bindingSerial bindingSerials boundSites boundSiteCount boundSiteTrace boundTraceCounts ownedRows ownedReserved ownedSession ownedSerial'
+	instanceVariableNames: 'ffiStubs runtimeNative bigint mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingArities bindingResultTags bindingSerial bindingSerials boundSites boundSiteCount boundSiteTrace boundTraceCounts ownedRows ownedReserved ownedSession ownedSerial'
 	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED FFI_BOUND_SITE_LIMIT FFI_OWNED_LIMIT FFI_OWNED_BYTE_LIMIT'
 	package: 'VM-Jit'!
 
@@ -8,7 +8,7 @@ FFIPrimitives comment: 'Prepare resolves an approved symbol and exact signature 
 !FFIPrimitives class methodsFor: 'declaring'!
 declarations
 	"Name/signature rows are in stable ID order; never repurpose an ID. Signature nibbles are the argument tags, then the result tag."
-	^#((ffiStubs FFIStubCompiler) (runtimeNative RuntimeNativeLoader)
+	^#((ffiStubs FFIStubCompiler) (runtimeNative RuntimeNativeLoader) (bigint LargeIntegerPrimitives)
 		(bindingSession uint64_t) (bindingCount int32_t)
 		(bindingOwners 'oop[FFI_BINDING_LIMIT]') (bindingEntries 'uint64_t[FFI_BINDING_LIMIT]')
 		(bindingArities 'uint8_t[FFI_BINDING_LIMIT]') (bindingResultTags 'uint8_t[FFI_BINDING_LIMIT]')
@@ -204,7 +204,7 @@ describeBoundOwner: owner arity: n into: desc
 	<var: #n type: 'int32_t'>
 	<var: #desc type: 'FFIBoundSite *'>
 	<returns: 'bool'>
-	| arity entry token slot serial |
+	| arity entry token slot serial resultTag |
 	arity := self local: 'int32_t'.
 	entry := self boundEntry: owner into: arity.
 	(entry = 0 or: [entry = FFI_BOUND_REJECTED or: [arity value ~= n]]) ifTrue: [^false].
@@ -215,7 +215,9 @@ describeBoundOwner: owner arity: n into: desc
 	desc serialAddr: (self cCoerce: bindingSerials + slot to: 'uint64_t').
 	desc serial: serial.
 	desc entry: entry.
-	desc resultTag: (bindingResultTags at: slot) asUInt64.
+	resultTag := (bindingResultTags at: slot) asUInt64.
+	"Opt's descriptor uses the scalar collecting category for any boxer that can GC."
+	desc resultTag: (resultTag = 11 ifTrue: [6 asUInt64] ifFalse: [resultTag]).
 	desc token: token.
 	desc ownerAddr: (self cCoerce: bindingOwners + slot to: 'uint64_t').
 	^true
@@ -285,7 +287,8 @@ prepareEntry: descriptor into: arity result: resultOut
 	count := self byteCount: tagOop.
 	count > 6 ifTrue: [^0].
 	n := count asInt32.
-	((self intVal: resultOop) < 1 or: [(self intVal: resultOop) > 7 or: [(self intVal: resultOop) = 5]]) ifTrue: [^0].
+	((self intVal: resultOop) < 1 or: [(self intVal: resultOop) = 5 or: [
+		(self intVal: resultOop) > 7 and: [(self intVal: resultOop) ~= 11]]]) ifTrue: [^0].
 	result := (self intVal: resultOop) asInt32.
 	library := self local: 'uint8_t[128]'.
 	symbol := self local: 'uint8_t[128]'.
@@ -425,7 +428,10 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 	lib := self cCoerce: library to: 'const char *'.
 	sig := 0 asUInt32.
 	hasPointer := false.
-	hasVettedArgument := false.
+	hasVettedArgument := result = 11.
+	hasVettedArgument ifTrue: [
+		(prepared and: [(libc strcmp: lib with: 'vm:core') = 0 and: [
+			n = 2 and: [(tags at: 0) = 10 and: [(tags at: 1) = 10]]]]) ifFalse: [^0]].
 	0 to: n - 1 do: [:i |
 		t := tags at: i.
 		(t < 1 or: [t > 6 and: [t < 8 or: [t > 10]]]) ifTrue: [^0].

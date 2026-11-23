@@ -59,7 +59,10 @@ newCallBinding: aDescriptor
 		tags at: i put: tag].
 	slots > 6 ifTrue: [^FFIError signal: 'FFI argument types occupy more than six C slots'].
 	resultTag := self typeTag: result.
-	(resultTag = 5 or: [resultTag >= 8]) ifTrue: [^FFIError signal: 'Borrowed types are only FFI argument types'].
+	(resultTag = 5 or: [resultTag >= 8 and: [resultTag ~= 11]]) ifTrue: [^FFIError signal: 'Borrowed types are only FFI argument types'].
+	(((tags includes: 11) or: [resultTag = 11 and: [types ~= #(integerMagnitude integerMagnitude)]]) or:
+		[resultTag = 11 and: [library ~= 'vm:core']]) ifTrue: [
+		^FFIError signal: 'Owned integer result requires two magnitudes and a trusted core export'].
 	tags beReadOnlyObject.
 	descriptor := {library. symbol. tags. resultTag}.
 	descriptor beReadOnlyObject.
@@ -83,7 +86,7 @@ copyName: anObject
 !
 typeTag: aSymbol
 	| tag |
-	tag := #(i32 u32 i64 u64 byteSlice f64 void bytesWithLength writableBytesWithLength integerMagnitude) identityIndexOf: aSymbol.
+	tag := #(i32 u32 i64 u64 byteSlice f64 void bytesWithLength writableBytesWithLength integerMagnitude ownedIntegerMagnitude) identityIndexOf: aSymbol.
 	tag = 0 ifTrue: [^FFIError signal: 'Unknown FFI type; expected an FFI type Symbol'].
 	^tag
 ! !

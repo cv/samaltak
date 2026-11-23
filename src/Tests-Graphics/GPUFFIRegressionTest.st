@@ -277,3 +277,63 @@ testShaderPipelineAndTypedResources
 		cmd ifNotNil: [gpu release: cmd].
 		dev ifNotNil: [gpu release: dev]]
 ! !
+
+!GPUFFIRegressionTest methodsFor: 'tests'!
+testCheckedProceduralDraw
+	| gpu dev lang source vertex fragment vs fs tex cmd pass pipe bytes check draw |
+	gpu := GPUPrimitives.
+	dev := GPUDevice default handle.
+	lang := gpu shaderLanguage: dev.
+	lang = 'glsl'
+		ifTrue: [
+			source := '#version 450
+#ifdef SAMALTAK_VERTEX
+const vec2 corners[3] = vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));
+void main(){ gl_Position = vec4(corners[gl_VertexIndex],0,1); }
+#else
+layout(location=0) out vec4 color;
+void main(){ color = vec4(0,1,0,1); }
+#endif'.
+			vertex := fragment := 'main']
+		ifFalse: [
+			source := '#include <metal_stdlib>
+using namespace metal;
+vertex float4 vmain(uint id [[vertex_id]]) {
+    const float2 corners[] = {float2(-1,-1),float2(3,-1),float2(-1,3)};
+    return float4(corners[id],0,1);
+}
+fragment float4 fmain() { return float4(0,1,0,1); }'.
+			vertex := 'vmain'.
+			fragment := 'fmain'].
+	check := PlatformFFI bind: #(call 'platform' 'platform_gpu_draw_eligibility' (i32 i32 i32) i32).
+	draw := PlatformFFI bind: #(call 'platform' 'platform_gpu_draw' (i32 i32 i32) i32).
+	self assert: check notNil.
+	self assert: draw notNil.
+	[
+		vs := gpu createShader: dev source: source entry: vertex stage: 0 samplers: 0
+			uniformBuffers: 0 storageBuffers: 0 storageTextures: 0.
+		fs := gpu createShader: dev source: source entry: fragment stage: 1 samplers: 0
+			uniformBuffers: 0 storageBuffers: 0 storageTextures: 0.
+		pipe := gpu createPipeline: dev vertex: vs fragment: fs stride: 0 attributes: #()
+			primitive: 0 blend: 0 format: 2.
+		tex := gpu createTexture: dev width: 4 height: 4 format: 2 usage: 2.
+		cmd := gpu acquireCommandBuffer: dev.
+		pass := gpu beginPass: cmd target: tex clear: #(1 0 0 1).
+		self assert: (check tryInvoke3: pass with: 3 with: 0) equals: -1.
+		self assert: (draw tryInvoke3: pass with: 3 with: 0) equals: 0.
+		gpu bindPipeline: pass pipeline: pipe.
+		self withoutLegacy: #('draw: p count: n first: f') do: [
+			self assert: (gpu ffiCandidateDraw: pass count: 3 first: 0) identicalTo: gpu].
+		gpu ffiCandidateRelease: pipe.
+		pipe := nil.
+		self assert: (check tryInvoke3: pass with: 3 with: 0) equals: 0.
+		self assert: (draw tryInvoke3: pass with: 3 with: 0) equals: 0.
+		gpu endPass: pass.
+		self assert: (check tryInvoke3: pass with: 3 with: 0) equals: -1.
+		gpu submit: cmd fence: false.
+		cmd := nil.
+		bytes := gpu download: tex x: 0 y: 0 width: 4 height: 4 into: (ByteArray new: 64).
+		self assert: (bytes copyFrom: 1 to: 4) equals: #[0 255 0 255]
+	] ensure: [
+		{cmd. pipe. vs. fs. tex} do: [:handle | handle ifNotNil: [gpu release: handle]]]
+! !

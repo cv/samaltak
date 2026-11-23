@@ -12,7 +12,7 @@ printTraceOn: s
 		ifTrue: [s nextPutAll: 'void']
 		ifFalse: [native arguments doWithIndex: [:arg :i |
 			i > 1 ifTrue: [s nextPutAll: ', '].
-			s nextPutAll: (native declaredTypeOf: arg); nextPutAll: ' a'; print: i]].
+			s nextPutAll: ((native parameterTypeAt: i) declarator: ('a', i printString))]].
 	s nextPutAll: ') {'; lf.
 	s nextPutAll: '    fprintf(stderr, "\nffi-native-entry '; print: id; nextPutAll: '\n");'; lf.
 	s nextPutAll: '    '.

@@ -45,7 +45,7 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 	x19 holds args; converted args live in preserved x20..x25 and d8..d13 across
 	helper calls, not a word vector. Only a helper's typed out slot (and a slice
 	length) use scratch on the stack; helpers must not allocate before entry."
-	| j gp fp tag gpSave fpSave fpBase localBytes gp32 reg helper slow ok rejection
+	| j gp fp tag gpSave fpSave fpBase localBytes integerOut gp32 reg helper slow ok rejection
 		rejectSites failCount resultDone epilogue reject |
 	gp := 0.
 	fp := 0.
@@ -62,6 +62,9 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 	fpBase := 16 + (gpSave * 8).
 	fpSave := fp.
 	localBytes := (fpBase + (fpSave * 8) + 15) bitClear: 15.
+	integerOut := localBytes.
+	result = 11 ifTrue: [
+		localBytes := localBytes + (((self sizeof: 'BigIntegerNativeResult') + 15) bitClear: 15) asInt32].
 	buf at: 0 put: 16rD503245F. "bti c"
 	buf at: 1 put: 16rA9BF7BFD. "stp x29,x30,[sp,#-16]!!"
 	buf at: 2 put: 16r910003FD. "mov x29,sp"
@@ -154,7 +157,13 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 	0 to: fp - 1 do: [:i |
 		buf at: j put: 16r1E604100 + (i * 32) + i. "fmov dN,d8+N"
 		j := j + 1].
+	result = 11 ifTrue: [
+		buf at: j put: 16r910003E4 + (integerOut * 1024). "add x4,sp,#integerOut"
+		j := j + 1].
 	j := self arm64WrappedCall: target at: j into: buf.
+	result = 11 ifTrue: [
+		buf at: j put: 16r910003E0 + (integerOut * 1024). "add x0,sp,#integerOut"
+		j := j + 1].
 	resultDone := -1.
 	result = 1 ifTrue: [
 		buf at: j put: 16r93407C00. "sxtw x0,w0"

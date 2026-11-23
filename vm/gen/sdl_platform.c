@@ -46,7 +46,8 @@ static int32_t ffi_gpu_bind_texture(int32_t pass, int32_t slot, int32_t tex, int
 static int32_t ffi_gpu_bind_vertex_buffer(int32_t pass, int32_t slot, int32_t buf, uint32_t off);
 static int32_t ffi_gpu_blit(int32_t cmd, int32_t src, int32_t dst, int32_t linear, const uint8_t *wire, uint64_t n);
 static int32_t ffi_gpu_claim_window(int32_t dev, int32_t win);
-static int32_t ffi_gpu_compile_shader(const uint8_t *data, uint64_t n, int32_t stage, uint64_t ticket);
+static int32_t ffi_gpu_compile_shader(const uint8_t *data, uint64_t n, int32_t stage, uint8_t *receipt, uint64_t cap);
+static int32_t ffi_gpu_copy_shader(uint64_t ticket, uint64_t offset, uint8_t *out, uint64_t cap);
 static int32_t ffi_gpu_create_buffer(int32_t dev, int32_t usage, uint32_t size);
 static int32_t ffi_gpu_create_device(int32_t debug);
 static int32_t ffi_gpu_create_pipeline(int32_t dev, int32_t vs, int32_t fs, const uint8_t *config, uint64_t n);
@@ -54,6 +55,8 @@ static int32_t ffi_gpu_create_sampler(int32_t dev, int32_t linear, int32_t repea
 static int32_t ffi_gpu_create_shader(int32_t dev, const uint8_t *data, uint64_t n, const uint8_t *config, uint64_t cap);
 static int32_t ffi_gpu_create_texture(int32_t dev, int32_t w, int32_t h, int32_t format, int32_t usage);
 static int32_t ffi_gpu_download(int32_t tex, const uint8_t *region, uint64_t region_size, uint8_t *out, uint64_t cap);
+static int32_t ffi_gpu_draw(int32_t pass, int32_t n, int32_t first);
+static int32_t ffi_gpu_draw_eligibility(int32_t pass, int32_t n, int32_t first);
 static int32_t ffi_gpu_end_pass(int32_t pass);
 static int32_t ffi_gpu_fence_done(int32_t fence);
 static int64_t ffi_gpu_fence_elapsed(int32_t fence);
@@ -61,9 +64,11 @@ static bool ffi_gpu_on_main_thread(void);
 static int32_t ffi_gpu_push_uniforms(int32_t command_or_pass, int32_t stage, int32_t slot, const void *data, uint64_t n);
 static int32_t ffi_gpu_read_i32(const uint8_t *p);
 static int32_t ffi_gpu_release(int32_t h);
+static int32_t ffi_gpu_release_shader(uint64_t ticket);
 static int32_t ffi_gpu_set_scissor(int32_t pass, int32_t x, int32_t y, int32_t w, int32_t h);
 static int32_t ffi_gpu_set_viewport(int32_t pass, double x, double y, double w, double h);
 static int32_t ffi_gpu_shader_language(int32_t dev);
+static int32_t ffi_gpu_shader_oversized_fixture(uint8_t *receipt, uint64_t cap);
 static int32_t ffi_gpu_submit(int32_t cmd, int32_t want);
 static int32_t ffi_gpu_swapchain_format(int32_t dev, int32_t win);
 static int32_t ffi_gpu_upload_buffer(int32_t buffer, const void *data, uint64_t n, uint32_t off);
@@ -134,19 +139,19 @@ static void drain_pipe(void)
 
 /* SDLPlatform>>ffiApprovedPlatform:signature:into: */
 #ifndef SAMALTAK_UEFI
-static int32_t ffi_window_open_entry_witness(int64_t a1, int64_t a2, const uint8_t * a3, uint64_t a4, int64_t a5) {
+static int32_t ffi_window_open_entry_witness(int64_t a1, int64_t a2, const uint8_t *a3, uint64_t a4, int64_t a5) {
     fprintf(stderr, "\nffi-native-entry 1424\n");
     return ffi_window_open(a1, a2, a3, a4, a5);
 }
-static int32_t ffi_window_size_entry_witness(int64_t a1, uint8_t * a2, uint64_t a3) {
+static int32_t ffi_window_size_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1426\n");
     return ffi_window_size(a1, a2, a3);
 }
-static int32_t ffi_window_pixel_size_entry_witness(int64_t a1, uint8_t * a2, uint64_t a3) {
+static int32_t ffi_window_pixel_size_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1427\n");
     return ffi_window_pixel_size(a1, a2, a3);
 }
-static int32_t sdl_platform_ffi_window_title_size_entry_witness(int64_t a1, const uint8_t * a2, uint64_t a3) {
+static int32_t sdl_platform_ffi_window_title_size_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1429\n");
     return sdl_platform_ffi_window_title_size(a1, a2, a3);
 }
@@ -154,7 +159,7 @@ static int32_t ffi_clipboard_get_entry_witness(uint64_t a1) {
     fprintf(stderr, "\nffi-native-entry 1434\n");
     return ffi_clipboard_get(a1);
 }
-static int32_t ffi_clipboard_set_entry_witness(const uint8_t * a1, uint64_t a2) {
+static int32_t ffi_clipboard_set_entry_witness(const uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 1435\n");
     return ffi_clipboard_set(a1, a2);
 }
@@ -162,15 +167,15 @@ static int32_t ffi_events_next_entry_witness(uint64_t a1) {
     fprintf(stderr, "\nffi-native-entry 1436\n");
     return ffi_events_next(a1);
 }
-static int32_t ffi_events_inject_entry_witness(const uint8_t * a1, uint64_t a2) {
+static int32_t ffi_events_inject_entry_witness(const uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 1437\n");
     return ffi_events_inject(a1, a2);
 }
-static int32_t ffi_platform_last_error_entry_witness(uint8_t * a1, uint64_t a2) {
+static int32_t ffi_platform_last_error_entry_witness(uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 1439\n");
     return ffi_platform_last_error(a1, a2);
 }
-static int32_t ffi_platform_handle_counts_entry_witness(uint8_t * a1, uint64_t a2) {
+static int32_t ffi_platform_handle_counts_entry_witness(uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 1441\n");
     return ffi_platform_handle_counts(a1, a2);
 }
@@ -178,7 +183,7 @@ static int64_t ffi_dropped_events_entry_witness(void) {
     fprintf(stderr, "\nffi-native-entry 1442\n");
     return ffi_dropped_events();
 }
-static int32_t ffi_clipboard_data_entry_witness(const uint8_t * a1, uint64_t a2, uint64_t a3) {
+static int32_t ffi_clipboard_data_entry_witness(const uint8_t *a1, uint64_t a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1444\n");
     return ffi_clipboard_data(a1, a2, a3);
 }
@@ -198,11 +203,11 @@ static int32_t ffi_gpu_swapchain_format_entry_witness(int32_t a1, int32_t a2) {
     fprintf(stderr, "\nffi-native-entry 1456\n");
     return ffi_gpu_swapchain_format(a1, a2);
 }
-static int32_t ffi_gpu_create_shader_entry_witness(int32_t a1, const uint8_t * a2, uint64_t a3, const uint8_t * a4, uint64_t a5) {
+static int32_t ffi_gpu_create_shader_entry_witness(int32_t a1, const uint8_t *a2, uint64_t a3, const uint8_t *a4, uint64_t a5) {
     fprintf(stderr, "\nffi-native-entry 1457\n");
     return ffi_gpu_create_shader(a1, a2, a3, a4, a5);
 }
-static int32_t ffi_gpu_create_pipeline_entry_witness(int32_t a1, int32_t a2, int32_t a3, const uint8_t * a4, uint64_t a5) {
+static int32_t ffi_gpu_create_pipeline_entry_witness(int32_t a1, int32_t a2, int32_t a3, const uint8_t *a4, uint64_t a5) {
     fprintf(stderr, "\nffi-native-entry 1458\n");
     return ffi_gpu_create_pipeline(a1, a2, a3, a4, a5);
 }
@@ -222,11 +227,11 @@ static int32_t ffi_gpu_release_entry_witness(int32_t a1) {
     fprintf(stderr, "\nffi-native-entry 1462\n");
     return ffi_gpu_release(a1);
 }
-static int32_t ffi_gpu_upload_buffer_entry_witness(int32_t a1, const void * a2, uint64_t a3, uint32_t a4) {
+static int32_t ffi_gpu_upload_buffer_entry_witness(int32_t a1, const void *a2, uint64_t a3, uint32_t a4) {
     fprintf(stderr, "\nffi-native-entry 1463\n");
     return ffi_gpu_upload_buffer(a1, a2, a3, a4);
 }
-static int32_t ffi_gpu_upload_texture_entry_witness(int32_t a1, const void * a2, uint64_t a3, const uint8_t * a4, uint64_t a5) {
+static int32_t ffi_gpu_upload_texture_entry_witness(int32_t a1, const void *a2, uint64_t a3, const uint8_t *a4, uint64_t a5) {
     fprintf(stderr, "\nffi-native-entry 1464\n");
     return ffi_gpu_upload_texture(a1, a2, a3, a4, a5);
 }
@@ -234,7 +239,7 @@ static int32_t ffi_gpu_acquire_command_buffer_entry_witness(int32_t a1) {
     fprintf(stderr, "\nffi-native-entry 1465\n");
     return ffi_gpu_acquire_command_buffer(a1);
 }
-static int32_t ffi_gpu_acquire_swapchain_entry_witness(int32_t a1, int32_t a2, uint8_t * a3, uint64_t a4) {
+static int32_t ffi_gpu_acquire_swapchain_entry_witness(int32_t a1, int32_t a2, uint8_t *a3, uint64_t a4) {
     fprintf(stderr, "\nffi-native-entry 1466\n");
     return ffi_gpu_acquire_swapchain(a1, a2, a3, a4);
 }
@@ -262,15 +267,19 @@ static int32_t ffi_gpu_bind_texture_entry_witness(int32_t a1, int32_t a2, int32_
     fprintf(stderr, "\nffi-native-entry 1472\n");
     return ffi_gpu_bind_texture(a1, a2, a3, a4);
 }
-static int32_t ffi_gpu_push_uniforms_entry_witness(int32_t a1, int32_t a2, int32_t a3, const void * a4, uint64_t a5) {
+static int32_t ffi_gpu_push_uniforms_entry_witness(int32_t a1, int32_t a2, int32_t a3, const void *a4, uint64_t a5) {
     fprintf(stderr, "\nffi-native-entry 1473\n");
     return ffi_gpu_push_uniforms(a1, a2, a3, a4, a5);
+}
+static int32_t ffi_gpu_draw_entry_witness(int32_t a1, int32_t a2, int32_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1474\n");
+    return ffi_gpu_draw(a1, a2, a3);
 }
 static int32_t ffi_gpu_end_pass_entry_witness(int32_t a1) {
     fprintf(stderr, "\nffi-native-entry 1475\n");
     return ffi_gpu_end_pass(a1);
 }
-static int32_t ffi_gpu_blit_entry_witness(int32_t a1, int32_t a2, int32_t a3, int32_t a4, const uint8_t * a5, uint64_t a6) {
+static int32_t ffi_gpu_blit_entry_witness(int32_t a1, int32_t a2, int32_t a3, int32_t a4, const uint8_t *a5, uint64_t a6) {
     fprintf(stderr, "\nffi-native-entry 1476\n");
     return ffi_gpu_blit(a1, a2, a3, a4, a5, a6);
 }
@@ -286,7 +295,7 @@ static int32_t ffi_gpu_fence_done_entry_witness(int32_t a1) {
     fprintf(stderr, "\nffi-native-entry 1479\n");
     return ffi_gpu_fence_done(a1);
 }
-static int32_t ffi_gpu_download_entry_witness(int32_t a1, const uint8_t * a2, uint64_t a3, uint8_t * a4, uint64_t a5) {
+static int32_t ffi_gpu_download_entry_witness(int32_t a1, const uint8_t *a2, uint64_t a3, uint8_t *a4, uint64_t a5) {
     fprintf(stderr, "\nffi-native-entry 1480\n");
     return ffi_gpu_download(a1, a2, a3, a4, a5);
 }
@@ -302,11 +311,11 @@ static int32_t ffi_gpu_shader_language_entry_witness(int32_t a1) {
     fprintf(stderr, "\nffi-native-entry 1484\n");
     return ffi_gpu_shader_language(a1);
 }
-static int32_t ffi_gpu_compile_shader_entry_witness(const uint8_t * a1, uint64_t a2, int32_t a3, uint64_t a4) {
+static int32_t ffi_gpu_compile_shader_entry_witness(const uint8_t *a1, uint64_t a2, int32_t a3, uint8_t *a4, uint64_t a5) {
     fprintf(stderr, "\nffi-native-entry 1485\n");
-    return ffi_gpu_compile_shader(a1, a2, a3, a4);
+    return ffi_gpu_compile_shader(a1, a2, a3, a4, a5);
 }
-static int32_t ffi_file_open_entry_witness(const uint8_t * a1, uint64_t a2, int64_t a3) {
+static int32_t ffi_file_open_entry_witness(const uint8_t *a1, uint64_t a2, int64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1524\n");
     return ffi_file_open(a1, a2, a3);
 }
@@ -314,11 +323,11 @@ static int32_t ffi_file_close_entry_witness(int64_t a1) {
     fprintf(stderr, "\nffi-native-entry 1525\n");
     return ffi_file_close(a1);
 }
-static int64_t ffi_file_read_entry_witness(int64_t a1, uint8_t * a2, uint64_t a3) {
+static int64_t ffi_file_read_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1526\n");
     return ffi_file_read(a1, a2, a3);
 }
-static int64_t ffi_file_write_entry_witness(int64_t a1, const uint8_t * a2, uint64_t a3) {
+static int64_t ffi_file_write_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1527\n");
     return ffi_file_write(a1, a2, a3);
 }
@@ -338,39 +347,39 @@ static int32_t ffi_file_flush_entry_witness(int64_t a1) {
     fprintf(stderr, "\nffi-native-entry 1531\n");
     return ffi_file_flush(a1);
 }
-static int32_t ffi_file_delete_entry_witness(const uint8_t * a1, uint64_t a2) {
+static int32_t ffi_file_delete_entry_witness(const uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 1532\n");
     return ffi_file_delete(a1, a2);
 }
-static int32_t ffi_file_rename_entry_witness(const uint8_t * a1, uint64_t a2, const uint8_t * a3, uint64_t a4) {
+static int32_t ffi_file_rename_entry_witness(const uint8_t *a1, uint64_t a2, const uint8_t *a3, uint64_t a4) {
     fprintf(stderr, "\nffi-native-entry 1533\n");
     return ffi_file_rename(a1, a2, a3, a4);
 }
-static int32_t ffi_file_stat_entry_witness(const uint8_t * a1, uint64_t a2, uint8_t * a3, uint64_t a4) {
+static int32_t ffi_file_stat_entry_witness(const uint8_t *a1, uint64_t a2, uint8_t *a3, uint64_t a4) {
     fprintf(stderr, "\nffi-native-entry 1534\n");
     return ffi_file_stat(a1, a2, a3, a4);
 }
-static int32_t ffi_dir_entries_entry_witness(const uint8_t * a1, uint64_t a2, uint8_t * a3, uint64_t a4) {
+static int32_t ffi_dir_entries_entry_witness(const uint8_t *a1, uint64_t a2, uint8_t *a3, uint64_t a4) {
     fprintf(stderr, "\nffi-native-entry 1535\n");
     return ffi_dir_entries(a1, a2, a3, a4);
 }
-static int32_t ffi_file_dir_create_entry_witness(const uint8_t * a1, uint64_t a2) {
+static int32_t ffi_file_dir_create_entry_witness(const uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 1536\n");
     return ffi_file_dir_create(a1, a2);
 }
-static int32_t ffi_cwd_receipt_entry_witness(uint8_t * a1, uint64_t a2) {
+static int32_t ffi_cwd_receipt_entry_witness(uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 1537\n");
     return ffi_cwd_receipt(a1, a2);
 }
-static int32_t ffi_file_mkfifo_entry_witness(const uint8_t * a1, uint64_t a2) {
+static int32_t ffi_file_mkfifo_entry_witness(const uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 1538\n");
     return ffi_file_mkfifo(a1, a2);
 }
-static int32_t ffi_socket_listen_entry_witness(const uint8_t * a1, uint64_t a2, int64_t a3, int64_t a4) {
+static int32_t ffi_socket_listen_entry_witness(const uint8_t *a1, uint64_t a2, int64_t a3, int64_t a4) {
     fprintf(stderr, "\nffi-native-entry 1564\n");
     return ffi_socket_listen(a1, a2, a3, a4);
 }
-static int32_t ffi_socket_connect_entry_witness(const uint8_t * a1, uint64_t a2, int64_t a3) {
+static int32_t ffi_socket_connect_entry_witness(const uint8_t *a1, uint64_t a2, int64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1565\n");
     return ffi_socket_connect(a1, a2, a3);
 }
@@ -378,11 +387,11 @@ static int32_t ffi_socket_accept_entry_witness(int64_t a1) {
     fprintf(stderr, "\nffi-native-entry 1566\n");
     return ffi_socket_accept(a1);
 }
-static int32_t ffi_socket_recv_entry_witness(int64_t a1, uint8_t * a2, uint64_t a3) {
+static int32_t ffi_socket_recv_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1567\n");
     return ffi_socket_recv(a1, a2, a3);
 }
-static int32_t ffi_socket_send_entry_witness(int64_t a1, const uint8_t * a2, uint64_t a3) {
+static int32_t ffi_socket_send_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1568\n");
     return ffi_socket_send(a1, a2, a3);
 }
@@ -398,7 +407,7 @@ static int32_t ffi_socket_local_port_entry_witness(int64_t a1) {
     fprintf(stderr, "\nffi-native-entry 1571\n");
     return ffi_socket_local_port(a1);
 }
-static int32_t ffi_socket_lookup_entry_witness(const uint8_t * a1, uint64_t a2) {
+static int32_t ffi_socket_lookup_entry_witness(const uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 1572\n");
     return ffi_socket_lookup(a1, a2);
 }
@@ -406,15 +415,15 @@ static int32_t ffi_socket_connected_entry_witness(int64_t a1) {
     fprintf(stderr, "\nffi-native-entry 1573\n");
     return ffi_socket_connected(a1);
 }
-static int32_t ffi_tls_start_entry_witness(int64_t a1, const uint8_t * a2, uint64_t a3) {
+static int32_t ffi_tls_start_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1574\n");
     return ffi_tls_start(a1, a2, a3);
 }
-static int32_t ffi_tls_recv_entry_witness(int64_t a1, uint8_t * a2, uint64_t a3) {
+static int32_t ffi_tls_recv_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1575\n");
     return ffi_tls_recv(a1, a2, a3);
 }
-static int32_t ffi_tls_send_entry_witness(int64_t a1, const uint8_t * a2, uint64_t a3) {
+static int32_t ffi_tls_send_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1576\n");
     return ffi_tls_send(a1, a2, a3);
 }
@@ -430,11 +439,11 @@ static int32_t ffi_tls_handshake_entry_witness(int64_t a1) {
     fprintf(stderr, "\nffi-native-entry 1579\n");
     return ffi_tls_handshake(a1);
 }
-static int32_t ffi_pty_read_entry_witness(int64_t a1, uint8_t * a2, uint64_t a3) {
+static int32_t ffi_pty_read_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1585\n");
     return ffi_pty_read(a1, a2, a3);
 }
-static int32_t ffi_pty_write_entry_witness(int64_t a1, const uint8_t * a2, uint64_t a3) {
+static int32_t ffi_pty_write_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1586\n");
     return ffi_pty_write(a1, a2, a3);
 }
@@ -450,11 +459,29 @@ static int32_t ffi_gpu_begin_clear_entry_witness(int32_t a1, int32_t a2, double 
     fprintf(stderr, "\nffi-native-entry 2467\n");
     return ffi_gpu_begin_clear(a1, a2, a3, a4, a5, a6);
 }
+static int32_t ffi_gpu_draw_eligibility_entry_witness(int32_t a1, int32_t a2, int32_t a3) {
+    fprintf(stderr, "\nffi-native-entry 2474\n");
+    return ffi_gpu_draw_eligibility(a1, a2, a3);
+}
+static int32_t ffi_gpu_copy_shader_entry_witness(uint64_t a1, uint64_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 2485\n");
+    return ffi_gpu_copy_shader(a1, a2, a3, a4);
+}
+static int32_t ffi_gpu_release_shader_entry_witness(uint64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 2486\n");
+    return ffi_gpu_release_shader(a1);
+}
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+static int32_t ffi_gpu_shader_oversized_fixture_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 2487\n");
+    return ffi_gpu_shader_oversized_fixture(a1, a2);
+}
+#endif
 static int64_t ffi_owned_name_size_entry_witness(uint64_t a1, uint32_t a2) {
     fprintf(stderr, "\nffi-native-entry 2535\n");
     return ffi_owned_name_size(a1, a2);
 }
-static int32_t ffi_owned_name_copy_entry_witness(uint64_t a1, uint32_t a2, uint8_t * a3, uint64_t a4) {
+static int32_t ffi_owned_name_copy_entry_witness(uint64_t a1, uint32_t a2, uint8_t *a3, uint64_t a4) {
     fprintf(stderr, "\nffi-native-entry 2536\n");
     return ffi_owned_name_copy(a1, a2, a3, a4);
 }
@@ -664,6 +691,12 @@ int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signatu
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_push_uniforms_entry_witness;
         return 1473;
     }
+    if (packed_signature == 4369 && strcmp(approved_name, "platform_gpu_draw") == 0) {
+        *target_out = (uint64_t) ffi_gpu_draw;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_draw_entry_witness;
+        return 1474;
+    }
     if (packed_signature == 17 && strcmp(approved_name, "platform_gpu_end_pass") == 0) {
         *target_out = (uint64_t) ffi_gpu_end_pass;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
@@ -718,7 +751,7 @@ int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signatu
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_shader_language_entry_witness;
         return 1484;
     }
-    if (packed_signature == 33089 && strcmp(approved_name, "platform_gpu_compile_shader") == 0) {
+    if (packed_signature == 33169 && strcmp(approved_name, "platform_gpu_compile_shader") == 0) {
         *target_out = (uint64_t) ffi_gpu_compile_shader;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_compile_shader_entry_witness;
@@ -940,6 +973,32 @@ int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signatu
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_begin_clear_entry_witness;
         return 2467;
     }
+    if (packed_signature == 4369 && strcmp(approved_name, "platform_gpu_draw_eligibility") == 0) {
+        *target_out = (uint64_t) ffi_gpu_draw_eligibility;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_draw_eligibility_entry_witness;
+        return 2474;
+    }
+    if (packed_signature == 17553 && strcmp(approved_name, "platform_gpu_shader_copy") == 0) {
+        *target_out = (uint64_t) ffi_gpu_copy_shader;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_copy_shader_entry_witness;
+        return 2485;
+    }
+    if (packed_signature == 65 && strcmp(approved_name, "platform_gpu_shader_release") == 0) {
+        *target_out = (uint64_t) ffi_gpu_release_shader;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_release_shader_entry_witness;
+        return 2486;
+    }
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+    if (packed_signature == 145 && strcmp(approved_name, "platform_gpu_test_shader_pages") == 0) {
+        *target_out = (uint64_t) ffi_gpu_shader_oversized_fixture;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_shader_oversized_fixture_entry_witness;
+        return 2487;
+    }
+#endif
     if (packed_signature == 1059 && strcmp(approved_name, "platform_files_name_size") == 0) {
         *target_out = (uint64_t) ffi_owned_name_size;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
@@ -1468,9 +1527,10 @@ static int32_t ffi_gpu_claim_window(int32_t dev, int32_t win)
     return claim_window(dev, win) ? 1 : 0;
 }
 
-/* SDLPlatform>>ffiGpuCompileShader:count:stage:ticket: */
-static int32_t ffi_gpu_compile_shader(const uint8_t *data, uint64_t n, int32_t stage, uint64_t ticket)
+/* SDLPlatform>>ffiGpuCompileShader:count:stage:receipt:capacity: */
+static int32_t ffi_gpu_compile_shader(const uint8_t *data, uint64_t n, int32_t stage, uint8_t *receipt, uint64_t cap)
 {
+    gpu_shader_output *row;
     char *source;
     size_t local;
     size_t *size;
@@ -1478,8 +1538,8 @@ static int32_t ffi_gpu_compile_shader(const uint8_t *data, uint64_t n, int32_t s
     if (!ffi_gpu_on_main_thread()) {
         return -1;
     }
-    if (!owned_can_produce(ticket)) {
-        set_error("invalid GPU shader output ticket");
+    row = shader_output_room(receipt, cap);
+    if (row == NULL) {
         return -1;
     }
     source = copy_terminated(data, n);
@@ -1494,12 +1554,20 @@ static int32_t ffi_gpu_compile_shader(const uint8_t *data, uint64_t n, int32_t s
     if (code == NULL) {
         return -1;
     }
-    if (owned_adopt(ticket, code, *size, *size)) {
+    if (adopt_shader_output(row, code, *size, receipt)) {
         return 1;
     }
     free(code);
-    set_error("GPU shader output exceeds its reserved capacity");
     return -1;
+}
+
+/* SDLPlatform>>ffiGpuCopyShader:offset:into:capacity: */
+static int32_t ffi_gpu_copy_shader(uint64_t ticket, uint64_t offset, uint8_t *out, uint64_t cap)
+{
+    if (!ffi_gpu_on_main_thread()) {
+        return 0;
+    }
+    return copy_shader_output(ticket, offset, out, cap) ? 1 : 0;
 }
 
 /* SDLPlatform>>ffiGpuCreateBuffer:usage:size: */
@@ -1652,6 +1720,28 @@ static int32_t ffi_gpu_download(int32_t tex, const uint8_t *region, uint64_t reg
     return download(tex, ffi_gpu_read_i32(region), ffi_gpu_read_i32(region + 4), ffi_gpu_read_i32(region + 8), ffi_gpu_read_i32(region + 12), out, cap) ? 1 : 0;
 }
 
+/* SDLPlatform>>ffiGpuDraw:count:first: */
+static int32_t ffi_gpu_draw(int32_t pass, int32_t n, int32_t first)
+{
+    if (!ffi_gpu_on_main_thread()) {
+        return 0;
+    }
+    if (!(ffi_draw_eligibility(pass, n, first) == 1)) {
+        set_error("GPU draw is not eligible for the procedural path");
+        return 0;
+    }
+    return draw(pass, n, first) ? 1 : 0;
+}
+
+/* SDLPlatform>>ffiGpuDrawEligibility:count:first: */
+static int32_t ffi_gpu_draw_eligibility(int32_t pass, int32_t n, int32_t first)
+{
+    if (!ffi_gpu_on_main_thread()) {
+        return -1;
+    }
+    return ffi_draw_eligibility(pass, n, first);
+}
+
 /* SDLPlatform>>ffiGpuEndPass: */
 static int32_t ffi_gpu_end_pass(int32_t pass)
 {
@@ -1717,6 +1807,15 @@ static int32_t ffi_gpu_release(int32_t h)
     return release_handle(h) ? 1 : 0;
 }
 
+/* SDLPlatform>>ffiGpuReleaseShader: */
+static int32_t ffi_gpu_release_shader(uint64_t ticket)
+{
+    if (!ffi_gpu_on_main_thread()) {
+        return 0;
+    }
+    return release_shader_output(ticket) ? 1 : 0;
+}
+
 /* SDLPlatform>>ffiGpuSetScissor:x:y:width:height: */
 static int32_t ffi_gpu_set_scissor(int32_t pass, int32_t x, int32_t y, int32_t w, int32_t h)
 {
@@ -1754,6 +1853,31 @@ static int32_t ffi_gpu_shader_language(int32_t dev)
     }
     set_error("unsupported GPU shader language");
     return 0;
+}
+
+/* SDLPlatform>>ffiGpuShaderOversizedFixture:capacity: */
+static int32_t ffi_gpu_shader_oversized_fixture(uint8_t *receipt, uint64_t cap)
+{
+    gpu_shader_output *row;
+    uint8_t *payload;
+    if (!ffi_gpu_on_main_thread()) {
+        return -1;
+    }
+    row = shader_output_room(receipt, cap);
+    if (row == NULL) {
+        return -1;
+    }
+    payload = (uint8_t *)calloc(67108868ULL, 1);
+    if (payload == NULL) {
+        return -1;
+    }
+    payload[0] = 17;
+    payload[67108867ULL] = 93;
+    if (adopt_shader_output(row, payload, 67108868ULL, receipt)) {
+        return 1;
+    }
+    free(payload);
+    return -1;
 }
 
 /* SDLPlatform>>ffiGpuSubmit:fence: */

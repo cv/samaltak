@@ -30,12 +30,14 @@ wrappedResultHelper: tag
 	(libc getenv: 'SAMALTAK_FFI_BOX_FULL_GC') notNull ifTrue: [
 		tag = 3 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxI64WithGC:) to: 'uint64_t'].
 		tag = 4 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxU64WithGC:) to: 'uint64_t'].
-		tag = 6 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxF64WithGC:) to: 'uint64_t']].
+		tag = 6 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxF64WithGC:) to: 'uint64_t'].
+		tag = 11 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxOwnedIntegerWithGC:) to: 'uint64_t']].
 	^tag caseOf: {
 		[3] -> [self cCoerce: (self functionPointer: #ffiBoxI64:) to: 'uint64_t'].
 		[4] -> [self cCoerce: (self functionPointer: #ffiBoxU64:) to: 'uint64_t'].
 		[6] -> [self cCoerce: (self functionPointer: #ffiBoxF64:) to: 'uint64_t'].
-		[7] -> [self cCoerce: (self functionPointer: #ffiBoxVoid) to: 'uint64_t']}
+		[7] -> [self cCoerce: (self functionPointer: #ffiBoxVoid) to: 'uint64_t'].
+		[11] -> [self cCoerce: (self functionPointer: #ffiBoxOwnedInteger:) to: 'uint64_t']}
 		otherwise: [0 asUInt64]
 ! !
 
