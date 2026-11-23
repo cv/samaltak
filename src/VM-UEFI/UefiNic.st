@@ -1,15 +1,15 @@
 UefiModule subclass: #UefiSnp
-	instanceVariableNames: 'common events snp mac txBuffers txBusy started queue queueLengths queueHead queueCount sem armed lastActiveNs lastSentNs lastReceivedNs received sent failed'
+	instanceVariableNames: 'common events snp mac txBuffers txBusy started queue queueLengths queueHead queueCount sem armed lastActiveNs lastSentNs lastReceivedNs replyEstimateNs received sent failed'
 	classVariableNames: 'EFI_NOT_READY EFI_OPEN_PROTOCOL_EXCLUSIVE EFI_OPEN_PROTOCOL_GET_PROTOCOL SNP_BUSY_NS SNP_FRAME SNP_QUEUE SNP_REPLY_NS SNP_SPIN_NS SNP_TX_SLOTS'
 	package: 'VM-UEFI'!
 
-UefiSnp comment: 'The raw network interface on UEFI (in place of PlatformNic), through the firmware''s simple network protocol (SNP): Ethernet frames for the image''s TCP/IP stack. open: takes the first Ethernet SNP with EFI_OPEN_PROTOCOL_EXCLUSIVE from our image, so that the firmware''s own network stack (MNP and everything over it) lets go of it and takes no more frames, starts and initializes it, and lets unicast and broadcast frames in. A frame goes out from one of SNP_TX_SLOTS buffers of ours, busy until GetStatus hands it back. poll (from the platform''s poll and wait) moves what the NIC received into a queue of SNP_QUEUE frames, from which receive:max: takes them, and signals the semaphore. For SNP_REPLY_NS after a frame went out, until one comes (awaitsReply: the peer''s answer, an ACK, is due), a wait polls without pause (spin:coarse:). Otherwise while frames came or went in the last SNP_BUSY_NS (isBusy), the firmware''s timer ticks every millisecond and a wait lasts until its next tick (UefiPlatform, UefiMachine>>fineTicks:), so a frame is seen within a millisecond and the CPU halts meanwhile; where the timer''s period cannot be set, a wait polls without pause instead while frames came or went in the last SNP_SPIN_NS: the firmware''s timer ticks only every 10 ms.'!
+UefiSnp comment: 'The raw network interface on UEFI (in place of PlatformNic), through the firmware''s simple network protocol (SNP): Ethernet frames for the image''s TCP/IP stack. open: takes the first Ethernet SNP with EFI_OPEN_PROTOCOL_EXCLUSIVE from our image, so that the firmware''s own network stack (MNP and everything over it) lets go of it and takes no more frames, starts and initializes it, and lets unicast and broadcast frames in. A frame goes out from one of SNP_TX_SLOTS buffers of ours, busy until GetStatus hands it back. poll (from the platform''s poll and wait) moves what the NIC received into a queue of SNP_QUEUE frames, from which receive:max: takes them, and signals the semaphore. For SNP_REPLY_NS after a frame went out, until one comes (awaitsReply: the peer''s answer, an ACK, is due; if answers came within SNP_REPLY_NS of late, replyEstimateNs), a wait polls without pause (spin:coarse:). Otherwise while frames came or went in the last SNP_BUSY_NS (isBusy), the firmware''s timer ticks every millisecond and a wait lasts until its next tick (UefiPlatform, UefiMachine>>fineTicks:), so a frame is seen within a millisecond and the CPU halts meanwhile; where the timer''s period cannot be set, a wait polls without pause instead while frames came or went in the last SNP_SPIN_NS: the firmware''s timer ticks only every 10 ms.'!
 
 !UefiSnp class methodsFor: 'declaring'!
 declarations
 	^#((common PlatformCommon) (events PlatformEvents) (snp 'EfiSimpleNetwork *') (mac 'uint8_t[6]') (txBuffers 'uint8_t *') (txBusy 'bool[64]') (started bool)
 		(queue 'uint8_t *') (queueLengths 'int32_t[256]') (queueHead int32_t) (queueCount int32_t) (sem int32_t) (armed bool)
-		(lastActiveNs int64_t) (lastSentNs int64_t) (lastReceivedNs int64_t) (received int64_t) (sent int64_t) (failed int64_t))
+		(lastActiveNs int64_t) (lastSentNs int64_t) (lastReceivedNs int64_t) (replyEstimateNs int64_t) (received int64_t) (sent int64_t) (failed int64_t))
 !
 replaces
 	^PlatformNic
@@ -165,6 +165,9 @@ take
 				queueCount := queueCount + 1.
 				received := received + 1.
 				lastActiveNs := self nowNs.
+				lastSentNs > lastReceivedNs ifTrue: [
+					"how long the answer took: a quarter of it, at most twice SNP_REPLY_NS"
+					replyEstimateNs := replyEstimateNs * 3 + (lastActiveNs - lastSentNs min: 2 * SNP_REPLY_NS) quo: 4].
 				lastReceivedNs := lastActiveNs]]
 !
 frameSemaphore: index
@@ -226,10 +229,10 @@ isBusy
 	^self wantsPolling and: [self nowNs - lastActiveNs < SNP_BUSY_NS]
 !
 awaitsReply
-	"Did a frame go out in the last SNP_REPLY_NS, and none come since?"
+	"Did a frame go out in the last SNP_REPLY_NS, none come since, and answers come within SNP_REPLY_NS of late?"
 	<function>
 	<returns: 'bool'>
-	^lastSentNs > lastReceivedNs and: [self nowNs - lastSentNs < SNP_REPLY_NS]
+	^lastSentNs > lastReceivedNs and: [replyEstimateNs < SNP_REPLY_NS and: [self nowNs - lastSentNs < SNP_REPLY_NS]]
 !
 spinning: coarse
 	"Should a wait poll without pause: while a reply is due, or (coarse: the firmware's timer ticks every 10 ms) while frames came or went in the last SNP_SPIN_NS?"

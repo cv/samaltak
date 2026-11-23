@@ -1,11 +1,11 @@
 NetworkInterface subclass: #PciNetworkInterface
-	instanceVariableNames: 'pci mac semaphore armed lastActive wake sleeping process received sent failed tick tickIndex tickEvent ticking sentUs receivedUs'
+	instanceVariableNames: 'pci mac semaphore armed lastActive wake sleeping process received sent failed tick tickIndex tickEvent ticking sentUs receivedUs replyEstimateUs'
 	classVariableNames: ''
 	package: 'System-Devices'!
 
 PciNetworkInterface comment: 'I am the abstract class of the image''s drivers of network controllers on PCI (E1000eInterface, VirtioNetInterface). open finds the first controller one of them supports among the firmware''s PCI devices, takes it from the firmware''s drivers (its network stack with them) and starts it; NetworkInterface open falls back to the VM''s (VmNetworkInterface, the firmware''s driver) without one.
 
-The controllers interrupt nobody. The stack''s Process takes the frames received (receiveInto:) when it wakes, at least every 10 ms; my Process, just above the idle Process, wakes it sooner: for replyUs after a frame went out, until one comes, it looks for one without pause (the peer''s answer, an ACK, is due: so a TCP sender is not held back); otherwise while frames came or went in the last busyMs it looks for one at every tick of the firmware''s timer, which then ticks every millisecond (Firmware>>fineTicks:; a timer event of mine, watched, signals tick), and signals the stack''s semaphore when one waits (once, until receiveInto: has answered nil); then the timer ticks at its own period again, and my Process sleeps until a frame comes or goes again. Between ticks the CPU halts (it looked without pause for 20 ms after every frame before: a vCPU busy all that time), for at most a millisecond more before a frame that was not awaited is seen. Without the firmware''s timer (tests) it looks without pause. Subclasses: startDevice, stopDevice, hasFrame, waiting, receiveFrame: (the next frame into a ByteArray: its length, nil if none), transmit:count:.'!
+The controllers interrupt nobody. The stack''s Process takes the frames received (receiveInto:) when it wakes, at least every 10 ms; my Process, just above the idle Process, wakes it sooner: for replyUs after a frame went out, until one comes, it looks for one without pause (the peer''s answer, an ACK, is due: so a TCP sender is not held back), if answers have come that soon of late (replyEstimateUs: a peer farther away, or one that does not answer, is not worth it); otherwise while frames came or went in the last busyMs it looks for one at every tick of the firmware''s timer, which then ticks every millisecond (Firmware>>fineTicks:; a timer event of mine, watched, signals tick), and signals the stack''s semaphore when one waits (once, until receiveInto: has answered nil); then the timer ticks at its own period again, and my Process sleeps until a frame comes or goes again. Between ticks the CPU halts (it looked without pause for 20 ms after every frame before: a vCPU busy all that time), for at most a millisecond more before a frame that was not awaited is seen. Without the firmware''s timer (tests) it looks without pause. Subclasses: startDevice, stopDevice, hasFrame, waiting, receiveFrame: (the next frame into a ByteArray: its length, nil if none), transmit:count:.'!
 
 !PciNetworkInterface class methodsFor: 'opening'!
 open
@@ -35,7 +35,7 @@ initialize
 	received := sent := failed := 0.
 	armed := true.
 	sleeping := false.
-	lastActive := sentUs := receivedUs := 0.
+	lastActive := sentUs := receivedUs := replyEstimateUs := 0.
 	ticking := false.
 	wake := Semaphore new
 !
@@ -70,7 +70,7 @@ receiveInto: aByteArray
 		armed := true.
 		^nil].
 	received := received + 1.
-	receivedUs := Time microsecondClockValue.
+	self noteReceived.
 	self busy.
 	^n
 !
@@ -114,7 +114,7 @@ watch
 	[(armed and: [self hasFrame]) ifTrue: [
 		armed := false.
 		lastActive := Time millisecondClockValue.
-		receivedUs := Time microsecondClockValue.
+		self noteReceived.
 		semaphore signal].
 	self awaitsReply
 		ifTrue: [Processor yield]
@@ -127,8 +127,16 @@ watch
 					wake wait]]] repeat
 !
 awaitsReply
-	"Did a frame go out in the last replyUs, and none come since?"
-	^sentUs > receivedUs and: [Time microsecondClockValue - sentUs < self class replyUs]
+	"Did a frame go out in the last replyUs, none come since, and answers come within replyUs of late?"
+	^sentUs > receivedUs and: [replyEstimateUs < self class replyUs and: [Time microsecondClockValue - sentUs < self class replyUs]]
+!
+noteReceived
+	"A frame came: if the first since one went out, how long the answer took goes into replyEstimateUs (a quarter of it, at most twice replyUs: a frame that was no answer counts for little)."
+	| now |
+	now := Time microsecondClockValue.
+	sentUs > receivedUs ifTrue: [
+		replyEstimateUs := replyEstimateUs * 3 + (now - sentUs min: 2 * self class replyUs) // 4].
+	receivedUs := now
 !
 nap
 	"Until the firmware's next tick; without its timer events, only let others run."
