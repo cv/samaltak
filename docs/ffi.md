@@ -178,6 +178,22 @@ Libraries and generated wrappers stay mapped until VM exit. The VM can
 publish up to 1024 downcall wrappers per process. Dropping a binding or
 flushing the ordinary JIT cache does not reclaim them.
 
+### Optimizing JIT call sites
+
+In `--jit opt`, an eligible positional send can learn one prepared binding
+and call its generated wrapper directly. The binding can be computed at
+run time; the send need not load a literal. A hit skips the normal Smalltalk
+send and bound-invocation primitive, not the wrapper's argument checks or
+result conversion. If the guard misses, the normal send runs instead. A
+wrapper rejection still answers `false`; a native result is never a reason
+to retry the send.
+
+This does not specialize the public Array form. Interpreter and baseline
+code still use the same wrappers through the ordinary invoke path.
+`--jit opt --jit-flags -ffi-site` disables only this call-site optimization,
+not generated wrappers or FFI. See [the JIT notes](jit.md#bound-ffi-sites)
+for the guard and GC mechanics.
+
 ## Headless verification
 
 With a hosted VM and full image, run:
@@ -185,22 +201,28 @@ With a hosted VM and full image, run:
 ```sh
 tests/vm/runtime_native_grants_test.sh build/samaltak.image vm/build/samaltak
 tests/vm/wrapped_ffi_specialization_test.sh build/samaltak.image vm/build/samaltak
+tests/vm/bound_ffi_site_test.sh build/samaltak.image vm/build/samaltak
 ```
 
-Both checks passed on Linux x86-64. The grant test covers bind-time
-validation and reauthorization after restore. The wrapper test covers Array
-and positional invocation in interpreter and optimizing JIT modes, native
-entry counts on completion and rejection, and restore with reordered or
-missing grants. For a hosted `NO_PLATFORM=1` build, pass `--no-pty` to the
-wrapper test after the VM path.
+The grant test covers bind-time validation and reauthorization after restore.
+The wrapper test covers Array and positional invocation, native entry counts
+and restore with reordered or missing grants. The site test (also run by
+`make test-jit-opt`) checks the emitted direct call and executed site counters
+with `ffi-site` on and off. It also checks fallback, boxing with GC, and
+deoptimization without replay. Set `SITEFFI_TEST_LOG_DIR` to keep the site
+test's disassembly and counters. To skip the PTY portion, pass `--no-pty`
+after the VM path to the wrapper and site tests. Both scripts use `--load`,
+which needs file support.
 
-The [wrapper benchmark](../vm/tests/bench/wrapped-ffi.py) binds before
+The [wrapper benchmark](../vm/tests/bench/wrapped-ffi.md) binds before
 timing: it measures warm invocation and allocation, not binding or code
-generation. On Linux x86-64 (EPYC 7B13, 10 rounds of 50,000 calls per
-case after warmup), the scalar case using `invoke:` with a fresh Array
-allocated about 24 more bytes per call than the positional case. In that run,
-the median paired time ratio (Array / positional) was 1.94× with `--jit none`
-and 1.21× with `--jit opt`.
+generation. Its historical Linux x86-64 sample predates JIT call-site
+specialization (EPYC 7B13, 10 rounds of 50,000 calls per case after warmup).
+The scalar case using `invoke:` with a fresh Array allocated about 24 more
+bytes per call than the positional case. The median paired time ratio
+(Array / positional) was 1.94× with `--jit none` and 1.21× with `--jit opt`.
+Those ratios compare invocation forms, not the effect of `ffi-site`.
+For the paired on/off benchmark, see [bound FFI sites](benchmarks.md#bound-ffi-call-sites).
 
 ## Notifications
 

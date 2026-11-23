@@ -30,7 +30,11 @@ primitive. Cold binds, preflight, warmup, and the first full batch are excluded
 from the steady summaries. CSV includes each batch; paired ratios compare
 variants within one round.
 
-## Hosted x86-64 sample
+## Historical hosted x86-64 sample
+
+This sample predates JIT call-site specialization. “Direct” does not mean
+a JIT call-site hit. The two modes measure the generated wrappers and
+positional protocol, not the effect of `ffi-site`.
 
 Linux on an AMD EPYC 7B13, CPU 0, 10 steady rounds of 50,000 calls per
 variant and mode; 32,000 warmup calls per variant, then one discarded

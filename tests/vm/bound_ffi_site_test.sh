@@ -71,7 +71,8 @@ SAMALTAK_FFI_SITE_TRACE=1 eval_case witness-off 'BoundFFISiteProof witness: fals
 trace witness-off off
 eval_case interpreter 'BoundFFISiteProof leaf. BoundFFISiteProof boxing. BoundFFISiteProof deopt: false' --eden 1 --jit none
 eval_case optimized 'BoundFFISiteProof leaf. BoundFFISiteProof boxing. BoundFFISiteProof deopt: false' --eden 1 --jit opt --jit-opt 200
-SAMALTAK_OPT_TRACE=1 eval_case stress-deopt "Smalltalk vm jitParameters: #(nil 'deopt' nil nil). BoundFFISiteProof deopt: true" \
+# Keep these callers as separate compiled activations so traced names identify the FFI send.
+SAMALTAK_OPT_TRACE=1 eval_case stress-deopt "Smalltalk vm jitParameters: #(nil 'deopt,-inline' nil nil). BoundFFISiteProof deopt: true" \
     --eden 1 --jit opt --jit-opt 100
 grep -E 'deopt mode 2 .*BoundFFISiteProof.*(nativeThenAdd:|wide:)' "$LOG/stress-deopt.stderr" >/dev/null || {
     echo 'bound_ffi_site_test: no traced post-call deopt in fixture callers' >&2
