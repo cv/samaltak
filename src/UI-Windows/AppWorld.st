@@ -60,6 +60,10 @@ desktopClickedAt: aPoint button: anInteger
 ! !
 
 !AppWorld methodsFor: 'host window'!
+resizeTo: aPoint
+	"Ask the host window to become aPoint points (it stays fixed-size); my window follows when the host reports the new size. Answer whether the host took it."
+	^displayWindow extent: aPoint
+!
 hostResized: aPoint
 	extent := displayWindow extent.
 	windows do: [:w | w bounds: self bounds].

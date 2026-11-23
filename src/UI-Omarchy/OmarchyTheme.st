@@ -257,11 +257,15 @@ fontOfSize: pixels bold: aBoolean
 !
 fontOfSize: pixels bold: aBoolean letterSpacing: points
 	"The Omarchy typeface at pixels, regular or bold, with points between letters (the shell's tracked captions use 1)."
+	^self fontOfSize: pixels style: (aBoolean ifTrue: [#bold] ifFalse: [#regular]) letterSpacing: points
+!
+fontOfSize: pixels style: aSymbol letterSpacing: points
+	"The Omarchy typeface at pixels in aSymbol (#regular, #bold or #italic), with points between letters."
 	| key |
-	key := Array with: pixels with: aBoolean with: points with: Font deviceScale.
+	key := Array with: pixels with: aSymbol with: points with: Font deviceScale.
 	^sized at: key ifAbsent: [
 		| font |
-		font := Font face: (aBoolean ifTrue: [self boldFace] ifFalse: [self regularFace]) size: pixels.
+		font := Font face: (aSymbol == #bold ifTrue: [self boldFace] ifFalse: [aSymbol == #italic ifTrue: [self italicFace] ifFalse: [self regularFace]]) size: pixels.
 		points = 0 ifFalse: [font letterSpacing: points].
 		sized at: key put: font]
 !

@@ -50,6 +50,12 @@ title: aString
 	title := aString.
 	self isOpen ifTrue: [GPUPlatform window: handle title: aString]
 !
+extent: aPoint
+	"Resize me to aPoint points (rounded up); answer whether the host did. Opened later, I open at that size."
+	width := aPoint x ceiling.
+	height := aPoint y ceiling.
+	^self isOpen and: [(GPUPlatform window: handle width: width height: height) ~~ false]
+!
 hidden: aBoolean
 	"Open hidden (offscreen) or shown when my handle is created next (first use, new session)."
 	flags := (flags bitAnd: -2) + (aBoolean ifTrue: [1] ifFalse: [0])

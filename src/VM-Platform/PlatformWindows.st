@@ -118,6 +118,13 @@ setTitle: win title: title
 	sw := self sdlWindow: win.
 	^sw notNull and: [sdl setWindowTitle: sw title: title]
 !
+setSize: win width: w height: h
+	"Resize to w × h points; a window that is not resizable keeps the new size fixed."
+	<export>
+	| sw |
+	sw := self sdlWindow: win.
+	^sw notNull and: [sdl setWindowSize: sw w: w h: h]
+!
 setTextInputArea: win x: x y: y width: w height: h cursor: cursor
 	"Where the text being typed is (points): the input method puts its candidates next to it."
 	<export>
