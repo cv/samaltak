@@ -1,5 +1,5 @@
 Object subclass: #Compositor
-	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder lastFrameWork onWorkClock ownsWorkClock gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn tickCount compositeBytes restMs differ items previousList previousStamps previousItems fullNext presentedCount countsFrame lastDamage frameTap'
+	instanceVariableNames: 'world displayWindow renderer process running vsync vsyncIndex wake sleeping skip tickTimeout lastTick idleFrames frameCount presenting requests recorder lastFrameWork onWorkClock ownsWorkClock gpuTimer clock knownProcesses lastCpu lastScan lastRecord lastError lastErrorTime pipelineVersion standIn tickCount compositeBytes restMs differ items previousList previousStamps previousItems fullNext presentedCount countsFrame lastDamage frameTap previousOverlay previousOverlayStamps'
 	classVariableNames: 'Probe Running'
 	package: 'UI-Windows'!
 
@@ -53,7 +53,7 @@ lastDamage
 	^lastDamage
 !
 frameTap
-	"The FrameTap that hears each frame's damage after it was presented (FrameTap current where no firmware screen draws): its pixels are my window's surface, RGBA8, read back in my Process."
+	"The FrameTap that hears each frame's damage after it was presented (FrameTap current where no firmware screen draws): its pixels are my window's surface, the whole composed frame in device pixels without the remote pointer (drawn over a copy: present:now:), RGBA8, read back in my Process."
 	frameTap isNil ifTrue: [frameTap := FrameTap source: self extent: ((displayWindow isNil or: [previousList isNil]) ifFalse: [displayWindow surface pixelExtent])].
 	^frameTap
 !
@@ -561,6 +561,24 @@ compositeListScale: aNumber pointer: showPointer time: now
 ! !
 
 !Compositor methodsFor: 'damage'!
+pointerListScale: aNumber time: now
+	"The remote pointer as a DisplayList of its own, nil when it draws nothing: it is drawn over the frame (DisplayWindow>>show:clear:damage:overlay:damage:), not into it, so that the frame tap and screenshots read the screen without it."
+	| c l |
+	world remotePointer isDrawn ifFalse: [^nil].
+	c := Canvas extent: world extent scale: aNumber.
+	world remotePointer drawOn: c time: now.
+	l := c displayList.
+	^l isEmpty ifTrue: [nil] ifFalse: [l]
+!
+damageOfOverlay: anOverlayOrNil extent: aPoint
+	"Where the remote pointer (anOverlayOrNil) changed since the last frame presented: a DamageRegion of device pixels, nil if nowhere."
+	| region |
+	(anOverlayOrNil isNil and: [previousOverlay isNil]) ifTrue: [^nil].
+	region := DamageRegion extent: aPoint.
+	differ region: region.
+	differ diff: previousOverlay stamps: previousOverlayStamps to: anOverlayOrNil stamps: nil.
+	^region isEmpty ifTrue: [nil] ifFalse: [region]
+!
 damageOf: aDisplayList items: newItems rendered: toRender
 	"What aDisplayList (the screen, drawn item by item: newItems) changes of the last frame presented: a DamageRegion of device pixels (full when there is no last frame to compare with, at a new size, after redrawAll, and with DamageCheck forcesFull)."
 	| region old oldPlaces newKeys common oldCommon occluders scratch |
@@ -661,7 +679,7 @@ checkDamage: aDamageRegion list: aDisplayList previous: olderList rendered: toRe
 
 !Compositor methodsFor: 'private'!
 present: t0 now: now
-	| scale toRender drawUs rasterUs t cmd list stats0 stats1 t1 shown gpuStart fence fenceAt probe before layerUs showUs newItems damage older s d whole |
+	| scale toRender drawUs rasterUs t cmd list stats0 stats1 t1 shown gpuStart fence fenceAt probe before layerUs showUs newItems damage older s d whole overlay overlayDamage |
 	scale := world displayScale.
 	stats0 := Smalltalk vm statistics.
 	t := self frameClock.
@@ -692,15 +710,17 @@ present: t0 now: now
 	t := self frameClock.
 	compositeBytes isNil ifTrue: [compositeBytes := ByteArray new: 32768].
 	items := OrderedCollection new.
-	list := [self compositeOn: (Canvas extent: world extent scale: scale buffer: compositeBytes) pointer: true time: now]
+	list := [self compositeOn: (Canvas extent: world extent scale: scale buffer: compositeBytes) pointer: false time: now]
 		ensure: [newItems := items. items := nil].
+	overlay := self pointerListScale: scale time: now.
 	s := StageTimes current.
 	s isNil ifFalse: [d := Time microsecondClockValue].
 	damage := self damageOf: list items: newItems rendered: toRender.
 	s isNil ifFalse: [s add: #'composite.diff' since: d bytes: 0].
 	lastDamage := damage.
+	overlayDamage := self damageOfOverlay: overlay extent: list pixelExtent.
 	drawUs := drawUs + (self frameClock - t).
-	(damage isEmpty and: [recorder isNil and: [world presentsContinuously not]]) ifTrue: [
+	(damage isEmpty and: [overlayDamage isNil and: [recorder isNil and: [world presentsContinuously not]]]) ifTrue: [
 		"Nothing on the screen changed: no frame to present (the next one draws into the same bytes)."
 		self runRequests.
 		frameCount := frameCount + 1.
@@ -708,9 +728,12 @@ present: t0 now: now
 	t := self frameClock.
 	gpuStart isNil ifTrue: [gpuStart := t].
 	whole := damage isFull or: [displayWindow needsFullFrame].
-	shown := displayWindow show: list clear: Color desk damage: damage.
-	"The surface's size, what is read back (a hidden window's may be smaller than the list's)."
-	frameTap isNil ifFalse: [frameTap presented: (whole ifTrue: [#full] ifFalse: [damage rects]) extent: displayWindow surface pixelExtent].
+	shown := displayWindow show: list clear: Color desk damage: damage overlay: overlay damage: overlayDamage.
+	previousOverlay := overlay.
+	previousOverlayStamps := DisplayListDiff stampsOf: overlay.
+	"The surface's size (the list's), what is read back; the pointer's damage is not the frame's."
+	(frameTap notNil and: [whole or: [damage notEmpty]]) ifTrue: [
+		frameTap presented: (whole ifTrue: [#full] ifFalse: [damage rects]) extent: displayWindow surface pixelExtent].
 	showUs := self frameClock - t.
 	"The upload has copied these bytes; the next frame draws into the other buffer: these stay to compare it with (screenshots use independently owned lists)."
 	compositeBytes := previousList isNil ifFalse: [previousList vertices].
@@ -723,7 +746,7 @@ present: t0 now: now
 	fence := renderer device commandBuffer submitWithFence.
 	rasterUs := rasterUs + (self frameClock - t).
 	DamageCheck current isNil ifFalse: [self checkDamage: damage list: list previous: older rendered: toRender].
-	recorder isNil ifFalse: [recorder captureFrom: displayWindow surface compositor: self].
+	recorder isNil ifFalse: [recorder captureFrom: displayWindow shownSurface compositor: self].
 	self runRequests.
 	frameCount := frameCount + 1.
 	presentedCount := presentedCount + 1.

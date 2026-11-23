@@ -26,6 +26,10 @@ opacity
 isVisible
 	^opacity > 0 and: [position notNil]
 !
+isDrawn
+	"Whether drawOn:time: draws anything: the arrow, or a click's ring."
+	^rings notEmpty or: [self isVisible]
+!
 isActiveAt: ms
 	^ms - lastActivity < 4000
 !
