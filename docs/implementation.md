@@ -239,7 +239,7 @@ One opcode byte, then operand bytes (unsigned unless noted, `int16` = little-end
 
 Methods of Context and its subclasses read `sender`, `pc` and `stackp` with 0x81 and store into instance variables with 0x88; elsewhere the compilers use 0x10–0x1F and 0x85. The compilers emit 0x97–0x99 for "push temp; push temp | literal | small integer; binary special send" (`+ - < > <= >= = ~= * / \\ bitShift: // bitAnd: bitOr: at:`), and 0x9A–0x9F / 0xF0–0xFB instead for `+ - < > <= >=`, when no jump target or recorded pc falls inside the sequence; the source map entry of the send moves to the superinstruction. Each behaves exactly as its three parts: a send it makes returns to the instruction after it.
 
-Inlined `to:do:` tests before the loop and again at its bottom (a conditional jump back), `[...] whileTrue` / `whileFalse` jump back conditionally: one jump per iteration.
+Inlined `to:do:` tests before the loop and again at its bottom (a conditional jump back), `[...] whileTrue` / `whileFalse` jump back conditionally: one jump per iteration. A block of an inlined loop that declares a variable a closure captures (itself or in a block inlined into it, the loop variable included) is compiled as a real block and evaluated in place with `value` / `value:`, so each iteration has variables of its own, as in the loop's non-inlined form (Pharo's and Squeak's compilers give them per iteration with temp vectors).
 
 Backward jumps and sends are **safepoints**: the VM checks its interrupt flag there.
 
