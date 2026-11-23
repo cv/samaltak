@@ -1,20 +1,23 @@
 VMCoreModule subclass: #RuntimeNativeLoader
-	instanceVariableNames: 'dynamicLinker manifest grants grantCount'
-	classVariableNames: 'NATIVE_GRANT_BYTES NATIVE_GRANT_BUFFER_SIZE NATIVE_GRANT_LIMIT NATIVE_GRANT_NAME_MAX NATIVE_GRANT_ARITY_MAX'
+	instanceVariableNames: 'dynamicLinker manifest grants grantCount grantUnregister'
+	classVariableNames: 'NATIVE_GRANT_BYTES NATIVE_GRANT_BUFFER_SIZE NATIVE_GRANT_LIMIT NATIVE_GRANT_NAME_MAX NATIVE_GRANT_ARITY_MAX NATIVE_NOTIFY_CONTEXT NATIVE_NOTIFY_I32 NATIVE_NOTIFY_VOID'
 	package: 'VM-Core'!
 
 RuntimeNativeLoader comment: 'The hosted launcher may grant fixed exports with scalar and bounded byte arguments before the image starts. It supplies absolute library paths, exact symbol names and their trusted C prototypes in SAMALTAK_NATIVE_GRANTS. The image supplies only counted logical names and tags. Lookup never loads a library and a target is returned only to VM code that builds the adapter.'!
 
 !RuntimeNativeLoader class methodsFor: 'declaring'!
 declarations
-	^#((dynamicLinker PosixDynamicLinker) (manifest 'char[NATIVE_GRANT_BUFFER_SIZE]') (grants 'RuntimeNativeGrant[NATIVE_GRANT_LIMIT]') (grantCount int32_t))
+	^#((dynamicLinker PosixDynamicLinker) (manifest 'char[NATIVE_GRANT_BUFFER_SIZE]') (grants 'RuntimeNativeGrant[NATIVE_GRANT_LIMIT]') (grantCount int32_t) (grantUnregister 'void *'))
 !
 initialize
 	NATIVE_GRANT_BYTES := 4096.
 	NATIVE_GRANT_BUFFER_SIZE := NATIVE_GRANT_BYTES + 1.
 	NATIVE_GRANT_LIMIT := 32.
 	NATIVE_GRANT_NAME_MAX := 127.
-	NATIVE_GRANT_ARITY_MAX := 6
+	NATIVE_GRANT_ARITY_MAX := 6.
+	NATIVE_NOTIFY_CONTEXT := 250.
+	NATIVE_NOTIFY_I32 := 250.
+	NATIVE_NOTIFY_VOID := 251
 ! !
 
 !RuntimeNativeLoader methodsFor: 'launcher'!
@@ -49,7 +52,10 @@ configure
 		handle := dynamicLinker open: row path flags: (dynamicLinker RTLD_NOW bitOr: dynamicLinker RTLD_LOCAL).
 		handle isNull ifTrue: [^false].
 		row target: (dynamicLinker symbolIn: handle named: row symbol).
-		row target isNull ifTrue: [^false]].
+		row target isNull ifTrue: [^false].
+		row unregisterName notNull ifTrue: [
+			grantUnregister := dynamicLinker symbolIn: handle named: row unregisterName.
+			(grantUnregister isNull or: [grantUnregister = row target]) ifTrue: [^false]]].
 	"Never dlclose: generated code and grant targets live for this VM process."
 	grantCount := count asInt32.
 	^true
@@ -75,7 +81,7 @@ fieldAfter: text
 	^end + 1
 !
 parseRow: line into: row count: count
-	| name signature path previous slots contract |
+	| name signature path previous slots extra |
 	name := self fieldAfter: line.
 	name isNull ifTrue: [^false].
 	signature := self fieldAfter: name.
@@ -84,11 +90,19 @@ parseRow: line into: row count: count
 	path isNull ifTrue: [^false].
 	slots := self parseSignature: signature into: row.
 	slots < 0 ifTrue: [^false].
-	slots > row arity ifTrue: [
-		"Every borrow requires an explicit synchronous, nonretaining, nonreentrant contract."
-		contract := path.
-		path := self fieldAfter: path.
-		(path isNull or: [(libc strcmp: contract with: 'syncBorrow') ~= 0]) ifTrue: [^false]].
+	row unregisterName: self null.
+	row resultType >= NATIVE_NOTIFY_I32
+		ifTrue: [
+			extra := path.
+			path := self fieldAfter: path.
+			(path isNull or: [(self validName: extra alias: false) not or: [(libc strcmp: extra with: name) = 0]])
+				ifTrue: [^false].
+			row unregisterName: extra]
+		ifFalse: [slots > row arity ifTrue: [
+			"Every borrow requires an explicit synchronous, nonretaining, nonreentrant contract."
+			extra := path.
+			path := self fieldAfter: path.
+			(path isNull or: [(libc strcmp: extra with: 'syncBorrow') ~= 0]) ifTrue: [^false]]].
 	(path value ~= $/ value or: [(self endOf: path or: $| value) value ~= 0]) ifTrue: [^false].
 	((self validName: line alias: true) and: [self validName: name alias: false]) ifFalse: [^false].
 	"Do not shadow curated namespaces or allow multiple claimed types for one name."
@@ -96,6 +110,7 @@ parseRow: line into: row count: count
 		(libc strcmp: line with: 'platform') = 0]]) ifTrue: [^false].
 	0 to: count - 1 do: [:i |
 		previous := grants + i.
+		(row unregisterName notNull and: [previous unregisterName notNull]) ifTrue: [^false].
 		((libc strcmp: line with: previous library) = 0 and: [(libc strcmp: name with: previous symbol) = 0])
 			ifTrue: [^false]].
 	row library: line.
@@ -127,37 +142,56 @@ parseSignature: text into: row
 	<var: #slots type: 'int32_t'>
 	<var: #n type: 'int32_t'>
 	<returns: 'int32_t'>
-	| start end result n tag more slots |
+	| start end result n tag more slots notification contexts |
 	end := self endOf: text or: $( value.
 	end value = 0 ifTrue: [^-1].
 	end value: 0.
-	result := self scalarTag: text.
+	result := self resultTag: text.
 	result = 0 ifTrue: [^-1].
+	notification := result >= NATIVE_NOTIFY_I32.
 	start := end + 1.
 	end := self endOf: start or: $) value.
 	(end value = 0 or: [(end at: 1) ~= 0]) ifTrue: [^-1].
 	end value: 0.
 	n := 0.
 	slots := 0.
+	contexts := 0.
 	more := start value ~= 0.
 	[more] whileTrue: [
 		end := self endOf: start or: $, value.
 		more := end value ~= 0.
 		end value: 0.
-		tag := (libc strcmp: start with: 'bytesWithLength') = 0
-			ifTrue: [8] ifFalse: [self scalarTag: start].
-		(tag = 0 or: [tag = 7]) ifTrue: [^-1].
+		tag := notification ifTrue: [self notificationTag: start] ifFalse: [self argumentTag: start].
+		tag = 0 ifTrue: [^-1].
+		tag = NATIVE_NOTIFY_CONTEXT ifTrue: [contexts := contexts + 1].
 		slots := slots + (tag = 8 ifTrue: [2] ifFalse: [1]).
 		slots > NATIVE_GRANT_ARITY_MAX ifTrue: [^-1].
 		row types at: n put: tag asUInt8.
 		n := n + 1.
 		start := end + 1].
+	(notification and: [contexts ~= 1]) ifTrue: [^-1].
 	row arity: n.
 	row resultType: result.
 	^slots
 !
+resultTag: text
+	(libc strcmp: text with: 'notifyI32') = 0 ifTrue: [^NATIVE_NOTIFY_I32].
+	(libc strcmp: text with: 'notifyVoid') = 0 ifTrue: [^NATIVE_NOTIFY_VOID].
+	^self scalarTag: text
+!
+argumentTag: text
+	| tag |
+	(libc strcmp: text with: 'bytesWithLength') = 0 ifTrue: [^8].
+	tag := self scalarTag: text.
+	^tag = 7 ifTrue: [0] ifFalse: [tag]
+!
+notificationTag: text
+	| tag |
+	(libc strcmp: text with: 'context') = 0 ifTrue: [^NATIVE_NOTIFY_CONTEXT].
+	tag := self scalarTag: text.
+	^tag <= 4 ifTrue: [tag] ifFalse: [0]
+!
 scalarTag: text
-	"Result types are scalar or void; bytesWithLength is an argument-only schema."
 	(libc strcmp: text with: 'i32') = 0 ifTrue: [^1].
 	(libc strcmp: text with: 'u32') = 0 ifTrue: [^2].
 	(libc strcmp: text with: 'i64') = 0 ifTrue: [^3].
@@ -188,6 +222,12 @@ lookupLibrary: library length: libLength symbol: symbol length: symLength types:
 			n = 0 or: [(libc memcmp: types with: row types size: n asUInt64) = 0]]]]]]])
 				ifTrue: [^row target]].
 	^self null
+!
+notificationUnregister
+	"VM-only: read after an exact lookup of the singleton notification registrar."
+	<function>
+	<returns: 'void *'>
+	^grantUnregister
 ! !
 
 VMStruct subclass: #RuntimeNativeGrant
@@ -199,5 +239,5 @@ VMStruct subclass: #RuntimeNativeGrant
 fields
 	^#((library 'const char *') (symbol 'const char *') (path 'const char *')
 		(librarySize size_t) (symbolSize size_t) (types 'uint8_t[6]')
-		(arity int32_t) (resultType int32_t) (target 'void *'))
+		(arity int32_t) (resultType int32_t) (target 'void *') (unregisterName 'const char *'))
 ! !

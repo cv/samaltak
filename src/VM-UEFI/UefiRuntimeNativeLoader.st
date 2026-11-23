@@ -25,4 +25,9 @@ lookupLibrary: library length: libLength symbol: symbol length: symLength types:
 	<var: #result type: 'int32_t'>
 	<returns: 'void *'>
 	^self null
+!
+notificationUnregister
+	<function>
+	<returns: 'void *'>
+	^self null
 ! !

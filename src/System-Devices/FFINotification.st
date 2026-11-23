@@ -12,6 +12,9 @@ bind: aDescriptor
 	(aDescriptor at: 2) == #sdlLog ifTrue: [
 		^(Smalltalk at: #FFISDLLogNotification ifAbsent: [^FFIError signal: 'SDL log notifications are unavailable'])
 			bind: aDescriptor].
+	(aDescriptor at: 2) == #external ifTrue: [
+		^(Smalltalk at: #FFIExternalNotification ifAbsent: [^FFIError signal: 'External notifications are unavailable'])
+			bind: aDescriptor].
 	^self bind: aDescriptor whenPendingSignal: nil
 !
 bind: aDescriptor whenPendingSignal: aSemaphore
