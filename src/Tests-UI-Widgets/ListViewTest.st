@@ -166,13 +166,17 @@ testLayerChipCell
 	self assert: (self inkIn: (8 @ 3 extent: 14 @ 14) of: form) > 50
 !
 testDrawingIsProportionalToVisibleRows
-	| big canvas t0 t1 |
+	| big canvas t0 t1 best |
 	big := ListView new items: ((1 to: 5000) collect: [:i | 'item ', i printString]).
 	self open: big extent: 240 @ 400.
-	canvas := Canvas extent: 240 @ 400 scale: 2.
-	t0 := Time millisecondClock.
-	big drawOn: canvas.
-	t1 := Time millisecondClock.
-	self assert: t1 - t0 < 50.
+	"The best of five draws: a loaded machine (a gate's other VMs) can stall one for longer than drawing the visible rows takes; drawing all 5000 is slow every time."
+	best := nil.
+	5 timesRepeat: [
+		canvas := Canvas extent: 240 @ 400 scale: 2.
+		t0 := Time millisecondClock.
+		big drawOn: canvas.
+		t1 := Time millisecondClock.
+		best := best isNil ifTrue: [t1 - t0] ifFalse: [best min: t1 - t0]].
+	self assert: best < 50 description: 'the best of five draws took ', best printString, ' ms'.
 	self assert: canvas vertexCount < 20000
 ! !

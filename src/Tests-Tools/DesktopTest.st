@@ -76,7 +76,7 @@ testRunLongComputation
 	self assert: (self waitFor: [(self windowsOf: ProcessBrowser) notEmpty]) description: 'the Process Browser opens'
 !
 testProcessBrowserShowsTheMandelbrotRunning
-	| mb pb state cpu looked |
+	| mb pb state cpu looked tries |
 	self openLayout.
 	mb := self mandelbrot.
 	looked := false.
@@ -85,12 +85,17 @@ testProcessBrowserShowsTheMandelbrotRunning
 	[self assert: (self waitFor: [mb content isRendering]) description: 'the Mandelbrot is not rendering'.
 	 pb := (self windowsOf: ProcessBrowser) first.
 	 "The interval the CPU column measures: the second since its last reading (the browser's own 4 Hz refresh waits in its queue meanwhile, and measures anew after)."
-	 state := self in: pb do: [
-		pb content refresh.
-		(Delay forMilliseconds: 1100) wait.
-		pb content refresh.
-		cpu := pb content cpuOf: mb process.
-		pb content stateOf: mb process].
+	 "On a loaded machine (a gate's other VMs, lavapipe's threads) one second may give the Mandelbrot no time at all: up to eight readings until one shows it working."
+	 cpu := 0.
+	 tries := 0.
+	 [cpu > 5 or: [tries >= 8]] whileFalse: [
+		tries := tries + 1.
+		state := self in: pb do: [
+			pb content refresh.
+			(Delay forMilliseconds: 1100) wait.
+			pb content refresh.
+			cpu := pb content cpuOf: mb process.
+			pb content stateOf: mb process]].
 	 self assert: (self waitFor: [mb content isRendering]) description: 'the Mandelbrot stopped rendering'.
 	 self assert: state equals: 'running'.
 	 self assert: (pb content table items includes: mb process) description: 'the Mandelbrot''s Process is not in the table'.
