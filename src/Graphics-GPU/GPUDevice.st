@@ -70,6 +70,10 @@ commandBuffer
 !
 waitIdle
 	GPUPlatform waitIdle: self handle
+!
+flushUploads
+	"Submit the uploads the platform holds back for the next submit now, without waiting: an empty command buffer's submit does (Renderer>>render:on:clear:)."
+	self commandBuffer submit
 ! !
 
 !GPUDevice methodsFor: 'releasing'!

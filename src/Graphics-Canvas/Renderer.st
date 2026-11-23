@@ -63,11 +63,14 @@ updatePipeline
 
 !Renderer methodsFor: 'rendering'!
 render: aDisplayList on: aSurface clear: aColorOrNil
-	"Render into aSurface in a command buffer of its own, submitted and waited for."
-	| cmd |
-	cmd := device commandBuffer.
-	self render: aDisplayList into: aSurface texture clear: aColorOrNil commandBuffer: cmd.
-	cmd submitWithFence wait
+	"Render into aSurface in a command buffer of its own, submitted and waited for. What can submit is done before the command buffer is acquired: making the textures, uploading the vertices and textures, submitting that batch (SDL_GPU 3.2 may defragment memory at any submit while no window is claimed, moving buffers and textures a command buffer being recorded already uses: its uniforms are then lost, its target and vertices read from stale copies; PlatformGPU). So nothing but this command buffer's own submit comes between its first command and its last, in one Process at a time."
+	| cmd prepared |
+	self lock critical: [
+		prepared := self prepare: aDisplayList target: aSurface texture.
+		device flushUploads.
+		cmd := device commandBuffer.
+		self record: aDisplayList prepared: prepared into: aSurface texture clear: aColorOrNil commandBuffer: cmd within: nil.
+		cmd submitWithFence wait]
 !
 render: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer
 	"Encode a render pass drawing aDisplayList into aTexture (a GPUTexture of format rgba8). aColorOrNil clears first; nil keeps the contents."
@@ -82,20 +85,29 @@ fill: scissors color: aColor into: aTexture commandBuffer: aCommandBuffer
 !
 render: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer within: scissorsOrNil
 	"The same, drawing only inside the rectangles scissorsOrNil ({x. y. width. height} device pixels; nil: everywhere): each batch once per rectangle, its clip cut to it and to the batch's quads (DisplayList>>boundsOfBatch:), those it leaves nothing of skipped. Inside them the pixels are those of drawing everywhere (damage-limited rendering, DamageRegion). One Process at a time: the uniforms, the vertex buffer's ring and the pipeline are shared, and the Compositor (priority 70) may wake in the middle of another Process's encoding (a Surface's render:clear:) and leave its own width and height in the uniforms that Process pushes next."
-	^self lock critical: [self encode: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer within: scissorsOrNil]
+	^self lock critical: [self record: aDisplayList prepared: (self prepare: aDisplayList target: aTexture) into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer within: scissorsOrNil]
 !
 lock
 	^lock ifNil: [lock := Mutex new]
 !
-encode: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer within: scissorsOrNil
-	| byteCount offset textures pass w h tx ty |
+prepare: aDisplayList target: aTexture
+	"What may submit before a command buffer records aDisplayList (render:on:clear:): the pipeline, aTexture's handle and those of the textures the batches draw, the vertices' and the textures' uploads. Answer {the vertices' offset. the batches' GPUTextures}."
+	| byteCount offset |
 	sourceGeneration = SourceGeneration ifFalse: [self updatePipeline].
-	commandBuffer := aCommandBuffer.
+	aTexture handle.
 	byteCount := aDisplayList byteCount.
 	offset := self reserve: byteCount.
 	byteCount > 0 ifTrue: [vertexBuffer upload: aDisplayList vertices count: byteCount offset: offset].
-	textures := aDisplayList batches collect: [:each |
-		(each texture ifNil: [white]) textureOn: device].
+	^Array
+		with: offset
+		with: (aDisplayList batches collect: [:each | ((each texture ifNil: [white]) textureOn: device) handle; yourself])
+!
+record: aDisplayList prepared: anArray into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer within: scissorsOrNil
+	"Encode the render pass of aDisplayList, prepared (prepare:target:)."
+	| offset textures pass w h tx ty |
+	commandBuffer := aCommandBuffer.
+	offset := anArray first.
+	textures := anArray last.
 	w := aTexture width.
 	h := aTexture height.
 	uniforms float32At: 1 put: w.
