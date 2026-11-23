@@ -65,6 +65,10 @@ items: aCollection selected: anItem
 	self layout.
 	self invalidate
 !
+replaceItems: aCollection
+	"Show aCollection instead of my items, one for one: it draws the same rows (the same labels, the same row selected), so nothing is drawn again."
+	items := aCollection asArray
+!
 size
 	^items size
 !

@@ -85,7 +85,7 @@ selectProcess: aProcess
 
 !ProcessBrowser methodsFor: 'sampling'!
 refresh
-	"Re-read every Process (my window's Process, 4 Hz), and once a second their CPU (readingsOf:at:). The table is drawn again only when a row shows something else, and laid out again only when the Processes or their order changed."
+	"Re-read every Process (my window's Process, 4 Hz), and once a second their CPU (readingsOf:at:). The table is drawn again only when a row in view shows something else (rows scrolled out of view are drawn from rows when they come back), and laid out again only when the Processes or their order changed."
 	| now procs |
 	frozen == true ifTrue: [^self].
 	now := Time microsecondClockValue.
@@ -100,7 +100,7 @@ show: procs
 	sorted := (procs asSortedCollection: [:a :b | self process: a sortsBefore: b]) asArray.
 	keys := sorted collect: [:p | self rowKeyOf: p].
 	(table items notNil and: [table items = sorted])
-		ifTrue: [keys = rowKeys ifFalse: [table invalidate]]
+		ifTrue: [(self showsChangeFrom: rowKeys to: keys) ifTrue: [table invalidate]]
 		ifFalse: [table items: sorted].
 	rowKeys := keys.
 	rows := IdentityDictionary new.
@@ -169,6 +169,16 @@ rowKeyOf: aProcess
 		at: 7 put: ((self cpuOf: aProcess) printShowingDecimalPlaces: 1);
 		yourself
 !
+showsChangeFrom: oldKeys to: newKeys
+	"Whether a row that shows something else in newKeys than in oldKeys (the same Processes, in the same order) is at least partly in view."
+	| r |
+	(oldKeys isNil or: [oldKeys size ~= newKeys size]) ifTrue: [^true].
+	1 to: newKeys size do: [:i |
+		(oldKeys at: i) = (newKeys at: i) ifFalse: [
+			r := table rowRect: i.
+			(r bottom > table contentTop and: [r top < table height]) ifTrue: [^true]]].
+	^false
+!
 rowOf: aProcess
 	^(rows isNil ifFalse: [rows at: aProcess ifAbsent: [nil]]) ifNil: [self rowKeyOf: aProcess]
 !
@@ -221,8 +231,9 @@ isBusyWindowProcess: aProcess
 	^aProcess window notNil and: [(aProcess window respondsTo: #isBusy) and: [aProcess window isBusy]]
 !
 isBusy: aProcess
-	"Running or ready and using the CPU (not my own refreshing)."
+	"Running or ready and using the CPU (not my own refreshing), or a busy window's Process, also while it waits between steps."
 	aProcess isActiveProcess ifTrue: [^false].
+	(self isBusyWindowProcess: aProcess) ifTrue: [^true].
 	^(self stateOf: aProcess) = 'running'
 !
 stateStyleOf: aProcess
@@ -340,7 +351,7 @@ processSelected: aProcess
 	self updateStack
 !
 updateStack
-	"Show the selected Process's frames; keep the selected frame while the chain is the same, and draw the list again only when its frames changed."
+	"Show the selected Process's frames; keep the selected frame while the chain is the same, and draw the list again only when its frames changed: new contexts of the same methods with the same labels (a Process waiting again where it waited) replace the old ones without a redraw."
 	| frames key index |
 	frames := self framesOf: table selection.
 	(self frames: frames are: stack items) ifTrue: [
@@ -351,8 +362,11 @@ updateStack
 	key = stackKey
 		ifTrue: [
 			index := stack selectionIndex.
-			stack items: frames.
-			stack selectionIndex: index.
+			(stack items size = frames size and: [(stack items collect: [:ctx | stack labelOf: ctx]) = (frames collect: [:ctx | stack labelOf: ctx])])
+				ifTrue: [stack replaceItems: frames]
+				ifFalse: [
+					stack items: frames.
+					stack selectionIndex: index].
 			index > 0 ifTrue: [self showFrame: (frames at: index)]]
 		ifFalse: [
 			stackKey := key.
@@ -390,7 +404,7 @@ updateButtons
 	debugButton enabled: system not.
 	suspendButton enabled: system not.
 	terminateButton enabled: system not.
-	countLabel text: table items size printString, ' processes · ', (table items count: [:each | self isBusy: each]) printString, ' busy · ', (self coresBusy printShowingDecimalPlaces: 2), ' cores'
+	countLabel text: table items size printString, ' processes · ', (table items count: [:each | (self rowOf: each) at: 5]) printString, ' busy · ', (self coresBusy printShowingDecimalPlaces: 2), ' cores'
 !
 debugSelected
 	| p |

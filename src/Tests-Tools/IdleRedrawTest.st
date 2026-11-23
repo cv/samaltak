@@ -3,7 +3,7 @@ TestCase subclass: #IdleRedrawTest
 	classVariableNames: ''
 	package: 'Tests-Tools'!
 
-IdleRedrawTest comment: 'I check that the tools that refresh by themselves draw again only what changed visibly, so an idle World presents nothing (docs/remote.md, Measurements): the Process Browser''s readings move in visible steps, and LoadMeters draw again only when a meter looks different.'!
+IdleRedrawTest comment: 'I check that the tools that refresh by themselves draw again only what changed visibly, so an idle World presents nothing (docs/remote.md, Measurements): the Process Browser''s readings move in visible steps and its table is drawn again only for rows in view, and LoadMeters draw again only when a meter looks different.'!
 
 !IdleRedrawTest methodsFor: 'tests'!
 testReadingsMoveInVisibleSteps
@@ -25,6 +25,21 @@ testReadingsMoveInVisibleSteps
 	self assert: (b shown: 1.0 for: #p in: d) equals: 1.0.
 	self assert: (b shown: nil for: #p in: d) isNil.
 	self assert: (b shown: 0.3 for: #q in: d) equals: 0.3
+!
+testRowsOutOfViewDoNotDrawTheTableAgain
+	| b t old new |
+	b := ProcessBrowser new.
+	t := b instVarNamed: 'table'.
+	t bounds: (0 @ 0 extent: 300 @ 120).
+	t items: (1 to: 40) asArray.
+	old := (1 to: 40) collect: [:i | Array with: i with: 'waiting'].
+	self deny: (b showsChangeFrom: old to: old copy).
+	new := old copy.
+	new at: 40 put: #(40 'running').
+	self deny: (b showsChangeFrom: old to: new).
+	new at: 1 put: #(1 'running').
+	self assert: (b showsChangeFrom: old to: new).
+	self assert: (b showsChangeFrom: nil to: new)
 !
 testLoadMetersDrawAgainOnlyWhenTheyLookDifferent
 	| m |
