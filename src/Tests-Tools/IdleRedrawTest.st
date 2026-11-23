@@ -11,17 +11,18 @@ testReadingsMoveInVisibleSteps
 	b := ProcessBrowser new.
 	d := Dictionary new.
 	self assert: (b shown: 1.2 for: #p in: d) equals: 1.2.
-	"jitter of less than half a point stays still"
-	self assert: (b shown: 1.5 for: #p in: d) equals: 1.2.
-	self assert: (b shown: 0.8 for: #p in: d) equals: 1.2.
-	self assert: (b shown: 1.8 for: #p in: d) equals: 1.8.
+	"jitter of less than a point stays still"
+	self assert: (b shown: 1.9 for: #p in: d) equals: 1.2.
+	self assert: (b shown: 0.5 for: #p in: d) equals: 1.2.
+	self assert: (b shown: 2.3 for: #p in: d) equals: 2.3.
 	self assert: (b shown: 90.0 for: #p in: d) equals: 90.0.
-	"a large reading moves by a tenth of itself"
-	self assert: (b shown: 95.0 for: #p in: d) equals: 90.0.
-	self assert: (b shown: 80.0 for: #p in: d) equals: 80.0.
-	"to and from zero at once"
+	"a large reading moves by a fifth of itself"
+	self assert: (b shown: 80.0 for: #p in: d) equals: 90.0.
+	self assert: (b shown: 70.0 for: #p in: d) equals: 70.0.
+	"to zero at once, from zero by a point"
 	self assert: (b shown: 0.0 for: #p in: d) equals: 0.0.
-	self assert: (b shown: 0.2 for: #p in: d) equals: 0.2.
+	self assert: (b shown: 0.6 for: #p in: d) equals: 0.0.
+	self assert: (b shown: 1.0 for: #p in: d) equals: 1.0.
 	self assert: (b shown: nil for: #p in: d) isNil.
 	self assert: (b shown: 0.3 for: #q in: d) equals: 0.3
 !

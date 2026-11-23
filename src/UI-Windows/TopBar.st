@@ -3,7 +3,7 @@ Object subclass: #TopBar
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
-TopBar comment: 'I am the menu bar at the top of the World (Blue Book: white, a 1-point rule): the brand, the image name, the VM''s banner (Smalltalk vm banner), the hint "Click the desktop for the World menu", at the right the ? button (World helpHandler) and the REMOTE tag once a remote session acted on the image (it flashes at each command), the SLOW tag while animations run slowed down (Animation timeScale), and the compositor''s statistics — a sparkline of the last 64 frame times (ms between presented frames, the 16.7 ms budget as a hairline: a stutter shows as a spike), the mean frame time of the last 32 frames, the frames presented in the last second and the number of Processes. The Compositor feeds me FrameRecords-worth of numbers (noteFrame:end:) and draws me every frame; the readout (texts and sparkline) is refreshed at most twice a second and only when its text or sparkline changed (updateAt:presenting:), so between refreshes it draws the same and damages nothing. It rides along with frames presented for something else: alone it makes one frame only, a second after the last frame it counted, to show the settled numbers (0 fps); so an idle World presents nothing.'!
+TopBar comment: 'I am the menu bar at the top of the World (Blue Book: white, a 1-point rule): the brand, the image name, the VM''s banner (Smalltalk vm banner), the hint "Click the desktop for the World menu", at the right the ? button (World helpHandler) and the REMOTE tag once a remote session acted on the image (it flashes at each command), the SLOW tag while animations run slowed down (Animation timeScale), and the compositor''s statistics — a sparkline of the last 64 frame times (ms between presented frames, the 16.7 ms budget as a hairline: a stutter shows as a spike), the mean frame time of the last 32 frames, the frames presented in the last second and the number of Processes. The Compositor feeds me FrameRecords-worth of numbers (noteFrame:end:) and draws me every frame; the readout (texts and sparkline) is refreshed at most twice a second and only when its text or sparkline changed (updateAt:presenting:), so between refreshes it draws the same and damages nothing. It rides along with frames presented for something else: alone it makes one frame only, three seconds after the last frame it counted, to show the settled numbers (0 fps); so an idle World presents nothing, and one that presents now and then (a Process Browser) no more often.'!
 
 !TopBar methodsFor: 'initialization'!
 setWorld: aWorld
@@ -74,14 +74,14 @@ updateAt: nowMicros
 	^self updateAt: nowMicros presenting: true
 !
 updateAt: nowMicros presenting: aBoolean
-	"Refresh the texts at most twice a second; answer whether what I draw changed. The tags change at once. With aBoolean false (no other reason for a frame) only once after the frames stopped: a second after the last counted one, when the numbers have settled."
+	"Refresh the texts at most twice a second; answer whether what I draw changed. The tags change at once. With aBoolean false (no other reason for a frame) only once after the frames stopped: three seconds after the last counted one, when the numbers have settled."
 	| n sum fps old recent tag |
 	tag := Array with: (self remoteSince: nowMicros // 1000) with: Animation timeScale.
 	tag = tagState ifFalse: [tagState := tag. ^world showsTopBar].
 	aBoolean
 		ifTrue: [nowMicros - lastUpdate < 500000 ifTrue: [^false]]
 		ifFalse: [
-			(count > 0 and: [settledCount ~= count and: [nowMicros - (ends at: index) > 1000000]]) ifFalse: [^false].
+			(count > 0 and: [settledCount ~= count and: [nowMicros - (ends at: index) > 3000000]]) ifFalse: [^false].
 			settledCount := count].
 	lastUpdate := nowMicros.
 	old := self statsText.

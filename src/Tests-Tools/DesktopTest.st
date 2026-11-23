@@ -84,10 +84,10 @@ testProcessBrowserShowsTheMandelbrotRunning
 	self in: mb do: [mb content after: 0 do: [[looked] whileFalse: [mb content render]]].
 	[self assert: (self waitFor: [mb content isRendering]).
 	 pb := (self windowsOf: ProcessBrowser) first.
-	 "The interval the CPU column measures: 100 ms between two refreshes, read at once (the browser's own 4 Hz refresh waits in its queue meanwhile, and measures anew after)."
+	 "The interval the CPU column measures: the second since its last reading (the browser's own 4 Hz refresh waits in its queue meanwhile, and measures anew after)."
 	 state := self in: pb do: [
 		pb content refresh.
-		(Delay forMilliseconds: 100) wait.
+		(Delay forMilliseconds: 1100) wait.
 		pb content refresh.
 		cpu := pb content cpuOf: mb process.
 		pb content stateOf: mb process].
