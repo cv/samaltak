@@ -7,7 +7,7 @@ FFI comment: 'I bind descriptors for registered native exports. A downcall descr
 
 	(FFI bind: #(call ''libm'' ''sqrt'' (f64) f64)) invoke: #(9.0).
 
-Scalar types are i32, u32, i64, u64 and f64. Use void only for a result (answers nil). For a launcher grant, bytesWithLength takes one read-only slice {aByteArray. oneBasedOffset. length} and passes a pointer and the validated length in two of at most six C slots. For memcmp, use (byteSlice byteSlice u64); the comparison count may not exceed either slice length. No argument or result is a native address. Unknown exports, mismatched signatures and rejected arguments signal FFIError. Notification descriptors start with #notification; FFINotification handles their schema.'!
+Scalar types are i32, u32, i64, u64 and f64. Use void only for a result (answers nil). For a launcher grant, bytesWithLength takes one read-only slice {aByteArray. oneBasedOffset. length} and passes a pointer and the validated length in two of at most six C slots. For vetted built-in exports only, writableBytesWithLength takes the same slice shape but requires a mutable ByteArray and lets the target write inside the slice until return. For memcmp, use (byteSlice byteSlice u64); the comparison count may not exceed either slice length. No argument or result is a native address. Unknown exports, mismatched signatures and rejected arguments signal FFIError. Notification descriptors start with #notification; FFINotification handles their schema.'!
 
 !FFI class methodsFor: 'binding'!
 bind: aDescriptor
@@ -30,7 +30,17 @@ tryBindCall: aDescriptor
 	^self bindCall: aDescriptor signalIfUnavailable: false
 !
 bindCall: aDescriptor signalIfUnavailable: signalIfUnavailable
-	| library symbol types result tags resultTag slots descriptor binding |
+	| binding descriptor |
+	binding := self newCallBinding: aDescriptor.
+	binding prepare ifTrue: [^binding].
+	signalIfUnavailable ifTrue: [
+		descriptor := binding descriptor.
+		^FFIError signal: 'No matching FFI export: ', descriptor first, ' / ', descriptor second].
+	^nil
+!
+newCallBinding: aDescriptor
+	"Create an immutable symbolic binding without preparing any native code."
+	| library symbol types result tags resultTag slots descriptor |
 	(aDescriptor class == Array and: [aDescriptor size = 5 and: [aDescriptor first == #call]]) ifFalse: [
 		^FFIError signal: 'Expected #(call library symbol argumentTypes resultType)'].
 	library := self copyName: (aDescriptor at: 2).
@@ -45,18 +55,15 @@ bindCall: aDescriptor signalIfUnavailable: signalIfUnavailable
 		| tag |
 		tag := self typeTag: (types at: i).
 		tag = 7 ifTrue: [^FFIError signal: '#void is only an FFI result type'].
-		tag = 8 ifTrue: [slots := slots + 1].
+		(tag >= 8) ifTrue: [slots := slots + 1].
 		tags at: i put: tag].
 	slots > 6 ifTrue: [^FFIError signal: 'FFI argument types occupy more than six C slots'].
 	resultTag := self typeTag: result.
-	(resultTag = 5 or: [resultTag = 8]) ifTrue: [^FFIError signal: 'Byte slices are only FFI argument types'].
+	(resultTag = 5 or: [resultTag >= 8]) ifTrue: [^FFIError signal: 'Borrowed types are only FFI argument types'].
 	tags beReadOnlyObject.
 	descriptor := {library. symbol. tags. resultTag}.
 	descriptor beReadOnlyObject.
-	binding := FFIBinding new initializeDescriptor: descriptor.
-	binding prepare ifTrue: [^binding].
-	signalIfUnavailable ifTrue: [^FFIError signal: 'No matching FFI export: ', library, ' / ', symbol].
-	^nil
+	^FFIBinding new initializeDescriptor: descriptor
 !
 copyName: anObject
 	| name size |
@@ -76,7 +83,7 @@ copyName: anObject
 !
 typeTag: aSymbol
 	| tag |
-	tag := #(i32 u32 i64 u64 byteSlice f64 void bytesWithLength) identityIndexOf: aSymbol.
+	tag := #(i32 u32 i64 u64 byteSlice f64 void bytesWithLength writableBytesWithLength integerMagnitude) identityIndexOf: aSymbol.
 	tag = 0 ifTrue: [^FFIError signal: 'Unknown FFI type; expected an FFI type Symbol'].
 	^tag
 ! !

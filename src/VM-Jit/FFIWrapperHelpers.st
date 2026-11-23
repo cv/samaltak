@@ -17,7 +17,9 @@ wrappedArgumentHelper: tag
 		[4] -> [self cCoerce: (self functionPointer: #ffiUnboxU64:into:) to: 'uint64_t'].
 		[5] -> [self cCoerce: (self functionPointer: #ffiBorrowSlice:into:length:) to: 'uint64_t'].
 		[6] -> [self cCoerce: (self functionPointer: #ffiUnboxF64:into:) to: 'uint64_t'].
-		[8] -> [self cCoerce: (self functionPointer: #ffiBorrowSlice:into:length:) to: 'uint64_t']}
+		[8] -> [self cCoerce: (self functionPointer: #ffiBorrowSlice:into:length:) to: 'uint64_t'].
+		[9] -> [self cCoerce: (self functionPointer: #ffiBorrowWritableSlice:into:length:) to: 'uint64_t'].
+		[10] -> [self cCoerce: (self functionPointer: #ffiBorrowInteger:into:signedCount:) to: 'uint64_t']}
 		otherwise: [0 asUInt64]
 !
 wrappedResultHelper: tag
@@ -91,11 +93,23 @@ ffiBorrowSlice: slice into: out length: length
 	<var: #out type: 'uint64_t *'>
 	<var: #length type: 'uint64_t *'>
 	<returns: 'bool'>
+	^self checkedSlice: slice into: out length: length writable: false
+!
+ffiBorrowWritableSlice: slice into: out length: length
+	<function>
+	<var: #slice type: 'oop'>
+	<var: #out type: 'uint64_t *'>
+	<var: #length type: 'uint64_t *'>
+	<returns: 'bool'>
+	^self checkedSlice: slice into: out length: length writable: true
+!
+checkedSlice: slice into: out length: length writable: writable
 	| bytes offsetOop lengthOop start len size fmt |
 	(slice = 0 or: [(self isPtr: slice) not]) ifTrue: [^false].
 	((self rawClass: slice) = memory clsArray and: [(self formatOf: slice) = F_VAR and: [(self numSlots: slice) = 3]]) ifFalse: [^false].
 	bytes := self loadRef: slice at: 0.
 	(bytes = 0 or: [(self isPtr: bytes) not or: [(self rawClass: bytes) ~= memory clsBytearray]]) ifTrue: [^false].
+	(writable and: [self isImmutable: bytes]) ifTrue: [^false].
 	fmt := self formatOf: bytes.
 	(fmt < F_BYTES or: [fmt >= (F_BYTES + 8)]) ifTrue: [^false].
 	offsetOop := self loadRef: slice at: 1.

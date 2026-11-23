@@ -1,6 +1,6 @@
 RemoteSocket subclass: #TLSSocket
 	instanceVariableNames: ''
-	classVariableNames: ''
+	classVariableNames: 'TLSStartCall TLSRecvCall TLSSendCall TLSCloseCall TLSSemaphoreCall TLSHandshakeCall'
 	package: 'System-Net'!
 
 TLSSocket comment: 'I am a TLS client connection over the platform''s TLS primitives (docs/platform.md). Connecting is a RemoteSocket''s connect, then the handshake, which verifies the server''s certificate against the system''s trust store and for the host name; each waits on Semaphores, and the whole connect gives up after connectTimeout, so the VM never blocks and terminating the connecting Process cancels it. Receiving and sending wait on Semaphores like a RemoteSocket''s.

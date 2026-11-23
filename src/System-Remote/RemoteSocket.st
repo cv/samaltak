@@ -1,6 +1,6 @@
 Object subclass: #RemoteSocket
 	instanceVariableNames: 'handle readSemaphore writeSemaphore readIndex writeIndex sharesRead'
-	classVariableNames: ''
+	classVariableNames: 'SocketListenCall SocketConnectCall SocketAcceptCall SocketRecvCall SocketSendCall SocketCloseCall SocketSemaphoreCall SocketLocalPortCall SocketLookupCall SocketConnectedCall'
 	package: 'System-Remote'!
 
 RemoteSocket comment: 'I am a TCP socket over the platform''s socket primitives (docs/platform.md), or over the image''s TCP/IP stack where the VM gives raw frames instead (NetworkStack active: UEFI; its handles are negative), with blocking connect, accept, receive and send that wait on my read and write Semaphores instead of spinning: the platform signals a Semaphore once when the socket becomes ready and re-arms it when a primitive answers "would block". No primitive blocks the VM: host names are looked up by a thread of the platform (resolve:), connecting tries each address in turn, and the whole connect gives up after connectTimeout. Terminating the Process that connects cancels it.

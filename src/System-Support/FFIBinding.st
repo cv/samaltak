@@ -59,6 +59,9 @@ tryInvoke6: a with: b with: c with: d with: e with: f
 ! !
 
 !FFIBinding methodsFor: 'private'!
+descriptor
+	^descriptor
+!
 initializeDescriptor: aDescriptor
 	descriptor := aDescriptor.
 	self beReadOnlyObject

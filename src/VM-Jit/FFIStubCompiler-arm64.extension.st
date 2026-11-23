@@ -56,7 +56,7 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 			ifTrue: [fp := fp + 1]
 			ifFalse: [
 				tag <= 2 ifTrue: [gp32 := gp32 bitOr: (1 asUInt32 << gp)].
-				gp := gp + (tag = 8 ifTrue: [2] ifFalse: [1])]].
+				gp := gp + ((self wrappedTwoLanes: tag) ifTrue: [2] ifFalse: [1])]].
 	gpSave := gp + 1. "Include x19."
 	operation = 1 ifTrue: [gpSave := gpSave + 2]. "x23/x24 hold memcmp bounds."
 	fpBase := 16 + (gpSave * 8).
@@ -114,7 +114,7 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 			self arm64WrappedBranch: 16r36000000 from: slow to: j mask: 16r3FFF into: buf].
 		buf at: j put: 16r910003E1. "add x1,sp,#0 (typed out slot)"
 		j := j + 1.
-		(tag = 5 or: [tag = 8]) ifTrue: [
+		(tag = 5 or: [self wrappedTwoLanes: tag]) ifTrue: [
 			buf at: j put: 16r910023E2. "add x2,sp,#8 (slice length out slot)"
 			j := j + 1].
 		j := self arm64WrappedCall: helper at: j into: buf.
@@ -131,7 +131,7 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 				buf at: j put: (tag <= 2 ifTrue: [16rB94003E0] ifFalse: [16rF94003E0]) + reg. "ldr wReg/xReg,[sp]"
 				j := j + 1.
 				gp := gp + 1.
-				tag = 8 ifTrue: [
+				(self wrappedTwoLanes: tag) ifTrue: [
 					buf at: j put: 16rF94007E0 + reg + 1. "ldr xReg+1,[sp,#8]"
 					j := j + 1.
 					gp := gp + 1].

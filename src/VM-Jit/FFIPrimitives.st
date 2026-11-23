@@ -1,6 +1,6 @@
 VMPrimitiveModule subclass: #FFIPrimitives
-	instanceVariableNames: 'ffiStubs runtimeNative mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingArities bindingResultTags bindingSerial bindingSerials boundSites boundSiteCount boundSiteTrace boundTraceCounts'
-	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED FFI_BOUND_SITE_LIMIT'
+	instanceVariableNames: 'ffiStubs runtimeNative mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingArities bindingResultTags bindingSerial bindingSerials boundSites boundSiteCount boundSiteTrace boundTraceCounts ownedRows ownedReserved ownedSession ownedSerial'
+	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED FFI_BOUND_SITE_LIMIT FFI_OWNED_LIMIT FFI_OWNED_BYTE_LIMIT'
 	package: 'VM-Jit'!
 
 FFIPrimitives comment: 'Prepare resolves an approved symbol and exact signature to a process-local wrapper. A bound send uses a session-tagged index checked against a VM-managed weak receiver reference. Saved images rebind from the symbolic descriptor. Native code must not reenter the VM or retain borrowed memory.'!
@@ -15,6 +15,8 @@ declarations
 		(bindingSerial uint64_t) (bindingSerials 'uint64_t[FFI_BINDING_LIMIT]')
 		(boundSites 'FFIBoundSite[FFI_BOUND_SITE_LIMIT]') (boundSiteCount int32_t)
 		(boundSiteTrace bool) (boundTraceCounts 'uint64_t[3]')
+		(ownedRows 'FFIOwnedRow[FFI_OWNED_LIMIT]') (ownedReserved uint32_t)
+		(ownedSession uint64_t) (ownedSerial uint64_t)
 		(mathNames 'const char *[10]' #('sin' 'cos' 'log' 'exp' 'atan' 'sqrt' 'fabs' 'trunc' 'ldexp' 'ilogb'))
 		(mathSignatures 'uint32_t[10]' #(16r66 16r66 16r66 16r66 16r66 16r66 16r66 16r66 16r616 16r61))
 		(platformNames 'const char *[9]' #('platform_windows_close' 'platform_windows_display_scale' 'platform_windows_refresh_rate'
@@ -28,7 +30,9 @@ initialize
 	FFI_DYNAMIC := 65536.
 	FFI_BINDING_LIMIT := 4096.
 	FFI_BOUND_SITE_LIMIT := 4096.
-	FFI_BOUND_REJECTED := 1
+	FFI_BOUND_REJECTED := 1.
+	FFI_OWNED_LIMIT := 16.
+	FFI_OWNED_BYTE_LIMIT := 67108864
 ! !
 
 !FFIPrimitives methodsFor: 'bound primitives'!
@@ -291,10 +295,11 @@ prepareEntry: descriptor into: arity result: resultOut
 	tags := self local: 'uint8_t[6]'.
 	libc memcpy: tags from: (self bytesOf: tagOop) size: count.
 	slots := n.
-	0 to: n - 1 do: [:i | (tags at: i) = 8 ifTrue: [slots := slots + 1]].
+	0 to: n - 1 do: [:i |
+		((tags at: i) >= 8) ifTrue: [slots := slots + 1]].
 	slots > 6 ifTrue: [^0].
 	target := self local: 'uint64_t'.
-	id := self resolve: library length: libLen symbol: symbol length: symLen types: tags count: n result: result into: target.
+	id := self resolve: library length: libLen symbol: symbol length: symLen types: tags count: n result: result prepared: true into: target.
 	id = 0 ifTrue: [^0].
 	operation := id = FFI_MEMCMP ifTrue: [1] ifFalse: [0].
 	arity value: n.
@@ -336,16 +341,19 @@ bindOrInvoke: invoke
 	n := tagBytes asInt32.
 	tags := self local: 'uint8_t[6]'.
 	libc memcpy: tags from: (self bytesOf: tagObject) size: tagBytes.
-	"Tag 8 is logical; its C ABI uses two slots."
+	"Writable slices and integer magnitudes require a vetted prepared wrapper."
 	slots := n.
-	0 to: n - 1 do: [:i | (tags at: i) = 8 ifTrue: [slots := slots + 1]].
+	0 to: n - 1 do: [:i |
+		tag := tags at: i.
+		(tag = 9 or: [tag = 10]) ifTrue: [^self fail].
+		tag = 8 ifTrue: [slots := slots + 1]].
 	slots > 6 ifTrue: [^self fail].
 	resultOop := self arg: first + 3.
 	(self isInt: resultOop) ifFalse: [^self fail].
 	((self intVal: resultOop) < 1 or: [(self intVal: resultOop) > 7 or: [(self intVal: resultOop) = 5]]) ifTrue: [^self fail].
 	result := (self intVal: resultOop) asInt32.
 	target := self local: 'uint64_t'.
-	id := self resolve: library length: libLen symbol: symbol length: symLen types: tags count: n result: result into: target.
+	id := self resolve: library length: libLen symbol: symbol length: symLen types: tags count: n result: result prepared: false into: target.
 	id = 0 ifTrue: [^self fail].
 	invoke ifFalse: [^self answerInt: id].
 	(self arg: 0) = (self intOop: id) ifFalse: [^self fail].
@@ -400,7 +408,7 @@ copyName: name into: buf
 	buf at: n put: 0.
 	^n
 !
-resolve: library length: libLen symbol: symbol length: symLen types: tags count: n result: result into: target
+resolve: library length: libLen symbol: symbol length: symLen types: tags count: n result: result prepared: prepared into: target
 	<function>
 	<var: #library type: 'const uint8_t *'>
 	<var: #libLen type: 'size_t'>
@@ -410,15 +418,20 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 	<var: #n type: 'int32_t'>
 	<var: #result type: 'int32_t'>
 	<var: #target type: 'uint64_t *'>
+	<var: #prepared type: 'bool'>
 	<returns: 'int32_t'>
-	| name lib sig hasPointer t id |
+	| name lib sig hasPointer hasVettedArgument t id |
 	name := self cCoerce: symbol to: 'const char *'.
 	lib := self cCoerce: library to: 'const char *'.
 	sig := 0 asUInt32.
 	hasPointer := false.
+	hasVettedArgument := false.
 	0 to: n - 1 do: [:i |
 		t := tags at: i.
-		(t < 1 or: [t > 6 and: [t ~= 8]]) ifTrue: [^0].
+		(t < 1 or: [t > 6 and: [t < 8 or: [t > 10]]]) ifTrue: [^0].
+		(t = 9 or: [t = 10]) ifTrue: [
+			prepared ifFalse: [^0].
+			hasVettedArgument := true].
 		t = 5 ifTrue: [hasPointer := true].
 		sig := ((sig asUInt64 << 4) bitOr: t asUInt64) asUInt32].
 	sig := ((sig asUInt64 << 4) bitOr: result asUInt64) asUInt32.
@@ -434,15 +447,30 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 		target value: (self cCoerce: (self functionPointer: #nativeCompare:with:count:) to: 'uint64_t').
 		^FFI_MEMCMP].
 	hasPointer ifTrue: [^0].
+	(libc strcmp: lib with: 'vm:core') = 0 ifTrue: [
+		prepared ifFalse: [^0].
+		^self ffiApprovedCore: name signature: sig asUInt32 into: target].
 	(libc strcmp: lib with: 'platform') = 0 ifTrue: [
 		0 to: 8 do: [:i |
 			(sig = (platformSignatures at: i) and: [(libc strcmp: name with: (platformNames at: i)) = 0]) ifTrue: [
 				id := (FFI_PLATFORM_BASE + i) asInt32.
 				target value: (platform ffiTarget: id).
 				^target value = 0 ifTrue: [0] ifFalse: [id]]].
-		^0].
+		prepared ifFalse: [^0].
+		^platform ffiApprovedPlatform: name signature: sig asUInt32 into: target].
+	hasVettedArgument ifTrue: [^0].
 	target value: (self cCoerce: (runtimeNative lookupLibrary: library length: libLen symbol: symbol length: symLen types: tags count: n result: result) to: 'uint64_t').
 	^target value = 0 ifTrue: [0] ifFalse: [FFI_DYNAMIC]
+!
+ffiApprovedCore: approvedName signature: packedSignature into: targetOut
+	"Generated from the core approvedFFI declarations. Simulated native stubs are unavailable."
+	<function>
+	<approvedFFIDispatch>
+	<var: #approvedName type: 'const char *'>
+	<var: #packedSignature type: 'uint32_t'>
+	<var: #targetOut type: 'uint64_t *'>
+	<returns: 'int32_t'>
+	^0
 ! !
 
 !FFIPrimitives methodsFor: 'marshalling'!

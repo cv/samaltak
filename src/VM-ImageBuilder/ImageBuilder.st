@@ -296,6 +296,13 @@ oopFor: aLiteral
 			at: 'selector' put: (self symbol: aLiteral selector);
 			at: 'arguments' put: (self oopFor: aLiteral arguments asArray);
 			yourself)].
+	aLiteral class == FFIBinding ifTrue: [
+		o := self instanceOf: 'FFIBinding' values: (Dictionary new
+			at: 'descriptor' put: (self oopFor: aLiteral descriptor);
+			at: 'bindingToken' put: nilOop;
+			yourself).
+		self beImmutable: o.
+		^o].
 	^self fail: 'cannot put a ' , aLiteral class name , ' into the image'
 !
 isPointer: anOop

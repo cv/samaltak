@@ -1,5 +1,5 @@
 PlatformInterface subclass: #SDLPlatform
-	instanceVariableNames: 'common events windows gpu files sockets ptys vsync sdl posixIO posixThreads initDone wakeEvent inWait wPipe wMu wCv wState wFds wNfds wStarted wStop'
+	instanceVariableNames: 'common events windows gpu files sockets ptys tls vsync sdl posixIO posixThreads initDone wakeEvent inWait wPipe wMu wCv wState wFds wNfds wStarted wStop ownedFFI'
 	classVariableNames: 'POLL_FDS'
 	package: 'VM-Platform'!
 
@@ -10,10 +10,10 @@ While Smalltalk runs, platform_interface_poll pumps SDL at most once per ms, pol
 !SDLPlatform class methodsFor: 'declaring'!
 declarations
 	^#((common PlatformCommon) (events PlatformEvents) (windows PlatformWindows) (gpu PlatformGPU) (files PlatformFiles)
-		(sockets PlatformSockets) (ptys PlatformPtys) (vsync PlatformVsync) (sdl SDL) (posixIO PosixIO) (posixThreads PosixThreads)
+		(sockets PlatformSockets) (ptys PlatformPtys) (tls PlatformTLS) (vsync PlatformVsync) (sdl SDL) (posixIO PosixIO) (posixThreads PosixThreads)
 		(initDone bool) (wakeEvent atomic_int) (inWait atomic_bool) (wPipe 'int32_t[2]' #(-1 -1))
 		(wMu 'pthread_mutex_t[1]') (wCv 'pthread_cond_t[1]') (wState int32_t) (wFds 'struct pollfd[POLL_FDS]') (wNfds int32_t)
-		(wStarted bool) (wStop atomic_bool))
+		(wStarted bool) (wStop atomic_bool) (ownedFFI FFIPrimitives))
 !
 initialize
 	"the wake pipe and up to 128 sockets"
@@ -81,6 +81,15 @@ shutdown
 ! !
 
 !SDLPlatform methodsFor: 'FFI'!
+ffiApprovedPlatform: approvedName signature: packedSignature into: targetOut
+	<export>
+	<approvedFFIDispatch>
+	<var: #approvedName type: 'const char *'>
+	<var: #packedSignature type: 'uint32_t'>
+	<var: #targetOut type: 'uint64_t *'>
+	<returns: 'int32_t'>
+	^0
+!
 ffiTarget: stableID
 	"Only called after the descriptor's name and signature have been checked."
 	<export>

@@ -89,8 +89,8 @@ entryFor: target argumentTags: types count: n returnTag: result operation: opera
 	lanes := n.
 	0 to: n - 1 do: [:i |
 		tag := types at: i.
-		(tag = 0 or: [tag = 7 or: [tag > 8 or: [tag = 5 and: [operation = 0]]]]) ifTrue: [^0].
-		tag = 8 ifTrue: [lanes := lanes + 1].
+		(tag = 0 or: [tag = 7 or: [tag > 10 or: [tag = 5 and: [operation = 0]]]]) ifTrue: [^0].
+		(self wrappedTwoLanes: tag) ifTrue: [lanes := lanes + 1].
 		key := ((key asUInt64 << 4) bitOr: tag) asUInt32].
 	lanes > 6 ifTrue: [^0].
 	key := (key bitOr: 16r80000000) asUInt32.
@@ -132,6 +132,9 @@ rememberStub: entry target: target key: key at: slot
 ! !
 
 !FFIStubCompiler methodsFor: 'wrapper helper addresses'!
+wrappedTwoLanes: tag
+	^tag >= 8 and: [tag <= 10]
+!
 wrappedArgumentHelper: tag
 	^wrapperHelpers wrappedArgumentHelper: tag
 !
@@ -423,7 +426,7 @@ encodeWrappedX64: start target: target types: types count: n result: result oper
 		p := self x64WrappedSpillGP: gp fp: fp restore: false at: p.
 		"mov rdi,rax; lea rsi,[rsp+48]"
 		p := self emitX64: 16r3024748D48C78948 asUInt64 count: 8 at: p.
-		(tag = 5 or: [tag = 8]) ifTrue: [
+		(tag = 5 or: [self wrappedTwoLanes: tag]) ifTrue: [
 			p := self emitX64: 16r3824548D48 asUInt64 count: 5 at: p]. "lea rdx,[rsp+56]"
 		p := self x64WrappedCall: helper at: p.
 		p := self emitX64: 16rC084 asUInt64 count: 2 at: p. "test al,al"
@@ -444,7 +447,7 @@ encodeWrappedX64: start target: target types: types count: n result: result oper
 			"mov final GP lane, eax/rax"
 			p := self emitX64: (16rC08900 asUInt64 + rex asUInt64 + ((reg bitAnd: 7) asUInt64 << 16)) count: 3 at: p.
 			gp := gp + 1.
-			tag = 8 ifTrue: [
+			(self wrappedTwoLanes: tag) ifTrue: [
 				p := self x64WrappedGP: (self x64WrappedGP: gp) offset: 56 restore: true at: p.
 				gp := gp + 1].
 			tag = 5 ifTrue: [

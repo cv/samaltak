@@ -1,6 +1,6 @@
 Object subclass: #PseudoTerminal
 	instanceVariableNames: 'handle pid exitStatus semaphore semaphoreIndex session'
-	classVariableNames: 'CloseCall ForegroundCall LastActivity Open ResizeCall Session'
+	classVariableNames: 'CloseCall ForegroundCall LastActivity Open ResizeCall Session PtyReadCall PtyWriteCall PtySemaphoreCall PtyWaitCall'
 	package: 'System-Files'!
 
 PseudoTerminal comment: 'I am the master side of a pseudo-terminal whose slave side runs a child process (a shell), over the platform''s pty primitives (vm/platform/README.md). Reading and writing never block: readInto: answers nil when nothing is pending, write:from:count: nil when the terminal is full. My semaphore is signaled (once, then re-armed by the next read or blocked write) when output arrives, the child side closes, or a blocked write may continue: drain until nil, then wait.

@@ -1,7 +1,7 @@
 "Build a seed image with the current ImageBuilder: boot/build-image.sh runs this in boot/seed.image with @SRC@ (the source tree), @OUT@ (the image to write) and @PACKAGES@ (a list of the packages to build, e.g. src/runtime.txt; empty: all) filled in. It files in the builder's current sources first (the code generator it compiles with included), so a seed that predates them still builds with them. A file whose superclasses are in a later file is filed in again on the next pass."
 | packages files pending failed say |
 say := [:aString | Smalltalk vm stderrWrite: aString , (String with: Character lf)].
-[packages := #('src/Kernel-Objects/VMConstants.st' 'src/Compiler/Behavior.extension.st' 'src/Compiler/BytecodeEncoder.st' 'src/Compiler/CodeGenerator.st' 'src/VM-Lowtalk' 'src/VM-Core/VMCoreModule.st' 'src/VM-Core' 'src/VM-Jit' 'src/VM-Platform' 'src/VM-Translator' 'src/VM-ImageBuilder').
+[packages := #('src/Kernel-Objects/VMConstants.st' 'src/System-Support/FFIError.st' 'src/System-Support/FFIBinding.st' 'src/System-Support/FFI.st' 'src/Compiler/Behavior.extension.st' 'src/Compiler/BytecodeEncoder.st' 'src/Compiler/CodeGenerator.st' 'src/VM-Lowtalk' 'src/VM-Core/VMCoreModule.st' 'src/VM-Core' 'src/VM-Jit' 'src/VM-Platform' 'src/VM-Translator' 'src/VM-ImageBuilder').
  files := OrderedCollection new.
  (packages select: [:each | File exists: each]) do: [:each |
 	(File isDirectory: each)

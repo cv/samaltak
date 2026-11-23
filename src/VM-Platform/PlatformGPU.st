@@ -272,7 +272,7 @@ createShader: d handle: dev code: code size: n format: format entry: entry stage
 	<var: #d type: 'gpu_dev *'>
 	<var: #code type: 'Uint8 *'>
 	<var: #format type: 'SDL_GPUShaderFormat'>
-	| ci s |
+	| ci s h |
 	ci := self local: 'SDL_GPUShaderCreateInfo'.
 	ci code_size: n.
 	ci code: code.
@@ -287,7 +287,9 @@ createShader: d handle: dev code: code size: n format: format entry: entry stage
 	logAdapter clearShaderError.
 	s := sdlGpu createShader: d dev info: ci.
 	s isNull ifTrue: [^self sdlFail: 'SDL_CreateGPUShader'].
-	^self add: K_SHADER pointer: s device: dev
+	h := self add: K_SHADER pointer: s device: dev.
+	(objs v + h) i: (stage = PF_STAGE_FRAGMENT ifTrue: [PF_STAGE_FRAGMENT] ifFalse: [PF_STAGE_VERTEX]).
+	^h
 !
 createPipeline: dev vertexShader: vs fragmentShader: fs stride: stride attributes: attrs count: nattrs primitive: prim blend: blend targetFormat: targetFormat
 	"Attribute i becomes location i in vertex buffer slot 0."
@@ -438,8 +440,12 @@ uploadReserve: d bytes: n offset: off
 	<function>
 	<var: #cap type: 'uint32_t'>
 	| need cap ci p |
+	"The rounded allocation is grown by powers of two in uint32_t; never wrap either size or cursor."
+	n > 16r80000000 ifTrue: [
+		common setError: 'GPU upload exceeds transfer buffer capacity'.
+		^self null].
 	need := (n + 15) bitAnd: 15 bitInvert32.
-	d upUsed + need > d upCap ifTrue: [
+	d upUsed asUInt64 + need > d upCap ifTrue: [
 		self uploadFlush: d.
 		need > d upCap ifTrue: [
 			cap := 16r400000.
@@ -501,8 +507,9 @@ uploadTexture: tex data: data length: len x: x y: y width: w height: h bytesPerR
 	o := self get: tex kind: K_TEX what: 'texture'.
 	o isNull ifTrue: [^false].
 	row := w asUInt64 * (self bytesPerPixel: o fmt) asUInt64.
-	(x < 0 or: [y < 0 or: [w <= 0 or: [h <= 0 or: [x + w > o w or: [y + h > o h
-		or: [bytesPerRow asUInt64 < row or: [len < (((h - 1) asUInt64 * bytesPerRow asUInt64) + row)]]]]]]]) ifTrue: [
+	(x < 0 or: [y < 0 or: [w <= 0 or: [h <= 0 or: [x asInt64 + w > o w or: [y asInt64 + h > o h
+		or: [bytesPerRow <= 0 or: [row * h asUInt64 > 16r80000000
+		or: [bytesPerRow asUInt64 < row or: [len < (((h - 1) asUInt64 * bytesPerRow asUInt64) + row)]]]]]]]]]) ifTrue: [
 			common setError: 'bad texture upload region'.
 			^false].
 	d := self deviceOf: o.
@@ -534,11 +541,12 @@ download: tex x: x y: y width: w height: h into: dst length: dstLen
 	"Synchronous; BGRA8 is converted to RGBA8."
 	<var: #dst type: 'void *'>
 	<export>
-	| o n d ci cb cp region info f p s t v |
+	| o n d ci cb cp region info f p s t pixel v |
 	o := self get: tex kind: K_TEX what: 'texture'.
 	o isNull ifTrue: [^false].
 	n := (w asUInt64 * h asUInt64) * (self bytesPerPixel: o fmt) asUInt64.
-	(x < 0 or: [y < 0 or: [w <= 0 or: [h <= 0 or: [x + w > o w or: [y + h > o h or: [dstLen < n]]]]]]) ifTrue: [
+	(x < 0 or: [y < 0 or: [w <= 0 or: [h <= 0 or: [x asInt64 + w > o w or: [y asInt64 + h > o h
+		or: [n > 16rFFFFFFFF or: [dstLen < n]]]]]]]) ifTrue: [
 		common setError: 'bad download region'.
 		^false].
 	d := self deviceOf: o.
@@ -585,10 +593,12 @@ download: tex x: x y: y width: w height: h into: dst length: dstLen
 	o fmt = PF_TEX_BGRA8
 		ifTrue: [
 			s := self cCoerce: p to: 'uint32_t *'.
-			t := self cCoerce: dst to: 'uint32_t *'.
+			t := self cCoerce: dst to: 'uint8_t *'.
+			pixel := self local: 'uint32_t'.
 			0 to: (n quo: 4) asInt64 - 1 do: [:i |
 				v := s at: i.
-				t at: i put: (((v bitAnd: 16rFF00FF00) bitOr: ((v >> 16) bitAnd: 16rFF)) bitOr: ((v bitAnd: 16rFF) asUInt64 << 16))]]
+				pixel value: (((v bitAnd: 16rFF00FF00) bitOr: ((v >> 16) bitAnd: 16rFF)) bitOr: ((v bitAnd: 16rFF) asUInt64 << 16)) asUInt32.
+				libc memcpy: t + (i * 4) from: pixel size: 4]]
 		ifFalse: [libc memcpy: dst from: p size: n].
 	sdlGpu unmapTransferBuffer: d dev buffer: d downTb.
 	^true
