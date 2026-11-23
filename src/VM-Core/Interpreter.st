@@ -1168,7 +1168,7 @@ jumpedBack
 				self reload]]
 !
 jitResumeContext
-	"Returned into activeCtx (no frames): under a JIT it may continue in machine code."
+	"Returned or switched into activeCtx (no frames): under a JIT it may continue in machine code."
 	(self unlikely: (fr isNull and: [jit enabled])) ifTrue: [
 		self saveCtx.
 		jit resumeContext: false.
@@ -1999,7 +1999,8 @@ haveEntry: e
 			[PS_SWITCHED] -> [
 				tmpRoots at: 0 put: memory nilOop.
 				self reload.
-				self jitResumeTop.
+				"a process switch left no frames: the Process switched to may continue in machine code"
+				fr isNull ifTrue: [self jitResumeContext] ifFalse: [self jitResumeTop].
 				^self].
 			[PS_RESEND] -> [
 				tmpRoots at: 0 put: memory nilOop.
