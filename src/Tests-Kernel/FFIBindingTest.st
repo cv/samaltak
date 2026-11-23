@@ -91,7 +91,19 @@ testPlatformInvocationDistinguishesRejectionFromZero
 	self assert: (binding tryInvoke: #(1.0)) identicalTo: 0.
 	self assert: (binding tryInvoke: #(1)) identicalTo: false.
 	self assert: (binding tryInvoke: #()) identicalTo: false.
-	self assert: (binding tryInvoke: #(2.0)) identicalTo: 1
+	self assert: (binding tryInvoke: nil) identicalTo: false.
+	self assert: (binding tryInvoke1: 1.0) identicalTo: 0.
+	self assert: (binding tryInvoke1: 1) identicalTo: false.
+	self assert: binding tryInvoke0 identicalTo: false.
+	self assert: (binding tryInvoke2: 1.0 with: 1.0) identicalTo: false.
+	self assert: (binding tryInvoke1: 2.0) identicalTo: 1
+!
+testUninitializedBinding
+	| binding |
+	binding := FFIBinding new.
+	self assert: (binding tryInvoke: #()) identicalTo: false.
+	self assert: (binding tryInvoke1: 1) identicalTo: false.
+	self should: [binding invoke: #()] raise: FFIError
 !
 testCompareByteSlices
 	| compare left right |
@@ -101,7 +113,9 @@ testCompareByteSlices
 	self assert: (compare invoke: {left. right. 2}) equals: 0.
 	self assert: (compare invoke: {left. right. 3}) < 0.
 	self assert: (compare invoke: {right. left. 3}) > 0.
-	self assert: (compare invoke: {{#[1]. 2. 0}. {#[]. 1. 0}. 0}) equals: 0
+	self assert: (compare invoke: {{#[1]. 2. 0}. {#[]. 1. 0}. 0}) equals: 0.
+	self assert: (compare tryInvoke3: left with: right with: 2) identicalTo: 0.
+	self assert: (compare tryInvoke3: left with: right with: 4) identicalTo: false
 !
 testRejectInvalidByteSlices
 	| compare goodSlice |

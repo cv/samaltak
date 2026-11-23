@@ -161,7 +161,7 @@ closeWindow: window
 	| binding result |
 	binding := CloseWindowCall ifNil: [
 		CloseWindowCall := PlatformFFI bind: #(call 'platform' 'platform_windows_close' (i64) i32)].
-	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {window}].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: window].
 	result == false ifTrue: [^self legacyCloseWindow: window].
 	result = 0 ifTrue: [^self fail: 'windowClose'].
 	^self
@@ -178,7 +178,7 @@ windowDisplayScale: window
 	| binding result |
 	binding := DisplayScaleCall ifNil: [
 		DisplayScaleCall := PlatformFFI bind: #(call 'platform' 'platform_windows_display_scale' (i64) f64)].
-	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {window}].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: window].
 	result == false ifTrue: [^self legacyWindowDisplayScale: window].
 	result < 0 ifTrue: [^self fail: 'windowDisplayScale'].
 	^result
@@ -187,7 +187,7 @@ windowRefreshRate: window
 	| binding result |
 	binding := RefreshRateCall ifNil: [
 		RefreshRateCall := PlatformFFI bind: #(call 'platform' 'platform_windows_refresh_rate' (i64) f64)].
-	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {window}].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: window].
 	result == false ifTrue: [^self legacyWindowRefreshRate: window].
 	result < 0 ifTrue: [^self fail: 'windowRefreshRate'].
 	^result
@@ -210,7 +210,7 @@ window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
 	| binding result |
 	binding := TextInputAreaCall ifNil: [
 		TextInputAreaCall := PlatformFFI bind: #(call 'platform' 'platform_windows_set_text_input_area' (i64 i64 i64 i64 i64 i64) i32)].
-	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {window. x. y. w. h. cursorX}].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke6: window with: x with: y with: w with: h with: cursorX].
 	result == false ifTrue: [^self legacyWindow: window textInputAreaX: x y: y width: w height: h cursor: cursorX].
 	result = 0 ifTrue: [^self fail: 'windowSetTextInputArea'].
 	^self
@@ -219,7 +219,7 @@ showWindow: window
 	| binding result |
 	binding := WindowVisibilityCall ifNil: [
 		WindowVisibilityCall := PlatformFFI bind: #(call 'platform' 'platform_windows_show' (i64 i32) i32)].
-	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {window. 1}].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke2: window with: 1].
 	result == false ifTrue: [^self legacyShowWindow: window].
 	result = 0 ifTrue: [^self fail: 'windowShow'].
 	^self
@@ -228,7 +228,7 @@ hideWindow: window
 	| binding result |
 	binding := WindowVisibilityCall ifNil: [
 		WindowVisibilityCall := PlatformFFI bind: #(call 'platform' 'platform_windows_show' (i64 i32) i32)].
-	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {window. 0}].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke2: window with: 0].
 	result == false ifTrue: [^self legacyHideWindow: window].
 	result = 0 ifTrue: [^self fail: 'windowHide'].
 	^self
@@ -254,7 +254,7 @@ setCursor: kind
 	| binding result |
 	binding := SetCursorCall ifNil: [
 		SetCursorCall := PlatformFFI bind: #(call 'platform' 'platform_windows_set_cursor' (i64) i32)].
-	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {kind}].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: kind].
 	result == false ifTrue: [^self legacySetCursor: kind].
 	result = 0 ifTrue: [^self fail: 'setCursor'].
 	^self

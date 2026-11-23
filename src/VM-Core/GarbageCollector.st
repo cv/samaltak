@@ -1,5 +1,5 @@
 VMCoreModule subclass: #GarbageCollector
-	instanceVariableNames: 'youngLo youngHi edenLo edenHi edenBox survLo survTop survHi survOtherLo survOtherHi oldLo oldTop oldHi oldAltLo oldAltHi oldBudget maxHeapBytes oldReserve gcEpoch statScavenges statFullGcs statScavengeUs statFullUs statAllocated statTenured remset remsetCount remsetCap startBits vlo verify toLo toTop toHi weakList weakCount weakCap finalizationPending statWeakCleared ftTop becomeFrom becomeTo'
+	instanceVariableNames: 'youngLo youngHi edenLo edenHi edenBox survLo survTop survHi survOtherLo survOtherHi oldLo oldTop oldHi oldAltLo oldAltHi oldBudget maxHeapBytes oldReserve gcEpoch statScavenges statFullGcs statScavengeUs statFullUs statAllocated statTenured remset remsetCount remsetCap startBits vlo verify toLo toTop toHi weakList weakCount weakCap finalizationPending statWeakCleared ftTop becomeFrom becomeTo updateWeakOwners invalidateWeakOwners'
 	classVariableNames: 'MIN_BUDGET TENURE_AGE'
 	package: 'VM-Core'!
 
@@ -16,7 +16,8 @@ declarations
 		(startBits 'uint8_t *') (vlo uint64_t) (verify int32_t -1)
 		(toLo uint64_t) (toTop uint64_t) (toHi uint64_t)
 		(weakList 'oop *') (weakCount size_t) (weakCap size_t) (finalizationPending bool) (statWeakCleared uint64_t)
-		(ftTop uint64_t) (becomeFrom oop) (becomeTo oop))
+		(ftTop uint64_t) (becomeFrom oop) (becomeTo oop)
+		(updateWeakOwners 'void (*)(bool (*)(oop *))') (invalidateWeakOwners 'void (*)(void)'))
 !
 initialize
 	MIN_BUDGET := 64 << 20.
@@ -217,6 +218,18 @@ forEachRoot: fn
 	0 to: scheduler ledgerN - 1 do: [:i | fn call: scheduler ledgerProcs + i].
 	0 to: memory rootCount - 1 do: [:i | fn call: (memory rootAt: i)].
 	interpreter roots: fn
+!
+registerWeakOwners: update invalidate: invalidate
+	"Register the native weak-owner table's two hooks. Neither runs Smalltalk."
+	<function>
+	<var: #update type: 'void (*)(bool (*)(oop *))'>
+	<var: #invalidate type: 'void (*)(void)'>
+	updateWeakOwners := update.
+	invalidateWeakOwners := invalidate
+!
+invalidateNativeWeakOwners
+	<function>
+	invalidateWeakOwners notNull ifTrue: [invalidateWeakOwners call]
 ! !
 
 !GarbageCollector methodsFor: 'verification'!
@@ -429,6 +442,7 @@ scavenge
 			((self scavScan: tenureScan) and: [((self header: tenureScan) bitAnd: H_REMEMBERED) = 0]) ifTrue: [self remember: tenureScan].
 			tenureScan := tenureScan + (self objBytes: tenureScan)]].
 	self clearWeakSlots: (self functionPointer: #scavDead:).
+	updateWeakOwners notNull ifTrue: [updateWeakOwners call: (self functionPointer: #scavDead:)].
 	0 to: weakCount asInt64 - 1 do: [:k |
 		w := weakList at: k.
 		((self isYoung: w) not and: [((self header: w) bitAnd: H_REMEMBERED) = 0 and: [self refersToYoung: w]]) ifTrue: [self remember: w]].
@@ -494,6 +508,7 @@ fullGC
 		0 to: (self tracedSlots: scan) asInt64 - 1 do: [:i | self fullRoot: s + i].
 		scan := scan + (self objBytes: scan)].
 	self clearWeakSlots: (self functionPointer: #fullDead:).
+	updateWeakOwners notNull ifTrue: [updateWeakOwners call: (self functionPointer: #fullDead:)].
 	self discard: oldLo size: oldUsed.
 	lo := oldLo.
 	hi := oldHi.
@@ -552,6 +567,7 @@ becomeForward: from to: to
 	interpreter beforeGC.
 	becomeFrom := from.
 	becomeTo := to.
+	self invalidateNativeWeakOwners.
 	jit becomeMethod: from.
 	self forEachRoot: (self functionPointer: #becomeRoot:).
 	jit allRoots: (self functionPointer: #becomeRoot:).

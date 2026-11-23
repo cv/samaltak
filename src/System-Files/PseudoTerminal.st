@@ -1,6 +1,6 @@
 Object subclass: #PseudoTerminal
 	instanceVariableNames: 'handle pid exitStatus semaphore semaphoreIndex session'
-	classVariableNames: 'CloseCall LastActivity Open Session'
+	classVariableNames: 'CloseCall ForegroundCall LastActivity Open ResizeCall Session'
 	package: 'System-Files'!
 
 PseudoTerminal comment: 'I am the master side of a pseudo-terminal whose slave side runs a child process (a shell), over the platform''s pty primitives (vm/platform/README.md). Reading and writing never block: readInto: answers nil when nothing is pending, write:from:count: nil when the terminal is full. My semaphore is signaled (once, then re-armed by the next read or blocked write) when output arrives, the child side closes, or a blocked write may continue: drain until nil, then wait.
@@ -181,8 +181,12 @@ anyRunsAJob
 !PseudoTerminal class methodsFor: 'primitives'!
 primForeground: aHandle
 	"Answer the foreground process group of aHandle's terminal, nil on failure."
-	<primitive: 'ptyForeground'>
-	^nil
+	| binding result |
+	binding := ForegroundCall ifNil: [
+		ForegroundCall := PlatformFFI bind: #(call 'platform' 'pty_foreground' (i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: aHandle].
+	result == false ifTrue: [^self legacyForeground: aHandle].
+	^result < 0 ifTrue: [nil] ifFalse: [result]
 !
 primSpawn: argv environment: env directory: cwd rows: rows columns: columns
 	<primitive: 'ptySpawn'>
@@ -199,8 +203,12 @@ primWrite: aHandle from: bytes start: start count: count
 	^false
 !
 primResize: aHandle rows: rows columns: columns
-	<primitive: 'ptyResize'>
-	^nil
+	| binding result |
+	binding := ResizeCall ifNil: [
+		ResizeCall := PlatformFFI bind: #(call 'platform' 'pty_resize' (i64 i64 i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke3: aHandle with: rows with: columns].
+	result == false ifTrue: [^self legacyResize: aHandle rows: rows columns: columns].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
 primSemaphore: aHandle read: readIndex write: writeIndex
 	<primitive: 'ptySemaphore'>
@@ -215,12 +223,20 @@ primClose: aHandle
 	| binding result |
 	binding := CloseCall ifNil: [
 		CloseCall := PlatformFFI bind: #(call 'platform' 'pty_close' (i64) i32)].
-	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke: {aHandle}].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: aHandle].
 	result == false ifTrue: [^self legacyClose: aHandle].
 	^result = 0 ifTrue: [nil] ifFalse: [self]
 ! !
 
 !PseudoTerminal class methodsFor: 'fallback primitives'!
+legacyForeground: aHandle
+	<primitive: 'ptyForeground'>
+	^nil
+!
+legacyResize: aHandle rows: rows columns: columns
+	<primitive: 'ptyResize'>
+	^nil
+!
 legacyClose: aHandle
 	<primitive: 'ptyClose'>
 	^nil

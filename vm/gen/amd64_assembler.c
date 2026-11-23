@@ -5883,7 +5883,7 @@ exit_jcc:;
     }
 exit_emit_rel32_to_2:;
 exit_jcc_2:;
-    wide(7, rd, rn, rm);
+    amd64_assembler_wide(7, rd, rn, rm);
     branch_to(done);
     if (asm_pc + 8 <= asm_limit) {
         *(uint64_t *)asm_pc = 0xE9;
@@ -7694,7 +7694,7 @@ void ubfx_any(int64_t rd, int64_t rn, int64_t lsb, int64_t wd)
 }
 
 /* Amd64Assembler>>wide:rd:rn:rm: */
-void wide(int32_t digit, int64_t rd, int64_t rn, int64_t rm)
+void amd64_assembler_wide(int32_t digit, int64_t rd, int64_t rn, int64_t rm)
 {
     int result;
     int disp;

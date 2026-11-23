@@ -632,7 +632,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
     if (err == ASM_ERR_FULL) {
         record_notes(false);
         end_writing();
-        invalidate((uint8_t *)(void *)start, 0);
+        jit_platform_invalidate((uint8_t *)(void *)start, 0);
         flush_pending = true;
         resume_charging();
         return (jit_method *)NULL;
@@ -646,7 +646,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
     record_notes(false);
     size = cache_top - start;
     end_writing();
-    invalidate((uint8_t *)(void *)start, size);
+    jit_platform_invalidate((uint8_t *)(void *)start, size);
     if (h == NULL) {
         flush_pending = true;
         resume_charging();
@@ -703,7 +703,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
     if (err == ASM_ERR_FULL) {
         record_notes(false);
         end_writing();
-        invalidate((uint8_t *)(void *)start, 0);
+        jit_platform_invalidate((uint8_t *)(void *)start, 0);
         flush_pending = true;
         resume_charging();
         return (jit_method *)NULL;
@@ -717,7 +717,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
     record_notes(false);
     size = cache_top - start;
     end_writing();
-    invalidate((uint8_t *)(void *)start, size);
+    jit_platform_invalidate((uint8_t *)(void *)start, size);
     if (h == NULL) {
         flush_pending = true;
         resume_charging();

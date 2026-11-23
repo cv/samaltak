@@ -35,8 +35,8 @@ static void *ensure_jit_mapping_near(void *near)
     }
     jit_mapping_attempted = true;
     jit_mapping = MAP_FAILED;
-    if (munmap(near, 134479872) == 0) {
-        jit_mapping = mmap(near, 134479872, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON | MAP_JIT, -1, 0);
+    if (munmap(near, 136577024) == 0) {
+        jit_mapping = mmap(near, 136577024, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON | MAP_JIT, -1, 0);
     }
     return jit_mapping;
 }
@@ -48,7 +48,7 @@ void *ffi_arena_base(void)
 }
 
 /* DarwinJitPlatform>>invalidate:size: */
-void invalidate(uint8_t *start, uint64_t size)
+void jit_platform_invalidate(uint8_t *start, uint64_t size)
 {
     sys_icache_invalidate(start, size);
 }

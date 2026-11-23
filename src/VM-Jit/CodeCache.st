@@ -20,7 +20,8 @@ declarations
 !
 initialize
 	CACHE_BYTES := 128 << 20.
-	CACHE_FFI_BYTES := 256 << 10.
+	"FFIStubCompiler: 1024 legacy packets of at most 256 bytes and 1024 wrappers of at most 2048 bytes, rounded to 16."
+	CACHE_FFI_BYTES := 9 * (256 << 10).
 	"Room for the cache, Darwin's separate FFI arena, and page alignment."
 	CACHE_SPACE := CACHE_BYTES + CACHE_FFI_BYTES + 16384
 ! !

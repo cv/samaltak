@@ -23,7 +23,7 @@ uint64_t publish_ffi_stub(const uint8_t *bytes, uint32_t size)
         munmap(entry, size);
         return 0;
     }
-    invalidate((uint8_t *)entry, size);
+    jit_platform_invalidate((uint8_t *)entry, size);
     return (uint64_t)entry;
 }
 

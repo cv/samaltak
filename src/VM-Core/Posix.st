@@ -111,6 +111,12 @@ pthreadDetach: thread
 	^0
 ! !
 
+!Posix methodsFor: 'entropy'!
+getEntropy: buffer size: size
+	<c: 'int getentropy(void *buffer, size_t size)'>
+	^self notSimulated
+! !
+
 !Posix methodsFor: 'processes'!
 getpid
 	<c: 'pid_t getpid(void)'>

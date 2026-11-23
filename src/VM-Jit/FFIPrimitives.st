@@ -1,14 +1,17 @@
 VMPrimitiveModule subclass: #FFIPrimitives
-	instanceVariableNames: 'ffiStubs runtimeNative mathNames mathSignatures platformNames platformSignatures'
-	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_DYNAMIC'
+	instanceVariableNames: 'ffiStubs runtimeNative mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingArities'
+	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED'
 	package: 'VM-Jit'!
 
-FFIPrimitives comment: 'Resolve approved names and exact signatures before entering a generated downcall. The image holds only symbolic names, a signature and a stable ID. The dynamic ID denotes a lookup in the current host grants, not a row or an address. Every invoke rechecks it. Native code must not reenter the VM or retain borrowed memory.'!
+FFIPrimitives comment: 'Prepare resolves an approved symbol and exact signature to a process-local wrapper. A bound send uses a session-tagged index checked against a VM-managed weak receiver reference. Saved images rebind from the symbolic descriptor. Native code must not reenter the VM or retain borrowed memory.'!
 
 !FFIPrimitives class methodsFor: 'declaring'!
 declarations
 	"Name/signature rows are in stable ID order; never repurpose an ID. Signature nibbles are the argument tags, then the result tag."
 	^#((ffiStubs FFIStubCompiler) (runtimeNative RuntimeNativeLoader)
+		(bindingSession uint64_t) (bindingCount int32_t)
+		(bindingOwners 'oop[FFI_BINDING_LIMIT]') (bindingEntries 'uint64_t[FFI_BINDING_LIMIT]')
+		(bindingArities 'uint8_t[FFI_BINDING_LIMIT]')
 		(mathNames 'const char *[10]' #('sin' 'cos' 'log' 'exp' 'atan' 'sqrt' 'fabs' 'trunc' 'ldexp' 'ilogb'))
 		(mathSignatures 'uint32_t[10]' #(16r66 16r66 16r66 16r66 16r66 16r66 16r66 16r66 16r616 16r61))
 		(platformNames 'const char *[9]' #('platform_windows_close' 'platform_windows_display_scale' 'platform_windows_refresh_rate'
@@ -19,7 +22,182 @@ declarations
 initialize
 	FFI_MEMCMP := 11.
 	FFI_PLATFORM_BASE := 32.
-	FFI_DYNAMIC := 65536
+	FFI_DYNAMIC := 65536.
+	FFI_BINDING_LIMIT := 4096.
+	FFI_BOUND_REJECTED := 1
+! !
+
+!FFIPrimitives methodsFor: 'bound primitives'!
+primFFIPrepare
+	<vmPrimitive: 263 name: 'ffiPrepare'>
+	| owner arity entry slot |
+	self argCount = 0 ifFalse: [^self fail].
+	owner := self receiver.
+	arity := self local: 'int32_t'.
+	entry := self boundEntry: owner into: arity.
+	entry = FFI_BOUND_REJECTED ifTrue: [^self fail].
+	entry ~= 0 ifTrue: [^self answerBool: true].
+	ffiStubs canPublishCode ifFalse: [^self fail].
+	entry := self prepareEntry: (self loadRef: owner at: 0) into: arity.
+	entry = 0 ifTrue: [^self fail].
+	self ensureBindingSession ifFalse: [^self fail].
+	slot := self bindingSlotFor: owner.
+	slot < 0 ifTrue: [
+		"Make dead owners reusable if the table is full."
+		gc fullGC.
+		owner := self receiver.
+		slot := self bindingSlotFor: owner.
+		slot < 0 ifTrue: [^self fail]].
+	bindingOwners at: slot put: owner.
+	bindingEntries at: slot put: entry.
+	bindingArities at: slot put: arity value asUInt8.
+	self storeRef: owner at: 1 put: (self intOop: ((bindingSession bitOr: slot asUInt64) asInt64)).
+	self answerBool: true
+!
+primFFIBoundInvoke
+	<vmPrimitive: 264 name: 'ffiBoundInvoke'>
+	| arity entry |
+	arity := self local: 'int32_t'.
+	entry := self boundEntry: self receiver into: arity.
+	entry = 0 ifTrue: [^self fail].
+	entry = FFI_BOUND_REJECTED ifTrue: [^self answerBool: false].
+	self argCount = arity value ifFalse: [^self answerBool: false].
+	self callBound: entry args: interpreter primStackBase + 1
+!
+primFFIBoundInvokeArray
+	<vmPrimitive: 265 name: 'ffiBoundInvokeArray'>
+	self argCount = 1 ifFalse: [^self fail].
+	self invokeBoundArray: self arg0
+!
+invokeBoundArray: args
+	<function>
+	<var: #args type: 'oop'>
+	| arity entry |
+	arity := self local: 'int32_t'.
+	entry := self boundEntry: self receiver into: arity.
+	entry = 0 ifTrue: [^self fail].
+	entry = FFI_BOUND_REJECTED ifTrue: [^self answerBool: false].
+	(self isArray: args count: arity value asUInt32) ifFalse: [^self answerBool: false].
+	self callBound: entry args: (self slotsOf: args)
+!
+callBound: entry args: args
+	"The launcher consumes args before entering native code. Result boxing may GC; args is never read again."
+	<function>
+	<var: #entry type: 'uint64_t'>
+	<var: #args type: 'const oop *'>
+	| answer |
+	answer := (self cCoerce: entry to: 'oop (*)(const oop *)') call: args.
+	self answer: (answer = 0 ifTrue: [memory falseOop] ifFalse: [answer])
+! !
+
+!FFIPrimitives methodsFor: 'binding slots'!
+isBindingShape: owner
+	<var: #owner type: 'oop'>
+	^(owner ~= 0 and: [self isPtr: owner]) and: [
+		(self formatOf: owner) = F_FIXED and: [(self numSlots: owner) = 2 and: [self isImmutable: owner]]]
+!
+boundEntry: owner into: arity
+	"Zero permits cold preparation for a missing or stale token. A malformed token or wrong owner in this session is a nonretryable rejection."
+	<function>
+	<var: #owner type: 'oop'>
+	<var: #arity type: 'int32_t *'>
+	<returns: 'uint64_t'>
+	| token value session slot |
+	(self isBindingShape: owner) ifFalse: [^FFI_BOUND_REJECTED].
+	token := self loadRef: owner at: 1.
+	(self isInt: token) ifFalse: [
+		^token = memory nilOop ifTrue: [0] ifFalse: [FFI_BOUND_REJECTED]].
+	(self intVal: token) < FFI_BINDING_LIMIT ifTrue: [^FFI_BOUND_REJECTED].
+	value := (self intVal: token) asUInt64.
+	session := value bitClear: (FFI_BINDING_LIMIT - 1) asUInt64.
+	session = bindingSession ifFalse: [^0].
+	slot := (value bitAnd: (FFI_BINDING_LIMIT - 1) asUInt64) asInt32.
+	(slot >= bindingCount or: [(bindingOwners at: slot) ~= owner]) ifTrue: [^FFI_BOUND_REJECTED].
+	arity value: (bindingArities at: slot) asInt32.
+	^bindingEntries at: slot
+!
+ensureBindingSession
+	<function>
+	| nonce |
+	bindingSession ~= 0 ifTrue: [^true].
+	nonce := self local: 'uint64_t'.
+	(posix getEntropy: nonce size: 8) ~= 0 ifTrue: [^false].
+	bindingSession := (nonce value bitAnd: VM_INT_MAX asUInt64) bitClear: (FFI_BINDING_LIMIT - 1) asUInt64.
+	bindingSession = 0 ifTrue: [^false].
+	gc registerWeakOwners: (self functionPointer: #updateBindingOwners:) invalidate: (self functionPointer: #invalidateBindings).
+	^true
+!
+bindingSlotFor: owner
+	<function>
+	<var: #owner type: 'oop'>
+	<returns: 'int32_t'>
+	<var: #free type: 'int32_t'>
+	| free other |
+	free := -1.
+	0 to: bindingCount - 1 do: [:i |
+		other := bindingOwners at: i.
+		other = owner ifTrue: [^i asInt32].
+		(free < 0 and: [other = 0]) ifTrue: [free := i asInt32]].
+	free >= 0 ifTrue: [^free].
+	bindingCount = FFI_BINDING_LIMIT ifTrue: [^ -1].
+	free := bindingCount.
+	bindingCount := bindingCount + 1.
+	^free
+!
+updateBindingOwners: isDead
+	"Called after strong tracing, before from-space is reclaimed. These weak oops never keep bindings alive."
+	<function>
+	<var: #isDead type: 'bool (*)(oop *)'>
+	0 to: bindingCount - 1 do: [:i |
+		((bindingOwners at: i) ~= 0 and: [isDead call: bindingOwners + i]) ifTrue: [
+			bindingOwners at: i put: 0]]
+!
+invalidateBindings
+	"Require a fresh symbolic bind after forwarding or reopening an immutable object."
+	<function>
+	0 to: bindingCount - 1 do: [:i | bindingOwners at: i put: 0].
+	bindingCount := 0.
+	bindingSession := 0
+!
+prepareEntry: descriptor into: arity
+	<function>
+	<var: #descriptor type: 'oop'>
+	<var: #arity type: 'int32_t *'>
+	<var: #n type: 'int32_t'>
+	<var: #result type: 'int32_t'>
+	<var: #slots type: 'int32_t'>
+	<returns: 'uint64_t'>
+	| library symbol libraryOop symbolOop libLen symLen tags tagOop count n slots resultOop result target id operation |
+	((self isArray: descriptor count: 4) and: [self isImmutable: descriptor]) ifFalse: [^0].
+	libraryOop := self loadRef: descriptor at: 0.
+	symbolOop := self loadRef: descriptor at: 1.
+	tagOop := self loadRef: descriptor at: 2.
+	resultOop := self loadRef: descriptor at: 3.
+	((self isPtr: libraryOop) and: [(self isPtr: symbolOop) and: [
+		(self isByteArray: tagOop) and: [self isInt: resultOop]]]) ifFalse: [^0].
+	((self isImmutable: libraryOop) and: [(self isImmutable: symbolOop) and: [
+		self isImmutable: tagOop]]) ifFalse: [^0].
+	count := self byteCount: tagOop.
+	count > 6 ifTrue: [^0].
+	n := count asInt32.
+	((self intVal: resultOop) < 1 or: [(self intVal: resultOop) > 7 or: [(self intVal: resultOop) = 5]]) ifTrue: [^0].
+	result := (self intVal: resultOop) asInt32.
+	library := self local: 'uint8_t[128]'.
+	symbol := self local: 'uint8_t[128]'.
+	libLen := self copyName: libraryOop into: library.
+	symLen := self copyName: symbolOop into: symbol.
+	(libLen = 0 or: [symLen = 0]) ifTrue: [^0].
+	tags := self local: 'uint8_t[6]'.
+	libc memcpy: tags from: (self bytesOf: tagOop) size: count.
+	slots := n.
+	0 to: n - 1 do: [:i | (tags at: i) = 8 ifTrue: [slots := slots + 1]].
+	slots > 6 ifTrue: [^0].
+	target := self local: 'uint64_t'.
+	id := self resolve: library length: libLen symbol: symbol length: symLen types: tags count: n result: result into: target.
+	id = 0 ifTrue: [^0].
+	operation := id = FFI_MEMCMP ifTrue: [1] ifFalse: [0].
+	arity value: n.
+	^ffiStubs entryFor: target value argumentTags: tags count: n returnTag: result operation: operation
 ! !
 
 !FFIPrimitives methodsFor: 'primitives'!
@@ -169,7 +347,7 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 isArray: o count: n
 	<var: #o type: 'oop'>
 	<var: #n type: 'uint32_t'>
-	^(self isPtr: o) and: [(self rawClass: o) = memory clsArray and: [(self formatOf: o) = F_VAR and: [(self numSlots: o) = n]]]
+	^(o ~= 0 and: [self isPtr: o]) and: [(self rawClass: o) = memory clsArray and: [(self formatOf: o) = F_VAR and: [(self numSlots: o) = n]]]
 !
 isByteArray: o
 	<var: #o type: 'oop'>

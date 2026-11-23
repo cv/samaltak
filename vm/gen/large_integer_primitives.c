@@ -6,7 +6,7 @@ static uint64_t *scratch;
 static int64_t scratch_limbs;
 
 static void large_integer_primitives_add(bool subtract);
-static void answer(uint64_t *r, int64_t n, bool neg);
+static void large_integer_primitives_answer(uint64_t *r, int64_t n, bool neg);
 static void bit_op(int op);
 static int large_integer_primitives_compare(uint64_t *a, int64_t na, uint64_t *b, int64_t nb);
 static int64_t difference(uint64_t *a, int64_t na, uint64_t *b, int64_t nb, uint64_t *r);
@@ -57,13 +57,13 @@ static void large_integer_primitives_add(bool subtract)
     }
     if (a->neg == bneg) {
         n = a->count >= b->count ? sum(a->limbs, a->count, b->limbs, b->count, r) : sum(b->limbs, b->count, a->limbs, a->count, r);
-        answer(r, n, a->neg);
+        large_integer_primitives_answer(r, n, a->neg);
         return;
     }
     if (large_integer_primitives_compare(a->limbs, a->count, b->limbs, b->count) >= 0) {
-        answer(r, difference(a->limbs, a->count, b->limbs, b->count, r), a->neg);
+        large_integer_primitives_answer(r, difference(a->limbs, a->count, b->limbs, b->count, r), a->neg);
     } else {
-        answer(r, difference(b->limbs, b->count, a->limbs, a->count, r), bneg);
+        large_integer_primitives_answer(r, difference(b->limbs, b->count, a->limbs, a->count, r), bneg);
     }
 }
 
@@ -96,19 +96,19 @@ static void large_integer_primitives_add(bool subtract)
     }
     if (a->neg == bneg) {
         n = a->count >= b->count ? sum(a->limbs, a->count, b->limbs, b->count, r) : sum(b->limbs, b->count, a->limbs, a->count, r);
-        answer(r, n, a->neg);
+        large_integer_primitives_answer(r, n, a->neg);
         return;
     }
     if (large_integer_primitives_compare(a->limbs, a->count, b->limbs, b->count) >= 0) {
-        answer(r, difference(a->limbs, a->count, b->limbs, b->count, r), a->neg);
+        large_integer_primitives_answer(r, difference(a->limbs, a->count, b->limbs, b->count, r), a->neg);
     } else {
-        answer(r, difference(b->limbs, b->count, a->limbs, a->count, r), bneg);
+        large_integer_primitives_answer(r, difference(b->limbs, b->count, a->limbs, a->count, r), bneg);
     }
 }
 
 #endif
 /* LargeIntegerPrimitives>>answer:count:negative: */
-static void answer(uint64_t *r, int64_t n, bool neg)
+static void large_integer_primitives_answer(uint64_t *r, int64_t n, bool neg)
 {
     uint64_t m;
     uint64_t top;
@@ -187,7 +187,7 @@ static void bit_op(int op)
         r[i] = op == 1 ? x & y : op == 2 ? x | y : x ^ y;
     }
     if ((r[n - 1] >> 63) == 0) {
-        answer(r, n, false);
+        large_integer_primitives_answer(r, n, false);
         return;
     }
     za = lowest(r, n);
@@ -195,7 +195,7 @@ static void bit_op(int op)
     for (i_2 = za + 1; i_2 <= n - 1; i_2++) {
         r[i_2] = ~r[i_2];
     }
-    answer(r, n, true);
+    large_integer_primitives_answer(r, n, true);
 }
 
 #else
@@ -238,7 +238,7 @@ static void bit_op(int op)
         r[i] = op == 1 ? x & y : op == 2 ? x | y : x ^ y;
     }
     if ((r[n - 1] >> 63) == 0) {
-        answer(r, n, false);
+        large_integer_primitives_answer(r, n, false);
         return;
     }
     za = lowest(r, n);
@@ -246,7 +246,7 @@ static void bit_op(int op)
     for (i_2 = za + 1; i_2 <= n - 1; i_2++) {
         r[i_2] = ~r[i_2];
     }
-    answer(r, n, true);
+    large_integer_primitives_answer(r, n, true);
 }
 
 #endif
@@ -348,23 +348,23 @@ static void large_integer_primitives_divide(int mode)
     }
     neg = a->neg != b->neg;
     if (mode == 0) {
-        answer(q, qn, neg);
+        large_integer_primitives_answer(q, qn, neg);
         return;
     }
     if (mode == 1) {
-        answer(rem, rn, a->neg);
+        large_integer_primitives_answer(rem, rn, a->neg);
         return;
     }
     floored = neg && (lowest(rem, rn) < rn);
     if (mode == 2) {
-        answer(q, floored ? increment(q, qn) : qn, neg);
+        large_integer_primitives_answer(q, floored ? increment(q, qn) : qn, neg);
         return;
     }
     if (floored) {
-        answer(rem + nb, difference(b->limbs, nb, rem, rn, rem + nb), b->neg);
+        large_integer_primitives_answer(rem + nb, difference(b->limbs, nb, rem, rn, rem + nb), b->neg);
         return;
     }
-    answer(rem, rn, a->neg);
+    large_integer_primitives_answer(rem, rn, a->neg);
 }
 
 #else
@@ -423,23 +423,23 @@ static void large_integer_primitives_divide(int mode)
     }
     neg = a->neg != b->neg;
     if (mode == 0) {
-        answer(q, qn, neg);
+        large_integer_primitives_answer(q, qn, neg);
         return;
     }
     if (mode == 1) {
-        answer(rem, rn, a->neg);
+        large_integer_primitives_answer(rem, rn, a->neg);
         return;
     }
     floored = neg && (lowest(rem, rn) < rn);
     if (mode == 2) {
-        answer(q, floored ? increment(q, qn) : qn, neg);
+        large_integer_primitives_answer(q, floored ? increment(q, qn) : qn, neg);
         return;
     }
     if (floored) {
-        answer(rem + nb, difference(b->limbs, nb, rem, rn, rem + nb), b->neg);
+        large_integer_primitives_answer(rem + nb, difference(b->limbs, nb, rem, rn, rem + nb), b->neg);
         return;
     }
-    answer(rem, rn, a->neg);
+    large_integer_primitives_answer(rem, rn, a->neg);
 }
 
 #endif
@@ -751,7 +751,7 @@ void prim_large_bit_shift(void)
             return;
         }
         large_integer_primitives_shift_count_left_into(a->limbs, a->count, k, r);
-        answer(r, n, a->neg);
+        large_integer_primitives_answer(r, n, a->neg);
         return;
     }
     if (k / 64 >= a->count) {
@@ -771,7 +771,7 @@ void prim_large_bit_shift(void)
     if (large_integer_primitives_shift_count_right_into(a->limbs, a->count, k, r) && a->neg) {
         n = increment(r, n);
     }
-    answer(r, n, a->neg);
+    large_integer_primitives_answer(r, n, a->neg);
 }
 
 #else
@@ -821,7 +821,7 @@ void prim_large_bit_shift(void)
             return;
         }
         large_integer_primitives_shift_count_left_into(a->limbs, a->count, k, r);
-        answer(r, n, a->neg);
+        large_integer_primitives_answer(r, n, a->neg);
         return;
     }
     if (k / 64 >= a->count) {
@@ -841,7 +841,7 @@ void prim_large_bit_shift(void)
     if (large_integer_primitives_shift_count_right_into(a->limbs, a->count, k, r) && a->neg) {
         n = increment(r, n);
     }
-    answer(r, n, a->neg);
+    large_integer_primitives_answer(r, n, a->neg);
 }
 
 #endif
@@ -977,7 +977,7 @@ void prim_large_mul(void)
     } else {
         product(b->limbs, b->count, a->limbs, a->count, r);
     }
-    answer(r, n, a->neg != b->neg);
+    large_integer_primitives_answer(r, n, a->neg != b->neg);
 }
 
 #else
@@ -1021,7 +1021,7 @@ void prim_large_mul(void)
     } else {
         product(b->limbs, b->count, a->limbs, a->count, r);
     }
-    answer(r, n, a->neg != b->neg);
+    large_integer_primitives_answer(r, n, a->neg != b->neg);
 }
 
 #endif

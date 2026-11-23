@@ -30,8 +30,8 @@ tryBindCall: aDescriptor
 	^self bindCall: aDescriptor signalIfUnavailable: false
 !
 bindCall: aDescriptor signalIfUnavailable: signalIfUnavailable
-	| library symbol types result tags resultTag id slots |
-	aDescriptor size = 5 ifFalse: [
+	| library symbol types result tags resultTag slots descriptor binding |
+	(aDescriptor class == Array and: [aDescriptor size = 5 and: [aDescriptor first == #call]]) ifFalse: [
 		^FFIError signal: 'Expected #(call library symbol argumentTypes resultType)'].
 	library := self copyName: (aDescriptor at: 2).
 	symbol := self copyName: (aDescriptor at: 3).
@@ -51,11 +51,12 @@ bindCall: aDescriptor signalIfUnavailable: signalIfUnavailable
 	resultTag := self typeTag: result.
 	(resultTag = 5 or: [resultTag = 8]) ifTrue: [^FFIError signal: 'Byte slices are only FFI argument types'].
 	tags beReadOnlyObject.
-	id := self primBind: library symbol: symbol types: tags result: resultTag.
-	id isNil ifTrue: [
-		signalIfUnavailable ifTrue: [^FFIError signal: 'No matching FFI export: ', library, ' / ', symbol].
-		^nil].
-	^FFIBinding new initializeID: id library: library symbol: symbol types: tags result: resultTag
+	descriptor := {library. symbol. tags. resultTag}.
+	descriptor beReadOnlyObject.
+	binding := FFIBinding new initializeDescriptor: descriptor.
+	binding prepare ifTrue: [^binding].
+	signalIfUnavailable ifTrue: [^FFIError signal: 'No matching FFI export: ', library, ' / ', symbol].
+	^nil
 !
 copyName: anObject
 	| name size |
@@ -78,8 +79,4 @@ typeTag: aSymbol
 	tag := #(i32 u32 i64 u64 byteSlice f64 void bytesWithLength) identityIndexOf: aSymbol.
 	tag = 0 ifTrue: [^FFIError signal: 'Unknown FFI type; expected an FFI type Symbol'].
 	^tag
-!
-primBind: library symbol: symbol types: tags result: resultTag
-	<primitive: 'ffiBind'>
-	^nil
 ! !

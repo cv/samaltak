@@ -189,6 +189,9 @@ primitive_entry vm_primitive_table[] = {
 #ifndef SAMALTAK_NO_PLATFORM
     {262, 2, "ffiExternalNotificationClose", ffi_external_notification_adapter_prim_close},
 #endif
+    {263, 2, "ffiPrepare", prim_ffi_prepare},
+    {264, 2, "ffiBoundInvoke", prim_ffi_bound_invoke},
+    {265, 2, "ffiBoundInvokeArray", prim_ffi_bound_invoke_array},
 #ifndef SAMALTAK_NO_PLATFORM
     {400, 2, "windowOpen", prim_window_open},
 #endif

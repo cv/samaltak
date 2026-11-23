@@ -25428,7 +25428,7 @@ exit_b_69:;
     code_cache_allocate(asm_pc - asm_start);
     size = asm_pc - asm_start;
     end_writing();
-    invalidate((uint8_t *)(void *)start, size);
+    jit_platform_invalidate((uint8_t *)(void *)start, size);
     return true;
 }
 
@@ -32122,7 +32122,7 @@ exit_offset_to_76:;
     code_cache_allocate(asm_pc - asm_start);
     size = asm_pc - asm_start;
     end_writing();
-    invalidate((uint8_t *)(void *)start, size);
+    jit_platform_invalidate((uint8_t *)(void *)start, size);
     return true;
 }
 
@@ -52235,7 +52235,7 @@ exit_b_71:;
     code_cache_allocate(asm_pc - asm_start);
     size = asm_pc - asm_start;
     end_writing();
-    invalidate((uint8_t *)(void *)start, size);
+    jit_platform_invalidate((uint8_t *)(void *)start, size);
     return true;
 }
 

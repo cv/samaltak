@@ -152,9 +152,9 @@ typedef void (*prim_fn)(void);
 #define BL_SITE_MEGA 1073741824
 #define BL_UENTRY 20
 #define CACHE_BYTES 134217728
-#define CACHE_FFI_BYTES 262144
+#define CACHE_FFI_BYTES 2359296
 #define CACHE_SIZE 4096
-#define CACHE_SPACE 134496256
+#define CACHE_SPACE 136593408
 #define CD_INSTVARS 3
 #define CD_ORGANIZATION 4
 #define CG_MAX_HELD 32
@@ -267,12 +267,16 @@ typedef void (*prim_fn)(void);
 #define FB_MEGA 1
 #define FB_NONINT 4
 #define FB_OVERFLOW 8
+#define FFI_BINDING_LIMIT 4096
+#define FFI_BOUND_REJECTED 1
 #define FFI_DYNAMIC 65536
 #define FFI_MEMCMP 11
 #define FFI_PLATFORM_BASE 32
 #define FFI_STUB_BYTES 256
 #define FFI_STUB_LIMIT 1024
-#define FFI_STUB_TABLE_SIZE 2048
+#define FFI_STUB_TABLE_SIZE 4096
+#define FFI_WRAPPED_BYTES 2048
+#define FFI_WRAPPED_LIMIT 1024
 #define F_BYTES 16
 #define F_EMPTY 0
 #define F_FIXED 1
@@ -1686,7 +1690,7 @@ void amd64_assembler_test_any_with(int64_t rn, int64_t rm);
 void test_bit_any(int64_t n, int64_t rt);
 void ubfiz(int64_t rd, int64_t rn, int64_t lsb, int64_t wd);
 void ubfx_any(int64_t rd, int64_t rn, int64_t lsb, int64_t wd);
-void wide(int32_t digit, int64_t rd, int64_t rn, int64_t rm);
+void amd64_assembler_wide(int32_t digit, int64_t rd, int64_t rn, int64_t rm);
 #else
 uint64_t target_of(int32_t a_label);
 #endif
@@ -1733,15 +1737,23 @@ void prim_display_open(void);
 void prim_display_text(void);
 size_t copy_name(oop name, uint8_t *buf);
 void prim_ffi_bind(void);
+void prim_ffi_bound_invoke(void);
+void prim_ffi_bound_invoke_array(void);
 void prim_ffi_invoke(void);
+void prim_ffi_prepare(void);
 bool can_publish_code(void);
 uint64_t downcall(uint64_t target, uint8_t *types, int32_t n, int32_t result);
+uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int32_t n, int32_t result, int32_t operation);
 uint64_t publish_code(const uint8_t *bytes, uint32_t size);
+uint64_t wrapped_argument_helper(int32_t tag);
+uint64_t wrapped_result_helper(int32_t tag);
 void become_forward(oop from, oop to);
 void collect_garbage(uint64_t need);
 void full_gc(void);
 void garbage_collector_init(uint64_t eden_bytes, uint64_t max_heap);
+void invalidate_native_weak_owners(void);
 uint64_t old_alloc_try(uint64_t bytes);
+void register_weak_owners(void (*update)(bool (*)(oop *)), void (*invalidate)(void));
 void release_free_memory(void);
 void release_pages(void *address, uint64_t n);
 void remember(oop o);
@@ -2148,7 +2160,7 @@ void begin_writing(void);
 bool can_run_code(void);
 void end_writing(void);
 void *ffi_arena_base(void);
-void invalidate(uint8_t *start, uint64_t size);
+void jit_platform_invalidate(uint8_t *start, uint64_t size);
 void *map(void *near, uint64_t size);
 void arm(int ident, int64_t us, bool periodic);
 void ticker_start(void);
@@ -2160,7 +2172,7 @@ uint64_t publish_ffi_stub(const uint8_t *bytes, uint32_t size);
 void begin_writing(void);
 bool can_run_code(void);
 void end_writing(void);
-void invalidate(uint8_t *start, uint64_t size);
+void jit_platform_invalidate(uint8_t *start, uint64_t size);
 void *map(void *near, uint64_t size);
 void arm(int ident, int64_t us, bool periodic);
 void ticker_start(void);

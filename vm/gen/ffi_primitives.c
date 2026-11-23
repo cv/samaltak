@@ -2,14 +2,25 @@
 /* FFIPrimitives (VM-Jit) */
 #include "samaltak.h"
 
+static uint8_t binding_arities[4096];
+static int32_t binding_count;
+static uint64_t binding_entries[4096];
+static oop binding_owners[4096];
+static uint64_t binding_session;
 static const char *math_names[10] = {"sin", "cos", "log", "exp", "atan", "sqrt", "fabs", "trunc", "ldexp", "ilogb"};
 static uint32_t math_signatures[10] = {102U, 102U, 102U, 102U, 102U, 102U, 102U, 102U, 1558U, 97U};
 static const char *platform_names[9] = {"platform_windows_close", "platform_windows_display_scale", "platform_windows_refresh_rate", "platform_windows_show", "platform_windows_set_cursor", "platform_windows_set_text_input_area", "pty_resize", "pty_close", "pty_foreground"};
 static uint32_t platform_signatures[9] = {49U, 54U, 54U, 785U, 49U, 53687089U, 13105U, 49U, 49U};
 
 static void bind_or_invoke(bool invoke);
+static int32_t binding_slot_for(oop owner);
 static bool ffi_primitives_borrow(oop slice, uint64_t *out, uint64_t *length);
+static uint64_t bound_entry(oop owner, int32_t *arity);
 static oop ffi_primitives_box(uint64_t bits, int32_t tag);
+static void call_bound(uint64_t entry, const oop *args);
+static bool ensure_binding_session(void);
+static void invalidate_bindings(void);
+static void invoke_bound_array(oop args);
 static bool marshal(oop o, int32_t tag, uint64_t *out);
 static bool marshal_compare(oop array, uint64_t *words);
 static double native_atan(double x);
@@ -23,7 +34,9 @@ static double native_log(double x);
 static double native_sin(double x);
 static double native_sqrt(double x);
 static double native_trunc(double x);
+static uint64_t prepare_entry(oop descriptor, int32_t *arity);
 static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, const uint8_t *symbol, size_t sym_len, const uint8_t *tags, int32_t n, int32_t result, uint64_t *target);
+static void update_binding_owners(bool (*is_dead)(oop *));
 
 /* FFIPrimitives>>bindOrInvoke: */
 static void bind_or_invoke(bool invoke)
@@ -153,7 +166,7 @@ static void bind_or_invoke(bool invoke)
     }
     arg_array = prim_base[6];
     n_2 = (uint32_t)n;
-    if (!(((arg_array & 7) == 0) && ((*(uint64_t *)(arg_array + 8) == cls_array) && (((int32_t)(((*(uint64_t *)arg_array) >> H_FMT_SHIFT) & H_FMT_MASK) == F_VAR) && ((uint32_t)*(uint64_t *)arg_array == n_2))))) {
+    if (!((arg_array != 0) && ((arg_array & 7) == 0) && ((*(uint64_t *)(arg_array + 8) == cls_array) && (((int32_t)(((*(uint64_t *)arg_array) >> H_FMT_SHIFT) & H_FMT_MASK) == F_VAR) && ((uint32_t)*(uint64_t *)arg_array == n_2))))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -203,6 +216,33 @@ static void bind_or_invoke(bool invoke)
     prim_status = PS_OK;
 }
 
+/* FFIPrimitives>>bindingSlotFor: */
+static int32_t binding_slot_for(oop owner)
+{
+    int32_t free;
+    int32_t i;
+    oop other;
+    free = -1;
+    for (i = 0; i <= binding_count - 1; i++) {
+        other = binding_owners[i];
+        if (other == owner) {
+            return i;
+        }
+        if ((free < 0) && (other == 0)) {
+            free = i;
+        }
+    }
+    if (free >= 0) {
+        return free;
+    }
+    if (binding_count == FFI_BINDING_LIMIT) {
+        return -1;
+    }
+    free = binding_count;
+    binding_count = binding_count + 1;
+    return free;
+}
+
 /* FFIPrimitives>>borrow:into:length: */
 static bool ffi_primitives_borrow(oop slice, uint64_t *out, uint64_t *length)
 {
@@ -212,7 +252,7 @@ static bool ffi_primitives_borrow(oop slice, uint64_t *out, uint64_t *length)
     int64_t start;
     int64_t len;
     uint64_t size;
-    if (!(((slice & 7) == 0) && ((*(uint64_t *)(slice + 8) == cls_array) && (((int32_t)(((*(uint64_t *)slice) >> H_FMT_SHIFT) & H_FMT_MASK) == F_VAR) && ((uint32_t)*(uint64_t *)slice == 3))))) {
+    if (!((slice != 0) && ((slice & 7) == 0) && ((*(uint64_t *)(slice + 8) == cls_array) && (((int32_t)(((*(uint64_t *)slice) >> H_FMT_SHIFT) & H_FMT_MASK) == F_VAR) && ((uint32_t)*(uint64_t *)slice == 3))))) {
         return false;
     }
     bytes = *(uint64_t *)(slice + 16 + 0);
@@ -237,6 +277,36 @@ static bool ffi_primitives_borrow(oop slice, uint64_t *out, uint64_t *length)
     *out = (uint64_t)((uint8_t *)(bytes + 16) + start);
     *length = (uint64_t)len;
     return true;
+}
+
+/* FFIPrimitives>>boundEntry:into: */
+static uint64_t bound_entry(oop owner, int32_t *arity)
+{
+    uint64_t token;
+    uint64_t value;
+    uint64_t session;
+    int32_t slot;
+    if (!((owner != 0) && ((owner & 7) == 0) && (((int32_t)(((*(uint64_t *)owner) >> H_FMT_SHIFT) & H_FMT_MASK) == F_FIXED) && (((uint32_t)*(uint64_t *)owner == 2) && (((*(uint64_t *)owner) & H_IMMUTABLE) != 0))))) {
+        return FFI_BOUND_REJECTED;
+    }
+    token = *(uint64_t *)(owner + 16 + 8);
+    if (!((token & 1) != 0)) {
+        return token == nil_oop ? 0 : FFI_BOUND_REJECTED;
+    }
+    if ((((int64_t)token) >> 1) < FFI_BINDING_LIMIT) {
+        return FFI_BOUND_REJECTED;
+    }
+    value = (uint64_t)(((int64_t)token) >> 1);
+    session = value & 18446744073709547520ULL;
+    if (!(session == binding_session)) {
+        return 0;
+    }
+    slot = (int32_t)(value & 4095ULL);
+    if ((slot >= binding_count) || (binding_owners[slot] != owner)) {
+        return FFI_BOUND_REJECTED;
+    }
+    *arity = (int32_t)binding_arities[slot];
+    return binding_entries[slot];
 }
 
 /* FFIPrimitives>>box:tag: */
@@ -270,6 +340,17 @@ static oop ffi_primitives_box(uint64_t bits, int32_t tag)
         return (uint64_t)((v_3 << 1) | 1);
     }
     return large_int_from(bits, false);
+}
+
+/* FFIPrimitives>>callBound:args: */
+static void call_bound(uint64_t entry, const oop *args)
+{
+    oop answer;
+    oop v;
+    answer = ((oop (*)(const oop *))entry)(args);
+    v = answer == 0 ? false_oop : answer;
+    prim_result = v;
+    prim_status = PS_OK;
 }
 
 /* FFIPrimitives>>copyName:into: */
@@ -306,6 +387,67 @@ size_t copy_name(oop name, uint8_t *buf)
     }
     buf[n] = 0;
     return n;
+}
+
+/* FFIPrimitives>>ensureBindingSession */
+static bool ensure_binding_session(void)
+{
+    uint64_t local;
+    uint64_t *nonce;
+    if (binding_session != 0) {
+        return true;
+    }
+    memset(&local, 0, sizeof local);
+    nonce = &local;
+    if (getentropy(nonce, 8) != 0) {
+        return false;
+    }
+    binding_session = (*nonce) & 4611686018427387903ULL & 18446744073709547520ULL;
+    if (binding_session == 0) {
+        return false;
+    }
+    register_weak_owners(update_binding_owners, invalidate_bindings);
+    return true;
+}
+
+/* FFIPrimitives>>invalidateBindings */
+static void invalidate_bindings(void)
+{
+    int32_t i;
+    for (i = 0; i <= binding_count - 1; i++) {
+        binding_owners[i] = 0;
+    }
+    binding_count = 0;
+    binding_session = 0;
+}
+
+/* FFIPrimitives>>invokeBoundArray: */
+static void invoke_bound_array(oop args)
+{
+    int32_t local;
+    int32_t *arity;
+    uint64_t entry;
+    uint32_t n;
+    memset(&local, 0, sizeof local);
+    arity = &local;
+    entry = bound_entry(prim_base[0], arity);
+    if (entry == 0) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (entry == FFI_BOUND_REJECTED) {
+        prim_result = false_oop;
+        prim_status = PS_OK;
+        return;
+    }
+    n = (uint32_t)*arity;
+    if (!((args != 0) && ((args & 7) == 0) && ((*(uint64_t *)(args + 8) == cls_array) && (((int32_t)(((*(uint64_t *)args) >> H_FMT_SHIFT) & H_FMT_MASK) == F_VAR) && ((uint32_t)*(uint64_t *)args == n))))) {
+        prim_result = false_oop;
+        prim_status = PS_OK;
+        return;
+    }
+    call_bound(entry, (oop *)(args + 16));
 }
 
 /* FFIPrimitives>>marshal:tag:into: */
@@ -434,16 +576,201 @@ static double native_trunc(double x)
     return trunc(x);
 }
 
+/* FFIPrimitives>>prepareEntry:into: */
+static uint64_t prepare_entry(oop descriptor, int32_t *arity)
+{
+    int32_t n;
+    int32_t slots;
+    int32_t result;
+    uint64_t library_oop;
+    uint64_t symbol_oop;
+    uint64_t tag_oop;
+    uint64_t result_oop;
+    uint64_t count;
+    uint8_t local[128];
+    uint8_t *library;
+    uint8_t local_2[128];
+    uint8_t *symbol;
+    size_t lib_len;
+    size_t sym_len;
+    uint8_t local_3[6];
+    uint8_t *tags;
+    int32_t i;
+    uint64_t local_4;
+    uint64_t *target;
+    int32_t id;
+    int operation;
+    if (!((descriptor != 0) && ((descriptor & 7) == 0) && ((*(uint64_t *)(descriptor + 8) == cls_array) && (((int32_t)(((*(uint64_t *)descriptor) >> H_FMT_SHIFT) & H_FMT_MASK) == F_VAR) && ((uint32_t)*(uint64_t *)descriptor == 4))) && (((*(uint64_t *)descriptor) & H_IMMUTABLE) != 0))) {
+        return 0;
+    }
+    library_oop = *(uint64_t *)(descriptor + 16 + 0);
+    symbol_oop = *(uint64_t *)(descriptor + 16 + 8);
+    tag_oop = *(uint64_t *)(descriptor + 16 + 16);
+    result_oop = *(uint64_t *)(descriptor + 16 + 24);
+    if (!(((library_oop & 7) == 0) && (((symbol_oop & 7) == 0) && (((tag_oop & 7) == 0) && ((*(uint64_t *)(tag_oop + 8) == cls_bytearray) && ((int32_t)(((*(uint64_t *)tag_oop) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES)) && ((result_oop & 1) != 0))))) {
+        return 0;
+    }
+    if (!((((*(uint64_t *)library_oop) & H_IMMUTABLE) != 0) && ((((*(uint64_t *)symbol_oop) & H_IMMUTABLE) != 0) && (((*(uint64_t *)tag_oop) & H_IMMUTABLE) != 0)))) {
+        return 0;
+    }
+    count = 8 * (uint64_t)(uint32_t)*(uint64_t *)tag_oop - (uint64_t)((int32_t)(((*(uint64_t *)tag_oop) >> H_FMT_SHIFT) & H_FMT_MASK) - F_BYTES);
+    if (count > 6) {
+        return 0;
+    }
+    n = (int32_t)count;
+    if (((((int64_t)result_oop) >> 1) < 1) || (((((int64_t)result_oop) >> 1) > 7) || ((((int64_t)result_oop) >> 1) == 5))) {
+        return 0;
+    }
+    result = (int32_t)(((int64_t)result_oop) >> 1);
+    memset(&local, 0, sizeof local);
+    library = local;
+    memset(&local_2, 0, sizeof local_2);
+    symbol = local_2;
+    lib_len = copy_name(library_oop, library);
+    sym_len = copy_name(symbol_oop, symbol);
+    if ((lib_len == 0) || (sym_len == 0)) {
+        return 0;
+    }
+    memset(&local_3, 0, sizeof local_3);
+    tags = local_3;
+    memcpy(tags, (uint8_t *)(tag_oop + 16), count);
+    slots = n;
+    for (i = 0; i <= n - 1; i++) {
+        if (tags[i] == 8) {
+            slots = slots + 1;
+        }
+    }
+    if (slots > 6) {
+        return 0;
+    }
+    memset(&local_4, 0, sizeof local_4);
+    target = &local_4;
+    id = ffi_primitives_resolve(library, lib_len, symbol, sym_len, tags, n, result, target);
+    if (id == 0) {
+        return 0;
+    }
+    operation = id == FFI_MEMCMP ? 1 : 0;
+    *arity = n;
+    return ffi_stub_compiler_entry_for(*target, tags, n, result, operation);
+}
+
 /* FFIPrimitives>>primFFIBind */
 void prim_ffi_bind(void)
 {
     bind_or_invoke(false);
 }
 
+/* FFIPrimitives>>primFFIBoundInvoke */
+void prim_ffi_bound_invoke(void)
+{
+    int32_t local;
+    int32_t *arity;
+    uint64_t entry;
+    memset(&local, 0, sizeof local);
+    arity = &local;
+    entry = bound_entry(prim_base[0], arity);
+    if (entry == 0) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (entry == FFI_BOUND_REJECTED) {
+        prim_result = false_oop;
+        prim_status = PS_OK;
+        return;
+    }
+    if (!(prim_nargs == *arity)) {
+        prim_result = false_oop;
+        prim_status = PS_OK;
+        return;
+    }
+    call_bound(entry, prim_base + 1);
+}
+
+/* FFIPrimitives>>primFFIBoundInvokeArray */
+void prim_ffi_bound_invoke_array(void)
+{
+    if (!(prim_nargs == 1)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    invoke_bound_array(prim_nargs > 0 ? prim_base[1] : nil_oop);
+}
+
 /* FFIPrimitives>>primFFIInvoke */
 void prim_ffi_invoke(void)
 {
     bind_or_invoke(true);
+}
+
+/* FFIPrimitives>>primFFIPrepare */
+void prim_ffi_prepare(void)
+{
+    oop owner;
+    int32_t local;
+    int32_t *arity;
+    uint64_t entry;
+    int32_t slot;
+    int64_t v;
+    uint64_t v_2;
+    if (!(prim_nargs == 0)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    owner = prim_base[0];
+    memset(&local, 0, sizeof local);
+    arity = &local;
+    entry = bound_entry(owner, arity);
+    if (entry == FFI_BOUND_REJECTED) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (entry != 0) {
+        prim_result = true_oop;
+        prim_status = PS_OK;
+        return;
+    }
+    if (!can_publish_code()) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    entry = prepare_entry(*(uint64_t *)(owner + 16 + 0), arity);
+    if (entry == 0) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (!ensure_binding_session()) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    slot = binding_slot_for(owner);
+    if (slot < 0) {
+        full_gc();
+        owner = prim_base[0];
+        slot = binding_slot_for(owner);
+        if (slot < 0) {
+            prim_status = PS_FAIL;
+            prim_error_code = -1;
+            return;
+        }
+    }
+    binding_owners[slot] = owner;
+    binding_entries[slot] = entry;
+    binding_arities[slot] = (uint8_t)*arity;
+    v = (int64_t)(binding_session | ((uint64_t)slot));
+    v_2 = (uint64_t)((v << 1) | 1);
+    *(uint64_t *)(owner + 16 + 8) = v_2;
+    if (((v_2 & 7) == 0) && ((v_2 - young_lo < young_hi - young_lo) && ((!((uint64_t)(owner - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)owner) & H_REMEMBERED) == 0)))) {
+        remember(owner);
+    }
+    prim_result = true_oop;
+    prim_status = PS_OK;
 }
 
 /* FFIPrimitives>>resolve:length:symbol:length:types:count:result:into: */
@@ -541,5 +868,16 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
     }
     *target = (uint64_t)lookup_library(library, lib_len, symbol, sym_len, tags, n, result);
     return *target == 0 ? 0 : FFI_DYNAMIC;
+}
+
+/* FFIPrimitives>>updateBindingOwners: */
+static void update_binding_owners(bool (*is_dead)(oop *))
+{
+    int32_t i;
+    for (i = 0; i <= binding_count - 1; i++) {
+        if ((binding_owners[i] != 0) && is_dead(binding_owners + i)) {
+            binding_owners[i] = 0;
+        }
+    }
 }
 

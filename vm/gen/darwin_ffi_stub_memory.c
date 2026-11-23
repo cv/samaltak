@@ -38,7 +38,7 @@ uint64_t publish_ffi_stub(const uint8_t *bytes, uint32_t size)
     begin_writing();
     memcpy(entry, bytes, size);
     end_writing();
-    invalidate(entry, size);
+    jit_platform_invalidate(entry, size);
     ffi_stub_next = ffi_stub_next + reserved;
     ffi_stub_remaining = ffi_stub_remaining - reserved;
     return (uint64_t)entry;
