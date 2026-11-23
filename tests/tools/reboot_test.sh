@@ -35,7 +35,17 @@ $CTL click 1000,893 >/dev/null
 $CTL click @menu.rebuild-vm-reboot >/dev/null
 # The image goes away for a moment; samaltak-ctl waits while the same pid comes back on the same port. The whole VM
 # is compiled first, niced: 90 s on two idle cores, 10 min on two cores beside this desktop drawn by lavapipe; allow 30 min.
-i=0; until [ "$($CTL eval 'Smalltalk vm banner' 2>/dev/null)" = "'Samaltak VM, rebooted'" ] || [ $i -ge 3600 ]; do i=$((i + 1)); sleep 0.5; done
+# A VM that died (its pid gone) fails at once, with what it logged, instead of being polled for 30 min.
+log="${TMPDIR:-/tmp}/samaltak-ctl/$SAMALTAK_SESSION.log"
+i=0; until [ "$($CTL eval 'Smalltalk vm banner' 2>/dev/null)" = "'Samaltak VM, rebooted'" ] || [ $i -ge 3600 ]; do
+  if ! kill -0 "$pid" 2>/dev/null; then
+    fail "the VM (pid $pid) died while rebuilding; its log ends:"
+    tail -n 15 "$log" | sed 's/^/    /'
+    ls -l "$SCRATCH/build/vm" "$SCRATCH/build/vm/build" 2>&1 | sed 's/^/    /'
+    echo "reboot test: $fails failed"; exit 1
+  fi
+  i=$((i + 1)); sleep 0.5
+done
 check "the rebuilt VM answers the new banner" "'Samaltak VM, rebooted'" "$($CTL eval 'Smalltalk vm banner')"
 running() { # pid of the process whose command line has $1 (pgrep -f; /proc where there is no pgrep, as in a slim container)
   if command -v pgrep >/dev/null 2>&1; then pgrep -f "$1" | head -1; return; fi

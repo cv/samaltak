@@ -77,6 +77,7 @@ build: aDirectory
 		(Delay forMilliseconds: 50) wait].
 	self show: make outputSoFar from: shown.
 	make succeeded ifFalse: [^self fail: 'make failed (exit ', make exitCode printString, ')'].
+	self line: 'make done (exit 0)'.
 	File rename: aDirectory, '/build/samaltak' to: aDirectory, '/samaltak'.
 	self line: 'built ', aDirectory, '/samaltak in ', (self secondsSince: t), ' s'.
 	^aDirectory, '/samaltak'
@@ -105,8 +106,9 @@ fail: aString
 
 !VMRebuilder methodsFor: 'output'!
 line: aString
-	"Any Process."
-	lock critical: [pending nextPutAll: aString; nextPut: Character lf]
+	"Any Process. Also on stderr (a samaltak-ctl session's log): if the VM dies on the way, the last step it took is there."
+	lock critical: [pending nextPutAll: aString; nextPut: Character lf].
+	Smalltalk vm stderrWrite: 'VM rebuild: ', aString, (String with: Character lf)
 !
 show: aString from: anIndex
 	"Log what aString (output so far) has after anIndex; answer its size."
