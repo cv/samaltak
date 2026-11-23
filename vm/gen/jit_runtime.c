@@ -115,6 +115,7 @@ void activated(frame *f)
     uint64_t address;
     frame *f_2;
     uint64_t a;
+    uint64_t switches;
     uint64_t c_2;
     int64_t r;
     frame *g;
@@ -155,6 +156,7 @@ exit_best:;
     a = address;
     for (;;) {
         stat_entries = stat_entries + 1;
+        switches = stat_process_switches;
         if (((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) && ({
     c_2 = f_2->code;
     !((c_2 > JIT_MAX_COUNT) && (((jit_method *)f_2->code)->mode == JIT_OPT)); })) {
@@ -167,7 +169,7 @@ exit_best:;
         r = ((int64_t (*)(frame *, uint64_t))bl_enter)(f_2, a);
         if (r == 0) {
             stat_exits = stat_exits + 1;
-            if (!bottom_returned) {
+            if (!(bottom_returned || ((nframes == 0) && (stat_process_switches != switches)))) {
                 goto exit_run;
             }
             bottom_returned = false;
@@ -282,6 +284,7 @@ void jit_runtime_back_jump(frame *f)
     uint64_t a;
     frame *f_2;
     uint64_t a_2;
+    uint64_t switches;
     uint64_t c_2;
     int64_t r;
     frame *g;
@@ -322,6 +325,7 @@ void jit_runtime_back_jump(frame *f)
     a_2 = a;
     for (;;) {
         stat_entries = stat_entries + 1;
+        switches = stat_process_switches;
         if (((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) && ({
     c_2 = f_2->code;
     !((c_2 > JIT_MAX_COUNT) && (((jit_method *)f_2->code)->mode == JIT_OPT)); })) {
@@ -334,7 +338,7 @@ void jit_runtime_back_jump(frame *f)
         r = ((int64_t (*)(frame *, uint64_t))bl_enter)(f_2, a_2);
         if (r == 0) {
             stat_exits = stat_exits + 1;
-            if (!bottom_returned) {
+            if (!(bottom_returned || ((nframes == 0) && (stat_process_switches != switches)))) {
                 goto exit_run;
             }
             bottom_returned = false;
@@ -2462,6 +2466,7 @@ void jit_runtime_resume(frame *f)
     uint64_t a;
     frame *f_2;
     uint64_t a_2;
+    uint64_t switches;
     uint64_t c;
     int64_t r;
     frame *g;
@@ -2480,6 +2485,7 @@ void jit_runtime_resume(frame *f)
     a_2 = a;
     for (;;) {
         stat_entries = stat_entries + 1;
+        switches = stat_process_switches;
         if (((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) && ({
     c = f_2->code;
     !((c > JIT_MAX_COUNT) && (((jit_method *)f_2->code)->mode == JIT_OPT)); })) {
@@ -2492,7 +2498,7 @@ void jit_runtime_resume(frame *f)
         r = ((int64_t (*)(frame *, uint64_t))bl_enter)(f_2, a_2);
         if (r == 0) {
             stat_exits = stat_exits + 1;
-            if (!bottom_returned) {
+            if (!(bottom_returned || ((nframes == 0) && (stat_process_switches != switches)))) {
                 goto exit_run;
             }
             bottom_returned = false;
@@ -2533,6 +2539,7 @@ void resume_context(bool looping)
     uint64_t a;
     frame *f;
     uint64_t a_2;
+    uint64_t switches;
     uint64_t c;
     int64_t r;
     frame *g;
@@ -2555,6 +2562,7 @@ void resume_context(bool looping)
     a_2 = a;
     for (;;) {
         stat_entries = stat_entries + 1;
+        switches = stat_process_switches;
         if (((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) && ({
     c = f->code;
     !((c > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)); })) {
@@ -2567,7 +2575,7 @@ void resume_context(bool looping)
         r = ((int64_t (*)(frame *, uint64_t))bl_enter)(f, a_2);
         if (r == 0) {
             stat_exits = stat_exits + 1;
-            if (!bottom_returned) {
+            if (!(bottom_returned || ((nframes == 0) && (stat_process_switches != switches)))) {
                 goto exit_run;
             }
             bottom_returned = false;
