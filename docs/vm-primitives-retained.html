@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retained VM primitives · Samaltak</title>
+<style>
+  :root {
+    color-scheme: light;
+    --paper: #f3f6f7; --card: #fff; --ink: #172e3b; --muted: #435a67;
+    --line: #cedbe0; --accent: #005c50; --accent-soft: #dbefe9;
+    --policy: #653d08; --policy-soft: #fff0cf;
+    font: 100%/1.5 system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: var(--ink); background: var(--paper); }
+  [hidden] { display: none !important; }
+  .wrap { width: min(100% - 2rem, 74rem); margin-inline: auto; }
+  a { color: var(--accent); text-underline-offset: .18em; }
+  :focus-visible { outline: 3px solid #2662ae; outline-offset: 3px; }
+  .skip {
+    position: absolute; left: 1rem; top: 1rem; padding: .5rem 1rem;
+    background: var(--card); transform: translateY(-200%);
+  }
+  .skip:focus { transform: none; }
+  .hero {
+    background: #18313e; color: #f3fafb; padding: clamp(1.25rem, 4vw, 3rem) 0;
+    border-bottom: .3rem solid #278575;
+  }
+  .eyebrow {
+    color: #abe5d4; text-transform: uppercase; letter-spacing: .13em;
+    font-size: .8rem; font-weight: 750; margin: 0;
+  }
+  h1 { font-size: clamp(1.9rem, 6vw, 3.6rem); line-height: 1.05; margin: .28em 0; }
+  .hero .intro { max-width: 67ch; margin: .65rem 0 1rem; color: #e0edf1; }
+  .summary, .jump ol { display: flex; flex-wrap: wrap; gap: .42rem; margin: 0; padding: 0; list-style: none; }
+  .summary li { border: 1px solid #7497a1; border-radius: .35rem; padding: .14rem .55rem; }
+  .summary strong { font-variant-numeric: tabular-nums; }
+  main { padding-block: 1.3rem 2rem; }
+  .guide, .filters, .group { background: var(--card); border: 1px solid var(--line); border-radius: .65rem; }
+  .guide, .filters { padding: .85rem 1rem; margin-bottom: 1rem; }
+  .guide h2, .jump h2 { font-size: 1rem; margin: 0; }
+  .guide p { margin: .38rem 0; }
+  .guide .scope, .group p, .status, .filter-help, footer { color: var(--muted); }
+  .badge {
+    background: var(--accent-soft); color: var(--accent); border-radius: .25rem;
+    display: inline-block; padding: 0 .4em; font-size: .82em; font-weight: 720;
+  }
+  .badge.policy { background: var(--policy-soft); color: var(--policy); }
+  .jump { margin: 1rem 0 1.2rem; }
+  .jump ol { margin-top: .4rem; }
+  .jump a {
+    display: block; border: 1px solid var(--line); border-radius: .35rem;
+    background: var(--card); padding: .28rem .55rem; font-size: .88rem;
+  }
+  .jump a:hover { background: var(--accent-soft); }
+  .controls { display: flex; flex-wrap: wrap; gap: .6rem; align-items: end; }
+  .controls label { display: grid; gap: .18rem; font-weight: 650; font-size: .9rem; }
+  .controls label:first-child { flex: 1 1 16rem; min-width: 0; }
+  input, select, button {
+    max-width: 100%; min-width: 0; min-height: 2.45rem; border: 1px solid #667f8a;
+    border-radius: .3rem; padding: .36rem .58rem; font: inherit; background: #fff; color: var(--ink);
+  }
+  button { cursor: pointer; background: var(--paper); }
+  button:hover { background: var(--accent-soft); }
+  .filter-help, .status { margin: .4rem 0 0; font-size: .87rem; }
+  .status { font-weight: 650; }
+  .group { margin: 0 0 1rem; scroll-margin-top: .8rem; }
+  .group header { padding: .65rem .85rem .54rem; }
+  .group h2 { font-size: clamp(1.03rem, 2vw, 1.32rem); margin: 0; line-height: 1.35; }
+  .group p { margin: .26rem 0 0; font-size: .9rem; }
+  .group-count { color: var(--muted); font-size: .82em; font-weight: 500; white-space: nowrap; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: .92rem; }
+  .primitive-col { width: clamp(8rem, 29%, 18rem); }
+  thead { background: #e8eff2; }
+  th, td { text-align: left; vertical-align: top; padding: .32rem .85rem; border-top: 1px solid var(--line); }
+  th[scope=row] { overflow-wrap: anywhere; }
+  tbody tr:nth-child(even) { background: #f6f9fa; }
+  tbody tr:target { background: #fff0cf; outline: 2px solid #98601b; outline-offset: -2px; }
+  code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .92em; }
+  .num { color: var(--muted); font-size: .85em; font-weight: 620; font-variant-numeric: tabular-nums; }
+  td .badge { margin-right: .35em; }
+  footer { font-size: .88rem; margin-top: 1.25rem; }
+  @media (max-width: 38rem) {
+    .wrap { width: calc(100% - 1rem); }
+    th, td { padding-inline: .5rem; }
+    .num { display: block; }
+  }
+  @media print {
+    @page { margin: 12mm; }
+    body, .hero, .guide, .group, thead, tbody tr:nth-child(even) { background: #fff; color: #000; }
+    .eyebrow, .hero .intro, .badge, .badge.policy, a { color: #000; }
+    .badge, .badge.policy { background: none; border: 1px solid #888; }
+    .wrap { width: auto; }
+    .hero, main { padding: 0; }
+    .hero { border: 0; margin-bottom: 8pt; }
+    h1 { font-size: 23pt; }
+    .summary li { border: 0; padding-left: 0; }
+    .skip, .filters, .jump { display: none !important; }
+    .group[hidden] { display: block !important; }
+    .entry[hidden] { display: table-row !important; }
+    .guide, .group { border: 0; padding: 0; margin-bottom: 8pt; }
+    .group header { padding: 4pt 0; break-after: avoid; }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; }
+    table { font-size: 9pt; }
+    th, td { padding: 2pt 4pt; }
+    .primitive-col { width: 31%; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#catalog">Skip to catalog</a>
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Samaltak · VM reference</p>
+    <h1>Retained VM primitives</h1>
+    <p class="intro">Every numbered slot marked <strong>Keep</strong> in the FFI primitive audit, with its registered name and the reason it stays a primitive.</p>
+    <ul class="summary" aria-label="Catalog totals">
+      <li><strong id="total">160</strong> retained IDs</li>
+      <li><strong id="family-total">12</strong> families</li>
+      <li><strong id="necessity-total">154</strong> necessity</li>
+      <li><strong id="policy-total">6</strong> policy</li>
+    </ul>
+  </div>
+</header>
+<main id="catalog" class="wrap" tabindex="-1">
+  <aside class="guide" aria-labelledby="reading-title">
+    <h2 id="reading-title">How to read this catalog</h2>
+    <p><span class="badge">Necessity</span> The current contract needs VM state, image semantics or a target-specific service; an ordinary approved native call alone would not preserve it.</p>
+    <p><span class="badge policy">Policy</span> A dedicated native interface could be designed, but migration is not justified or would change the authority boundary. The tags classify retention here, not what could ever be implemented.</p>
+    <p class="scope">Scope: the <a href="ffi-primitive-audit.md#dispositions">audit’s Keep dispositions</a>, joined by ID to the <a href="../vm/gen/primitive_entries.c">generated registry</a>. This is not the full registry or a removal list: numbered slots outside Keep can still serve as compatibility paths. Registration does not guarantee implementation on every target.</p>
+  </aside>
+  <form id="filters" class="filters" role="search" aria-label="Filter retained primitives" hidden>
+    <div class="controls">
+      <label for="query">Search the catalog
+        <input type="search" id="query" aria-describedby="filter-help" autocomplete="off">
+      </label>
+      <label for="reason-filter">Retention basis
+        <select id="reason-filter">
+          <option value="">All reasons</option>
+          <option value="necessity">Necessity</option>
+          <option value="policy">Policy</option>
+        </select>
+      </label>
+      <button type="reset">Clear filters</button>
+    </div>
+    <p id="filter-help" class="filter-help">Match an exact ID or search by name, family or reason. Print always includes the full catalog.</p>
+    <p id="status" class="status" role="status"></p>
+  </form>
+  <noscript><p>All entries are shown. Use your browser’s Find command to search.</p></noscript>
+  <nav class="jump" aria-labelledby="jump-title">
+    <h2 id="jump-title">Jump to a family</h2>
+    <ol>
+      <li><a href="#smallinteger">SmallInteger arithmetic</a></li>
+      <li><a href="#float">Float arithmetic &amp; bit representation</a></li>
+      <li><a href="#objects">Objects, identity &amp; reflection</a></li>
+      <li><a href="#strings-bytes">String &amp; byte storage</a></li>
+      <li><a href="#execution">Execution, scheduling &amp; unwinding</a></li>
+      <li><a href="#clocks">Scheduler &amp; work clocks</a></li>
+      <li><a href="#vm-lifecycle">VM lifecycle, GC &amp; JIT</a></li>
+      <li><a href="#guest-display">Simulator guest display</a></li>
+      <li><a href="#platform-display">Platform input, vsync &amp; GPU</a></li>
+      <li><a href="#machine-raster">Machine &amp; software raster</a></li>
+      <li><a href="#host-process">Hosted process control</a></li>
+      <li><a href="#raw-nic">Raw network interface</a></li>
+    </ol>
+  </nav>
+  <section class="group" id="smallinteger" aria-labelledby="smallinteger-title">
+    <header>
+      <h2 id="smallinteger-title">SmallInteger arithmetic <span class="group-count">· 19</span></h2>
+      <p>These entries use tagged SmallInteger operands. A failed tag or range check transfers control to the Smalltalk fallback.</p>
+    </header>
+    <table aria-labelledby="smallinteger-title">
+      <colgroup><col class="primitive-col"><col></colgroup>
+      <thead><tr><th scope="col">ID / Registered name</th><th scope="col">Why it stays</th></tr></thead>
+      <tbody>
+        <tr class="entry" id="p-1" data-basis="necessity"><th scope="row"><span class="num">1</span> <code>intAdd</code></th><td><span class="badge necessity">Necessity</span> Adds two SmallIntegers; a sum outside the tagged range must fail so the image can promote it.</td></tr>
+        <tr class="entry" id="p-2" data-basis="necessity"><th scope="row"><span class="num">2</span> <code>intSub</code></th><td><span class="badge necessity">Necessity</span> Subtracts two SmallIntegers; a difference outside the tagged range takes the image fallback.</td></tr>
+        <tr class="entry" id="p-3" data-basis="necessity"><th scope="row"><span class="num">3</span> <code>intLess</code></th><td><span class="badge necessity">Necessity</span> Tests signed less-than on two SmallIntegers and returns the image Boolean; other operand types fall back.</td></tr>
+        <tr class="entry" id="p-4" data-basis="necessity"><th scope="row"><span class="num">4</span> <code>intGreater</code></th><td><span class="badge necessity">Necessity</span> Tests signed greater-than on two SmallIntegers and returns the image Boolean; other operand types fall back.</td></tr>
+        <tr class="entry" id="p-5" data-basis="necessity"><th scope="row"><span class="num">5</span> <code>intLessEq</code></th><td><span class="badge necessity">Necessity</span> Tests signed less-than-or-equal, including the equal case; both operands must have the SmallInteger tag.</td></tr>
+        <tr class="entry" id="p-6" data-basis="necessity"><th scope="row"><span class="num">6</span> <code>intGreaterEq</code></th><td><span class="badge necessity">Necessity</span> Tests signed greater-than-or-equal, including the equal case; both operands must have the SmallInteger tag.</td></tr>
+        <tr class="entry" id="p-7" data-basis="necessity"><th scope="row"><span class="num">7</span> <code>intEq</code></th><td><span class="badge necessity">Necessity</span> Tests numeric equality on two SmallIntegers; mixed representations go to image dispatch, not a native false result.</td></tr>
+        <tr class="entry" id="p-8" data-basis="necessity"><th scope="row"><span class="num">8</span> <code>intNotEq</code></th><td><span class="badge necessity">Necessity</span> Tests numeric inequality on two SmallIntegers; a non-SmallInteger operand fails rather than implying inequality.</td></tr>
+        <tr class="entry" id="p-9" data-basis="necessity"><th scope="row"><span class="num">9</span> <code>intMul</code></th><td><span class="badge necessity">Necessity</span> Checks multiplication overflow as well as the tagged result range before returning a SmallInteger.</td></tr>
+        <tr class="entry" id="p-10" data-basis="necessity"><th scope="row"><span class="num">10</span> <code>intDiv</code></th><td><span class="badge necessity">Necessity</span> Returns a tagged quotient only for exact division; zero divisors and fractional results take the fallback.</td></tr>
+        <tr class="entry" id="p-11" data-basis="necessity"><th scope="row"><span class="num">11</span> <code>intMod</code></th><td><span class="badge necessity">Necessity</span> Returns the floor remainder with the divisor’s sign when nonzero, not C’s truncating remainder.</td></tr>
+        <tr class="entry" id="p-12" data-basis="necessity"><th scope="row"><span class="num">12</span> <code>intFloorDiv</code></th><td><span class="badge necessity">Necessity</span> Rounds the quotient toward negative infinity, adjusting a nonexact truncating quotient across opposite signs.</td></tr>
+        <tr class="entry" id="p-13" data-basis="necessity"><th scope="row"><span class="num">13</span> <code>intQuo</code></th><td><span class="badge necessity">Necessity</span> Returns the quotient truncated toward zero, failing on zero divisor or a result outside the tagged range.</td></tr>
+        <tr class="entry" id="p-14" data-basis="necessity"><th scope="row"><span class="num">14</span> <code>intBitAnd</code></th><td><span class="badge necessity">Necessity</span> Applies AND to the signed payloads, not the tagged object words, and re-encodes the result.</td></tr>
+        <tr class="entry" id="p-15" data-basis="necessity"><th scope="row"><span class="num">15</span> <code>intBitOr</code></th><td><span class="badge necessity">Necessity</span> Applies OR to the signed payloads and returns a tagged SmallInteger without mixing in tag bits.</td></tr>
+        <tr class="entry" id="p-16" data-basis="necessity"><th scope="row"><span class="num">16</span> <code>intBitXor</code></th><td><span class="badge necessity">Necessity</span> Applies XOR to the signed payloads and restores the tag even when their XOR is zero.</td></tr>
+        <tr class="entry" id="p-17" data-basis="necessity"><th scope="row"><span class="num">17</span> <code>intBitShift</code></th><td><span class="badge necessity">Necessity</span> Oversized left shifts of nonzero values fail; very large right shifts saturate to 0 or −1 by sign.</td></tr>
+        <tr class="entry" id="p-18" data-basis="necessity"><th scope="row"><span class="num">18</span> <code>intRem</code></th><td><span class="badge necessity">Necessity</span> Returns the truncating remainder with the dividend’s sign when nonzero; fails on division by zero.</td></tr>
+        <tr class="entry" id="p-19" data-basis="necessity"><th scope="row"><span class="num">19</span> <code>intAsFloat</code></th><td><span class="badge necessity">Necessity</span> Decodes a tagged SmallInteger and constructs the VM’s immediate or boxed Float result.</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="group" id="float" aria-labelledby="float-title">
+    <header>
+      <h2 id="float-title">Float arithmetic &amp; bit representation <span class="group-count">· 14</span></h2>
+      <p>The arithmetic entries accept both Float representations; binary operations also accept SmallInteger arguments.</p>
+    </header>
+    <table aria-labelledby="float-title">
+      <colgroup><col class="primitive-col"><col></colgroup>
+      <thead><tr><th scope="col">ID / Registered name</th><th scope="col">Why it stays</th></tr></thead>
+      <tbody>
+        <tr class="entry" id="p-41" data-basis="necessity"><th scope="row"><span class="num">41</span> <code>floatAdd</code></th><td><span class="badge necessity">Necessity</span> Adds the decoded values, including a converted SmallInteger addend, and constructs the VM Float result.</td></tr>
+        <tr class="entry" id="p-42" data-basis="necessity"><th scope="row"><span class="num">42</span> <code>floatSub</code></th><td><span class="badge necessity">Necessity</span> Subtracts the decoded argument from the receiver in that order, then returns an immediate or boxed Float.</td></tr>
+        <tr class="entry" id="p-43" data-basis="necessity"><th scope="row"><span class="num">43</span> <code>floatLess</code></th><td><span class="badge necessity">Necessity</span> Uses ordered IEEE less-than, false for a NaN operand, and answers the image Boolean.</td></tr>
+        <tr class="entry" id="p-44" data-basis="necessity"><th scope="row"><span class="num">44</span> <code>floatGreater</code></th><td><span class="badge necessity">Necessity</span> Uses ordered IEEE greater-than, false for a NaN operand, and answers the image Boolean.</td></tr>
+        <tr class="entry" id="p-45" data-basis="necessity"><th scope="row"><span class="num">45</span> <code>floatLessEq</code></th><td><span class="badge necessity">Necessity</span> Uses IEEE less-than-or-equal, including equal signed zeros but excluding NaNs; returns an image Boolean.</td></tr>
+        <tr class="entry" id="p-46" data-basis="necessity"><th scope="row"><span class="num">46</span> <code>floatGreaterEq</code></th><td><span class="badge necessity">Necessity</span> Uses IEEE greater-than-or-equal, including equal signed zeros but excluding NaNs; returns an image Boolean.</td></tr>
+        <tr class="entry" id="p-47" data-basis="necessity"><th scope="row"><span class="num">47</span> <code>floatEq</code></th><td><span class="badge necessity">Necessity</span> Uses IEEE numeric equality, not object identity or bit equality; NaN is unequal and signed zeros compare equal.</td></tr>
+        <tr class="entry" id="p-48" data-basis="necessity"><th scope="row"><span class="num">48</span> <code>floatNotEq</code></th><td><span class="badge necessity">Necessity</span> Uses IEEE numeric inequality, true for NaN, rather than testing whether both Floats have distinct encodings.</td></tr>
+        <tr class="entry" id="p-49" data-basis="necessity"><th scope="row"><span class="num">49</span> <code>floatMul</code></th><td><span class="badge necessity">Necessity</span> Multiplies decoded Float or SmallInteger values as doubles and represents the product as a VM Float.</td></tr>
+        <tr class="entry" id="p-50" data-basis="necessity"><th scope="row"><span class="num">50</span> <code>floatDiv</code></th><td><span class="badge necessity">Necessity</span> Fails on either signed zero as divisor instead of returning the native IEEE division result.</td></tr>
+        <tr class="entry" id="p-51" data-basis="necessity"><th scope="row"><span class="num">51</span> <code>floatTruncated</code></th><td><span class="badge necessity">Necessity</span> Truncates toward zero and returns a SmallInteger only in [−2⁶², 2⁶²); nonfinite or out-of-range results fail.</td></tr>
+        <tr class="entry" id="p-62" data-basis="necessity"><th scope="row"><span class="num">62</span> <code>floatAsIEEEBits</code></th><td><span class="badge necessity">Necessity</span> Returns the raw IEEE bits as an unsigned Integer, allocating a LargePositiveInteger when the tag cannot hold them.</td></tr>
+        <tr class="entry" id="p-63" data-basis="necessity"><th scope="row"><span class="num">63</span> <code>floatFromIEEEBits</code></th><td><span class="badge necessity">Necessity</span> Checks an unsigned 64-bit Integer, including a fitting LargePositiveInteger, and interprets its bits as a Float.</td></tr>
+        <tr class="entry" id="p-65" data-basis="necessity"><th scope="row"><span class="num">65</span> <code>floatHash</code></th><td><span class="badge necessity">Necessity</span> Fails for integral Floats to share Integer hashing; uses fixed nonfinite hashes and mixes bits for other values.</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="group" id="objects" aria-labelledby="objects-title">
+    <header>
+      <h2 id="objects-title">Objects, identity &amp; reflection <span class="group-count">· 24</span></h2>
+    </header>
+    <table aria-labelledby="objects-title">
+      <colgroup><col class="primitive-col"><col></colgroup>
+      <thead><tr><th scope="col">ID / Registered name</th><th scope="col">Why it stays</th></tr></thead>
+      <tbody>
+        <tr class="entry" id="p-70" data-basis="necessity"><th scope="row"><span class="num">70</span> <code>basicNew</code></th><td><span class="badge necessity">Necessity</span> Allocates an instance with no indexed elements using the receiver class’s heap format and initialization rules.</td></tr>
+        <tr class="entry" id="p-71" data-basis="necessity"><th scope="row"><span class="num">71</span> <code>basicNew:</code></th><td><span class="badge necessity">Necessity</span> Allocates a sized instance using the class layout; impossible positive sizes must report no memory, not wrap.</td></tr>
+        <tr class="entry" id="p-72" data-basis="necessity"><th scope="row"><span class="num">72</span> <code>basicSize</code></th><td><span class="badge necessity">Necessity</span> Returns only the indexable portion of the object, excluding fixed fields and accounting for its storage format.</td></tr>
+        <tr class="entry" id="p-73" data-basis="necessity"><th scope="row"><span class="num">73</span> <code>at</code></th><td><span class="badge necessity">Necessity</span> Reads a checked 1-based indexed slot; a married Context’s value may come from its live frame.</td></tr>
+        <tr class="entry" id="p-74" data-basis="necessity"><th scope="row"><span class="num">74</span> <code>atPut</code></th><td><span class="badge necessity">Necessity</span> Checks bounds and immutability, updates live Context slots when needed and uses GC barriers for reference writes.</td></tr>
+        <tr class="entry" id="p-75" data-basis="necessity"><th scope="row"><span class="num">75</span> <code>instVarAt</code></th><td><span class="badge necessity">Necessity</span> Reads a checked reference slot, resolving a married Context’s sender, PC or stack data from its frame.</td></tr>
+        <tr class="entry" id="p-76" data-basis="necessity"><th scope="row"><span class="num">76</span> <code>instVarAtPut</code></th><td><span class="badge necessity">Necessity</span> Writes a live Context slot or materializes frames before changing fixed fields; heap reference writes need a barrier.</td></tr>
+        <tr class="entry" id="p-77" data-basis="necessity"><th scope="row"><span class="num">77</span> <code>identityHash</code></th><td><span class="badge necessity">Necessity</span> Uses a heap object’s header hash but derives hashes from the payload or encoding for immediate values.</td></tr>
+        <tr class="entry" id="p-78" data-basis="necessity"><th scope="row"><span class="num">78</span> <code>class</code></th><td><span class="badge necessity">Necessity</span> Resolves the class from an immediate tag or a heap object’s class reference.</td></tr>
+        <tr class="entry" id="p-79" data-basis="necessity"><th scope="row"><span class="num">79</span> <code>identical</code></th><td><span class="badge necessity">Necessity</span> Compares VM object references for identity, not numeric equality or structural equality.</td></tr>
+        <tr class="entry" id="p-80" data-basis="necessity"><th scope="row"><span class="num">80</span> <code>shallowCopy</code></th><td><span class="badge necessity">Necessity</span> Allocates a same-format copy and remembers old reference copies for GC; married Contexts fall back to image code.</td></tr>
+        <tr class="entry" id="p-81" data-basis="necessity"><th scope="row"><span class="num">81</span> <code>perform</code></th><td><span class="badge necessity">Necessity</span> Checks selector arity, rewrites the active operand stack and resends through interpreter dispatch.</td></tr>
+        <tr class="entry" id="p-82" data-basis="necessity"><th scope="row"><span class="num">82</span> <code>performWithArguments</code></th><td><span class="badge necessity">Necessity</span> Expands an exact Array onto the active operand stack after checking selector arity and stack capacity.</td></tr>
+        <tr class="entry" id="p-83" data-basis="necessity"><th scope="row"><span class="num">83</span> <code>isImmutable</code></th><td><span class="badge necessity">Necessity</span> Treats immediates as inherently immutable and consults the object header for heap objects.</td></tr>
+        <tr class="entry" id="p-84" data-basis="necessity"><th scope="row"><span class="num">84</span> <code>setImmutable:</code></th><td><span class="badge necessity">Necessity</span> Updates the immutability header bit, returns its old value and invalidates native weak owners when clearing it.</td></tr>
+        <tr class="entry" id="p-85" data-basis="necessity"><th scope="row"><span class="num">85</span> <code>changeClassTo:</code></th><td><span class="badge necessity">Necessity</span> Checks layout compatibility, materializes live Contexts if needed and updates class metadata with GC/JIT bookkeeping.</td></tr>
+        <tr class="entry" id="p-86" data-basis="necessity"><th scope="row"><span class="num">86</span> <code>allInstances</code></th><td><span class="badge necessity">Necessity</span> Runs a full collection, then walks the live heap to build an Array of instances of the exact class.</td></tr>
+        <tr class="entry" id="p-87" data-basis="necessity"><th scope="row"><span class="num">87</span> <code>tryPrimitiveWithArgs</code></th><td><span class="badge necessity">Necessity</span> Looks up a tryable numbered primitive, stages a live call frame and converts unsuccessful completion to the failure marker.</td></tr>
+        <tr class="entry" id="p-88" data-basis="necessity"><th scope="row"><span class="num">88</span> <code>becomeForward</code></th><td><span class="badge necessity">Necessity</span> Flushes a married Context when needed and asks the collector to forward references to the replacement object.</td></tr>
+        <tr class="entry" id="p-89" data-basis="necessity"><th scope="row"><span class="num">89</span> <code>specialObjectsArray</code></th><td><span class="badge necessity">Necessity</span> Returns the live special-objects root Array that the VM uses for classes, selectors and other well-known objects.</td></tr>
+        <tr class="entry" id="p-90" data-basis="necessity"><th scope="row"><span class="num">90</span> <code>charValue</code></th><td><span class="badge necessity">Necessity</span> Checks the immediate Character tag and returns its decoded value as a SmallInteger.</td></tr>
+        <tr class="entry" id="p-91" data-basis="necessity"><th scope="row"><span class="num">91</span> <code>charFromValue</code></th><td><span class="badge necessity">Necessity</span> Checks the SmallInteger against the VM Character range and encodes an immediate Character.</td></tr>
+        <tr class="entry" id="p-92" data-basis="necessity"><th scope="row"><span class="num">92</span> <code>stringAsUppercase</code></th><td><span class="badge necessity">Necessity</span> Allocates a ByteString from a ByteString or ByteSymbol; fails on ÿ so the wide uppercase fallback can run.</td></tr>
+        <tr class="entry" id="p-93" data-basis="necessity"><th scope="row"><span class="num">93</span> <code>stringAsLowercase</code></th><td><span class="badge necessity">Necessity</span> Allocates a ByteString using the image’s Latin-1 lowercase mapping, leaving the multiplication sign unchanged.</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="group" id="strings-bytes" aria-labelledby="strings-bytes-title">
+    <header>
+      <h2 id="strings-bytes-title">String &amp; byte storage <span class="group-count">· 19</span></h2>
+    </header>
+    <table aria-labelledby="strings-bytes-title">
+      <colgroup><col class="primitive-col"><col></colgroup>
+      <thead><tr><th scope="col">ID / Registered name</th><th scope="col">Why it stays</th></tr></thead>
+      <tbody>
+        <tr class="entry" id="p-100" data-basis="necessity"><th scope="row"><span class="num">100</span> <code>stringAt</code></th><td><span class="badge necessity">Necessity</span> Checks a 1-based character index in byte or wide storage and returns a tagged Character.</td></tr>
+        <tr class="entry" id="p-101" data-basis="necessity"><th scope="row"><span class="num">101</span> <code>stringAtPut</code></th><td><span class="badge necessity">Necessity</span> Requires mutable storage and a Character; rejects values above 255 for byte storage without affecting wide writes.</td></tr>
+        <tr class="entry" id="p-102" data-basis="necessity"><th scope="row"><span class="num">102</span> <code>stringHash</code></th><td><span class="badge necessity">Necessity</span> Uses the VM’s character-content hash for byte and wide storage rather than hashing their physical byte layouts.</td></tr>
+        <tr class="entry" id="p-103" data-basis="necessity"><th scope="row"><span class="num">103</span> <code>stringCompare</code></th><td><span class="badge necessity">Necessity</span> Compares decoded characters across byte and wide String/Symbol layouts and breaks equal prefixes by length.</td></tr>
+        <tr class="entry" id="p-104" data-basis="necessity"><th scope="row"><span class="num">104</span> <code>replaceFromToWithStartingAt</code></th><td><span class="badge necessity">Necessity</span> Checks compatible layouts and bounds for overlapping copies, remembers reference writes and defers live Context slots to fallback.</td></tr>
+        <tr class="entry" id="p-105" data-basis="necessity"><th scope="row"><span class="num">105</span> <code>bytesUint16At</code></th><td><span class="badge necessity">Necessity</span> Reads an unsigned little-endian 16-bit value at a checked 1-based offset into the object payload.</td></tr>
+        <tr class="entry" id="p-106" data-basis="necessity"><th scope="row"><span class="num">106</span> <code>bytesUint32At</code></th><td><span class="badge necessity">Necessity</span> Reads a little-endian 32-bit word as an unsigned SmallInteger, including values above signed 32-bit range.</td></tr>
+        <tr class="entry" id="p-107" data-basis="necessity"><th scope="row"><span class="num">107</span> <code>bytesInt16At</code></th><td><span class="badge necessity">Necessity</span> Reads a checked little-endian 16-bit field and sign-extends it into a SmallInteger.</td></tr>
+        <tr class="entry" id="p-108" data-basis="necessity"><th scope="row"><span class="num">108</span> <code>bytesFloat32At</code></th><td><span class="badge necessity">Necessity</span> Reads four bytes of a non-pointer payload as little-endian binary32 and returns a VM Float.</td></tr>
+        <tr class="entry" id="p-109" data-basis="necessity"><th scope="row"><span class="num">109</span> <code>bytesFloat32AtPut</code></th><td><span class="badge necessity">Necessity</span> Checks a mutable four-byte span, converts a Float or SmallInteger to binary32 and returns the original value.</td></tr>
+        <tr class="entry" id="p-110" data-basis="necessity"><th scope="row"><span class="num">110</span> <code>bytesUint32AtPut</code></th><td><span class="badge necessity">Necessity</span> Checks a mutable four-byte span and the unsigned 32-bit SmallInteger range before storing little-endian bytes.</td></tr>
+        <tr class="entry" id="p-111" data-basis="necessity"><th scope="row"><span class="num">111</span> <code>bytesFloat64At</code></th><td><span class="badge necessity">Necessity</span> Reads a checked eight-byte binary64 field and converts it to the VM’s Float representation.</td></tr>
+        <tr class="entry" id="p-112" data-basis="necessity"><th scope="row"><span class="num">112</span> <code>bytesFloat64AtPut</code></th><td><span class="badge necessity">Necessity</span> Writes little-endian binary64 only to a checked, mutable eight-byte span and returns the Float or SmallInteger argument.</td></tr>
+        <tr class="entry" id="p-113" data-basis="necessity"><th scope="row"><span class="num">113</span> <code>bytesUint16BigEndianAt</code></th><td><span class="badge necessity">Necessity</span> Assembles two object bytes high-first as an unsigned SmallInteger after checking both bytes fit.</td></tr>
+        <tr class="entry" id="p-114" data-basis="necessity"><th scope="row"><span class="num">114</span> <code>bytesInt16BigEndianAt</code></th><td><span class="badge necessity">Necessity</span> Assembles two object bytes high-first, then sign-extends bit 15 into the tagged result.</td></tr>
+        <tr class="entry" id="p-115" data-basis="necessity"><th scope="row"><span class="num">115</span> <code>bytesUint32BigEndianAt</code></th><td><span class="badge necessity">Necessity</span> Assembles four object bytes high-first and returns an unsigned SmallInteger after a full-span bounds check.</td></tr>
+        <tr class="entry" id="p-116" data-basis="necessity"><th scope="row"><span class="num">116</span> <code>stringCaseInsensitiveCompare</code></th><td><span class="badge necessity">Necessity</span> Uses Latin-1 case folding for ByteStrings and ByteSymbols, with wide strings taking the image fallback.</td></tr>
+        <tr class="entry" id="p-117" data-basis="necessity"><th scope="row"><span class="num">117</span> <code>stringIndexOf</code></th><td><span class="badge necessity">Necessity</span> Finds a Character in byte or wide storage from a 1-based start; returns 0 when not found.</td></tr>
+        <tr class="entry" id="p-118" data-basis="necessity"><th scope="row"><span class="num">118</span> <code>stringIndexOfSubstring</code></th><td><span class="badge necessity">Necessity</span> Searches across matching or mixed string layouts; an empty needle returns the supplied start, not 0.</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="group" id="execution" aria-labelledby="execution-title">
+    <header>
+      <h2 id="execution-title">Execution, scheduling &amp; unwinding <span class="group-count">· 24</span></h2>
+    </header>
+    <table aria-labelledby="execution-title">
+      <colgroup><col class="primitive-col"><col></colgroup>
+      <thead><tr><th scope="col">ID / Registered name</th><th scope="col">Why it stays</th></tr></thead>
+      <tbody>
+        <tr class="entry" id="p-120" data-basis="necessity"><th scope="row"><span class="num">120</span> <code>closureValue</code></th><td><span class="badge necessity">Necessity</span> Checks a closure’s arity and activates it on the interpreter stack, switching execution rather than returning a scalar.</td></tr>
+        <tr class="entry" id="p-121" data-basis="necessity"><th scope="row"><span class="num">121</span> <code>closureValueWithArguments</code></th><td><span class="badge necessity">Necessity</span> Checks the exact Array and closure arity, then activates the closure with the Array’s elements in its frame.</td></tr>
+        <tr class="entry" id="p-130" data-basis="necessity"><th scope="row"><span class="num">130</span> <code>processResume</code></th><td><span class="badge necessity">Necessity</span> Commits the call before making a suspended, unqueued Process runnable through the VM scheduler.</td></tr>
+        <tr class="entry" id="p-131" data-basis="necessity"><th scope="row"><span class="num">131</span> <code>processSuspend</code></th><td><span class="badge necessity">Necessity</span> Suspends the active Process or unlinks an inactive one from its scheduler list and returns that list.</td></tr>
+        <tr class="entry" id="p-132" data-basis="necessity"><th scope="row"><span class="num">132</span> <code>processorYield</code></th><td><span class="badge necessity">Necessity</span> Commits the receiver and yields the active Smalltalk Process through the scheduler, not the host thread.</td></tr>
+        <tr class="entry" id="p-133" data-basis="necessity"><th scope="row"><span class="num">133</span> <code>semaphoreSignal</code></th><td><span class="badge necessity">Necessity</span> Signals a Smalltalk semaphore through the scheduler, waking a waiting Process or recording excess signals.</td></tr>
+        <tr class="entry" id="p-134" data-basis="necessity"><th scope="row"><span class="num">134</span> <code>semaphoreWait</code></th><td><span class="badge necessity">Necessity</span> Consumes a Smalltalk semaphore signal or queues and suspends the active Process after committing the primitive.</td></tr>
+        <tr class="entry" id="p-135" data-basis="necessity"><th scope="row"><span class="num">135</span> <code>processorLastPreempted</code></th><td><span class="badge necessity">Necessity</span> Returns the scheduler’s actual last-preempted Process object for profiling.</td></tr>
+        <tr class="entry" id="p-136" data-basis="necessity"><th scope="row"><span class="num">136</span> <code>processorRelinquish</code></th><td><span class="badge necessity">Necessity</span> Hands a microsecond idle budget to the VM scheduler rather than sleeping independently of its timers and events.</td></tr>
+        <tr class="entry" id="p-137" data-basis="necessity"><th scope="row"><span class="num">137</span> <code>signalAtMilliseconds</code></th><td><span class="badge necessity">Necessity</span> Sets or clears the timer semaphore in the special objects, updates the scheduler deadline and requests an interrupt check.</td></tr>
+        <tr class="entry" id="p-138" data-basis="necessity"><th scope="row"><span class="num">138</span> <code>samplerInterval</code></th><td><span class="badge necessity">Necessity</span> Configures the scheduler’s CPU sampling interval and notification index; nonpositive intervals disable sampling.</td></tr>
+        <tr class="entry" id="p-139" data-basis="necessity"><th scope="row"><span class="num">139</span> <code>allocationSampling</code></th><td><span class="badge necessity">Necessity</span> Changes the VM allocation countdown and notification index, clears unread state and resets the allocator limit.</td></tr>
+        <tr class="entry" id="p-140" data-basis="necessity"><th scope="row"><span class="num">140</span> <code>allocationSampleInfo</code></th><td><span class="badge necessity">Necessity</span> Returns the sampled heap class and allocation size as an image Array, without consuming the sample.</td></tr>
+        <tr class="entry" id="p-141" data-basis="necessity"><th scope="row"><span class="num">141</span> <code>processCpuTime</code></th><td><span class="badge necessity">Necessity</span> Settles scheduler CPU charges for one Smalltalk Process; an OS thread clock would combine multiple Processes.</td></tr>
+        <tr class="entry" id="p-142" data-basis="necessity"><th scope="row"><span class="num">142</span> <code>processStackInto</code></th><td><span class="badge necessity">Necessity</span> Walks a suspended Process’s Context chain into a caller Array of method/PC pairs and reports prefix reuse and truncation.</td></tr>
+        <tr class="entry" id="p-143" data-basis="necessity"><th scope="row"><span class="num">143</span> <code>allocationSampleTake</code></th><td><span class="badge necessity">Necessity</span> Takes the unread allocation sample once, returning its class and size or nil without confusing other semaphore signals.</td></tr>
+        <tr class="entry" id="p-144" data-basis="necessity"><th scope="row"><span class="num">144</span> <code>samplerTickTake</code></th><td><span class="badge necessity">Necessity</span> Returns and clears the CPU sampler’s unread tick flag, distinguishing it from other wakes on the same semaphore.</td></tr>
+        <tr class="entry" id="p-145" data-basis="necessity"><th scope="row"><span class="num">145</span> <code>stackLimit</code></th><td><span class="badge necessity">Necessity</span> Gets or sets the interpreter activation limit and re-arms its stack check when that limit changes.</td></tr>
+        <tr class="entry" id="p-146" data-basis="necessity"><th scope="row"><span class="num">146</span> <code>timeSlice</code></th><td><span class="badge necessity">Necessity</span> Configures scheduler rotation among equal-priority runnable Processes; zero disables time slicing.</td></tr>
+        <tr class="entry" id="p-195" data-basis="necessity"><th scope="row"><span class="num">195</span> <code>findNextUnwindContext</code></th><td><span class="badge necessity">Necessity</span> Finds the next ensure-marked sender up to a Context boundary, materializing a live frame as a Context if needed.</td></tr>
+        <tr class="entry" id="p-196" data-basis="necessity"><th scope="row"><span class="num">196</span> <code>terminateTo</code></th><td><span class="badge necessity">Necessity</span> Terminates the live frame chain to an eligible target Context; otherwise the image fallback handles the case.</td></tr>
+        <tr class="entry" id="p-197" data-basis="necessity"><th scope="row"><span class="num">197</span> <code>nextHandlerContext</code></th><td><span class="badge necessity">Necessity</span> Walks the sender chain for the next on:do: marker and returns the corresponding Context or nil.</td></tr>
+        <tr class="entry" id="p-198" data-basis="necessity"><th scope="row"><span class="num">198</span> <code>ensureMarker</code></th><td><span class="badge necessity">Necessity</span> Intentionally fails so image ensure code runs; its primitive number identifies unwind activations.</td></tr>
+        <tr class="entry" id="p-199" data-basis="necessity"><th scope="row"><span class="num">199</span> <code>onDoMarker</code></th><td><span class="badge necessity">Necessity</span> Intentionally fails so image handler code runs; its primitive number identifies on:do: activations.</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="group" id="clocks" aria-labelledby="clocks-title">
+    <header>
+      <h2 id="clocks-title">Scheduler &amp; work clocks <span class="group-count">· 13</span></h2>
+    </header>
+    <table aria-labelledby="clocks-title">
+      <colgroup><col class="primitive-col"><col></colgroup>
+      <thead><tr><th scope="col">ID / Registered name</th><th scope="col">Why it stays</th></tr></thead>
+      <tbody>
+        <tr class="entry" id="p-150" data-basis="necessity"><th scope="row"><span class="num">150</span> <code>millisecondClock</code></th><td><span class="badge necessity">Necessity</span> Returns scheduler time in milliseconds, derived from the same virtual or real timebase as scheduler deadlines.</td></tr>
+        <tr class="entry" id="p-151" data-basis="necessity"><th scope="row"><span class="num">151</span> <code>microsecondClock</code></th><td><span class="badge necessity">Necessity</span> Returns scheduler microseconds, synchronizing the work clock when it is active rather than reading wall time.</td></tr>
+        <tr class="entry" id="p-567" data-basis="necessity"><th scope="row"><span class="num">567</span> <code>workClockStart</code></th><td><span class="badge necessity">Necessity</span> Switches scheduler time to the work clock and can arm periodic frame notifications on the millisecond grid.</td></tr>
+        <tr class="entry" id="p-568" data-basis="necessity"><th scope="row"><span class="num">568</span> <code>workClockStop</code></th><td><span class="badge necessity">Necessity</span> Disarms frame signaling and rebases real scheduler time to continue from the work-clock value.</td></tr>
+        <tr class="entry" id="p-569" data-basis="necessity"><th scope="row"><span class="num">569</span> <code>workClockRunning</code></th><td><span class="badge necessity">Necessity</span> Controls whether VM work advances the clock for an in-flight driver command.</td></tr>
+        <tr class="entry" id="p-570" data-basis="necessity"><th scope="row"><span class="num">570</span> <code>workClockPaced</code></th><td><span class="badge necessity">Necessity</span> Lets scheduler time track at least real time while an external program is running, even between commands.</td></tr>
+        <tr class="entry" id="p-572" data-basis="necessity"><th scope="row"><span class="num">572</span> <code>workClockNextFrame</code></th><td><span class="badge necessity">Necessity</span> Reads the scheduler’s next frame deadline in work-clock microseconds, or nil while that clock is off.</td></tr>
+        <tr class="entry" id="p-573" data-basis="necessity"><th scope="row"><span class="num">573</span> <code>workClockHold</code></th><td><span class="badge necessity">Necessity</span> Freezes scheduler time during compositor rendering while recording a separate baseline for frame work.</td></tr>
+        <tr class="entry" id="p-574" data-basis="necessity"><th scope="row"><span class="num">574</span> <code>workClockRelease</code></th><td><span class="badge necessity">Necessity</span> Unholds the frame, resynchronizes accounting and returns its work in microseconds.</td></tr>
+        <tr class="entry" id="p-575" data-basis="necessity"><th scope="row"><span class="num">575</span> <code>workClockHeldMicros</code></th><td><span class="badge necessity">Necessity</span> Returns held work-clock time plus elapsed frame work for reporting, without advancing scheduler deadlines.</td></tr>
+        <tr class="entry" id="p-576" data-basis="necessity"><th scope="row"><span class="num">576</span> <code>workClockCharge</code></th><td><span class="badge necessity">Necessity</span> Charges excess frame time directly to the active virtual clock, in scheduler microseconds.</td></tr>
+        <tr class="entry" id="p-577" data-basis="necessity"><th scope="row"><span class="num">577</span> <code>workClockQuerying</code></th><td><span class="badge necessity">Necessity</span> Allows lower-priority Processes to run if a frozen-clock query blocks on one, without advancing the clock.</td></tr>
+        <tr class="entry" id="p-578" data-basis="necessity"><th scope="row"><span class="num">578</span> <code>workClockSkipRealTime</code></th><td><span class="badge necessity">Necessity</span> Drops uncharged real-time pacing debt, such as a frame’s wait for GPU completion or a reader.</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="group" id="vm-lifecycle" aria-labelledby="vm-lifecycle-title">
+    <header>
+      <h2 id="vm-lifecycle-title">VM lifecycle, GC &amp; JIT <span class="group-count">· 15</span></h2>
+    </header>
+    <table aria-labelledby="vm-lifecycle-title">
+      <colgroup><col class="primitive-col"><col></colgroup>
+      <thead><tr><th scope="col">ID / Registered name</th><th scope="col">Why it stays</th></tr></thead>
+      <tbody>
+        <tr class="entry" id="p-160" data-basis="necessity"><th scope="row"><span class="num">160</span> <code>quit</code></th><td><span class="badge necessity">Necessity</span> Prints pending JIT trace data, flushes streams and shuts down the platform before the VM process exits.</td></tr>
+        <tr class="entry" id="p-161" data-basis="necessity"><th scope="row"><span class="num">161</span> <code>snapshot</code></th><td><span class="badge necessity">Necessity</span> Materializes live frames and captures the active Process in the image; successful save answers differently before and after restore.</td></tr>
+        <tr class="entry" id="p-162" data-basis="necessity"><th scope="row"><span class="num">162</span> <code>gc</code></th><td><span class="badge necessity">Necessity</span> Invokes the VM’s full collector and reports remaining old-space budget after collection.</td></tr>
+        <tr class="entry" id="p-163" data-basis="necessity"><th scope="row"><span class="num">163</span> <code>scavenge</code></th><td><span class="badge necessity">Necessity</span> Invokes the young-generation scavenger and returns the remaining allocation space in eden.</td></tr>
+        <tr class="entry" id="p-164" data-basis="necessity"><th scope="row"><span class="num">164</span> <code>vmStats</code></th><td><span class="badge necessity">Necessity</span> Builds the image’s 42-field record from internal GC, scheduler, interpreter and JIT counters.</td></tr>
+        <tr class="entry" id="p-165" data-basis="necessity"><th scope="row"><span class="num">165</span> <code>flushMethodCache</code></th><td><span class="badge necessity">Necessity</span> Invalidates interpreter method caches and the baseline and optimizing tiers’ method-dependent state together.</td></tr>
+        <tr class="entry" id="p-166" data-basis="necessity"><th scope="row"><span class="num">166</span> <code>flushCacheForSelector</code></th><td><span class="badge necessity">Necessity</span> Targets interpreter and JIT invalidation at the selector being changed.</td></tr>
+        <tr class="entry" id="p-167" data-basis="necessity"><th scope="row"><span class="num">167</span> <code>vmArguments</code></th><td><span class="badge necessity">Necessity</span> Copies the image-visible part of the launcher argument vector into a rooted Array of Strings, excluding the VM’s own options.</td></tr>
+        <tr class="entry" id="p-168" data-basis="necessity"><th scope="row"><span class="num">168</span> <code>imagePath</code></th><td><span class="badge necessity">Necessity</span> Returns the VM image-file state’s path as a String, or an empty String if it has no path.</td></tr>
+        <tr class="entry" id="p-171" data-basis="necessity"><th scope="row"><span class="num">171</span> <code>primitiveNames</code></th><td><span class="badge necessity">Necessity</span> Builds the numbered names Array from this build’s primitive table, preserving nil at unassigned or unavailable indices.</td></tr>
+        <tr class="entry" id="p-173" data-basis="necessity"><th scope="row"><span class="num">173</span> <code>vmBanner</code></th><td><span class="badge necessity">Necessity</span> Returns the running VM’s own banner as an image String, not the image version or a host OS identifier.</td></tr>
+        <tr class="entry" id="p-174" data-basis="necessity"><th scope="row"><span class="num">174</span> <code>releaseMemory</code></th><td><span class="badge necessity">Necessity</span> Gives back unused GC pages and drops live JIT code and feedback so they can be rebuilt when next needed.</td></tr>
+        <tr class="entry" id="p-180" data-basis="necessity"><th scope="row"><span class="num">180</span> <code>jitParameters</code></th><td><span class="badge necessity">Necessity</span> Reads the JIT mode, flags and thresholds and applies changes with the JIT’s own code invalidation rules.</td></tr>
+        <tr class="entry" id="p-181" data-basis="necessity"><th scope="row"><span class="num">181</span> <code>jitCode</code></th><td><span class="badge necessity">Necessity</span> Packages machine code and bytecode maps/notes from installed JIT code or a temporary annotated compilation.</td></tr>
+        <tr class="entry" id="p-182" data-basis="necessity"><th scope="row"><span class="num">182</span> <code>jitSendSites</code></th><td><span class="badge necessity">Necessity</span> Reads baseline inline-cache feedback as image objects: per-site state, classes, target methods and selector.</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="group" id="guest-display" aria-labelledby="guest-display-title">
+    <header>
+      <h2 id="guest-display-title">Simulator guest display <span class="group-count">· 7</span></h2>
+      <p>These slots drive the simulator’s guest surface, not host SDL. Native builds register them but do not provide a guest display.</p>
+    </header>
+    <table aria-labelledby="guest-display-title">
+      <colgroup><col class="primitive-col"><col></colgroup>
+      <thead><tr><th scope="col">ID / Registered name</th><th scope="col">Why it stays</th></tr></thead>
+      <tbody>
+        <tr class="entry" id="p-200" data-basis="necessity"><th scope="row"><span class="num">200</span> <code>displayOpen</code></th><td><span class="badge necessity">Necessity</span> Opens the guest’s 1-bit screen and returns the fixed-width font cell size as a Point.</td></tr>
+        <tr class="entry" id="p-201" data-basis="necessity"><th scope="row"><span class="num">201</span> <code>displayFill</code></th><td><span class="badge necessity">Necessity</span> Applies the guest surface’s white, black, grey or invert rule to a clipped rectangle.</td></tr>
+        <tr class="entry" id="p-202" data-basis="necessity"><th scope="row"><span class="num">202</span> <code>displayCopy</code></th><td><span class="badge necessity">Necessity</span> Moves a guest pixel rectangle with clipping and overlap semantics within the same surface.</td></tr>
+        <tr class="entry" id="p-203" data-basis="necessity"><th scope="row"><span class="num">203</span> <code>displayText</code></th><td><span class="badge necessity">Necessity</span> Draws fixed-width glyph cells from bytes using the guest display’s normal or inverted raster rule.</td></tr>
+        <tr class="entry" id="p-204" data-basis="necessity"><th scope="row"><span class="num">204</span> <code>displayBits</code></th><td><span class="badge necessity">Necessity</span> Checks the packed 1-bit bitmap size, then draws high-bit-first rows using the guest’s opaque, set or invert rule.</td></tr>
+        <tr class="entry" id="p-205" data-basis="necessity"><th scope="row"><span class="num">205</span> <code>displayNextEvent</code></th><td><span class="badge necessity">Necessity</span> Dequeues guest input into a mutable five-slot object (type, position, key and modifiers) or returns nil.</td></tr>
+        <tr class="entry" id="p-206" data-basis="necessity"><th scope="row"><span class="num">206</span> <code>displayFlush</code></th><td><span class="badge necessity">Necessity</span> Presents the completed guest frame through the simulator after checking that its surface is open.</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="group" id="platform-display" aria-labelledby="platform-display-title">
+    <header>
+      <h2 id="platform-display-title">Platform input, vsync &amp; GPU <span class="group-count">· 3</span></h2>
+    </header>
+    <table aria-labelledby="platform-display-title">
+      <colgroup><col class="primitive-col"><col></colgroup>
+      <thead><tr><th scope="col">ID / Registered name</th><th scope="col">Why it stays</th></tr></thead>
+      <tbody>
+        <tr class="entry" id="p-414" data-basis="necessity"><th scope="row"><span class="num">414</span> <code>inputSemaphore</code></th><td><span class="badge necessity">Necessity</span> Registers the input queue’s external semaphore index with the VM scheduler, keeping its wake and rearm path intact.</td></tr>
+        <tr class="entry" id="p-416" data-basis="necessity"><th scope="row"><span class="num">416</span> <code>vsyncSemaphore</code></th><td><span class="badge necessity">Necessity</span> Enables or disables scheduler semaphore delivery on display refresh; a polled FFI latch does not deliver that semaphore.</td></tr>
+        <tr class="entry" id="p-457" data-basis="policy"><th scope="row"><span class="num">457</span> <code>gpuTextureSize</code></th><td><span class="badge policy">Policy</span> Returns width, height and format together. The audit found no production consumer that justified a typed result adapter.</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="group" id="machine-raster" aria-labelledby="machine-raster-title">
+    <header>
+      <h2 id="machine-raster-title">Machine &amp; software raster <span class="group-count">· 13</span></h2>
+      <p>The machine interface is trusted low-level code. An address encoded as an Integer is still an address, not an approved scalar capability.</p>
+    </header>
+    <table aria-labelledby="machine-raster-title">
+      <colgroup><col class="primitive-col"><col></colgroup>
+      <thead><tr><th scope="col">ID / Registered name</th><th scope="col">Why it stays</th></tr></thead>
+      <tbody>
+        <tr class="entry" id="p-470" data-basis="necessity"><th scope="row"><span class="num">470</span> <code>machineSystemTable</code></th><td><span class="badge necessity">Necessity</span> Retrieves the firmware system table and fails when no firmware table is available; the result carries address authority.</td></tr>
+        <tr class="entry" id="p-471" data-basis="necessity"><th scope="row"><span class="num">471</span> <code>machineCall</code></th><td><span class="badge necessity">Necessity</span> Calls a firmware routine using the firmware calling convention; an approved typed export does not grant a raw call target.</td></tr>
+        <tr class="entry" id="p-472" data-basis="necessity"><th scope="row"><span class="num">472</span> <code>machineRead</code></th><td><span class="badge necessity">Necessity</span> Reads a native address with a selected width and returns an unsigned VM Integer; this is not a bounded object read.</td></tr>
+        <tr class="entry" id="p-473" data-basis="necessity"><th scope="row"><span class="num">473</span> <code>machineWrite</code></th><td><span class="badge necessity">Necessity</span> Writes the low bytes of a word at a native address under the machine interface, not an approved writable object slice.</td></tr>
+        <tr class="entry" id="p-474" data-basis="necessity"><th scope="row"><span class="num">474</span> <code>machineCopy</code></th><td><span class="badge necessity">Necessity</span> Copies overlapping native or byte-object spans with object bounds and destination mutability checks where applicable.</td></tr>
+        <tr class="entry" id="p-475" data-basis="necessity"><th scope="row"><span class="num">475</span> <code>machineAllocate</code></th><td><span class="badge necessity">Necessity</span> Allocates zeroed nonmoving bytes outside the heap, including firmware pool memory usable by devices.</td></tr>
+        <tr class="entry" id="p-476" data-basis="necessity"><th scope="row"><span class="num">476</span> <code>machineFree</code></th><td><span class="badge necessity">Necessity</span> Frees nonmoving memory allocated by the machine interface; a scalar or opaque handle cannot substitute for that address contract.</td></tr>
+        <tr class="entry" id="p-477" data-basis="policy"><th scope="row"><span class="num">477</span> <code>machineBarrier</code></th><td><span class="badge policy">Policy</span> Orders device-visible stores with a full compiler and CPU barrier. A narrow wrapper is possible; keep ordering in the machine interface.</td></tr>
+        <tr class="entry" id="p-478" data-basis="necessity"><th scope="row"><span class="num">478</span> <code>machineWatch</code></th><td><span class="badge necessity">Necessity</span> Registers a firmware event with an external semaphore index so the VM wait loop wakes and signals the image.</td></tr>
+        <tr class="entry" id="p-480" data-basis="necessity"><th scope="row"><span class="num">480</span> <code>rasterDraw</code></th><td><span class="badge necessity">Necessity</span> Decodes renderer state, vertex ranges, scissor and texture settings for software rasterization into a native surface.</td></tr>
+        <tr class="entry" id="p-481" data-basis="necessity"><th scope="row"><span class="num">481</span> <code>rasterFill</code></th><td><span class="badge necessity">Necessity</span> Fills a native pixel span with a checked one- or four-byte pixel value, including firmware-backed targets.</td></tr>
+        <tr class="entry" id="p-482" data-basis="necessity"><th scope="row"><span class="num">482</span> <code>rasterBlit</code></th><td><span class="badge necessity">Necessity</span> Decodes two surface and rectangle records and writes to the destination with the requested filtering.</td></tr>
+        <tr class="entry" id="p-483" data-basis="necessity"><th scope="row"><span class="num">483</span> <code>rasterCopy</code></th><td><span class="badge necessity">Necessity</span> Checks row strides, dimensions and writable Bitmap spans or native destinations, then applies channel-swap or alpha rules.</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="group" id="host-process" aria-labelledby="host-process-title">
+    <header>
+      <h2 id="host-process-title">Hosted process control <span class="group-count">· 4</span></h2>
+    </header>
+    <table aria-labelledby="host-process-title">
+      <colgroup><col class="primitive-col"><col></colgroup>
+      <thead><tr><th scope="col">ID / Registered name</th><th scope="col">Why it stays</th></tr></thead>
+      <tbody>
+        <tr class="entry" id="p-515" data-basis="policy"><th scope="row"><span class="num">515</span> <code>spawnProcess</code></th><td><span class="badge policy">Policy</span> Spawns via PATH from a native copy of the argument vector and inherits the host environment and streams; no general launch export was chosen.</td></tr>
+        <tr class="entry" id="p-516" data-basis="policy"><th scope="row"><span class="num">516</span> <code>processWait</code></th><td><span class="badge policy">Policy</span> Selects and reaps a child by PID, distinguishing pending from exit or signal status; keep this broader authority separate from PTY-handle wait.</td></tr>
+        <tr class="entry" id="p-518" data-basis="policy"><th scope="row"><span class="num">518</span> <code>execProcess</code></th><td><span class="badge policy">Policy</span> Marks extra descriptors close-on-exec and replaces the VM process on success; the audit leaves process replacement outside typed FFI.</td></tr>
+        <tr class="entry" id="p-560" data-basis="policy"><th scope="row"><span class="num">560</span> <code>ptySpawn</code></th><td><span class="badge policy">Policy</span> Starts a PTY child from argv, optional environment and directory, and terminal size, returning a PTY handle and PID together. The audit keeps this compound launch contract outside typed FFI.</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="group" id="raw-nic" aria-labelledby="raw-nic-title">
+    <header>
+      <h2 id="raw-nic-title">Raw network interface <span class="group-count">· 5</span></h2>
+      <p>These slots retain the raw link-layer device path, including firmware support where available, rather than the hosted socket FFI.</p>
+    </header>
+    <table aria-labelledby="raw-nic-title">
+      <colgroup><col class="primitive-col"><col></colgroup>
+      <thead><tr><th scope="col">ID / Registered name</th><th scope="col">Why it stays</th></tr></thead>
+      <tbody>
+        <tr class="entry" id="p-580" data-basis="necessity"><th scope="row"><span class="num">580</span> <code>nicOpen</code></th><td><span class="badge necessity">Necessity</span> Opens the raw NIC and writes its six-byte MAC address into the caller’s checked mutable buffer.</td></tr>
+        <tr class="entry" id="p-581" data-basis="necessity"><th scope="row"><span class="num">581</span> <code>nicSend</code></th><td><span class="badge necessity">Necessity</span> Submits a complete link-layer frame from readable object bytes and reports transmit queue backpressure as false.</td></tr>
+        <tr class="entry" id="p-582" data-basis="necessity"><th scope="row"><span class="num">582</span> <code>nicReceive</code></th><td><span class="badge necessity">Necessity</span> Copies a frame into checked writable storage and returns its length; an empty queue returns nil and rearms notification.</td></tr>
+        <tr class="entry" id="p-583" data-basis="necessity"><th scope="row"><span class="num">583</span> <code>nicSemaphore</code></th><td><span class="badge necessity">Necessity</span> Registers an external semaphore for a waiting frame, with a one-shot wake rearmed by an empty receive.</td></tr>
+        <tr class="entry" id="p-584" data-basis="necessity"><th scope="row"><span class="num">584</span> <code>nicStatus</code></th><td><span class="badge necessity">Necessity</span> Returns the device’s four-counter record: received, sent, transmit queue failures and frames waiting.</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <footer>Offline check from the repository root: <code>python3 tests/vm/retained_primitives_doc_test.py</code></footer>
+</main>
+<script>
+  (() => {
+    const form = document.querySelector('#filters');
+    const query = document.querySelector('#query');
+    const basis = document.querySelector('#reason-filter');
+    const status = document.querySelector('#status');
+    const nav = document.querySelector('.jump');
+    const groups = [...document.querySelectorAll('.group')].map(section => {
+      const heading = section.querySelector('h2').firstChild.textContent.trim().toLowerCase();
+      return {
+        section,
+        linkItem: nav.querySelector('a[href="#' + section.id + '"]').parentElement,
+        rows: [...section.querySelectorAll('.entry')].map(el => ({
+          el,
+          number: el.id.slice(2),
+          text: heading + ' ' + el.textContent.toLowerCase()
+        }))
+      };
+    });
+    const total = groups.reduce((n, group) => n + group.rows.length, 0);
+
+    function update() {
+      const terms = query.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      let shown = 0;
+      for (const { section, linkItem, rows } of groups) {
+        let found = 0;
+        for (const { el, number, text } of rows) {
+          const match = (!basis.value || el.dataset.basis === basis.value) &&
+            terms.every(term => /^\d+$/.test(term) ? number === term : text.includes(term));
+          el.hidden = !match;
+          if (match) found++;
+        }
+        section.hidden = linkItem.hidden = found === 0;
+        shown += found;
+      }
+      nav.hidden = shown === 0;
+      status.textContent = shown ? shown + ' of ' + total + ' primitives shown.' : 'No matching primitives.';
+    }
+
+    query.addEventListener('input', update);
+    basis.addEventListener('change', update);
+    form.addEventListener('submit', event => event.preventDefault());
+    form.addEventListener('reset', event => {
+      event.preventDefault();
+      query.value = basis.value = '';
+      update();
+      query.focus();
+    });
+    update();
+    form.hidden = false;
+  })();
+</script>
+</body>
+</html>
