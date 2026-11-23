@@ -221,7 +221,29 @@ slower and three inconclusive. All eight optimizing strata pass, but
 interpreter/baseline regressions remain in metadata, Float fraction and short
 stream writes. The 256 B stdout case and the fixed ASCII getenv case pass all
 three tiers; neither represents the full operation. These are same-build
-comparisons, not before/after ratios.
+comparisons, not before/after ratios. File metadata shares its backend with
+the numbered primitives, and both Float fraction routes call `modf`. In a
+separate freeze2 diagnostic, even a prebound position wrapper with no facade
+checks added 14/19 ns (interpreter/baseline; only baseline excluded parity).
+That isolates dispatch and marshalling from the file backend, not a measured
+breakdown of the current wrapper.
+
+### Fused dispatch experiment (52, 504, 505)
+
+The [reproducible experiment](../vm/tests/bench/experiments/fused-dispatch/)
+emits one per-binding primitive entry: check authority, read the live VM
+stack, unbox, call the approved native function once, and return directly.
+Neither the image facade nor a second machine wrapper runs on a warm hit.
+Separate 1,024-call proofs counted 1,024 native entries and 1,023 fused
+successes per candidate, zero of either per dedicated control.
+
+On the matched x64 release, 17 sessions × four balanced pairs measured full
+sends on live files (1 B, 4 KiB, 1 MiB) and Float fraction. At 4 KiB the
+position ratios were **0.9918 / 1.0011 / 0.9985** (interpreter/baseline/opt);
+size was **1.0018 / 1.0021 / 1.0019**. Float was **1.0108 / 1.0134 / 1.0292**.
+All 21 simultaneous 95% intervals included 1. The original file slowdown
+is no longer resolved, but the at-par gate is not met. The experiment is
+not part of the default build.
 
 ### Public `getenv:` limits
 
@@ -230,8 +252,8 @@ installed public selector against primitive 172 in the same VM/image.
 With 15 fresh sessions, four balanced pairs and 24 simultaneous
 intervals, 12 strata passed, 11 were slower and one was inconclusive.
 Short present, short missing and empty values were slower in interpreter
-and baseline but passed in opt; embedded-NUL fallback was slower in
-all tiers. Unicode results were slower in interpreter/baseline and
+and baseline (1.095–1.263× legacy) but passed in opt (0.829–0.919×);
+embedded-NUL fallback was slower in all tiers. Unicode results were slower in interpreter/baseline and
 inconclusive in opt. ASCII heap cases passed in all tiers: 4 KiB key
 (0.177–0.201× legacy), 513 B value (0.060–0.083×), and 1 KiB key plus
 4 KiB value (0.043–0.046×). The fast path uses ASCII scans and bulk
@@ -317,9 +339,9 @@ hit counts are for ID 20. This is not release timing or full matrix parity.
 | 61 | `floatPrintString` | Extend | implemented/staged | Owned shortest-round-trip String, including special values — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding. |
 | 152 | `utcMicroseconds` | Adapter | implemented/staged | Wall-clock microseconds and failure/availability — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding. |
 | 153 | `threadCpuTime` | Adapter | implemented/staged | VM-thread CPU microseconds and clock availability — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding. |
-| 169 | `stdoutWrite` | Adapter | implemented/staged | Counted stdout bytes, flush and receiver — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding; generated-text prototype rejected. |
-| 170 | `stderrWrite` | Adapter | implemented/staged | Counted stderr bytes, flush and receiver — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding; generated-text prototype rejected. |
-| 172 | `getenv` | Extend | implemented/staged | Owned environment text: absent, empty and nonempty — Hosted and x86-64 `NO_PLATFORM` fixtures passed; 64 MiB capture limit remains. Generated-text prototype rejected. |
+| 169 | `stdoutWrite` | Adapter | implemented/staged | Generated counted text; 8 B baseline slowdown blocks parity. |
+| 170 | `stderrWrite` | Adapter | implemented/staged | Generated counted text; 8 B interpreter/baseline slowdown and inconclusive 256 B baseline. |
+| 172 | `getenv` | Extend | implemented/staged | Generated owned text; short-input slowdowns and the 64 MiB result cap block public promotion. |
 
 ### Window/input (13)
 

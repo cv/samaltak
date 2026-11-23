@@ -1,0 +1,1219 @@
+diff --git a/src/Compiler/CodeGenerator.st b/src/Compiler/CodeGenerator.st
+index 40ed993..e1ead75 100644
+--- a/src/Compiler/CodeGenerator.st
++++ b/src/Compiler/CodeGenerator.st
+@@ -22,7 +22,7 @@ encoder
+ !CodeGenerator methodsFor: 'generating'!
+ generate: aMethodNode class: aClass bindings: aDictionaryOrNil
+ 	"Answer a CompiledMethod (category and properties other than temp names are left to the caller)."
+-	| primitive method |
++	| primitive method literals bytecodes |
+ 	methodNode := aMethodNode.
+ 	targetClass := aClass.
+ 	bindings := aDictionaryOrNil.
+@@ -42,12 +42,17 @@ generate: aMethodNode class: aClass bindings: aDictionaryOrNil
+ 	(methodNode isDoIt and: [scope numArgs + scope numTemps = 0])
+ 		ifTrue: [scope allocateSlotNamed: '(doit)'].
+ 	tempNameMap addFirst: (Array with: 0 with: encoder pc with: scope slotNames).
++	literals := encoder literals.
++	bytecodes := encoder bytecodes.
++	(primitive = 266 and: [methodNode pragmas anySatisfy: [:p | p selector == #ffiSite]]) ifTrue: [
++		literals beReadOnlyObject.
++		bytecodes beReadOnlyObject].
+ 	method := CompiledMethod basicNew.
+ 	method
+ 		selector: methodNode selector;
+ 		methodClass: targetClass;
+-		literals: encoder literals;
+-		bytecodes: encoder bytecodes;
++		literals: literals;
++		bytecodes: bytecodes;
+ 		numArgs: scope numArgs;
+ 		numTemps: scope numTemps;
+ 		frameSize: scope numArgs + scope numTemps + encoder maxDepth;
+diff --git a/src/System-Files/File.st b/src/System-Files/File.st
+index 40e56e6..9f18030 100644
+--- a/src/System-Files/File.st
++++ b/src/System-Files/File.st
+@@ -206,6 +206,7 @@ primExec: argv
+ 
+ !File class methodsFor: 'FFI candidates'!
+ ffiCandidatePrimPosition: h
++	<primitive: 266>
+ 	<ffiSite>
+ 	| result |
+ 	result := (self ffiSite: #(call 'platform' 'platform_files_position' (i64) nonNegativeI64)) tryInvoke1: h.
+@@ -213,6 +214,7 @@ ffiCandidatePrimPosition: h
+ 	^result
+ !
+ ffiCandidatePrimSize: h
++	<primitive: 266>
+ 	<ffiSite>
+ 	| result |
+ 	result := (self ffiSite: #(call 'platform' 'platform_files_size' (i64) nonNegativeI64)) tryInvoke1: h.
+diff --git a/src/System-Support/FFITrial.st b/src/System-Support/FFITrial.st
+index 198fc9a..03014a6 100644
+--- a/src/System-Support/FFITrial.st
++++ b/src/System-Support/FFITrial.st
+@@ -36,6 +36,7 @@ install: aSelector on: aBehavior
+ 	legacy := original copy selector: alias; yourself.
+ 	sibling := self candidate: candidate replacing: aSelector with: alias.
+ 	published := sibling copy selector: aSelector; yourself.
++	published primitive = 266 ifTrue: [published literals beReadOnlyObject].
+ 	Smalltalk addToShutDownList: self.
+ 	entry := {aBehavior. original. candidate. alias. legacy. published. sibling}.
+ 	Installed at: aSelector put: entry.
+@@ -83,5 +84,6 @@ candidate: aMethod replacing: publicSelector with: alias
+ 	index := clone literals identityIndexOf: publicSelector.
+ 	index = 0 ifTrue: [self error: 'Candidate fallback is not a literal send'].
+ 	clone literals at: index put: alias.
++	clone primitive = 266 ifTrue: [clone literals beReadOnlyObject].
+ 	^clone
+ ! !
+diff --git a/src/System-Support/Float-core-ffi.extension.st b/src/System-Support/Float-core-ffi.extension.st
+index 6c50ed5..8228d57 100644
+--- a/src/System-Support/Float-core-ffi.extension.st
++++ b/src/System-Support/Float-core-ffi.extension.st
+@@ -1,6 +1,7 @@
+ !Float methodsFor: 'core FFI candidates'!
+ ffiCandidateFractionPart
+ 	<ffiSite>
++	<primitive: 266>
+ 	| answer |
+ 	answer := (self ffiSite: #(call 'vm:core' 'core_float_fraction_part' (f64) f64)) tryInvoke1: self.
+ 	answer == false ifTrue: [^self fractionPart].
+diff --git a/src/VM-Core/Interpreter.st b/src/VM-Core/Interpreter.st
+index 058c01f..10681b7 100644
+--- a/src/VM-Core/Interpreter.st
++++ b/src/VM-Core/Interpreter.st
+@@ -516,11 +516,14 @@ fillCache: aClass selector: aSelector
+ 	e sel: aSelector.
+ 	e method: m.
+ 	p := (self methodPrim: m) bitAnd: CM_PRIM_MASK.
+-	pf := (p ~= 0 and: [p ~= PRIM_ENSURE_MARKER and: [p ~= PRIM_ONDO_MARKER]])
+-		ifTrue: [primitives lookup: p]
+-		ifFalse: [self null].
+-	bc := self loadRef: m at: CM_BYTECODES.
+ 	na := self loadRef: m at: CM_NUMARGS.
++	pf := p = 266
++		ifTrue: [(self isInt: na) ifTrue: [jit directPrimitiveOf: m argc: (self intVal: na) asInt32] ifFalse: [self null]]
++		ifFalse: [
++			(p ~= 0 and: [p ~= PRIM_ENSURE_MARKER and: [p ~= PRIM_ONDO_MARKER]])
++				ifTrue: [primitives lookup: p]
++				ifFalse: [self null]].
++	bc := self loadRef: m at: CM_BYTECODES.
+ 	nt := self loadRef: m at: CM_NUMTEMPS.
+ 	e bcs: (self bytesOf: bc).
+ 	e lits: (self slotsOf: (self loadRef: m at: CM_LITERALS)).
+@@ -572,7 +575,7 @@ fillCache: aClass selector: aSelector
+ 									qc := true]]]]].
+ 	qc ifTrue: [e qconst: qv] ifFalse: [e prim: pf].
+ 	e kind: ((((pf notNull ifTrue: [K_PRIM] ifFalse: [0])
+-		bitOr: ((pf notNull and: [primitives isLeaf: p]) ifTrue: [K_LEAF] ifFalse: [0]))
++		bitOr: ((pf notNull and: [p ~= 266 and: [primitives isLeaf: p]]) ifTrue: [K_LEAF] ifFalse: [0]))
+ 		bitOr: (e quick >= 0 ifTrue: [K_QUICK] ifFalse: [0]))
+ 		bitOr: ((e nset ~= 0 ifTrue: [K_SETTER] ifFalse: [0]) bitOr: (qc ifTrue: [K_CONST] ifFalse: [0]))) asUInt8.
+ 	"An ordinary method under a JIT: its code, or 1 while its activations are counted."
+@@ -692,6 +695,18 @@ primStackBase
+ 	"The receiver slot in the active activation."
+ 	^primBase
+ !
++primStackBaseCell
++	^self cCoerce: (self nativeCellAddress: #primBase) to: 'uint64_t'
++!
++primResultCell
++	^self cCoerce: (self nativeCellAddress: #primResult) to: 'uint64_t'
++!
++primStatusCell
++	^self cCoerce: (self nativeCellAddress: #primStatus) to: 'uint64_t'
++!
++primErrorCell
++	^self cCoerce: (self nativeCellAddress: #primErrorCode) to: 'uint64_t'
++!
+ setPrimBase: n
+ 	"The primitive's receiver is at the active stack top - n."
+ 	<function>
+diff --git a/src/VM-Core/ObjectMemory.st b/src/VM-Core/ObjectMemory.st
+index efd2bc4..464cf81 100644
+--- a/src/VM-Core/ObjectMemory.st
++++ b/src/VM-Core/ObjectMemory.st
+@@ -51,6 +51,9 @@ clsSmallfloat
+ clsBoxedfloat
+ 	^clsBoxedfloat
+ !
++boxedFloatClassCell
++	^self cCoerce: (self nativeCellAddress: #clsBoxedfloat) to: 'uint64_t'
++!
+ clsArray
+ 	^clsArray
+ !
+diff --git a/src/VM-Jit/FFIPrimitives-direct.extension.st b/src/VM-Jit/FFIPrimitives-direct.extension.st
+new file mode 100644
+index 0000000..7fe194e
+--- /dev/null
++++ b/src/VM-Jit/FFIPrimitives-direct.extension.st
+@@ -0,0 +1,144 @@
++!FFIPrimitives methodsFor: '*VM-Jit'!
++primFFIDirectSite
++	<vmPrimitive: 266 name: 'ffiDirectSite'>
++	self fail
++!
++configureDirect
++	| flag |
++	flag := libc getenv: 'SAMALTAK_FFI_DIRECT'.
++	directEnabledFlag := flag notNull and: [(libc strcmp: flag with: '1') = 0 and: [ffiStubs canPublishCode]].
++	flag := libc getenv: 'SAMALTAK_FFI_DIRECT_TRACE'.
++	directTrace := flag notNull and: [(libc strcmp: flag with: '1') = 0]
++!
++directEnabled
++	<returns: 'bool'>
++	^directEnabledFlag
++!
++isDirectDescriptor: descriptor result: tag fallback: fallback requireAvailable: available
++	"Cold trial admission. Names and fallback selectors are not emitted into the thunk."
++	<function>
++	<var: #descriptor type: 'oop'>
++	<var: #tag type: 'int32_t'>
++	<var: #fallback type: 'oop'>
++	<var: #available type: 'bool'>
++	<returns: 'bool'>
++	| types arg lib sym libName symName target signedSig |
++	(tag = 6 or: [tag = 12]) ifFalse: [^false].
++	((self isArray: descriptor count: 4) and: [self isImmutable: descriptor]) ifFalse: [^false].
++	(self loadRef: descriptor at: 3) = (self intOop: tag) ifFalse: [^false].
++	types := self loadRef: descriptor at: 2.
++	(types ~= 0 and: [(self isByteArray: types) and: [
++		(self isImmutable: types) and: [(self byteCount: types) = 1]]]) ifFalse: [^false].
++	arg := (self bytesOf: types) at: 0.
++	(tag = 6 ifTrue: [arg = 6] ifFalse: [arg = 3]) ifFalse: [^false].
++	libName := self loadRef: descriptor at: 0.
++	symName := self loadRef: descriptor at: 1.
++	(libName ~= 0 and: [symName ~= 0 and: [(self isPtr: libName) and: [(self isPtr: symName) and: [
++		(self isImmutable: libName) and: [self isImmutable: symName]]]]]) ifFalse: [^false].
++	lib := self local: 'uint8_t[128]'.
++	sym := self local: 'uint8_t[128]'.
++	((self copyName: libName into: lib) = 0 or: [(self copyName: symName into: sym) = 0]) ifTrue: [^false].
++	tag = 6
++		ifTrue: [
++			((libc strcmp: (self cCoerce: lib to: 'const char *') with: 'vm:core') = 0 and: [
++				(libc strcmp: (self cCoerce: sym to: 'const char *') with: 'core_float_fraction_part') = 0 and: [
++				fallback = 0 or: [self directFallback: fallback equals: 'fractionPart']]]) ifFalse: [^false]]
++		ifFalse: [
++			(libc strcmp: (self cCoerce: lib to: 'const char *') with: 'platform') = 0 ifFalse: [^false].
++			(libc strcmp: (self cCoerce: sym to: 'const char *') with: 'platform_files_size') = 0
++				ifTrue: [(fallback = 0 or: [(self directFallback: fallback equals: 'primSize:') or: [
++					self directFallback: fallback equals: 'ffiLegacyPrimSize:']]) ifFalse: [^false]]
++				ifFalse: [((libc strcmp: (self cCoerce: sym to: 'const char *') with: 'platform_files_position') = 0 and: [
++					fallback = 0 or: [(self directFallback: fallback equals: 'primPosition:') or: [
++						self directFallback: fallback equals: 'ffiLegacyPrimPosition:']]]) ifFalse: [^false]]].
++	available ifFalse: [^true].
++	target := self local: 'uint64_t'.
++	signedSig := ((arg asUInt64 << 4) bitOr: tag asUInt64) asUInt32.
++	tag = 6
++		ifTrue: [self ffiApprovedCore: (self cCoerce: sym to: 'const char *') signature: signedSig into: target]
++		ifFalse: [platform ffiApprovedPlatform: (self cCoerce: sym to: 'const char *') signature: signedSig into: target].
++	^target value ~= 0
++!
++directFallback: selector equals: name
++	<var: #selector type: 'oop'>
++	<var: #name type: 'const char *'>
++	<returns: 'bool'>
++	| size |
++	(selector ~= 0 and: [(self isPtr: selector) and: [
++		(self rawClass: selector) = (memory special: SO_BYTESYMBOL) and: [(self formatOf: selector) >= F_BYTES]]]) ifFalse: [^false].
++	size := libc strlen: name.
++	^(memory byteSize: selector) = size and: [(libc memcmp: (self bytesOf: selector) with: name size: size) = 0]
++!
++directMethodLiterals: method argc: n
++	"Caller has checked the method's fixed shape and marker."
++	<var: #method type: 'oop'>
++	<var: #n type: 'int32_t'>
++	<returns: 'oop'>
++	<var: #literals type: 'oop'>
++	| literals |
++	(directEnabledFlag and: [n = 0 or: [n = 1]]) ifFalse: [^0 asUInt64].
++	literals := self loadRef: method at: CM_LITERALS.
++	((self isArray: literals count: 3) and: [self isImmutable: literals]) ifFalse: [^0 asUInt64].
++	^literals
++!
++directBindingPending: method argc: n
++	"Only the otherwise admissible cold binding may be deferred by the JIT.
++	Do not defer indefinitely: wrapper publication or session setup can fail."
++	<function>
++	<var: #method type: 'oop'>
++	<var: #n type: 'int32_t'>
++	<returns: 'bool'>
++	| literals owner arity |
++	literals := self directMethodLiterals: method argc: n.
++	literals = 0 ifTrue: [^false].
++	owner := self loadRef: literals at: 0.
++	arity := self local: 'int32_t'.
++	(self boundEntry: owner into: arity) = 0 ifFalse: [^false].
++	^self isDirectDescriptor: (self loadRef: owner at: 0) result: (n = 0 ifTrue: [6] ifFalse: [12])
++		fallback: (self loadRef: literals at: 2) requireAvailable: true
++!
++resolveDirectMethod: method argc: n
++	"Cold lookup on a shape-validated marker method. No allocation on the VM heap, no preparation, no library lookup. Only the marker opts a method into using its first literal as a binding."
++	<function>
++	<var: #method type: 'oop'>
++	<var: #n type: 'int32_t'>
++	<returns: 'prim_fn'>
++	<var: #entries type: 'uint64_t *'>
++	| literals owner desc slot entries entry site target |
++	literals := self directMethodLiterals: method argc: n.
++	literals = 0 ifTrue: [^self null].
++	owner := self loadRef: literals at: 0.
++	desc := self local: 'FFIBoundSite'.
++	(self describeBoundOwner: owner arity: 1 into: desc) ifFalse: [^self null].
++	"Publication is memoized per weak slot and argument convention. The loaded slot is the authorized weak entry, not a new strong root."
++	slot := ((self intVal: desc token) bitAnd: FFI_BINDING_LIMIT - 1) asInt32.
++	target := directTargets at: slot.
++	target = 0 ifTrue: [^self null].
++	((bindingResultTags at: slot) = 6 ifTrue: [n = 0] ifFalse: [n = 1]) ifFalse: [^self null].
++	(self isDirectDescriptor: (self loadRef: owner at: 0) result: (bindingResultTags at: slot) asInt32
++		fallback: (self loadRef: literals at: 2) requireAvailable: false) ifFalse: [^self null].
++	entries := n = 0 ifTrue: [directReceiverEntries + 0] ifFalse: [directArgEntries + 0].
++	entry := entries at: slot.
++	entry = 0 ifTrue: [
++		site := self local: 'FFIDirectABI'.
++		site base: interpreter primStackBaseCell.
++		site result: interpreter primResultCell.
++		site status: interpreter primStatusCell.
++		site errorCell: interpreter primErrorCell.
++		site okStatus: PS_OK.
++		site failStatus: PS_FAIL.
++		site stressBox: (libc getenv: 'SAMALTAK_FFI_BOX_FULL_GC') notNull.
++		site floatClass: memory boxedFloatClassCell.
++		site target: target.
++		site counts: (directTrace ifTrue: [self cCoerce: directCounts to: 'uint64_t'] ifFalse: [0 asUInt64]).
++		entry := ffiStubs directEntryFor: desc explicitArgs: n ~= 0 abi: site.
++		entry = 0 ifTrue: [^self null].
++		entries at: slot put: entry.
++		directTrace ifTrue: [directCounts at: 0 put: (directCounts at: 0) + 1]].
++	^self cCoerce: entry to: 'prim_fn'
++!
++printDirectTrace
++	directTrace ifTrue: [
++		libc fprintf: libc stderr format: 'ffi-direct trace published=%llu success=%llu reject=%llu\n'
++			with: (directCounts at: 0) with: (directCounts at: 1) with: (directCounts at: 2)]
++! !
+diff --git a/src/VM-Jit/FFIPrimitives.st b/src/VM-Jit/FFIPrimitives.st
+index 69d95d0..807c03c 100644
+--- a/src/VM-Jit/FFIPrimitives.st
++++ b/src/VM-Jit/FFIPrimitives.st
+@@ -1,5 +1,5 @@
+ VMPrimitiveModule subclass: #FFIPrimitives
+-	instanceVariableNames: 'ffiStubs runtimeNative bigint mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingArities bindingResultTags bindingSerial bindingSerials boundSites boundSiteCount boundSiteTrace boundTraceCounts ownedRows ownedReserved ownedSession ownedSerial'
++	instanceVariableNames: 'ffiStubs runtimeNative bigint mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingArities bindingResultTags bindingSerial bindingSerials boundSites boundSiteCount boundSiteTrace boundTraceCounts directEnabledFlag directTrace directCounts directTargets directReceiverEntries directArgEntries ownedRows ownedReserved ownedSession ownedSerial'
+ 	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED FFI_BOUND_SITE_LIMIT FFI_OWNED_LIMIT FFI_OWNED_BYTE_LIMIT'
+ 	package: 'VM-Jit'!
+ 
+@@ -15,6 +15,8 @@ declarations
+ 		(bindingSerial uint64_t) (bindingSerials 'uint64_t[FFI_BINDING_LIMIT]')
+ 		(boundSites 'FFIBoundSite[FFI_BOUND_SITE_LIMIT]') (boundSiteCount int32_t)
+ 		(boundSiteTrace bool) (boundTraceCounts 'uint64_t[3]')
++		(directEnabledFlag bool) (directTrace bool) (directCounts 'uint64_t[3]') (directTargets 'uint64_t[FFI_BINDING_LIMIT]')
++		(directReceiverEntries 'uint64_t[FFI_BINDING_LIMIT]') (directArgEntries 'uint64_t[FFI_BINDING_LIMIT]')
+ 		(ownedRows 'FFIOwnedRow[FFI_OWNED_LIMIT]') (ownedReserved uint32_t)
+ 		(ownedSession uint64_t) (ownedSerial uint64_t)
+ 		(mathNames 'const char *[10]' #('sin' 'cos' 'log' 'exp' 'atan' 'sqrt' 'fabs' 'trunc' 'ldexp' 'ilogb'))
+@@ -38,7 +40,7 @@ initialize
+ !FFIPrimitives methodsFor: 'bound primitives'!
+ primFFIPrepare
+ 	<vmPrimitive: 263 name: 'ffiPrepare'>
+-	| owner arity entry slot result |
++	| owner descriptor arity entry slot result directTarget target |
+ 	self argCount = 0 ifFalse: [^self fail].
+ 	owner := self receiver.
+ 	arity := self local: 'int32_t'.
+@@ -47,8 +49,14 @@ primFFIPrepare
+ 	entry ~= 0 ifTrue: [^self answerBool: true].
+ 	ffiStubs canPublishCode ifFalse: [^self fail].
+ 	result := self local: 'int32_t'.
+-	entry := self prepareEntry: (self loadRef: owner at: 0) into: arity result: result.
++	descriptor := self loadRef: owner at: 0.
++	target := self local: 'uint64_t'.
++	entry := self prepareEntry: descriptor into: arity result: result nativeTarget: target.
+ 	entry = 0 ifTrue: [^self fail].
++	"Decide before any GC (the descriptor is not a native root)."
++	directTarget := (directEnabledFlag and: [
++		self isDirectDescriptor: descriptor result: result value fallback: 0 requireAvailable: false])
++			ifTrue: [target value] ifFalse: [0 asUInt64].
+ 	self ensureBindingSession ifFalse: [^self fail].
+ 	slot := self bindingSlotFor: owner.
+ 	slot < 0 ifTrue: [
+@@ -57,6 +65,9 @@ primFFIPrepare
+ 		owner := self receiver.
+ 		slot := self bindingSlotFor: owner.
+ 		slot < 0 ifTrue: [^self fail]].
++	directTargets at: slot put: directTarget.
++	directReceiverEntries at: slot put: 0.
++	directArgEntries at: slot put: 0.
+ 	bindingOwners at: slot put: owner.
+ 	bindingEntries at: slot put: entry.
+ 	bindingArities at: slot put: arity value asUInt8.
+@@ -65,6 +76,7 @@ primFFIPrepare
+ 	bindingSerial < 16rFFFFFFFFFFFFFFFF ifTrue: [bindingSerial := bindingSerial + 1].
+ 	bindingSerials at: slot put: (bindingSerial = 16rFFFFFFFFFFFFFFFF ifTrue: [0] ifFalse: [bindingSerial]).
+ 	self storeRef: owner at: 1 put: (self intOop: ((bindingSession bitOr: slot asUInt64) asInt64)).
++	directTarget ~= 0 ifTrue: [jit directBindingPublished].
+ 	self answerBool: true
+ !
+ primFFIBoundInvoke
+@@ -107,6 +119,7 @@ callBound: entry args: args
+ configureBoundSiteTrace
+ 	"Instrument at VM startup and code generation only; untraced primitives and compiled sends pay no per-call cost."
+ 	<function>
++	self configureDirect.
+ 	boundSiteTrace := (libc getenv: 'SAMALTAK_FFI_SITE_TRACE') notNull.
+ 	boundSiteTrace ifTrue: [
+ 		primitives installTraceFunction: (self functionPointer: #traceBoundPrimitive) for: 264]
+@@ -124,6 +137,7 @@ boundSiteMissAddress
+ !
+ printBoundSiteTrace
+ 	<function>
++	self printDirectTrace.
+ 	boundSiteTrace ifTrue: [
+ 		libc fprintf: libc stderr format: 'ffi-site trace hits=%llu misses=%llu primitive=%llu
+ ' with: (boundTraceCounts at: 0) with: (boundTraceCounts at: 1) with: (boundTraceCounts at: 2)]
+@@ -265,16 +279,17 @@ invalidateBindings
+ 	bindingCount := 0.
+ 	bindingSession := 0
+ !
+-prepareEntry: descriptor into: arity result: resultOut
++prepareEntry: descriptor into: arity result: resultOut nativeTarget: target
+ 	<function>
+ 	<var: #descriptor type: 'oop'>
+ 	<var: #arity type: 'int32_t *'>
+ 	<var: #resultOut type: 'int32_t *'>
++	<var: #target type: 'uint64_t *'>
+ 	<var: #n type: 'int32_t'>
+ 	<var: #result type: 'int32_t'>
+ 	<var: #slots type: 'int32_t'>
+ 	<returns: 'uint64_t'>
+-	| library symbol libraryOop symbolOop libLen symLen tags tagOop count n slots resultOop result target id operation |
++	| library symbol libraryOop symbolOop libLen symLen tags tagOop count n slots resultOop result id operation |
+ 	((self isArray: descriptor count: 4) and: [self isImmutable: descriptor]) ifFalse: [^0].
+ 	libraryOop := self loadRef: descriptor at: 0.
+ 	symbolOop := self loadRef: descriptor at: 1.
+@@ -301,7 +316,6 @@ prepareEntry: descriptor into: arity result: resultOut
+ 	0 to: n - 1 do: [:i |
+ 		((tags at: i) >= 8) ifTrue: [slots := slots + 1]].
+ 	slots > 6 ifTrue: [^0].
+-	target := self local: 'uint64_t'.
+ 	id := self resolve: library length: libLen symbol: symbol length: symLen types: tags count: n result: result prepared: true into: target.
+ 	id = 0 ifTrue: [^0].
+ 	operation := id = FFI_MEMCMP ifTrue: [1] ifFalse: [0].
+diff --git a/src/VM-Jit/FFIStubCompiler-direct.extension.st b/src/VM-Jit/FFIStubCompiler-direct.extension.st
+new file mode 100644
+index 0000000..d32670c
+--- /dev/null
++++ b/src/VM-Jit/FFIStubCompiler-direct.extension.st
+@@ -0,0 +1,388 @@
++VMStruct subclass: #FFIDirectABI
++	instanceVariableNames: ''
++	classVariableNames: ''
++	package: 'VM-Jit'!
++
++!FFIDirectABI class methodsFor: 'declaring'!
++fields
++	^#((base uint64_t) (result uint64_t) (status uint64_t) (errorCell uint64_t)
++		(floatClass uint64_t) (target uint64_t) (counts uint64_t)
++		(okStatus uint32_t) (failStatus uint32_t) (stressBox bool))
++! !
++
++!FFIStubCompiler methodsFor: '*VM-Jit'!
++directEntryFor: desc explicitArgs: explicit abi: site
++	"Publish prim_fn (void(void)). Only scalar lanes from the same approved prepared
++	binding are admitted. ABI addresses name native cells, never movable image oops."
++	<export>
++	<var: #desc type: 'FFIBoundSite *'>
++	<var: #explicit type: 'bool'>
++	<var: #site type: 'FFIDirectABI *'>
++	<returns: 'uint64_t'>
++	| buf bytes size entry argHelper boxHelper stress |
++	(directCount = FFI_DIRECT_LIMIT or: [self canPublishCode not]) ifTrue: [^0].
++	stress := site stressBox.
++	argHelper := explicit ifTrue: [self wrappedArgumentHelper: 3] ifFalse: [0 asUInt64].
++	boxHelper := self wrappedResultHelper: (explicit ifTrue: [12] ifFalse: [6]).
++	buf := self local: 'uint32_t[112]'.
++	bytes := self cCoerce: buf to: 'uint8_t *'.
++	size := asm isX64
++		ifTrue: [self encodeDirectX64: bytes binding: desc explicitArgs: explicit abi: site arg: argHelper box: boxHelper stress: stress]
++		ifFalse: [self encodeDirectArm64: buf binding: desc explicitArgs: explicit abi: site arg: argHelper box: boxHelper stress: stress].
++	(size = 0 or: [size > 448]) ifTrue: [^0].
++	entry := memory publishFFIStub: bytes size: size.
++	entry ~= 0 ifTrue: [directCount := directCount + 1].
++	^entry
++!
++x64DirectR11: value at: p
++	<function>
++	<arch: #x86_64>
++	<var: #value type: 'uint64_t'>
++	<var: #p type: 'uint8_t *'>
++	^self emitX64: value count: 8 at: (self emitX64: 16rBB49 asUInt64 count: 2 at: p)
++!
++x64DirectStore: value cell: cell at: p
++	<function>
++	<arch: #x86_64>
++	<var: #value type: 'uint32_t'>
++	<var: #cell type: 'uint64_t'>
++	<var: #p type: 'uint8_t *'>
++	| q |
++	q := self x64DirectR11: cell at: p.
++	q := self emitX64: 16r03C741 asUInt64 count: 3 at: q. "mov dword [r11],imm32"
++	^self emitX64: value asUInt64 count: 4 at: q
++!
++x64DirectCount: counts at: p
++	<function>
++	<arch: #x86_64>
++	<var: #counts type: 'uint64_t'>
++	<var: #p type: 'uint8_t *'>
++	counts = 0 ifTrue: [^p].
++	^self emitX64: 16r03FF49 asUInt64 count: 3 at: (self x64DirectR11: counts at: p) "inc qword [r11]"
++!
++x64DirectJumpAt: p
++	<function>
++	<arch: #x86_64>
++	<var: #p type: 'uint8_t *'>
++	^self emitX64: 16rE9 asUInt64 count: 5 at: p
++!
++encodeDirectX64: start binding: desc explicitArgs: explicit abi: site arg: argHelper box: boxHelper stress: stress
++	<function>
++	<arch: #x86_64>
++	<var: #start type: 'uint8_t *'>
++	<var: #desc type: 'FFIBoundSite *'>
++	<var: #explicit type: 'bool'>
++	<var: #site type: 'FFIDirectABI *'>
++	<var: #argHelper type: 'uint64_t'>
++	<var: #boxHelper type: 'uint64_t'>
++	<var: #stress type: 'bool'>
++	<returns: 'uint32_t'>
++	| p badSerial noOwner badToken slowArg callAt boxSlow success failAt badArg zeroArg moveArg zeroResult |
++	p := self emitX64: 16rB848FA1E0FF3 asUInt64 count: 6 at: start. "endbr64; movabs rax,serialAddr"
++	p := self emitX64: desc serialAddr count: 8 at: p.
++	p := self emitX64: 16rB948 asUInt64 count: 2 at: p. "movabs rcx,serial"
++	p := self emitX64: desc serial count: 8 at: p.
++	badSerial := self x64WrappedJcc: 5 at: (self emitX64: 16r083948 asUInt64 count: 3 at: p). "cmp [rax],rcx; jne reject"
++	p := self emitX64: 16rB848 asUInt64 count: 2 at: badSerial.
++	p := self emitX64: desc ownerAddr count: 8 at: p.
++	noOwner := self x64WrappedJcc: 4 at: (self emitX64: 16rC08548008B48 asUInt64 count: 6 at: p). "mov rax,[rax]; test rax,rax; jz reject"
++	p := self emitX64: 16rB948 asUInt64 count: 2 at: noOwner.
++	p := self emitX64: desc token count: 8 at: p.
++	badToken := self x64WrappedJcc: 5 at: (self emitX64: 16r18483948 asUInt64 count: 4 at: p). "cmp [rax+24],rcx; jne reject"
++
++	p := self x64DirectR11: site base at: badToken.
++	p := self emitX64: 16r038B49 asUInt64 count: 3 at: p. "mov rax,[r11] (current primBase)"
++	explicit
++		ifTrue: [
++			p := self emitX64: 16r08788B4851 asUInt64 count: 5 at: p.
++			p := self emitX64: 16r01C7F640 asUInt64 count: 4 at: p.
++			"push rcx (ABI alignment and non-immediate scratch); mov rdi,[rax+8]; test dil,1"
++			slowArg := self x64WrappedJcc: 4 at: p.
++			p := self emitX64: 16rFFD148 asUInt64 count: 3 at: slowArg. "sar rdi,1"
++			callAt := p]
++		ifFalse: [
++			p := self emitX64: 16rC289008B48 asUInt64 count: 5 at: p.
++			p := self emitX64: 16r04FA8307E283 asUInt64 count: 6 at: p.
++			"mov rax,[rax]; mov edx,eax; and edx,7; cmp edx,4"
++			slowArg := self x64WrappedJcc: 5 at: p.
++			p := self emitX64: 16r01F8834803E8C148 asUInt64 count: 8 at: slowArg. "shr rax,3; cmp rax,1"
++			zeroArg := self x64WrappedJcc: 6 at: p.
++			p := self emitX64: 16rB948 asUInt64 count: 2 at: zeroArg.
++			p := self emitX64: 16r7000000000000000 asUInt64 count: 8 at: p.
++			p := self emitX64: 16rC8D148C80148 asUInt64 count: 6 at: p. "add rax,rcx; ror rax,1"
++			moveArg := p.
++			p := self emitX64: 16rC06E0F4866 asUInt64 count: 5 at: p. "movq xmm0,rax"
++			p := self emitX64: 16r51 asUInt64 count: 1 at: p. "push rcx: align stack"
++			callAt := p].
++	p := self x64WrappedCall: site target at: p.
++	"From here no failure edge, and no saved stack pointer to the VM's oops.
++	The boxing helpers can collect; answer through the primitive result cell."
++	stress ifFalse: [
++		explicit
++			ifTrue: [
++				p := self emitX64: 16r3EE9C148C18948 asUInt64 count: 7 at: p. "mov rcx,rax; shr rcx,62"
++				boxSlow := self x64WrappedJcc: 5 at: p. "negative or greater than SmallInteger max"
++				p := self emitX64: 16r0100448D48 asUInt64 count: 5 at: boxSlow] "lea rax,[rax+rax+1]"
++			ifFalse: [
++				p := self emitX64: 16rC07E0F4866 asUInt64 count: 5 at: p. "movq rax,xmm0"
++				p := self emitX64: 16rC0D148C28948 asUInt64 count: 6 at: p. "mov rdx,rax; rol rax,1"
++				p := self emitX64: 16r01F88348 asUInt64 count: 4 at: p. "cmp rax,1"
++				zeroResult := self x64WrappedJcc: 6 at: p.
++				p := self emitX64: 16r34EAC148 asUInt64 count: 4 at: zeroResult.
++				p := self emitX64: 16r000007FFE281 asUInt64 count: 6 at: p. "shr rdx,52; and edx,2047"
++				p := self emitX64: 16r00000381EA81 asUInt64 count: 6 at: p. "sub edx,897"
++				p := self emitX64: 16r000000FDFa81 asUInt64 count: 6 at: p. "cmp edx,253"
++				boxSlow := self x64WrappedJcc: 7 at: p.
++				p := self emitX64: 16rB948 asUInt64 count: 2 at: boxSlow.
++				p := self emitX64: 16r7000000000000000 asUInt64 count: 8 at: p.
++				p := self emitX64: 16rC82948 asUInt64 count: 3 at: p. "sub rax,rcx"
++				self x64WrappedPatch: zeroResult to: p.
++				p := self emitX64: 16r000004C5048D48 asUInt64 count: 8 at: p]]. "lea rax,[rax*8+4]"
++	stress ifTrue: [
++		explicit ifTrue: [p := self emitX64: 16rC78948 asUInt64 count: 3 at: p]. "mov rdi,rax"
++		p := self x64WrappedCall: boxHelper at: p].
++	success := p.
++	site counts ~= 0 ifTrue: [p := self x64DirectCount: site counts + 8 at: p].
++	p := self x64DirectR11: site result at: p.
++	p := self emitX64: 16r038949 asUInt64 count: 3 at: p. "mov [r11],rax"
++	p := self x64DirectStore: site okStatus cell: site status at: p.
++	p := self emitX64: 16rC359 asUInt64 count: 2 at: p. "pop rcx; ret"
++
++	failAt := p.
++	self x64WrappedPatch: badSerial to: failAt.
++	self x64WrappedPatch: noOwner to: failAt.
++	self x64WrappedPatch: badToken to: failAt.
++	site counts ~= 0 ifTrue: [p := self x64DirectCount: site counts + 16 at: p].
++	p := self x64DirectStore: 16rFFFFFFFF cell: site errorCell at: p.
++	p := self x64DirectStore: site failStatus cell: site status at: p.
++	p := self emitX64: 16rC3 asUInt64 count: 1 at: p.
++
++	self x64WrappedPatch: slowArg to: p.
++	explicit
++		ifTrue: [
++			p := self emitX64: 16rE68948 asUInt64 count: 3 at: p. "mov rsi,rsp (int64 out)"
++			p := self x64WrappedCall: argHelper at: p.
++			badArg := self x64WrappedJcc: 4 at: (self emitX64: 16rC084 asUInt64 count: 2 at: p). "test al,al; jz restore+reject"
++			p := self emitX64: 16r243C8B48 asUInt64 count: 4 at: badArg. "mov rdi,[rsp]"
++			p := self x64DirectJumpAt: p.
++			self x64WrappedPatch: p to: callAt.
++			self x64WrappedPatch: badArg to: p.
++			p := self x64DirectJumpAt: (self emitX64: 16r59 asUInt64 count: 1 at: p).
++			self x64WrappedPatch: p to: failAt]
++		ifFalse: [
++			p := self x64WrappedJcc: 5 at: (self emitX64: 16rD285 asUInt64 count: 2 at: p). "test edx,edx; jnz reject"
++			self x64WrappedPatch: p to: failAt.
++			p := self x64WrappedJcc: 4 at: (self emitX64: 16rC08548 asUInt64 count: 3 at: p). "test rax,rax; jz reject"
++			self x64WrappedPatch: p to: failAt.
++			p := self x64DirectR11: site floatClass at: p.
++			p := self emitX64: 16r084839480B8B49 asUInt64 count: 7 at: p. "mov rcx,[r11]; cmp [rax+8],rcx"
++			p := self x64WrappedJcc: 5 at: p.
++			self x64WrappedPatch: p to: failAt.
++			p := self emitX64: 16r1040100FF2 asUInt64 count: 5 at: p. "movsd xmm0,[rax+16]"
++			p := self x64DirectJumpAt: (self emitX64: 16r51 asUInt64 count: 1 at: p).
++			self x64WrappedPatch: p to: callAt.
++			self x64WrappedPatch: zeroArg to: p.
++			p := self x64DirectJumpAt: (self emitX64: 16r3FE0C148 asUInt64 count: 4 at: p). "shl rax,63"
++			self x64WrappedPatch: p to: moveArg].
++	stress ifFalse: [
++		self x64WrappedPatch: boxSlow to: p.
++		explicit ifTrue: [p := self emitX64: 16rC78948 asUInt64 count: 3 at: p].
++		p := self x64DirectJumpAt: (self x64WrappedCall: boxHelper at: p).
++		self x64WrappedPatch: p to: success].
++	^(p - start) asUInt32
++! !
++
++!FFIStubCompiler methodsFor: '*VM-Jit'!
++arm64DirectAddress: address at: j into: buf
++	<function>
++	<arch: #arm64>
++	<var: #address type: 'uint64_t'>
++	<var: #j type: 'int32_t'>
++	<var: #buf type: 'uint32_t *'>
++	<returns: 'int32_t'>
++	| k part |
++	buf at: j put: 16rD2800010 + ((address bitAnd: 16rFFFF) * 32).
++	k := j + 1.
++	1 to: 3 do: [:i |
++		part := (address >> (i * 16)) bitAnd: 16rFFFF.
++		part ~= 0 ifTrue: [
++			buf at: k put: (16rF2800010 + (i * 2097152)) asUInt64 + (part * 32).
++			k := k + 1]].
++	^k
++!
++arm64DirectCall: address at: j into: buf
++	<function>
++	<arch: #arm64>
++	<var: #address type: 'uint64_t'>
++	<var: #j type: 'int32_t'>
++	<var: #buf type: 'uint32_t *'>
++	<returns: 'int32_t'>
++	| k |
++	k := self arm64DirectAddress: address at: j into: buf.
++	buf at: k put: 16rD63F0200. "blr x16"
++	^k + 1
++!
++arm64DirectCount: counts at: j into: buf
++	<function>
++	<arch: #arm64>
++	<var: #counts type: 'uint64_t'>
++	<var: #j type: 'int32_t'>
++	<var: #buf type: 'uint32_t *'>
++	<returns: 'int32_t'>
++	| k |
++	counts = 0 ifTrue: [^j].
++	k := self arm64DirectAddress: counts at: j into: buf.
++	buf at: k put: 16rF9400209. "ldr x9,[x16]"
++	buf at: k + 1 put: 16r91000529. "add x9,x9,#1"
++	buf at: k + 2 put: 16rF9000209. "str x9,[x16]"
++	^k + 3
++!
++arm64DirectJump: origin to: dest into: buf
++	<function>
++	<arch: #arm64>
++	<var: #origin type: 'int32_t'>
++	<var: #dest type: 'int32_t'>
++	<var: #buf type: 'uint32_t *'>
++	self arm64WrappedBranch: 16r14000000 from: origin to: dest mask: 16r3FFFFFF into: buf
++!
++encodeDirectArm64: buf binding: desc explicitArgs: explicit abi: site arg: argHelper box: boxHelper stress: stress
++	<function>
++	<arch: #arm64>
++	<var: #buf type: 'uint32_t *'>
++	<var: #desc type: 'FFIBoundSite *'>
++	<var: #explicit type: 'bool'>
++	<var: #site type: 'FFIDirectABI *'>
++	<var: #argHelper type: 'uint64_t'>
++	<var: #boxHelper type: 'uint64_t'>
++	<var: #stress type: 'bool'>
++	<returns: 'uint32_t'>
++	| j badSerial noOwner badToken slowArg callAt boxSlow success failAt zeroArg moveArg zeroResult |
++	buf at: 0 put: 16rD503245F. "bti c"
++	j := self arm64DirectAddress: desc serialAddr at: 1 into: buf.
++	buf at: j put: 16rF9400209. "ldr x9,[x16]"
++	j := self arm64DirectAddress: desc serial at: j + 1 into: buf.
++	buf at: j put: 16rEB10013F. "cmp x9,x16"
++	badSerial := j + 1.
++	j := self arm64DirectAddress: desc ownerAddr at: j + 2 into: buf.
++	buf at: j put: 16rF9400209. "ldr x9,[x16]"
++	noOwner := j + 1.
++	buf at: j + 2 put: 16rF9400D29. "ldr x9,[x9,#24]"
++	j := self arm64DirectAddress: desc token at: j + 3 into: buf.
++	buf at: j put: 16rEB10013F. "cmp x9,x16"
++	badToken := j + 1.
++
++	j := self arm64DirectAddress: site base at: j + 2 into: buf.
++	buf at: j put: 16rF9400200. "ldr x0,[x16] (current primBase)"
++	explicit
++		ifTrue: [
++			buf at: j + 1 put: 16rF9400400. "ldr x0,[x0,#8]"
++			buf at: j + 2 put: 16rA9BE7BFD. "stp x29,x30,[sp,#-32]!!"
++			buf at: j + 3 put: 16r910003FD. "mov x29,sp"
++			slowArg := j + 4. "tbz x0,#0,slowArg"
++			buf at: j + 5 put: 16r9341FC00. "asr x0,x0,#1"
++			j := j + 6]
++		ifFalse: [
++			buf at: j + 1 put: 16rF9400000. "ldr x0,[x0]"
++			buf at: j + 2 put: 16r92400809. "and x9,x0,#7"
++			buf at: j + 3 put: 16rF100113F. "cmp x9,#4"
++			slowArg := j + 4.
++			buf at: j + 5 put: 16rD343FC00. "lsr x0,x0,#3"
++			buf at: j + 6 put: 16rF100041F. "cmp x0,#1"
++			zeroArg := j + 7.
++			j := self arm64DirectAddress: 16r7000000000000000 asUInt64 at: j + 8 into: buf.
++			buf at: j put: 16r8B100000. "add x0,x0,x16"
++			buf at: j + 1 put: 16r93C00400. "ror x0,x0,#1"
++			moveArg := j + 2.
++			buf at: moveArg put: 16r9E670000. "fmov d0,x0"
++			j := j + 3].
++	callAt := j.
++	explicit ifFalse: [
++		buf at: j put: 16rA9BF7BFD. "stp x29,x30,[sp,#-16]!!"
++		buf at: j + 1 put: 16r910003FD. "mov x29,sp"
++		j := j + 2].
++	j := self arm64DirectCall: site target at: j into: buf.
++	stress
++		ifTrue: [j := self arm64DirectCall: boxHelper at: j into: buf]
++		ifFalse: [
++			explicit
++				ifTrue: [
++					buf at: j put: 16rF242041F. "tst x0,#0xc000000000000000"
++					boxSlow := j + 1.
++					buf at: j + 2 put: 16rD37FF800. "lsl x0,x0,#1"
++					buf at: j + 3 put: 16r91000400. "add x0,x0,#1"
++					j := j + 4]
++				ifFalse: [
++					buf at: j put: 16r9E660000. "fmov x0,d0"
++					buf at: j + 1 put: 16rD374F809. "ubfx x9,x0,#52,#11"
++					buf at: j + 2 put: 16r93C0FC00. "ror x0,x0,#63"
++					buf at: j + 3 put: 16rF100041F. "cmp x0,#1"
++					zeroResult := j + 4.
++					buf at: j + 5 put: 16rD10E0529. "sub x9,x9,#897"
++					buf at: j + 6 put: 16rF103F53F. "cmp x9,#253"
++					boxSlow := j + 7.
++					j := self arm64DirectAddress: 16r7000000000000000 asUInt64 at: j + 8 into: buf.
++					buf at: j put: 16rCB100000. "sub x0,x0,x16"
++					self arm64WrappedBranch: 16r54000009 from: zeroResult to: j + 1 mask: 16r7FFFF into: buf. "b.ls"
++					buf at: j + 1 put: 16rD37DF000. "lsl x0,x0,#3"
++					buf at: j + 2 put: 16r91001000. "add x0,x0,#4"
++					j := j + 3]].
++
++	success := j.
++	site counts ~= 0 ifTrue: [j := self arm64DirectCount: site counts + 8 at: j into: buf].
++	j := self arm64DirectAddress: site result at: j into: buf.
++	buf at: j put: 16rF9000200. "str x0,[x16]"
++	j := self arm64DirectAddress: site status at: j + 1 into: buf.
++	buf at: j put: 16r52800009 asUInt64 + (site okStatus asUInt64 * 32). "mov w9,#PS_OK"
++	buf at: j + 1 put: 16rB9000209. "str w9,[x16]"
++	buf at: j + 2 put: (explicit ifTrue: [16rA8C27BFD] ifFalse: [16rA8C17BFD]). "ldp x29,x30,[sp],#32/16"
++	buf at: j + 3 put: 16rD65F03C0. "ret"
++
++	failAt := j + 4.
++	self arm64WrappedBranch: 16r54000001 from: badSerial to: failAt mask: 16r7FFFF into: buf.
++	self arm64WrappedBranch: 16rB4000009 from: noOwner to: failAt mask: 16r7FFFF into: buf.
++	self arm64WrappedBranch: 16r54000001 from: badToken to: failAt mask: 16r7FFFF into: buf.
++	j := failAt.
++	site counts ~= 0 ifTrue: [j := self arm64DirectCount: site counts + 16 at: j into: buf].
++	j := self arm64DirectAddress: site errorCell at: j into: buf.
++	buf at: j put: 16r12800009. "mov w9,#-1"
++	buf at: j + 1 put: 16rB9000209. "str w9,[x16]"
++	j := self arm64DirectAddress: site status at: j + 2 into: buf.
++	buf at: j put: 16r52800009 asUInt64 + (site failStatus asUInt64 * 32). "mov w9,#PS_FAIL"
++	buf at: j + 1 put: 16rB9000209. "str w9,[x16]"
++	buf at: j + 2 put: 16rD65F03C0. "ret"
++	j := j + 3.
++
++	explicit
++		ifTrue: [
++			self arm64WrappedBranch: 16r36000000 from: slowArg to: j mask: 16r3FFF into: buf.
++			buf at: j put: 16r910043E1. "add x1,sp,#16 (int64 out)"
++			j := self arm64DirectCall: argHelper at: j + 1 into: buf.
++			self arm64WrappedBranch: 16r36000000 from: j to: j + 3 mask: 16r3FFF into: buf. "tbz w0,#0,restore+reject"
++			buf at: j + 1 put: 16rF9400BE0. "ldr x0,[sp,#16]"
++			self arm64DirectJump: j + 2 to: callAt into: buf.
++			buf at: j + 3 put: 16rA8C27BFD. "ldp x29,x30,[sp],#32"
++			self arm64DirectJump: j + 4 to: failAt into: buf.
++			j := j + 5]
++		ifFalse: [
++			self arm64WrappedBranch: 16r54000001 from: slowArg to: j mask: 16r7FFFF into: buf.
++			self arm64WrappedBranch: 16rB5000009 from: j to: failAt mask: 16r7FFFF into: buf. "cbnz x9"
++			self arm64WrappedBranch: 16rB4000000 from: j + 1 to: failAt mask: 16r7FFFF into: buf. "cbz x0"
++			j := self arm64DirectAddress: site floatClass at: j + 2 into: buf.
++			buf at: j put: 16rF9400210. "ldr x16,[x16]"
++			buf at: j + 1 put: 16rF940040A. "ldr x10,[x0,#8]"
++			buf at: j + 2 put: 16rEB10015F. "cmp x10,x16"
++			self arm64WrappedBranch: 16r54000001 from: j + 3 to: failAt mask: 16r7FFFF into: buf.
++			buf at: j + 4 put: 16rFD400800. "ldr d0,[x0,#16]"
++			self arm64DirectJump: j + 5 to: callAt into: buf.
++			self arm64WrappedBranch: 16r54000009 from: zeroArg to: j + 6 mask: 16r7FFFF into: buf.
++			buf at: j + 6 put: 16rD3410000. "lsl x0,x0,#63"
++			self arm64DirectJump: j + 7 to: moveArg into: buf.
++			j := j + 8].
++	stress ifFalse: [
++		self arm64WrappedBranch: (explicit ifTrue: [16r54000001 asUInt32] ifFalse: [16r54000008 asUInt32])
++			from: boxSlow to: j mask: 16r7FFFF into: buf. "b.ne / b.hi"
++		j := self arm64DirectCall: boxHelper at: j into: buf.
++		self arm64DirectJump: j to: success into: buf.
++		j := j + 1].
++	^j asUInt32 * 4
++! !
+diff --git a/src/VM-Jit/FFIStubCompiler.st b/src/VM-Jit/FFIStubCompiler.st
+index 80522ca..5dd55bb 100644
+--- a/src/VM-Jit/FFIStubCompiler.st
++++ b/src/VM-Jit/FFIStubCompiler.st
+@@ -1,6 +1,6 @@
+ VMModule subclass: #FFIStubCompiler
+-	instanceVariableNames: 'asm memory wrapperHelpers publishedCount wrappedCount stubTargets stubKeys stubEntries'
+-	classVariableNames: 'FFI_STUB_BYTES FFI_STUB_LIMIT FFI_WRAPPED_BYTES FFI_WRAPPED_LIMIT FFI_STUB_TABLE_SIZE'
++	instanceVariableNames: 'asm memory wrapperHelpers publishedCount wrappedCount directCount stubTargets stubKeys stubEntries'
++	classVariableNames: 'FFI_STUB_BYTES FFI_STUB_LIMIT FFI_WRAPPED_BYTES FFI_WRAPPED_LIMIT FFI_STUB_TABLE_SIZE FFI_DIRECT_LIMIT'
+ 	package: 'VM-Jit'!
+ 
+ FFIStubCompiler comment: 'Hosted launchers for fixed C signatures, excluding variadics. A wrapper validates and unboxes oops, calls the resolved target, and boxes its result. Legacy word stubs accept already marshalled arguments. Published entries are immutable and stay live until exit, independent of CodeCache. Publish only on the VM thread. The cache contains code, not authorization; callers must resolve and authorize before obtaining an entry.'!
+@@ -8,7 +8,7 @@ FFIStubCompiler comment: 'Hosted launchers for fixed C signatures, excluding var
+ !FFIStubCompiler class methodsFor: 'declaring'!
+ declarations
+ 	^#((asm JitAssembler) (memory FFIStubMemory) (wrapperHelpers FFIWrapperHelpers)
+-		(publishedCount uint32_t) (wrappedCount uint32_t)
++		(publishedCount uint32_t) (wrappedCount uint32_t) (directCount uint32_t)
+ 		(stubTargets 'uint64_t[FFI_STUB_TABLE_SIZE]') (stubKeys 'uint32_t[FFI_STUB_TABLE_SIZE]')
+ 		(stubEntries 'uint64_t[FFI_STUB_TABLE_SIZE]'))
+ !
+@@ -17,6 +17,7 @@ initialize
+ 	FFI_STUB_LIMIT := 1024.
+ 	FFI_WRAPPED_BYTES := 2048.
+ 	FFI_WRAPPED_LIMIT := 1024.
++	FFI_DIRECT_LIMIT := 256.
+ 	FFI_STUB_TABLE_SIZE := 2 * (FFI_STUB_LIMIT + FFI_WRAPPED_LIMIT)
+ ! !
+ 
+diff --git a/src/VM-Jit/FFIWrapperHelpers.st b/src/VM-Jit/FFIWrapperHelpers.st
+index d87e482..cef0a88 100644
+--- a/src/VM-Jit/FFIWrapperHelpers.st
++++ b/src/VM-Jit/FFIWrapperHelpers.st
+@@ -172,7 +172,7 @@ ffiBoxNonNegativeI64WithGC: value
+ 	<var: #value type: 'int64_t'>
+ 	<returns: 'oop'>
+ 	value < 0 ifTrue: [^memory nilOop].
+-	^self ffiBoxU64WithGC: value asUInt64
++	^self ffiBoxI64WithGC: value
+ !
+ ffiBoxI64WithGC: value
+ 	<function>
+diff --git a/src/VM-Jit/JitBaselineCompiler.st b/src/VM-Jit/JitBaselineCompiler.st
+index 6e98199..0a17a3e 100644
+--- a/src/VM-Jit/JitBaselineCompiler.st
++++ b/src/VM-Jit/JitBaselineCompiler.st
+@@ -1008,7 +1008,10 @@ emitQuickBody
+ emitPrimitive
+ 	"The method's primitive before its frame: inline machine code for the common ones, then its C function. Success returns to the sender; failure falls through to the frame and the body."
+ 	<function>
+-	| k fail info |
++	| k fail info fn |
++	analysis primitive = 266 ifTrue: [
++		fn := self cCoerce: (runtime directPrimitiveOf: curMethod argc: curArgs) to: 'uint64_t'.
++		^fn = 0 ifTrue: [true] ifFalse: [self emitPrimitiveCall: fn info: curArgs]].
+ 	k := brt primKindOf: analysis primitive.
+ 	k = brt pkPerform ifTrue: [^self emitPerformPrimitive].
+ 	fail := asm newLabel.
+@@ -1032,13 +1035,18 @@ emitPrimitive
+ 	k = brt pkMarker ifTrue: [^true].
+ 	asm bind: fail.
+ 	(runtime prims and: [brt isLeafPrimitive: analysis primitive]) ifTrue: [^self emitLeafPrimitiveCall].
++	info := (curArgs bitOr: ((brt isLeafPrimitive: analysis primitive) ifTrue: [256] ifFalse: [0])) bitOr: (analysis primitiveHasErrorCode ifTrue: [512] ifFalse: [0]).
++	^self emitPrimitiveCall: (brt primFunctionOf: analysis primitive) info: info
++!
++emitPrimitiveCall: fn info: flags
++	| resume |
+ 	asm comment: 'the primitive''s C function: success returns to the sender, failure continues here'.
+-	info := asm newLabel.
+-	asm adr: X10 label: info.
+-	asm mov: X2 imm64: (brt primFunctionOf: analysis primitive).
+-	asm mov: X3 imm: ((curArgs bitOr: ((brt isLeafPrimitive: analysis primitive) ifTrue: [256] ifFalse: [0])) bitOr: (analysis primitiveHasErrorCode ifTrue: [512] ifFalse: [0])).
++	resume := asm newLabel.
++	asm adr: X10 label: resume.
++	asm mov: X2 imm64: fn.
++	asm mov: X3 imm: flags.
+ 	asm b: primLabel.
+-	asm bind: info.
++	asm bind: resume.
+ 	^true
+ !
+ emitLeafPrimitiveCall
+diff --git a/src/VM-Jit/JitRuntime.st b/src/VM-Jit/JitRuntime.st
+index 773e70d..47eaf87 100644
+--- a/src/VM-Jit/JitRuntime.st
++++ b/src/VM-Jit/JitRuntime.st
+@@ -1,5 +1,5 @@
+ VMCoreModule subclass: #JitRuntime
+-	instanceVariableNames: 'stubs baseline brt cache ffi asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending releasePending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned perfMap'
++	instanceVariableNames: 'stubs baseline brt cache ffi asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending releasePending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned perfMap directReceiverBody directArgumentBody directDeferrals directDeferredFallback'
+ 	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FFI_SITE JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_LIVE JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
+ 	package: 'VM-Jit'!
+ 
+@@ -19,6 +19,9 @@ declarations
+ 		(mapPcs 'uint32_t[JIT_MAX_MAP]') (mapOffsets 'uint32_t[JIT_MAX_MAP]') (mapCount int32_t)
+ 		(sendPushed int32_t)
+ 		(performFn prim_fn) (performArgsFn prim_fn)
++		(directReceiverBody 'const uint8_t[15]' #(32 112 209 96 0 114 179 146 3 0 112 194 121 0 121))
++		(directArgumentBody 'const uint8_t[16]' #(32 0 209 97 1 114 179 146 4 0 112 0 210 121 1 121))
++		(directDeferrals 'uint8_t[JIT_TABLE_SIZE]') (directDeferredFallback bool)
+ 		(statCompiled uint64_t) (statFailed uint64_t) (statBytecodes uint64_t) (statCompileUs uint64_t) (statCodeBytes uint64_t) (statCacheFlushes uint64_t)
+ 		(statEntries uint64_t) (statExits uint64_t) (statResumes uint64_t) (statOsr uint64_t) (copying bool) (bottomReturned bool) (perfMap 'FILE *'))
+ !
+@@ -468,6 +471,59 @@ stateAddress
+ ! !
+ 
+ !JitRuntime methodsFor: 'functions for the stubs'!
++directPrimitiveOf: m argc: n
++	"Only the marker's cache fill and method-entry compiler resolve a thunk. Never prepare from a send miss."
++	<function>
++	<var: #m type: 'oop'>
++	<var: #n type: 'int32_t'>
++	<returns: 'prim_fn'>
++	(ffi directEnabled and: [self hasDirectBody: m argc: n]) ifFalse: [^self null].
++	^ffi resolveDirectMethod: m argc: n
++!
++hasDirectBody: m argc: n
++	"A declared primitive runs before the body, including before a redefined #tryInvoke1:.
++	Admit only the seeded failure body and its exact self or argument 0 mapping."
++	<function>
++	<var: #m type: 'oop'>
++	<var: #n type: 'int32_t'>
++	<returns: 'bool'>
++	| literals bc sel fallback |
++	(n = 0 or: [n = 1]) ifFalse: [^false].
++	(m ~= 0 and: [(self isPtr: m) and: [(self rawClass: m) = (memory special: SO_COMPILEDMETHOD) and: [
++		(self formatOf: m) = F_FIXED and: [(self numSlots: m) > CM_PRIMITIVE]]]]) ifFalse: [^false].
++	((interpreter methodPrim: m) = 266 and: [
++		(self loadRef: m at: CM_NUMARGS) = (self intOop: n) and: [
++		(self loadRef: m at: CM_NUMTEMPS) = (self intOop: 1) and: [
++		(self loadRef: m at: CM_FRAMESIZE) = (self intOop: n + 3)]]]) ifFalse: [^false].
++	literals := self loadRef: m at: CM_LITERALS.
++	(literals ~= 0 and: [(self isPtr: literals) and: [(self rawClass: literals) = memory clsArray and: [
++		(self formatOf: literals) = F_VAR and: [(self numSlots: literals) = 3 and: [self isImmutable: literals]]]]]) ifFalse: [^false].
++	sel := self loadRef: literals at: 1.
++	(self directSelector: sel equals: 'tryInvoke1:') ifFalse: [^false].
++	bc := self loadRef: m at: CM_BYTECODES.
++	(bc ~= 0 and: [(self isPtr: bc) and: [(self rawClass: bc) = memory clsBytearray and: [
++		(self formatOf: bc) >= F_BYTES and: [self isImmutable: bc]]]]) ifFalse: [^false].
++	fallback := self loadRef: literals at: 2.
++	n = 0 ifTrue: [
++		^((memory byteSize: bc) = 15 and: [self directSelector: fallback equals: 'fractionPart']) and: [
++			(libc memcmp: (self bytesOf: bc) with: directReceiverBody size: 15) = 0]].
++	^(memory byteSize: bc) = 16 and: [
++		((libc memcmp: (self bytesOf: bc) with: directArgumentBody size: 16) = 0) and: [
++		(self directSelector: fallback equals: 'primPosition:') or: [
++		(self directSelector: fallback equals: 'primSize:') or: [
++		(self directSelector: fallback equals: 'ffiLegacyPrimPosition:') or: [
++		self directSelector: fallback equals: 'ffiLegacyPrimSize:']]]]]
++!
++directSelector: value equals: name
++	<var: #value type: 'oop'>
++	<var: #name type: 'const char *'>
++	<returns: 'bool'>
++	| len |
++	(value ~= 0 and: [(self isPtr: value) and: [(self rawClass: value) = (memory special: SO_BYTESYMBOL) and: [
++		(self formatOf: value) >= F_BYTES]]]) ifFalse: [^false].
++	len := libc strlen: name.
++	^(memory byteSize: value) = len and: [(libc memcmp: (self bytesOf: value) with: name size: len) = 0]
++!
+ primitiveNumberNamed: name
+ 	"The number of the primitive called name, -1 if there is none."
+ 	<function>
+@@ -709,7 +765,19 @@ blockCodeFor: m
+ !
+ compileAndInstall: m
+ 	<function>
+-	| h |
++	| h args n i |
++	"The seeded body prepares on the first cold activation. Do not pin its negative
++	lookup in baseline code. Bound even transient prepare failures that can recur."
++	((interpreter methodPrim: m) = 266 and: [ffi directEnabled]) ifTrue: [
++		args := self loadRef: m at: CM_NUMARGS.
++		(self isInt: args) ifTrue: [
++			n := (self intVal: args) asInt32.
++			((self hasDirectBody: m argc: n) and: [ffi directBindingPending: m argc: n]) ifTrue: [
++				i := (self hashOf: m) bitAnd: JIT_TABLE_SIZE - 1.
++				(directDeferrals at: i) < 4 ifTrue: [
++					directDeferrals at: i put: ((directDeferrals at: i) + 1) asUInt8.
++					^self null].
++				directDeferredFallback := true]]].
+ 	h := self compile: m mode: self lowerMode notes: self notes.
+ 	h isNull ifTrue: [^self null].
+ 	(self insert: h) ifFalse: [^self null].
+@@ -928,6 +996,13 @@ releaseMemory
+ 	releasePending := true.
+ 	self dropAllCode
+ !
++directBindingPublished
++	"Only a matching binding's first prepare invalidates cold cache entries. Code
++	could have captured a cold fallback only if the bounded retry budget ran out."
++	<function>
++	interpreter flushMethodCache.
++	directDeferredFallback ifTrue: [self dropAllCode]
++!
+ flushCode
+ 	"Drop all machine code (none is on the native stack): frames continue in the interpreter."
+ 	<function>
+@@ -936,6 +1011,8 @@ flushCode
+ 	0 to: interpreter nframes - 1 do: [:i | (interpreter frames + i) code: (jitMode = JIT_NONE ifTrue: [0] ifFalse: [1])].
+ 	libc memset: methodTable value: 0 size: 8 * JIT_TABLE_SIZE.
+ 	libc memset: methodCounts value: 0 size: 2 * JIT_TABLE_SIZE.
++	libc memset: directDeferrals value: 0 size: JIT_TABLE_SIZE.
++	directDeferredFallback := false.
+ 	tableCount := 0.
+ 	youngCount := 0.
+ 	youngOverflow := false.
+diff --git a/src/VM-Lowtalk/VMModule.st b/src/VM-Lowtalk/VMModule.st
+index e2c7f46..77099c8 100644
+--- a/src/VM-Lowtalk/VMModule.st
++++ b/src/VM-Lowtalk/VMModule.st
+@@ -299,6 +299,11 @@ primitiveCount
+ 	<intrinsic>
+ 	^sim primitiveCount
+ !
++nativeCellAddress: aSymbol
++	"Address of a module's native global cell; only callable when emitting hosted code."
++	<intrinsic>
++	self error: 'no native global cell in the simulator'
++!
+ atomicLoad: aSymbol
+ 	"Load my atomic variable named aSymbol (relaxed)."
+ 	<intrinsic>
+diff --git a/src/VM-Translator/TCodeGenerator.st b/src/VM-Translator/TCodeGenerator.st
+index d51b184..ade0ded 100644
+--- a/src/VM-Translator/TCodeGenerator.st
++++ b/src/VM-Translator/TCodeGenerator.st
+@@ -1288,6 +1288,15 @@ intrinsic: aSelector arguments: argNodes node: aNode valueWanted: aBoolean
+ 	aSelector == #doubleFromBits: ifTrue: [^CCall function: 'lt_double_from_bits' arguments: (Array with: (self expression: argNodes first)) type: (registry at: 'double')].
+ 	aSelector == #mul64:by:plus:plus:high: ifTrue: [^CCall function: 'lt_mul64' arguments: (argNodes collect: [:n | self expression: n]) asArray type: (registry at: 'uint64_t')].
+ 	aSelector == #div128:low:by:remainder: ifTrue: [^CCall function: 'lt_div128' arguments: (argNodes collect: [:n | self expression: n]) asArray type: (registry at: 'uint64_t')].
++	aSelector == #nativeCellAddress: ifTrue: [
++		| name g |
++		name := argNodes first.
++		(name isLiteral and: [name value isSymbol]) ifFalse: [
++			^self error: 'a native cell is named by a symbol' node: aNode].
++		g := self globalNamed: name value asString node: aNode.
++		g isRegister ifTrue: [^self error: 'a native cell cannot name a register' node: aNode].
++		g := self globalReference: g.
++		^CUnary operator: '&' operand: g type: g type pointer].
+ 	aSelector == #atomicLoad: ifTrue: [
+ 		| g |
+ 		g := self atomicVariable: argNodes first.
+diff --git a/tests/vm/ffi_direct_test.py b/tests/vm/ffi_direct_test.py
+new file mode 100755
+index 0000000..4e3565c
+--- /dev/null
++++ b/tests/vm/ffi_direct_test.py
+@@ -0,0 +1,102 @@
++#!/usr/bin/env python3
++"""Observe matched native entries and direct prim results through cold/warm/GC/relink."""
++import argparse
++import collections
++import os
++from pathlib import Path
++import re
++import subprocess
++import tempfile
++
++ap = argparse.ArgumentParser(description=__doc__)
++ap.add_argument("vm", type=Path)
++ap.add_argument("image", type=Path)
++ap.add_argument("evidence", type=Path)
++ap.add_argument("--old-image", action="store_true", help="no marker expected")
++ap.add_argument("--mode", action="append", choices=("none", "baseline", "opt", "deopt"))
++args = ap.parse_args()
++args.evidence.mkdir(parents=True)
++n = 120
++body = """
++| float method expected run path h |
++float := Float fromIEEEBits: 16rC006000000000000.
++expected := float fractionPart asIEEEBits.
++method := Float compiledMethodAt: #ffiCandidateFractionPart.
++run := [:count | count timesRepeat: [
++    float ffiCandidateFractionPart asIEEEBits = expected ifFalse: [self error: 'wrong float result']]].
++run value: @LOOP_COUNT@.
++Smalltalk vm garbageCollect.
++run value: @LOOP_COUNT@.
++[
++    Compiler compile: 'ffiCandidateFractionPart <primitive: 266> ^17' in: Float.
++    float ffiCandidateFractionPart = 17 ifFalse: [self error: 'stale linked marker after method replacement']
++] ensure: [Float addSelectorSilently: #ffiCandidateFractionPart withMethod: method].
++run value: @LOOP_COUNT@.
++Compiler compile: 'ffiDirectDeniedSqrt
++    <ffiSite>
++    <primitive: 266>
++    | answer |
++    answer := (self ffiSite: #(call ''libm'' ''sqrt'' (f64) f64)) tryInvoke1: self.
++    answer == false ifTrue: [^self fractionPart].
++    ^answer' in: Float.
++@LOOP_COUNT@ timesRepeat: [
++    9.0 ffiDirectDeniedSqrt = 3.0 ifFalse: [self error: 'non-direct descriptor changed semantics']].
++path := 'private-fixture'.
++h := File primOpen: path mode: 0.
++h isNil ifTrue: [self error: 'open fixture failed'].
++[
++    @LOOP_COUNT@ timesRepeat: [
++        (File ffiCandidatePrimPosition: h) = 0 ifFalse: [self error: 'wrong position'].
++        (File ffiCandidatePrimSize: h) = 4096 ifFalse: [self error: 'wrong size']].
++] ensure: [File primClose: h].
++@LOOP_COUNT@ timesRepeat: [
++    (File ffiCandidatePrimPosition: h) isNil ifFalse: [self error: 'closed handle position'].
++    (File ffiCandidatePrimSize: h) isNil ifFalse: [self error: 'closed handle size']].
++(File ffiCandidatePrimPosition: nil) isNil ifFalse: [self error: 'wrong guard fallback'].
++(File ffiCandidatePrimSize: nil) isNil ifFalse: [self error: 'wrong guard fallback'].
++'ffi-direct-ok'
++""".replace("@LOOP_COUNT@", str(n))
++if args.old_image:
++    start = body.index("Compiler compile: 'ffiDirectDeniedSqrt")
++    end = body.index("path :=", start)
++    body = body[:start] + body[end:]
++expr = ("[" + body + "] on: Error do: [:e | Smalltalk vm stderrWrite: e messageText, "
++        "(String with: Character lf). Smalltalk quit: 1]")
++trace_re = re.compile(rb"^ffi-direct trace published=(\d+) success=(\d+) reject=(\d+)\\n\Z", re.M)
++native_re = re.compile(rb"^ffi-native-entry (\d+)$", re.M)
++env = {k: v for k, v in os.environ.items() if k not in (
++    "DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "SAMALTAK_NATIVE_GRANTS",
++    "SAMALTAK_FFI_TRIAL", "SAMALTAK_FFI_TEST_EXPORTS", "LD_PRELOAD")}
++env.update(LC_ALL="C", SDL_VIDEO_DRIVER="parity_no_video", SDL_VIDEODRIVER="parity_no_video",
++           SAMALTAK_FFI_DIRECT_TRACE="1", SAMALTAK_FFI_NATIVE_TRACE="1", SAMALTAK_VERIFY_GC="1",
++           SAMALTAK_FFI_BOX_FULL_GC="1")
++with tempfile.TemporaryDirectory() as temp:
++    Path(temp, "private-fixture").write_bytes(bytes(4096))
++    for mode in args.mode or ("none", "baseline", "opt", "deopt"):
++        for enabled in (0, 1):
++            opts = ["--jit", "opt" if mode == "deopt" else mode, "--jit-threshold", "0", "--jit-opt", "16"]
++            if mode in ("opt", "deopt"):
++                opts += ["--jit-flags", "eager,deopt" if mode == "deopt" else "eager"]
++            command = [args.vm.resolve(), *opts, args.image.resolve(), "--headless", "--eval", expr]
++            r = subprocess.run(command, cwd=temp, env=dict(env, SAMALTAK_FFI_DIRECT=str(enabled)),
++                               capture_output=True, timeout=120)
++            prefix = args.evidence / f"{mode}-{enabled}"
++            prefix.with_suffix(".stdout").write_bytes(r.stdout)
++            prefix.with_suffix(".stderr").write_bytes(r.stderr)
++            assert r.returncode == 0 and b"'ffi-direct-ok'" in r.stdout, (prefix, r.returncode, r.stdout[-200:], r.stderr[-400:])
++            counts = collections.Counter(map(int, native_re.findall(r.stderr)))
++            want = {1076: 3*n, 1528: 2*n, 1529: 2*n}
++            assert counts == want, (prefix, counts)
++            result = trace_re.search(r.stderr)
++            assert result and r.stderr.count(b"ffi-direct trace ") == 1, (prefix, "missing or ambiguous direct result path observer")
++            published, success, reject = map(int, result.groups())
++            if not enabled or args.old_image:
++                assert (published, success, reject) == (0, 0, 0), (prefix, result.groups())
++            else:
++                expected = 7*n
++                # At most one cold seeded call per approved site. The exact-shaped
++                # sqrt method must never publish, and nil from native is success.
++                assert published == 3, (prefix, result.groups())
++                assert expected - published <= success <= expected, (prefix, result.groups())
++                assert reject == 2, (prefix, result.groups())
++            print(f"{prefix.name}: native {want}, direct {published}/{success}/{reject}", flush=True)
+diff --git a/vm/tests/bench/ffi-paired.py b/vm/tests/bench/ffi-paired.py
+index 555b89a..eef2841 100755
+--- a/vm/tests/bench/ffi-paired.py
++++ b/vm/tests/bench/ffi-paired.py
+@@ -20,6 +20,9 @@ MODES = ("none", "baseline", "opt")
+ STATS = ("wall_us", "cpu_us", "allocated_bytes", "scavenges", "full_gcs",
+          "gc_us", "baseline_compiles", "opt_compiles", "deopts")
+ TRACE = re.compile(rb"^ffi-native-entry (\d+)$", re.MULTILINE)
++DIRECT_TRACE = re.compile(
++    rb"^ffi-direct trace published=(\d+) success=(\d+) reject=(\d+)\\n\Z", re.MULTILINE)
++DIRECT_KEYS = {52, 504, 505}
+ FILE_SIZES = (1, 4096, 1048576)
+ 
+ 
+@@ -102,7 +105,12 @@ def run(args, work, case, mode, repetition, schedule, proof_arm):
+     env = {k: v for k, v in os.environ.items() if k not in {
+         "SAMALTAK_NATIVE_GRANTS", "SAMALTAK_VERIFY_GC",
+         "SAMALTAK_FFI_TRIAL", "SAMALTAK_OPT_TRACE", "SAMALTAK_FFI_SITE_TRACE",
+-        "SAMALTAK_FFI_BOX_FULL_GC", "SAMALTAK_FFI_NATIVE_TRACE"}}
++        "SAMALTAK_FFI_BOX_FULL_GC", "SAMALTAK_FFI_NATIVE_TRACE",
++        "SAMALTAK_FFI_DIRECT", "SAMALTAK_FFI_DIRECT_TRACE"}}
++    if args.direct_route:
++        env["SAMALTAK_FFI_DIRECT"] = "1"
++        if proof_arm is not None:
++            env["SAMALTAK_FFI_DIRECT_TRACE"] = "1"
+     env.update(LC_ALL="C", SAMALTAK_PARITY_VALUE="parity value")
+     if not args.display_ci:
+         env.pop("DISPLAY", None)
+@@ -148,8 +156,19 @@ def run(args, work, case, mode, repetition, schedule, proof_arm):
+         want = Counter({1024 + item: n for item in keys}) if proof_arm else Counter()
+         if trace != want:
+             raise RuntimeError(f"{log}: native entry counts {dict(trace)}, expected {dict(want)}")
++        if args.direct_route:
++            routes = DIRECT_TRACE.findall(stderr)
++            if len(routes) != 1 or stderr.count(b"ffi-direct trace ") != 1:
++                raise RuntimeError(f"{log}: missing or ambiguous direct trace: {routes}")
++            published, success, rejected = map(int, routes[0])
++            if proof_arm:
++                good = published == 1 and n - 1 <= success <= n and rejected == 0
++            else:
++                good = (published, success, rejected) == (0, 0, 0)
++            if not good:
++                raise RuntimeError(f"{log}: unexpected direct route counters: {routes}")
+         return []
+-    if trace:
++    if trace or DIRECT_TRACE.search(stderr):
+         raise RuntimeError(f"{log}: tracing contaminated timing")
+     rows = []
+     for line in stdout.splitlines():
+@@ -208,6 +227,8 @@ def main():
+     for option in ("vm", "image", "logs"):
+         ap.add_argument(f"--{option}", type=Path, required=True)
+     ap.add_argument("--case", choices=[case[0] for case in (*cases(), *cases(display=True))], action="append")
++    ap.add_argument("--direct-route", action="store_true",
++                    help="enable opt-in direct sites and require direct success/zero control hits")
+     ap.add_argument("--display-ci", action="store_true", help="display suites, GitHub Actions X11 only")
+     ap.add_argument("--sessions", type=int, default=15, help="fresh VM sessions per case/mode")
+     ap.add_argument("--pairs", type=int, default=6, help="even count, half each AB/BA order")
+@@ -241,6 +262,8 @@ def main():
+     if args.case and not set(args.case).issubset({case[0] for case in available}):
+         ap.error("--case does not belong to the selected headless/display suite")
+     selected = [case for case in available if not args.case or case[0] in args.case]
++    if args.direct_route and (args.proof_calls < 2 or any(c[1] not in DIRECT_KEYS for c in selected)):
++        ap.error("--direct-route requires at least two proof calls and only file metadata or float cases")
+     files = [args.vm, args.image, Path(__file__), HERE / "ffi-paired.st"]
+     files += [HERE / f"ffi-paired-{suite}.st" for suite in sorted({c[2] for c in selected})]
+     (args.logs / "plan.json").write_text(json.dumps({
