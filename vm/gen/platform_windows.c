@@ -230,6 +230,14 @@ bool set_cursor(int32_t kind)
     return SDL_SetCursor(cursors[kind]);
 }
 
+/* PlatformWindows>>setSize:width:height: */
+bool set_size(int32_t win, int32_t w, int32_t h)
+{
+    SDL_Window *sw;
+    sw = sdl_window(win);
+    return (sw != NULL) && SDL_SetWindowSize(sw, w, h);
+}
+
 /* PlatformWindows>>setTextInputArea:x:y:width:height:cursor: */
 bool set_text_input_area(int32_t win, int32_t x, int32_t y, int32_t w, int32_t h, int32_t cursor)
 {

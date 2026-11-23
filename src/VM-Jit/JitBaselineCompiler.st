@@ -2688,6 +2688,12 @@ operand: i for: s a: isA
 			ifTrue: [slA at: s put: (k = SS_SELF ifTrue: [X21] ifFalse: [(ssVal at: i) asInt32])]
 			ifFalse: [slB at: s put: (k = SS_SELF ifTrue: [X21] ifFalse: [(ssVal at: i) asInt32])].
 		^self].
+	"a temp in the loop's register: ssMaterialize: answered that register and left the entry a temp (not in the operand's slot)"
+	(k = SS_TEMP and: [(self loopRegOf: (ssVal at: i) asInt32) >= 0]) ifTrue: [
+		isA
+			ifTrue: [slA at: s put: (self loopRegOf: (ssVal at: i) asInt32) asInt8]
+			ifFalse: [slB at: s put: (self loopRegOf: (ssVal at: i) asInt32) asInt8].
+		^self].
 	k = SS_CONST ifTrue: [
 		isA
 			ifTrue: [

@@ -90,6 +90,8 @@ test-core: $(TEST_IMAGE) test-vm
 	tests/st_suite.sh $(OUT)/samaltak.image --max-heap 128 -- LowSpaceTest StackOverflowTest
 	$(MAKE) fresh-runtime
 	tests/st_suite.sh $(OUT)/runtime.image -- Weather --load apps/Weather
+	tests/st_suite.sh $(OUT)/runtime.image -- Agents --load apps/Agents
+	tests/st_suite.sh $(OUT)/runtime.image -- Wodify --load apps/Wodify
 # System-NV on a real NVIDIA GPU (hosted Linux, /dev/nvidiactl; the GB10): not part of make test, which runs where
 # there is none. Fails, saying so, without a GPU. NvGpuMeasure reports launch latency and copy bandwidth. Then the
 # raster kernels (gpu/nv, docs/nv-kernels.md) on the GPU against PlatformRaster (tests/nv/run.sh: needs the driver,

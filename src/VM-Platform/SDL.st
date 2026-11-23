@@ -257,6 +257,10 @@ setWindowTitle: window title: title
 	<c: 'bool SDL_SetWindowTitle(SDL_Window *window, const char *title)'>
 	^self notSimulated
 !
+setWindowSize: window w: w h: h
+	<c: 'bool SDL_SetWindowSize(SDL_Window *window, int w, int h)'>
+	^self notSimulated
+!
 showWindow: window
 	<c: 'bool SDL_ShowWindow(SDL_Window *window)'>
 	^self notSimulated

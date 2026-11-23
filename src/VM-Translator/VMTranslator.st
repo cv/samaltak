@@ -616,6 +616,21 @@ static inline double lt_double_from_bits(uint64_t b)
     memcpy(&d, &b, 8);
     return d;
 }
+
+static inline uint64_t lt_mul64(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t *hi)
+{
+    unsigned __int128 t = (unsigned __int128)a * b + c + d;
+    *hi = (uint64_t)(t >> 64);
+    return (uint64_t)t;
+}
+
+static inline uint64_t lt_div128(uint64_t hi, uint64_t lo, uint64_t d, uint64_t *rem)
+{
+    unsigned __int128 n = ((unsigned __int128)hi << 64) | lo;
+    uint64_t q = (uint64_t)(n / d);
+    *rem = lo - q * d;
+    return q;
+}
 '
 !
 printStruct: aStructClass on: s

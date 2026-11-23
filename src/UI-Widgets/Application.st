@@ -8,7 +8,7 @@ Application comment: 'I am an application that runs as a window of the host''s w
 	bin/samaltak run apps/Weather          "files in the package directory apps/Weather, runs its Application"
 	WeatherApp run                         "the same from a running image"
 
-Subclasses answer content (a View, built once), and may override title, extent (default: the content''s preferredExtent), backgroundColor, prepare (before the window opens: themes, fonts) and started (after it opened: timers, fetching). Code that touches my widgets runs in my window''s Process (window do: [...]). Unhandled errors in my window''s Process are reported (stderr, a toast) and its event loop restarts. The sampling profiler is paused unless the command line has --profile.'!
+Subclasses answer content (a View, built once), and may override title, extent (default: the content''s preferredExtent; fitToContent resizes the host window to it when it changed), backgroundColor, prepare (before the window opens: themes, fonts) and started (after it opened: timers, fetching). Code that touches my widgets runs in my window''s Process (window do: [...]). Unhandled errors in my window''s Process are reported (stderr, a toast) and its event loop restarts. The sampling profiler is paused unless the command line has --profile.'!
 
 !Application methodsFor: 'accessing'!
 world
@@ -45,6 +45,15 @@ started
 !
 stopped
 	"After my window closed."
+! !
+
+!Application methodsFor: 'resizing'!
+fitToContent
+	"Resize the host window to my extent if that changed (new data made the content taller); in my window's Process."
+	| e |
+	world isNil ifTrue: [^self].
+	e := self extent ceiling.
+	world extent = e ifFalse: [world resizeTo: e]
 ! !
 
 !Application methodsFor: 'running'!

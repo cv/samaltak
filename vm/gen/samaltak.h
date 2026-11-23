@@ -1034,10 +1034,10 @@ struct jit_state {
 _Static_assert(sizeof(jit_state) == 17216, "the simulator lays out JitState as C does");
 
 struct large_operand {
-    uint32_t *limbs;
+    uint64_t *limbs;
     int64_t count;
     bool neg;
-    uint32_t small[2];
+    uint64_t small[1];
 };
 _Static_assert(sizeof(large_operand) == 32, "the simulator lays out LargeOperand as C does");
 
@@ -1991,6 +1991,7 @@ uint64_t alloc_obj(oop cls, int32_t fmt, uint32_t n);
 uint64_t alloc_obj_try(oop cls, int32_t fmt, uint64_t n);
 uint64_t object_memory_alloc_old_format_slots(oop cls, int32_t fmt, uint32_t n);
 oop alloc_slots(oop cls, uint32_t n);
+uint64_t alloc_unfilled_try(oop cls, int32_t fmt, uint64_t n);
 size_t byte_size(oop o);
 oop class_of(oop o);
 uint32_t fixed_fields(oop o);
@@ -2424,6 +2425,7 @@ void prim_window_hide(void);
 void prim_window_open(void);
 void prim_window_pixel_size(void);
 void prim_window_refresh_rate(void);
+void prim_window_set_size(void);
 void prim_window_set_text_input_area(void);
 void prim_window_set_title(void);
 void prim_window_show(void);
@@ -2487,6 +2489,7 @@ bool pixel_size(int32_t win, int *w, int *h);
 double refresh_rate(int32_t win);
 SDL_Window *sdl_window(int32_t win);
 bool set_cursor(int32_t kind);
+bool set_size(int32_t win, int32_t w, int32_t h);
 bool set_text_input_area(int32_t win, int32_t x, int32_t y, int32_t w, int32_t h, int32_t cursor);
 bool set_title(int32_t win, char *title);
 bool platform_windows_show(int32_t win, bool show);
@@ -2539,6 +2542,21 @@ static inline double lt_double_from_bits(uint64_t b)
     double d;
     memcpy(&d, &b, 8);
     return d;
+}
+
+static inline uint64_t lt_mul64(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t *hi)
+{
+    unsigned __int128 t = (unsigned __int128)a * b + c + d;
+    *hi = (uint64_t)(t >> 64);
+    return (uint64_t)t;
+}
+
+static inline uint64_t lt_div128(uint64_t hi, uint64_t lo, uint64_t d, uint64_t *rem)
+{
+    unsigned __int128 n = ((unsigned __int128)hi << 64) | lo;
+    uint64_t q = (uint64_t)(n / d);
+    *rem = lo - q * d;
+    return q;
 }
 
 #endif
