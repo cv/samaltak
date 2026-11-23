@@ -35,6 +35,9 @@ else
   OS_PLATFORM_CFLAGS := $(shell pkg-config --cflags wayland-client 2>/dev/null)
 endif
 LDLIBS += -lm -lpthread
+ifeq ($(UNAME_S),Linux)
+  LDLIBS += -ldl
+endif
 
 BUILD := build
 PGO_PROFILE := pgo.profdata
