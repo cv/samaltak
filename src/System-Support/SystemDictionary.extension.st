@@ -191,11 +191,20 @@ shutDownList
 	^ShutDownList ifNil: [#()]
 !
 processStartUpList: resuming
-	"Tell the registered classes, in registration order, that the image started. Meanwhile isStartingUp."
+	"Tell the registered classes, in registration order, that the image started. Meanwhile isStartingUp. First the image gets a new session, before any startUp: method can make a secret."
+	self renewSession.
 	StartingUp := true.
 	[self startUpList do: [:name |
 		(self at: name ifAbsent: [nil]) ifNotNil: [:class | class startUp: resuming]]]
 			ensure: [StartingUp := false]
+!
+session
+	"An object made anew each time the image starts (resumed from a snapshot, or going on after writing one), before any class on the startup list hears of it: whatever an object made for one run of the image, it can tell it is stale when this is no longer the object it noted (SecureRandom's key, which a snapshot holds: every run resumed from it would answer the same bytes)."
+	^Session ifNil: [Session := Object new]
+!
+renewSession
+	"A new session (processStartUpList:; tests)."
+	Session := Object new
 !
 isStartingUp
 	"Is the image running its startup list? A resumed image is half restored then: e.g. its World still has the previous VM's compositor."

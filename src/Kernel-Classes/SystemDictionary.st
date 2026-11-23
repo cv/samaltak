@@ -1,6 +1,6 @@
 Dictionary subclass: #SystemDictionary
 	instanceVariableNames: ''
-	classVariableNames: 'AppClasses ErrorDepth MainAction MainProcess PackageList Packages Runtime RunningTests ShutDownList StartUpList StartingUp Stage2Steps UnhandledErrorHandler VM'
+	classVariableNames: 'AppClasses ErrorDepth MainAction MainProcess PackageList Packages Runtime RunningTests Session ShutDownList StartUpList StartingUp Stage2Steps UnhandledErrorHandler VM'
 	package: 'Kernel-Classes'!
 
 SystemDictionary comment: 'I am Smalltalk, the dictionary of global variables (Symbol -> Association; every class is a global). I also answer system-wide questions (all classes, packages, implementors and senders) and give access to the VM. Startup, snapshots and command-line handling are in System-Support.'!

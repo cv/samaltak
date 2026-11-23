@@ -85,6 +85,7 @@ test-core: $(TEST_IMAGE) test-vm
 	tests/vm/gen_test.sh $(OUT)/samaltak.image
 	tests/boot/layering_test.sh
 	tests/boot/cli_quit_test.sh $(OUT)/samaltak.image
+	tests/boot/resume_rng_test.sh $(OUT)/samaltak.image
 	tests/st_suite.sh $(OUT)/samaltak.image
 	SAMALTAK_VERIFY_GC=1 tests/st_suite.sh $(OUT)/samaltak.image --eden 1 -- Tests-Kernel Tests-Compiler
 	tests/st_suite.sh $(OUT)/samaltak.image --max-heap 128 -- LowSpaceTest StackOverflowTest
@@ -279,7 +280,7 @@ UEFI_DRIVER = $(if $(filter e1000e,$(1)),E1000eInterface,VirtioNetInterface)
 UEFI_FILES := | f | f := [:x | Smalltalk vm stderrWrite: 'files ', x, (String with: Character lf)]. f value: 'mounts ', (FirmwareVolumes mounts collect: [:m | m key]) printString. f value: 'root ', (Directory entries: '/') printString. f value: 'mnt ', (Directory entries: '/mnt') printString. f value: 'hello ', (File readBytes: '/mnt/fixture/hello.txt') printString. f value: 'link ', (File readText: '/mnt/fixture-gpt/docs/hello-link') lines first. f value: 'numbers ', (File sizeOf: '/mnt/fixture-gpt/numbers.txt') printString, ' ', (FileStream readOnlyFileNamed: '/mnt/fixture/numbers.txt' do: [:s | s position: 288888. s upToEnd]) lines first. f value: 'write ', ([File writeText: 'x' to: '/mnt/fixture/x'. 'written'] on: FileError do: [:e | e messageText]). f value: 'store hidden ', (FirmwareBlockDevice all noneSatisfy: [:d | d isImageStore]) printString. f value: 'problems ', FirmwareVolumes problems size printString
 UEFI_MP := 1 to: 300 do: [:i | Compiler evaluate: '3 + 4 * ', i printString]. Smalltalk vm stderrWrite: 'mp bg jobs ', Smalltalk vm statistics optBackgroundJobs printString, (String with: Character lf)
 UEFI_RESET := Smalltalk vm stderrWrite: 'menu ', ((ToolsMenu worldMenuAt: nil) selectableItems collect: [:i | i label]) asArray printString, (String with: Character lf). Firmware restart
-UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot: Smalltalk vm imagePath) ifTrue: ['resumed ', (Smalltalk at: 'UefiMark' asSymbol) printString] ifFalse: ['saved']
+UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot: Smalltalk vm imagePath) ifTrue: ['resumed ', (Smalltalk at: 'UefiMark' asSymbol) printString, ' ', (SecureRandom default nextBytes: 16) hex] ifFalse: ['saved']
 test-uefi:
 	rm -f $(UEFI)/image.disk
 	$(MAKE) uefi-run UEFI_ARGS='--headless --test $(UEFI_TESTS)'
@@ -316,7 +317,10 @@ test-uefi:
 	$(MAKE) uefi-boot UEFI_ARGS="--headless --eval \"$(UEFI_SNAPSHOT)\""
 	grep -q "'saved'" $(UEFI)/console.log
 	$(MAKE) uefi-boot UEFI_ARGS=--headless
-	grep -q "'resumed 42'" $(UEFI)/console.log
+	grep -o "'resumed 42 [0-9A-F]*'" $(UEFI)/console.log > $(UEFI)/resumed.txt && [ -s $(UEFI)/resumed.txt ]
+	$(MAKE) uefi-boot UEFI_ARGS=--headless
+	grep -o "'resumed 42 [0-9A-F]*'" $(UEFI)/console.log | { read -r again; [ -n "$$again" ] && [ "$$again" != "$$(cat $(UEFI)/resumed.txt)" ]; } \
+		|| { echo 'test-uefi: a snapshot resumed twice answered the same SecureRandom bytes'; exit 1; }
 	rm $(UEFI)/image.disk
 # test-uefi-fat: writable FAT volumes and crash reports (tests/uefi/fat.sh): the VM booted from a FAT32 EFI system
 # partition image (QEMU's fat:rw: directory loses writes) with FAT disks to write, read-only and nearly full, what it
@@ -431,7 +435,7 @@ test-usb-image: uefi
 	grep -q "'saved'" $(UEFI)/usb-console.log
 	$(call USB_TEST_ARGS,--headless)
 	$(MAKE) usb-boot USB_IMAGE=$(USB_TEST) USB_DEVICE=usb-storage
-	grep -q "'resumed 42'" $(UEFI)/usb-console.log
+	grep -q "'resumed 42 " $(UEFI)/usb-console.log
 	rm $(USB_TEST)
 # test-install: the installer (SamaltakInstaller, docs/uefi.md, Installing) under QEMU on an NVMe disk image like the
 # DGX Spark's (an ESP with a fake Ubuntu, an ext4 root, free space) with a variable store of its own: install from a
