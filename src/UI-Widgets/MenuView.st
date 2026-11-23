@@ -44,6 +44,10 @@ isClosed
 ! !
 
 !MenuView methodsFor: 'geometry'!
+itemInset
+	"The space between the items and what is above them (the frame, or the title's rule) and below them (the frame): the same at the top and the bottom."
+	^3
+!
 titleHeight
 	^menu title isNil ifTrue: [0] ifFalse: [self theme metric: #menuTitleHeight]
 !
@@ -54,7 +58,7 @@ heightOf: anItem
 !
 itemTops
 	| y tops |
-	y := 1 + self titleHeight + (menu title isNil ifTrue: [0] ifFalse: [3]).
+	y := 1 + self titleHeight + self itemInset.
 	tops := Array new: self items size.
 	self items doWithIndex: [:each :i |
 		tops at: i put: y.
@@ -94,9 +98,9 @@ preferredExtent
 			each submenu isNil ifFalse: [iw := iw + 18].
 			w := w max: iw].
 		each isHeader ifTrue: [w := w max: (2 * pad) + ((self theme font: #header) widthOf: each label)]].
-	h := 1 + self titleHeight + (menu title isNil ifTrue: [0] ifFalse: [3]).
+	h := 1 + self titleHeight + self itemInset.
 	self items do: [:each | h := h + (self heightOf: each)].
-	^w ceiling @ (h + 3 + 1)
+	^w ceiling @ (h + self itemInset + 1)
 ! !
 
 !MenuView methodsFor: 'drawing'!
