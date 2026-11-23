@@ -47,6 +47,8 @@ else
 fi
 python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["token"])' "$DIR/$SAMALTAK_SESSION.json" > "$WORK/token"
 $CTL eval 'SourceFiler default enabled: false. 1' >/dev/null
+# a caret that blinks (every 530 ms) would be in one state in the screenshot and in the other in a frame a second later
+$CTL eval 'Theme current metric: #caretBlinkMs put: 100000000. 1' >/dev/null
 i=0; until $CTL wait '@w1' 10000 >/dev/null 2>&1 || [ $i -ge 300 ]; do i=$((i + 1)); sleep 0.2; done
 # the Workspace and the System Browser over it: the Process Browser's columns and the Mandelbrot window change by themselves
 $CTL eval '(World current windows reject: [:w | w title = '\''Workspace'\'' or: [w title beginsWith: '\''System Browser'\'']]) do: [:w | w close]. 1' >/dev/null
