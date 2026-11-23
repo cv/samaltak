@@ -78,8 +78,12 @@ headless
 ! !
 
 !WindowFFIProof class methodsFor: 'display CI'!
+legacyClipboardData: mime
+	<primitive: 'clipboardData'>
+	self error: 'legacy clipboard data primitive failed'
+!
 display
-	| g vm w oldClipboard before title mime actual pixels limit |
+	| g vm w oldClipboard before title mime unadvertisedMime textBytes unadvertisedBytes emptyBytes actual pixels limit |
 	g := GPUPrimitives.
 	vm := Smalltalk vm.
 	w := nil.
@@ -87,7 +91,19 @@ display
 	oldClipboard := g clipboardGet.
 	title := 'FFI café λ'.
 	mime := 'text/plain;charset=utf-8'.
+	unadvertisedMime := 'application/x-window-ffi-unavailable'.
 	[
+		g clipboardSet: title.
+		textBytes := self legacyClipboardData: mime.
+		self require: textBytes = title utf8Encoded because: 'legacy clipboard MIME bytes'.
+		"X11 can pass an unadvertised target to the local selection callback,
+		which can return text bytes even for a non-text MIME type."
+		unadvertisedBytes := self legacyClipboardData: unadvertisedMime.
+		g clipboardSet: ''.
+		emptyBytes := self legacyClipboardData: mime.
+		self require: emptyBytes isNil because: 'legacy cleared clipboard MIME must answer nil'.
+		vm stderrWrite: 'legacy clipboard MIME: unadvertised ', unadvertisedBytes printString,
+			'; cleared ', emptyBytes printString, (String with: Character lf).
 		self poison: #(
 			'openWindow: w height: h title: t flags: f self error: ''legacy open entered'''
 			'windowSize: w self error: ''legacy size entered'''
@@ -115,11 +131,12 @@ display
 			self require: (pixels class == Array and: [pixels size = 2 and: [pixels allSatisfy: [:n | n > 0]]]) because: 'resized pixel size'.
 			self require: (g ffiCandidateClipboardSet: title) == g because: 'clipboard set'.
 			self require: g ffiCandidateClipboardGet = title because: 'clipboard text roundtrip'.
-			self require: (g ffiCandidateClipboardData: mime) = title utf8Encoded because: 'clipboard MIME bytes'.
-			self require: (g ffiCandidateClipboardData: 'application/x-window-ffi-unavailable') isNil because: 'clipboard unavailable must answer nil'.
+			self require: (g ffiCandidateClipboardData: mime) = textBytes because: 'clipboard MIME bytes differ from legacy'.
+			self require: (g ffiCandidateClipboardData: unadvertisedMime) = unadvertisedBytes
+				because: 'unadvertised clipboard MIME differs from legacy'.
 			self require: (g ffiCandidateClipboardSet: '') == g because: 'clear clipboard'.
 			self require: g ffiCandidateClipboardGet = '' because: 'empty clipboard text'.
-			self require: (g ffiCandidateClipboardData: mime) isNil because: 'empty clipboard bytes must answer nil'.
+			self require: (g ffiCandidateClipboardData: mime) = emptyBytes because: 'cleared clipboard MIME differs from legacy'.
 			self require: ([g ffiCandidateWindowSize: -1. false] on: GPUError do: [:e | e operation = 'windowSize'])
 				because: 'completed invalid handle did not signal correct GPUError'.
 			self require: (g ffiCandidateLastError includesSubstring: 'bad window handle') because: 'last error after native window error'].
