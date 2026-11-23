@@ -5,6 +5,8 @@ registered native export and its exact C signature. `FFI bind:` resolves and
 checks the export and prepares a generated call wrapper. An `FFIBinding` can
 then invoke it synchronously many times.
 
+See the [primitive audit](ffi-primitive-audit.md) for ID-by-ID dispositions.
+
 ```smalltalk
 (FFI bind: #(call 'libm' 'sqrt' (f64) f64)) invoke: #(9.0)
 "3.0"
