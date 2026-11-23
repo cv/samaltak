@@ -16,6 +16,10 @@
 # went is a BadWindow that ends the VM), so with SAMALTAK_TEST_XVFB=1 each VM gets an Xvfb of its own; the default
 # (auto) does that for shards when DISPLAY is set; 0: always DISPLAY. Shards render with 2 lavapipe threads each
 # (LP_NUM_THREADS, unless set).
+# Hangs: a test that outlives its time limit is ended by its runner, and in-image by TestResult's watchdog, which prints
+# every Process's stack and quits the VM when the runner cannot run; a VM that hangs below Smalltalk (blocked in a
+# primitive) is ended after SAMALTAK_TEST_VM_TIMEOUT seconds (default 1800; 0: never), with its threads' backtraces
+# when gdb may attach, and fails its shard.
 set -u
 cd "$(dirname "$0")/.."
 IMAGE=$1
@@ -34,6 +38,8 @@ case $SLOTS in ''|*[!0-9]*) SLOTS=1 ;; esac
 [ "$SLOTS" -lt 1 ] && SLOTS=1
 SLOT_DIR=${SAMALTAK_TEST_SLOT_DIR:-/tmp/samaltak-test-slots-$(id -u)}
 XVFB=${SAMALTAK_TEST_XVFB:-auto}
+VM_TIMEOUT=${SAMALTAK_TEST_VM_TIMEOUT:-1800}
+case $VM_TIMEOUT in ''|*[!0-9]*) VM_TIMEOUT=1800 ;; esac
 OWN_X=0
 [ "$XVFB" = 1 ] && OWN_X=1
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/st_suite.XXXXXX") || exit 1
@@ -61,6 +67,34 @@ with_slot() {
   done
 }
 
+# vm ARGS...: the VM, ended after VM_TIMEOUT seconds (its backtraces first, if gdb may attach): its exit status.
+vm() {
+  vm/build/samaltak "$@" &
+  v=$!
+  if [ "$VM_TIMEOUT" -gt 0 ]; then
+    ( n=0
+      while kill -0 $v 2>/dev/null; do
+        sleep 5; n=$((n + 5))
+        [ $n -ge "$VM_TIMEOUT" ] || continue
+        echo "st_suite: the VM (pid $v) still runs after $VM_TIMEOUT s (SAMALTAK_TEST_VM_TIMEOUT): ended"
+        if command -v gdb >/dev/null 2>&1; then
+          bt=$(timeout 60 gdb -p $v -batch -nx -ex 'thread apply all bt 30' 2>&1)
+          case $bt in
+            *'Could not attach'*) echo "st_suite: (no backtraces: gdb may not attach here, /proc/sys/kernel/yama/ptrace_scope)" ;;
+            *) echo "$bt" | grep -v '^\[New LWP' ;;
+          esac
+        fi
+        kill -TERM $v 2>/dev/null; sleep 10; kill -KILL $v 2>/dev/null
+        break
+      done ) &
+    w=$!
+  fi
+  wait $v
+  s=$?
+  [ "$VM_TIMEOUT" -gt 0 ] && { kill $w 2>/dev/null; wait $w 2>/dev/null; }
+  return $s
+}
+
 # run_vm ARGS...: the VM, on an X display of its own when OWN_X is 1 and there is Xvfb (one it starts and ends;
 # -displayfd picks a free display), else on DISPLAY.
 run_vm() {
@@ -71,17 +105,18 @@ run_vm() {
     n=0
     while [ ! -s "$d" ] && [ $n -lt 100 ] && kill -0 $x 2>/dev/null; do sleep 0.1; n=$((n + 1)); done
     if [ -s "$d" ]; then
-      DISPLAY=:$(head -1 "$d") vm/build/samaltak "$@"
+      DISPLAY=:$(head -1 "$d"); export DISPLAY  # run_vm runs in a subshell of its own (with_slot)
+      vm "$@"
     else
       echo "(st_suite: Xvfb did not start; on DISPLAY=${DISPLAY:-})"
-      vm/build/samaltak "$@"
+      vm "$@"
     fi
     s=$?
     kill $x 2>/dev/null
     wait $x 2>/dev/null
     return $s
   fi
-  vm/build/samaltak "$@"
+  vm "$@"
 }
 
 # summary_of LOG: the VM's own summary (the last; tests that run tests print summaries too)
