@@ -106,6 +106,25 @@ testTopBarStatsAfterTheClockStartsAgain
 	bar updateAt: now + (64 * 33334); updateAt: now + (64 * 33334).
 	self assert: (bar statsText beginsWith: '33.3 ms 30 fps')
 !
+testTopBarReadoutMakesNoFramesOfItsOwn
+	"Alone (no other reason for a frame) the readout refreshes once, a second after the last frame it counted, to show the settled numbers: an idle World presents nothing. Riding along with other frames it refreshes when its numbers changed."
+	| bar now |
+	bar := TopBar world: world.
+	now := 1000000000.
+	1 to: 64 do: [:i | bar noteFrame: 2000 end: now + (i * 16667)].
+	now := now + (64 * 16667).
+	"a first update may only notice the REMOTE and SLOW tags"
+	bar updateAt: now presenting: true.
+	bar updateAt: now presenting: true.
+	self deny: (bar updateAt: now + 600000 presenting: false).
+	self assert: (bar updateAt: now + 1100000 presenting: false).
+	self assert: (bar statsText includesSubstring: ' 0 fps').
+	self deny: (bar updateAt: now + 2000000 presenting: false).
+	self deny: (bar updateAt: now + 9000000 presenting: false).
+	bar noteFrame: 2000 end: now + 9000000.
+	self assert: (bar updateAt: now + 9100000 presenting: true).
+	self assert: (bar statsText includesSubstring: ' 1 fps')
+!
 testOpenAndCloseAnimations
 	| w layer |
 	w := Window new title: 'Animated'; content: RecordingTestView new; bounds: (100 @ 100 extent: 300 @ 200); yourself.
