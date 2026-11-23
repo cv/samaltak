@@ -25,6 +25,7 @@ static int32_t *pending_ext;
 static int32_t pending_ext_cap;
 static int32_t pending_ext_n;
 static bool preempt_to_front;
+static int64_t run_hint = 9223372036854775807LL;
 static int64_t sampler_interval_us;
 static int64_t sampler_next_us;
 static int32_t sampler_sema;
@@ -56,9 +57,10 @@ static bool work_clock_running;
 static int64_t work_clock_us;
 static bool work_clock_uses_cycles;
 
-static void add_first_link(uint64_t link, uint64_t list);
+static void add_first_link(oop link, uint64_t list);
 static void add_last_link(oop link, oop list);
 static void idle_wait(void);
+static void make_ready(oop proc, bool at_front);
 static int64_t priority_of(oop p);
 static int64_t raw_now_ns(void);
 static int64_t raw_now_us(void);
@@ -81,26 +83,26 @@ uint64_t active_process(void)
 }
 
 /* Scheduler>>addFirstLink:to: */
-static void add_first_link(uint64_t link, uint64_t list)
+static void add_first_link(oop link, uint64_t list)
 {
     uint64_t v;
     v = *(uint64_t *)(list + 16 + 0);
     *(uint64_t *)(link + 16 + 0) = v;
-    if (((v & 7) == 0) && ((v - young_lo < young_hi - young_lo) && ((!(link - young_lo < young_hi - young_lo)) && (((*(uint64_t *)link) & H_REMEMBERED) == 0)))) {
+    if (((v & 7) == 0) && ((v - young_lo < young_hi - young_lo) && ((!((uint64_t)(link - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)link) & H_REMEMBERED) == 0)))) {
         remember(link);
     }
     if (*(uint64_t *)(list + 16 + 0) == nil_oop) {
         *(uint64_t *)(list + 16 + 8) = link;
-        if (((link & 7) == 0) && ((link - young_lo < young_hi - young_lo) && ((!(list - young_lo < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
+        if (((link & 7) == 0) && (((uint64_t)(link - young_lo) < young_hi - young_lo) && ((!(list - young_lo < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
             remember(list);
         }
     }
     *(uint64_t *)(list + 16 + 0) = link;
-    if (((link & 7) == 0) && ((link - young_lo < young_hi - young_lo) && ((!(list - young_lo < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
+    if (((link & 7) == 0) && (((uint64_t)(link - young_lo) < young_hi - young_lo) && ((!(list - young_lo < young_hi - young_lo)) && (((*(uint64_t *)list) & H_REMEMBERED) == 0)))) {
         remember(list);
     }
     *(uint64_t *)(link + 16 + 24) = list;
-    if (((list & 7) == 0) && ((list - young_lo < young_hi - young_lo) && ((!(link - young_lo < young_hi - young_lo)) && (((*(uint64_t *)link) & H_REMEMBERED) == 0)))) {
+    if (((list & 7) == 0) && ((list - young_lo < young_hi - young_lo) && ((!((uint64_t)(link - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)link) & H_REMEMBERED) == 0)))) {
         remember(link);
     }
 }
@@ -386,6 +388,33 @@ void scheduler_init(void)
     ticker_start();
 }
 
+/* Scheduler>>makeReady:first: */
+static void make_ready(oop proc, bool at_front)
+{
+    int64_t pri;
+    oop o;
+    uint64_t o_2;
+    int64_t i;
+    oop o_3;
+    uint64_t o_4;
+    int64_t i_2;
+    pri = priority_of(proc);
+    if (at_front) {
+        o = object_memory_special(SO_PROCESSOR);
+        o_2 = *(uint64_t *)(o + 16 + 0);
+        i = pri - 1;
+        add_first_link(proc, *(uint64_t *)(o_2 + 16 + 8 * i));
+    } else {
+        o_3 = object_memory_special(SO_PROCESSOR);
+        o_4 = *(uint64_t *)(o_3 + 16 + 0);
+        i_2 = pri - 1;
+        add_last_link(proc, *(uint64_t *)(o_4 + 16 + 8 * i_2));
+    }
+    if (pri > run_hint) {
+        run_hint = pri;
+    }
+}
+
 /* Scheduler>>nowMs */
 int64_t scheduler_now_ms(void)
 {
@@ -528,7 +557,7 @@ void processor_yield(void)
     if (*(uint64_t *)(l + 16 + 0) == nil_oop) {
         return;
     }
-    add_last_link(active, l);
+    make_ready(active, false);
     transfer_to(remove_first_link(l));
 }
 
@@ -881,42 +910,14 @@ int64_t resume_charging(void)
 void resume_process(oop proc)
 {
     uint64_t active;
-    int64_t pri;
-    oop o;
-    uint64_t o_2;
-    int64_t i;
-    int64_t pri_2;
-    oop o_3;
-    uint64_t o_4;
-    int64_t i_2;
-    int64_t pri_3;
-    oop o_5;
-    uint64_t o_6;
-    int64_t i_3;
     active = active_process();
     if ((!in_idle) && (priority_of(proc) > priority_of(active))) {
-        if (preempt_to_front) {
-            pri = priority_of(active);
-            o = object_memory_special(SO_PROCESSOR);
-            o_2 = *(uint64_t *)(o + 16 + 0);
-            i = pri - 1;
-            add_first_link(active, *(uint64_t *)(o_2 + 16 + 8 * i));
-        } else {
-            pri_2 = priority_of(active);
-            o_3 = object_memory_special(SO_PROCESSOR);
-            o_4 = *(uint64_t *)(o_3 + 16 + 0);
-            i_2 = pri_2 - 1;
-            add_last_link(active, *(uint64_t *)(o_4 + 16 + 8 * i_2));
-        }
+        make_ready(active, preempt_to_front);
         last_preempted = active;
         last_preempted_at_entry = safepoint_at_entry;
         transfer_to(proc);
     } else {
-        pri_3 = priority_of(proc);
-        o_5 = object_memory_special(SO_PROCESSOR);
-        o_6 = *(uint64_t *)(o_5 + 16 + 0);
-        i_3 = pri_3 - 1;
-        add_last_link(proc, *(uint64_t *)(o_6 + 16 + 8 * i_3));
+        make_ready(proc, false);
         if ((!in_idle) && (priority_of(proc) == priority_of(active))) {
             slice_check();
         }
@@ -1231,17 +1232,28 @@ static void transfer_to_highest(void)
 {
     oop o;
     uint64_t lists;
+    int64_t top;
+    int low;
     int64_t i;
     uint64_t l;
     for (;;) {
         o = object_memory_special(SO_PROCESSOR);
         lists = *(uint64_t *)(o + 16 + 0);
-        for (i = (int64_t)(uint32_t)*(uint64_t *)lists - 1; i >= (work_clock_on && (!(work_clock_running || (work_clock_paced || work_clock_querying))) ? 49 : 0); i--) {
+        top = (int64_t)(uint32_t)*(uint64_t *)lists;
+        if (run_hint < top) {
+            top = run_hint;
+        }
+        low = work_clock_on && (!(work_clock_running || (work_clock_paced || work_clock_querying))) ? 49 : 0;
+        for (i = top - 1; i >= low; i--) {
             l = *(uint64_t *)(lists + 16 + 8 * i);
             if (*(uint64_t *)(l + 16 + 0) != nil_oop) {
+                run_hint = i + 1;
                 transfer_to(remove_first_link(l));
                 return;
             }
+        }
+        if (low < run_hint) {
+            run_hint = low;
         }
         idle_wait();
     }

@@ -1,9 +1,11 @@
 VMCoreModule subclass: #Scheduler
-	instanceVariableNames: 'interruptPending lastPreempted lastPreemptedAtEntry allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs sliceStartNs windowStartNs windowCpuUs ledgerProcs ledgerNs ledgerN statReconciles startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs sliceUs sliceDueUs slicePriority sliceExpired'
+	instanceVariableNames: 'interruptPending lastPreempted lastPreemptedAtEntry allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs sliceStartNs windowStartNs windowCpuUs ledgerProcs ledgerNs ledgerN statReconciles startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs sliceUs sliceDueUs slicePriority sliceExpired runHint'
 	classVariableNames: 'LEDGER_SIZE RECONCILE_NS TICK_DEADLINE TICK_POLL WORK_CLOCK_FLOOR WORK_CLOCK_POLL_US WORK_CYCLES_PER_US'
 	package: 'VM-Core'!
 
 Scheduler comment: 'Process scheduler, semaphores and interrupts: the timer, the CPU and allocation samplers, external semaphore signals, time slices.
+
+The run lists are scanned for the highest ready Process from runHint down: no run list at or above runHint holds a Process. Making a Process ready raises it to the Process''s priority; a scan lowers it to just above the list it took the Process from (or to where it ended), so a switch does not look at the empty lists of the priorities above. The image changes the run lists only through primitives (resume, suspend, yield).
 
 Time slicing (setTimeSlice:): while another Process of the active one''s priority is ready, the active one runs at most sliceUs before it goes to the back of its run list, so equal-priority Processes take turns. The slice''s deadline is armed only under that contention (a Process made ready at the active priority, a switch to a Process with peers waiting): a program whose Processes do not compete, or that idles, has no timer for it.
 
@@ -26,7 +28,8 @@ declarations
 		(workClockOn bool) (workClockRunning bool) (workClockPaced bool) (workClockUsesCycles bool)
 		(workClockUs int64_t) (workClockCycles int64_t) (workClockRaw int64_t) (workClockHeld bool) (workClockHoldCycles int64_t) (workClockQuerying bool)
 		(frameSema int32_t) (frameFps int64_t) (frameOriginUs int64_t) (frameIndex int64_t) (frameNextUs int64_t)
-		(sliceUs int64_t) (sliceDueUs int64_t) (slicePriority int64_t) (sliceExpired bool))
+		(sliceUs int64_t) (sliceDueUs int64_t) (slicePriority int64_t) (sliceExpired bool)
+		(runHint int64_t 16r7FFFFFFFFFFFFFFF))
 !
 initialize
 	"Charging: the ledger's entries (the size of ledgerProcs and ledgerNs), the longest window between two reads of the thread clock (ns)."
@@ -562,15 +565,31 @@ idleWait
 	inIdle := false
 !
 transferToHighest
+	"Switch to the first Process of the highest non-empty run list, from runHint down (see my comment); wait while there is none."
 	<function>
-	| lists l |
+	| lists l top low |
 	[lists := self loadRef: self processor at: SCHED_LISTS.
-	 (self numSlots: lists) asInt64 - 1 to: self lowestRunList by: -1 do: [:i |
+	 top := (self numSlots: lists) asInt64.
+	 runHint < top ifTrue: [top := runHint].
+	 low := self lowestRunList.
+	 top - 1 to: low by: -1 do: [:i |
 		l := self loadRef: lists at: i.
 		(self loadRef: l at: LL_FIRST) ~= memory nilOop ifTrue: [
+			runHint := i + 1.
 			self transferTo: (self removeFirstLink: l).
 			^self]].
+	 low < runHint ifTrue: [runHint := low].
 	 self idleWait] repeat
+!
+makeReady: proc first: atFront
+	"Put proc in the run list of its priority, at the front or the back; the scans for the highest ready Process start no lower than that priority."
+	<function>
+	| pri |
+	pri := self priorityOf: proc.
+	atFront
+		ifTrue: [self addFirstLink: proc to: (self runList: pri)]
+		ifFalse: [self addLastLink: proc to: (self runList: pri)].
+	pri > runHint ifTrue: [runHint := pri]
 !
 resumeProcess: proc
 	<function>
@@ -579,14 +598,12 @@ resumeProcess: proc
 	(inIdle not and: [(self priorityOf: proc) > (self priorityOf: active)])
 		ifTrue: [
 			"Profiler wakeups must not reorder the run queue: they would act as a 1 ms time slicer and bias the samples."
-			preemptToFront
-				ifTrue: [self addFirstLink: active to: (self runList: (self priorityOf: active))]
-				ifFalse: [self addLastLink: active to: (self runList: (self priorityOf: active))].
+			self makeReady: active first: preemptToFront.
 			lastPreempted := active.
 			lastPreemptedAtEntry := interpreter safepointAtEntry.
 			self transferTo: proc]
 		ifFalse: [
-			self addLastLink: proc to: (self runList: (self priorityOf: proc)).
+			self makeReady: proc first: false.
 			(inIdle not and: [(self priorityOf: proc) = (self priorityOf: active)]) ifTrue: [self sliceCheck]]
 !
 suspendActive
@@ -618,7 +635,7 @@ processorYield
 	active := self activeProcess.
 	l := self runList: (self priorityOf: active).
 	(self loadRef: l at: LL_FIRST) = memory nilOop ifTrue: [^self].
-	self addLastLink: active to: l.
+	self makeReady: active first: false.
 	self transferTo: (self removeFirstLink: l)
 ! !
 
