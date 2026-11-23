@@ -3,7 +3,7 @@ TestCase subclass: #AgentNativeTest
 	classVariableNames: ''
 	package: 'Tests-Tools-Agent'!
 
-AgentNativeTest comment: 'Tests the Agent as a window of the host''s window manager, on hidden host windows: an application''s right-click menu offers it, it opens in a host window of its own on the application''s agentContext (the application, its window, content and world, and notes on where it runs), a second time brings it back, and closing it leaves the application running; AgentApp is the Agent alone.'!
+AgentNativeTest comment: 'Tests the Agent as a window of the host''s window manager, on hidden host windows: an application''s right-click menu offers it, it opens in a host window of its own on the application''s agentContext (the application, its window, content and world, and notes on where it runs), a second time brings it back, and closing it leaves the application running, also for an application on the desktop; AgentApp is the Agent alone.'!
 
 !AgentNativeTest methodsFor: 'running'!
 setUp
@@ -48,6 +48,24 @@ testTheApplicationsMenuOpensTheAgentOnIt
 	self assert: ((AgentInstructions textFor: context) includesSubstring: 'window do: [').
 	again := AgentWindow openNativeFor: app hidden: true.
 	self assert: again == agent.
+	agent close.
+	self assert: (self waitFor: [agent world isRunning not]).
+	self assert: app world isRunning.
+	self assert: (AgentWindow nativeWindowFor: app) isNil
+!
+testTheAgentOnADesktopCard
+	"A card on the desktop (OmarchyDesk) is not the application's main host window, as the Agent's is not: the Agent still opens on it, is found again, and closing it leaves the card."
+	| agent |
+	app := TestApplication new runOnDesktopHidden: true.
+	self deny: app world isMain.
+	self assert: (app contextMenu itemLabeled: 'Agent') notNil.
+	agent := AgentWindow openNativeFor: app hidden: true.
+	self assert: agent world ~~ app world.
+	self assert: (agent world waitUntilSettled: 5000).
+	self assert: agent content origin == app.
+	self assert: (agent content conversation context bindings at: #world) value == app world.
+	self assert: (AgentWindow nativeWindowFor: app) == agent.
+	self assert: (AgentWindow openNativeFor: app hidden: true) == agent.
 	agent close.
 	self assert: (self waitFor: [agent world isRunning not]).
 	self assert: app world isRunning.

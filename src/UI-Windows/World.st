@@ -296,6 +296,14 @@ userInterrupt
 	self toast: 'User interrupt (⌘.)'
 !
 quitRequested
+	"The window manager closed my host window."
+	^self quitProcess
+!
+processQuitRequested
+	"The process was asked to quit (SIGTERM, SIGINT, the session ending)."
+	^self quitProcess
+!
+quitProcess
 	QuitHandler isNil ifFalse: [^QuitHandler cull: self].
 	Smalltalk quit: 0
 ! !

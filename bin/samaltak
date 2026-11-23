@@ -5,6 +5,8 @@
 #   samaltak run <app dir> [opt...]  file in the package <app dir> (e.g. apps/Weather) and run its Application
 #                                    in a window of its own; options go to the image (--control, --profile ...)
 #   samaltak agent [opt...]          the Agent in a window of its own (AgentApp); an app's right-click menu opens it on the app
+#   samaltak desk [app dir...]       the Omarchy desktop cards (OmarchyDesk): the apps (default: all of apps/) that are cards,
+#                                    on the desktop below the windows, laid out as ~/.config/omarchy/desktop-cards.json says
 #   samaltak test <app dir> [name...]  run the app's tests headless (default: all of its package)
 #   samaltak install <app dir>|agent add the app (or the agent) to the desktop's launcher (an XDG .desktop entry)
 #
@@ -47,6 +49,15 @@ agent)
 	SDL_APP_ID=${SDL_APP_ID:-org.samaltak.agent}
 	export SDL_APP_ID
 	exec "$vm" "$runtime" --run AgentApp "$@" ;;
+desk)
+	[ -f "$runtime" ] || die "no runtime image at $runtime (run make runtime in $root)"
+	[ $# -gt 0 ] || set -- "$root"/apps/*/
+	loads=
+	for d in "$@"; do loads="$loads --load $(app_dir "$d")"; done
+	SDL_APP_ID=${SDL_APP_ID:-org.samaltak.desk}
+	export SDL_APP_ID
+	# shellcheck disable=SC2086 # the directories have no spaces (app_dir)
+	exec "$vm" "$runtime" $loads --run OmarchyDesk ;;
 test)
 	dir=$(app_dir "$@"); shift
 	[ -f "$runtime" ] || die "no runtime image at $runtime (run make runtime in $root)"
@@ -76,5 +87,5 @@ Categories=Utility;
 EOF
 	echo "samaltak: installed $target" ;;
 *)
-	die "unknown command $cmd (run, agent, test, install)" ;;
+	die "unknown command $cmd (run, agent, desk, test, install)" ;;
 esac

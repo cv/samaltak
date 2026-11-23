@@ -1,5 +1,5 @@
 World subclass: #AppWorld
-	instanceVariableNames: 'deskColor idleWatcher releasedAtFrame isMain'
+	instanceVariableNames: 'deskColor idleWatcher releasedAtFrame isMain resizedBlock'
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
@@ -15,7 +15,11 @@ The host window has a fixed size (the content''s), so a tiling window manager su
 
 An application may open more host windows (the Agent on it, AgentWindow): each is an AppWorld of its own, not the main one (isMain), and closing it closes only it; it may be resizable, and then the window manager tiles it.
 
-	AppWorld openExtent: 720 @ 640 title: ''Agent — Weather'' hidden: false main: false resizable: true'!
+	AppWorld openExtent: 720 @ 640 title: ''Agent — Weather'' hidden: false main: false resizable: true
+
+A desktop host window (desktop: true) sits on the desktop instead: above the wallpaper, below every window, without decorations or the keyboard focus (on Wayland a layer surface; where the system has no such thing, an ordinary window). Its application places it (moveTo:, from the top left of the area the bar leaves free) and learns its new size (whenResized:); OmarchyDesk lays out the desktop cards so.
+
+	AppWorld openExtent: 490 @ 200 title: ''Weather'' hidden: false main: false resizable: false desktop: true'!
 
 !AppWorld methodsFor: 'kind'!
 showsTopBar
@@ -65,9 +69,13 @@ closeMilliseconds
 	"No fade: the window manager animates my host window away (or not), as for any other application."
 	^0
 !
+processQuitRequested
+	"The process was asked to quit: the application quits, whichever of its host windows I am."
+	^self quitProcess
+!
 quitRequested
 	"The window manager closed my host window: the application quits, unless I am one of its other host windows."
-	self isMain ifTrue: [^super quitRequested].
+	self isMain ifTrue: [^self quitProcess].
 	[self stop] forkAt: Processor userBackgroundPriority
 !
 nextWindowPosition: anExtent
@@ -87,6 +95,14 @@ raise
 	"Bring my host window to the front, with the focus (as far as the window manager lets an application); not when hidden."
 	hidden ifFalse: [displayWindow hostWindow show]
 !
+moveTo: aPoint
+	"Move my host window to aPoint points: a desktop one from the top left of the area the bar leaves free, another on the screen (if the window manager lets it). Answer whether the host did."
+	^displayWindow hostWindow moveTo: aPoint
+!
+whenResized: aBlock
+	"Run aBlock (with me) when the host reported a new size for my host window."
+	resizedBlock := aBlock
+!
 resizeTo: aPoint
 	"Ask the host window to become aPoint points (it stays fixed-size); my window follows when the host reports the new size. Answer whether the host took it."
 	^displayWindow extent: aPoint
@@ -94,7 +110,8 @@ resizeTo: aPoint
 hostResized: aPoint
 	extent := displayWindow extent.
 	windows do: [:w | w bounds: self bounds].
-	self changed
+	self changed.
+	resizedBlock isNil ifFalse: [resizedBlock cull: self]
 ! !
 
 !AppWorld methodsFor: 'starting and stopping'!
@@ -156,10 +173,13 @@ openExtent: aPoint title: aString hidden: aBoolean
 	^self openExtent: aPoint title: aString hidden: aBoolean main: true resizable: false
 !
 openExtent: aPoint title: aString hidden: aBoolean main: mainBoolean resizable: resizableBoolean
-	"Open a host window of aPoint points with the title aString and start an AppWorld on it; the main one becomes current, another one only when none is."
+	^self openExtent: aPoint title: aString hidden: aBoolean main: mainBoolean resizable: resizableBoolean desktop: false
+!
+openExtent: aPoint title: aString hidden: aBoolean main: mainBoolean resizable: resizableBoolean desktop: desktopBoolean
+	"Open a host window of aPoint points with the title aString (on the desktop, below the windows, if desktopBoolean) and start an AppWorld on it; the main one becomes current, another one only when none is."
 	| display world |
 	display := DisplayWindow width: aPoint x ceiling height: aPoint y ceiling title: aString
-		flags: (4 bitOr: ((aBoolean ifTrue: [1] ifFalse: [0]) bitOr: (resizableBoolean ifTrue: [2] ifFalse: [0]))).
+		flags: ((4 bitOr: (aBoolean ifTrue: [1] ifFalse: [0])) bitOr: ((resizableBoolean ifTrue: [2] ifFalse: [0]) bitOr: (desktopBoolean ifTrue: [8] ifFalse: [0]))).
 	Font deviceScale = display scale ifFalse: [Font deviceScale: display scale].
 	world := self new setDisplayWindow: display hidden: aBoolean.
 	world isMain: mainBoolean.

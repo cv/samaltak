@@ -3,7 +3,7 @@ Object subclass: #UIEvent
 	classVariableNames: 'EventClasses KeyNames'
 	package: 'UI-Windows'!
 
-UIEvent comment: 'I am the abstract event: PointerEvent, KeyEvent, TextEvent and TextEditingEvent are input a Window delivers to its Views; the host window events (HostResizeEvent, QuitEvent, FocusLostEvent, ScaleChangedEvent, PointerLeftEvent, ExposeEvent) only concern the InputDispatcher. type is a Symbol, timeStamp the platform''s millisecond clock, modifiers a Modifiers. fromPlatform: decodes the platform''s 8-slot event Arrays (vm/platform/README.md), real or injected, into events once; the InputDispatcher then sends dispatchTo: itself to each, and a Window''s Process sends deliverTo: itself to the input events in its queue. The class side names the platform''s event types (evMouseMove ...).'!
+UIEvent comment: 'I am the abstract event: PointerEvent, KeyEvent, TextEvent and TextEditingEvent are input a Window delivers to its Views; the host window events (HostResizeEvent, QuitEvent, ProcessQuitEvent, FocusLostEvent, ScaleChangedEvent, PointerLeftEvent, ExposeEvent) only concern the InputDispatcher. type is a Symbol, timeStamp the platform''s millisecond clock, modifiers a Modifiers. fromPlatform: decodes the platform''s 8-slot event Arrays (vm/platform/README.md), real or injected, into events once; the InputDispatcher then sends dispatchTo: itself to each, and a Window''s Process sends deliverTo: itself to the input events in its queue. The class side names the platform''s event types (evMouseMove ...).'!
 
 !UIEvent methodsFor: 'accessing'!
 type
@@ -112,7 +112,7 @@ eventClasses
 		at: self evTextEditing put: TextEditingEvent;
 		at: self evWindowResized put: HostResizeEvent;
 		at: self evWindowCloseRequest put: QuitEvent;
-		at: self evQuit put: QuitEvent;
+		at: self evQuit put: ProcessQuitEvent;
 		at: self evFocusLost put: FocusLostEvent;
 		at: self evDisplayScaleChanged put: ScaleChangedEvent;
 		at: self evMouseLeave put: PointerLeftEvent;

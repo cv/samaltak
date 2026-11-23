@@ -70,3 +70,8 @@ started
 stopped
 	process isNil ifFalse: [process terminate. process := nil]
 ! !
+
+!AgentsApp class methodsFor: 'desktop'!
+cardId
+	^'agents'
+! !

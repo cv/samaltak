@@ -1,5 +1,5 @@
 Widget subclass: #OmarchyCard
-	instanceVariableNames: 'onActivate onRefresh scrollOffset maxHeight pills'
+	instanceVariableNames: 'onActivate onRefresh scrollOffset maxHeight pills columnWidth framed'
 	classVariableNames: ''
 	package: 'UI-Omarchy'!
 
@@ -70,8 +70,22 @@ space: points
 	^points
 !
 cardPadding
-	"The desktop card's padding (Style.spacing.panelPadding, 18) less its 2-point border, which the window manager's border replaces: Hyprland draws its border outside the window, the card inside its padding."
-	^(self omarchy ifNil: [18] ifNotNil: [:t | t metric: #panelPadding]) - (self space: 2)
+	"The desktop card's padding (Style.spacing.panelPadding, 18), its 2-point border inside it. In a window of its own the window manager's border replaces mine: Hyprland draws its border outside the window, so the padding is 2 points less."
+	^(self omarchy ifNil: [18] ifNotNil: [:t | t metric: #panelPadding]) - (self isFramed ifTrue: [0] ifFalse: [self space: 2])
+!
+isFramed
+	"Whether I draw the card's border (on the desktop, OmarchyDesk) rather than the window manager."
+	^framed == true
+!
+framed: aBoolean
+	framed := aBoolean.
+	self invalidate
+!
+border
+	"The card's border: popups.border, Math.max(1, Style.space(2)) wide."
+	| c |
+	c := self omarchy ifNil: [self foreground] ifNotNil: [:t | t color: #popupBorder].
+	^c -> ((self space: 2) max: 1)
 !
 background
 	self omarchy ifNotNil: [:t | ^t color: #popupBackground].
@@ -111,9 +125,16 @@ isLight
 ! !
 
 !OmarchyCard methodsFor: 'layout'!
+columnWidth
+	"How wide I am, padding included: my column's width (OmarchyDesk sets it), else a column of desktop-cards on a 1512-point screen: desktop-cards (Layout.js) makes a column floor((1512 - 4 gaps of 10) / 3) = 490 wide."
+	^columnWidth ifNil: [490]
+!
+columnWidth: points
+	columnWidth := points
+!
 contentWidth
-	"A column of desktop-cards on a 1512-point screen less the card's padding: desktop-cards (Layout.js) makes a column floor((1512 - 4 gaps of 10) / 3) = 490 wide."
-	^490 - (2 * (self space: 18))
+	"My column's width less my padding."
+	^self columnWidth - (2 * (self space: 18))
 !
 contentHeight
 	"The height of everything I show, in points."
@@ -154,6 +175,7 @@ wheel: anEvent
 drawSelfOn: aCanvas
 	| pad w view |
 	aCanvas fillRect: self localBounds color: self background.
+	self isFramed ifTrue: [| b | b := self border. aCanvas strokeRect: self localBounds color: b key width: b value].
 	pad := self cardPadding.
 	w := self width - (2 * pad).
 	self clampScroll.

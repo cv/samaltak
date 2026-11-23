@@ -8,6 +8,7 @@ Omarchy comment: 'I am what applications ask of the Omarchy desktop (omarchy.org
 	Omarchy path                               "$OMARCHY_PATH, else /usr/share/omarchy"
 	Omarchy cardSettings: ''wodify''           "the card''s settings in ~/.config/omarchy/desktop-cards.json"
 	Omarchy screenExtent                       "the focused monitor in points (hyprctl), nil if unknown"
+	Omarchy freeArea                           "the part of it the bar leaves free"
 	Omarchy togglePanel: ''omarchy.agents''     "open or close a panel of the bar (omarchy-shell)"
 	Omarchy launch: #(''xdg-open'' ''https://omarchy.org'')'!
 
@@ -51,6 +52,22 @@ screenExtent
 	(monitors isKindOf: Array) ifFalse: [^nil].
 	monitors isEmpty ifTrue: [^nil].
 	^self extentOfMonitor: (monitors detect: [:m | (m at: 'focused' ifAbsent: [false]) == true] ifNone: [monitors first])
+!
+freeArea
+	"The part of the focused monitor that the bar and other docked layer surfaces leave free, in points from its top left (what Hyprland reserves: left, top, right, bottom); nil without Hyprland."
+	| monitors |
+	monitors := [JSON parse: (OSProcess outputOf: 'hyprctl monitors -j')] on: Error do: [:e | e return: nil].
+	(monitors isKindOf: Array) ifFalse: [^nil].
+	monitors isEmpty ifTrue: [^nil].
+	^self freeAreaOfMonitor: (monitors detect: [:m | (m at: 'focused' ifAbsent: [false]) == true] ifNone: [monitors first])
+!
+freeAreaOfMonitor: aDictionary
+	| extent reserved |
+	extent := self extentOfMonitor: aDictionary.
+	extent isNil ifTrue: [^nil].
+	reserved := aDictionary at: 'reserved' ifAbsent: [#(0 0 0 0)].
+	((reserved isKindOf: Array) and: [reserved size = 4 and: [reserved allSatisfy: [:each | each isNumber]]]) ifFalse: [reserved := #(0 0 0 0)].
+	^((reserved at: 1) @ (reserved at: 2)) corner: (extent - ((reserved at: 3) @ (reserved at: 4)))
 !
 extentOfMonitor: aDictionary
 	| w h scale transform |
