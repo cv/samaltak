@@ -240,8 +240,8 @@ startFromCommandLine
 	(Smalltalk vm arguments includes: '--display-vnc-auth') ifTrue: [self announcePasswordIfMade: server vncPassword]
 !
 defaultSource
-	"The frame tap's screen: on UEFI the firmware screen's shadow and damage, hosted the compositor's composed frame and damage. The World's, through screenshots, where there is no FrameTap."
-	^(Smalltalk includesKey: #FrameTap) ifTrue: [RfbTapSource new] ifFalse: [RfbWorldSource new]
+	"The frame tap's screen: on UEFI the firmware screen's shadow and damage, hosted the compositor's composed frame and damage. The World's, through screenshots, where there is no FrameTap. Either through an RfbDiffSource: only the 16x16 blocks that changed are sent."
+	^RfbDiffSource on: ((Smalltalk includesKey: #FrameTap) ifTrue: [RfbTapSource new] ifFalse: [RfbWorldSource new])
 !
 displayPassword
 	"The session's display password (SessionToken's), else --display-password-file's, else a new one."

@@ -110,6 +110,41 @@ TOP = "World current topBar height * World current displayScale"
 FETCH = "(Smalltalk at: #RfbTestShot ifAbsent: [nil]) ifNil: ['none'] ifNotNil: [:f | Base64 encode: (PNGWriter bytesForForm: f)]"
 
 
+# an Agent window whose provider streams a delta every 25 ms (a ScriptedProvider made here, as rfb_measure.py's)
+AGENT = ("(Smalltalk includesKey: #RfbPacedProvider) ifFalse: [ScriptedProvider subclass: #RfbPacedProvider "
+         "instanceVariableNames: 'deltas pace' classVariableNames: '' package: 'Tests-Agent'. "
+         "(Smalltalk at: #RfbPacedProvider) compile: 'deltas: d pace: ms deltas := d. pace := ms'. "
+         "(Smalltalk at: #RfbPacedProvider) compile: 'send: i tools: t onText: tb onItem: ib deltas do: [:d | "
+         "(Delay forMilliseconds: pace) wait. tb value: d]. ^Dictionary new at: ''input_tokens'' put: 1; at: "
+         "''output_tokens'' put: 1; at: ''total_tokens'' put: 2; yourself']. "
+         "AgentWindow account: (ApiKeyAccount new configure: (Dictionary new at: 'provider' put: 'host'; at: 'baseUrl' "
+         "put: 'https://models.example'; at: 'model' put: 'scripted'; at: 'apiKey' put: 'kkk-rfbtest-0000'; yourself); "
+         "yourself). Smalltalk at: #RfbAgent put: (AgentWindow openOn: (AgentConversation new provider: ((Smalltalk at: "
+         "#RfbPacedProvider) new deltas: ((1 to: 400) collect: [:i | #('the ' 'quick ' 'brown ' 'fox ' 'jumps ' "
+         "'over ' 'a ' 'lazy ' 'dog, ' 'and ' 'then ' 'it ' 'streams ' 'on. ') at: i - 1 \\\\ 14 + 1]) pace: 25; yourself); "
+         "yourself) origin: nil in: (40 @ 70 extent: 560 @ 300)). AgentWindow account: nil. 1")
+STATS = ("[:s | (s at: 'comparedArea') printString, ' ', (s at: 'changedArea') printString] value: "
+         "RfbServer current source statistics")
+
+
+def stats():
+    return [int(x) for x in ctl('eval', STATS).strip("'").split()]
+
+
+def changed_blocks(before, c):
+    """Of the last update's pixel rectangles, the area of their parts in 16x16 blocks (of the screen) that changed."""
+    W, area = c.width * 4, 0
+    for e, (x, y, w, h) in c.last_rects:
+        if e < 0 or e == 1:
+            continue
+        for by in range(y // 16 * 16, y + h, 16):
+            for bx in range(x // 16 * 16, x + w, 16):
+                x0, x1, y0, y1 = max(bx, x), min(bx + 16, x + w), max(by, y), min(by + 16, y + h)
+                if any(before[r * W + x0 * 4:r * W + x1 * 4] != c.fb[r * W + x0 * 4:r * W + x1 * 4] for r in range(y0, y1)):
+                    area += (x1 - x0) * (y1 - y0)
+    return area
+
+
 def in_sync(name, *clients, tries=12):
     """Each client's framebuffer, settled, equals the image's screenshot (the screen can change meanwhile: the top
     bar's readout, a blinking caret; then again)."""
@@ -133,8 +168,8 @@ def in_sync(name, *clients, tries=12):
 
 try:
     top_rows = int(float(ctl('eval', TOP)))
-    source = ctl('eval', 'RfbServer current source class name').strip("#'")
-    if source == 'RfbTapSource':
+    source = ctl('eval', "RfbServer current source printString").strip("'")
+    if source.startswith('an RfbDiffSource on RfbTapSource'):
         ok('the screen comes from the frame tap (%s windows open)' % ctl('eval', 'World current windows size'))
     else:
         fail('the screen comes from %s, not the frame tap' % source)
@@ -201,6 +236,32 @@ try:
     before = b.updates
     in_sync('a client that was away catches up', b)
     print('     in %d updates' % (b.updates - before))
+
+    # the Agent streaming into a paragraph that is laid out again with each delta (all of it damaged): only the 16x16
+    # blocks that changed are sent (RfbDiffSource), and they make the screen
+    ctl('eval', AGENT)
+    settle(a, 2)
+    compared0, changed0 = stats()
+    ctl('eval', "(Smalltalk at: #RfbAgent) content conversation ask: 'Stream something.'. 1")
+    sent, changed, updates = 0, 0, 0
+    end = time.time() + 3
+    while time.time() < end:
+        fb = bytes(a.fb)
+        if a.update(incremental=True, timeout=max(0.01, end - time.time())):
+            updates += 1
+            sent += sum(r[2] * r[3] for e, r in a.last_rects if e >= 0 and e != 1)
+            changed += changed_blocks(fb, a)
+    compared1, changed1 = stats()
+    ctl('eval', "(Smalltalk at: #RfbAgent) content conversation stop. 1")
+    print('     streaming: %d updates, %d pixels damaged, %d in changed blocks, %d sent, of which %d in blocks that changed'
+          % (updates, compared1 - compared0, changed1 - changed0, sent, changed))
+    if updates >= 10 and sent * 3 <= compared1 - compared0 and changed * 2 >= sent:
+        ok('a streamed paragraph sends only the blocks that changed')
+    else:
+        fail('a streamed paragraph: %d updates, %d pixels damaged, %d sent, %d in blocks that changed'
+             % (updates, compared1 - compared0, sent, changed))
+    in_sync('after streaming', a)
+    ctl('eval', "(Smalltalk at: #RfbAgent) close. 1")
 
     try:
         connect('wrong', '3.8', 'vnc', 'wrong!!', ['raw'])

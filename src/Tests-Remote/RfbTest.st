@@ -39,7 +39,8 @@ deliver: bytes
 		e return: nil]
 !
 update
-	"Send the update now and decode it."
+	"Collect the damage (a polled or diffing source) and send the update now and decode it."
+	server source collectFor: connection.
 	connection sendUpdate.
 	client feed: socket takeSent.
 	^client readUpdate
@@ -368,6 +369,147 @@ testDamageTakeWithin
 	inside := d takeWithin: (0 @ 0 extent: 10 @ 100).
 	self assert: inside asArray equals: (Array with: (0 @ 0 extent: 10 @ 20)).
 	self assert: d rects asArray equals: (Array with: (10 @ 0 extent: 10 @ 20))
+! !
+
+!RfbTest methodsFor: 'tests: changed blocks'!
+paragraphOn: aSource
+	"Lines of dark glyphs, 6x9 every 8 pixels, on white: a paragraph from 10@10 to 310@100."
+	aSource fill: aSource bounds red: 255 green: 255 blue: 255.
+	0 to: 5 do: [:line |
+		0 to: 36 do: [:i |
+			(i * 7 + line) \\ 5 = 0 ifFalse: [
+				aSource fill: (10 + (i * 8) @ (10 + (line * 15)) extent: 6 @ 9) red: 20 green: 20 blue: 20]]]
+!
+diffed
+	"The screen through an RfbDiffSource, connected, the client's first update taken."
+	server source: (RfbDiffSource on: source).
+	self connected.
+	self fullUpdate: #(16 1 -223).
+	self assert: client framebuffer equals: source bytes.
+	^server source
+!
+another
+	"A second client of the same server: {connection. socket. client}, its first update taken."
+	| s c k |
+	s := RfbTestSocket new.
+	s deliver: 'RFB 003.008' asByteArray, #[10 1 1].
+	c := RfbConnection server: server socket: s.
+	self assert: c handshake.
+	s clearSent.
+	c beServing.
+	k := RfbTestClient new extent: source extent; yourself.
+	s deliver: (RfbTestClient setEncodings: #(16 1 -223)), (RfbTestClient updateRequest: false rect: (0 @ 0 extent: source extent)).
+	self process: c.
+	self update: c socket: s client: k.
+	^Array with: c with: s with: k
+!
+process: aConnection
+	[[true] whileTrue: [aConnection processMessage]] on: RfbError do: [:e | e return: nil]
+!
+update: aConnection socket: aSocket client: aClient
+	server source collectFor: aConnection.
+	aConnection sendUpdate.
+	aClient feed: aSocket takeSent.
+	^aClient readUpdate
+!
+testStreamedParagraphSendsOnlyChangedBlocks
+	"Text streamed into a paragraph that is re-laid out (all of it damaged) each time: only the 16x16 blocks of the words that came are sent."
+	| diff |
+	source := RfbBufferSource extent: 320 @ 200.
+	self paragraphOn: source.
+	diff := self diffed.
+	0 to: 3 do: [:i | | word blocks r |
+		word := 30 + (i * 64) @ 87 extent: 40 @ 9.
+		source fill: word red: 200 green: 0 blue: 0.
+		source redraw: (10 @ 10 extent: 300 @ 90).
+		self deliver: (RfbTestClient updateRequest: true rect: (0 @ 0 extent: source extent)).
+		r := self update.
+		self assert: client framebuffer equals: source bytes.
+		blocks := (word left // 16 * 16) @ (word top // 16 * 16) corner: (word right + 15 // 16 * 16) @ (word bottom + 15 // 16 * 16).
+		self assert: r notEmpty.
+		self assert: (r allSatisfy: [:each | blocks containsRect: each last]).
+		self assert: (r inject: 0 into: [:sum :each | sum + each last area]) <= blocks area].
+	self assert: (diff statistics at: 'comparedArea') >= (4 * 300 * 90).
+	self assert: (diff statistics at: 'changedArea') < ((diff statistics at: 'comparedArea') // 10)
+!
+testRedrawnTheSameSendsNothing
+	self diffed.
+	source redraw: (0 @ 0 extent: 60 @ 50).
+	self deliver: (RfbTestClient updateRequest: true rect: (0 @ 0 extent: source extent)).
+	server source collectFor: connection.
+	self deny: connection hasUpdate
+!
+testChangedBlocksAreClippedAndJoined
+	"Two pixels 40 rows apart in one column of blocks, and one far right: the damage is the blocks that hold them, clipped to what was damaged."
+	| r |
+	source := RfbBufferSource extent: 200 @ 140.
+	source fillWith: [:x :y | Array with: x with: y * 2 \\ 256 with: x + y \\ 256].
+	self diffed.
+	source at: 17 @ 3 put: #(1 2 3).
+	source at: 18 @ 45 put: #(1 2 3).
+	source at: 90 @ 60 put: #(4 5 6).
+	source redraw: (5 @ 0 extent: 90 @ 65).
+	self deliver: (RfbTestClient updateRequest: true rect: (0 @ 0 extent: source extent)).
+	r := (self update collect: [:each | each last]) asArray.
+	self assert: client framebuffer equals: source bytes.
+	self assert: (r includes: (80 @ 48 corner: 95 @ 64)).
+	self assert: (r anySatisfy: [:each | (each containsPoint: 17 @ 3) and: [each containsPoint: 18 @ 45]]) not.
+	self assert: (r anySatisfy: [:each | each containsPoint: 17 @ 3]).
+	self assert: (r anySatisfy: [:each | each containsPoint: 18 @ 45]).
+	self assert: (r inject: 0 into: [:sum :each | sum + each area]) <= (3 * 256)
+!
+testSlowViewerOfChangedBlocks
+	"Two clients of one copy: one takes each change, the other only after several, merged; both end up with the screen."
+	| b |
+	self diffed.
+	b := self another.
+	self assert: (b at: 3) framebuffer equals: source bytes.
+	1 to: 3 do: [:i |
+		source fill: (i * 20 @ (i * 10) extent: 9 @ 7) red: i * 50 green: 0 blue: 0.
+		source redraw: (0 @ 0 extent: 90 @ 60).
+		self deliver: (RfbTestClient updateRequest: true rect: (0 @ 0 extent: source extent)).
+		self update.
+		self assert: client framebuffer equals: source bytes].
+	(b at: 2) deliver: (RfbTestClient updateRequest: true rect: (0 @ 0 extent: source extent)).
+	self process: (b at: 1).
+	self assert: (b at: 1) hasUpdate.
+	self update: (b at: 1) socket: (b at: 2) client: (b at: 3).
+	self assert: (b at: 3) framebuffer equals: source bytes.
+	(b at: 1) close.
+	self assert: server source hasCopy.
+	connection close.
+	connection := nil.
+	self deny: server source hasCopy
+!
+testCopyRectThroughChangedBlocks
+	"A move is a CopyRect, and the copy moves too: what changed at its origin before is still sent, at both places."
+	| r |
+	self diffed.
+	source move: (0 @ 0 extent: 20 @ 10) to: 30 @ 40.
+	self deliver: (RfbTestClient updateRequest: true rect: (0 @ 0 extent: source extent)).
+	r := self update.
+	self assert: r size equals: 1.
+	self assert: r first equals: (Array with: 1 with: (30 @ 40 extent: 20 @ 10)).
+	self assert: client framebuffer equals: source bytes.
+	source fill: (2 @ 2 extent: 5 @ 5) red: 9 green: 99 blue: 199.
+	source move: (0 @ 0 extent: 20 @ 10) to: 50 @ 20.
+	self deliver: (RfbTestClient updateRequest: true rect: (0 @ 0 extent: source extent)).
+	r := self update.
+	self assert: r first first equals: 1.
+	self assert: client framebuffer equals: source bytes
+!
+testDesktopSizeThroughChangedBlocks
+	self diffed.
+	source extent: 40 @ 30.
+	source fillWith: [:x :y | #(1 2 3)].
+	self deliver: (RfbTestClient updateRequest: true rect: (0 @ 0 extent: 100 @ 70)).
+	self assert: (self update collect: [:each | each first]) asArray equals: #(-223 16).
+	self assert: client extent equals: 40 @ 30.
+	self assert: client framebuffer equals: source bytes.
+	source fill: (3 @ 3 extent: 2 @ 2) red: 0 green: 0 blue: 0.
+	self deliver: (RfbTestClient updateRequest: true rect: (0 @ 0 extent: 40 @ 30)).
+	self assert: (self update collect: [:each | each last]) asArray equals: (Array with: (3 @ 3 extent: 2 @ 2)).
+	self assert: client framebuffer equals: source bytes
 ! !
 
 !RfbTest methodsFor: 'tests: input'!

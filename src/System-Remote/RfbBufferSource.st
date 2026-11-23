@@ -62,6 +62,10 @@ fillWith: aBlock
 			bytes at: o + 1 put: (c at: 3); at: o + 2 put: (c at: 2); at: o + 3 put: (c at: 1); at: o + 4 put: 255]].
 	self notify: [:each | each damagedAll]
 !
+redraw: aRectangle
+	"aRectangle drawn again with the pixels it had (as a re-laid-out paragraph is, mostly): damage without change."
+	self notify: [:each | each damaged: (Array with: (aRectangle intersect: self bounds))]
+!
 move: aRectangle to: aPoint
 	"Copy aRectangle's pixels to aPoint (as a window drag would) and say so (moved:to:), with the uncovered part of the source as damage."
 	| pixels w |
