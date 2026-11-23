@@ -3,11 +3,13 @@
 
 Speaks RFB 3.3 (the server picks the security type, as macOS Screen Sharing does) and 3.8 (TigerVNC), with VNC
 authentication (DES, written here: the standard library has none) or VeNCrypt-Plain (the session token), decodes
-FramebufferUpdates of Raw, CopyRect and ZRLE (one zlib stream for the session) and the pseudo-encodings Cursor,
-DesktopSize and LastRect into a BGRX framebuffer, and sends key, pointer and cut-text events.
+FramebufferUpdates of Raw, CopyRect and ZRLE (one zlib stream for the session; CPIXELs by the viewers' rule) and the
+pseudo-encodings Cursor, DesktopSize and LastRect, in any true-colour pixel format it asks for (SetPixelFormat), into a
+BGRX framebuffer, and sends key, pointer and cut-text events. SCREEN_SHARING and TIGERVNC are what those viewers send.
 
   rfb_client.py --port N [--host H] [--version 3.3|3.8] [--auth vnc|vencrypt|none] [--secret-file F]
-                [--encodings zrle,copyrect,cursor,desktopsize,lastrect] [--save out.ppm] [--compare shot.png]
+                [--encodings zrle,copyrect,cursor,desktopsize,lastrect] [--pixel-format 32/32/le/255,255,255/16,8,0]
+                [--save out.ppm] [--compare shot.png]
 connects, takes a full update and saves it (PPM) or compares it pixel for pixel with a PNG (exit 1 on a difference).
 tests/remote/rfb_test.sh drives the rest through the library (RfbClient).
 """
@@ -161,12 +163,106 @@ def read_png(path_or_bytes):
 ENCODINGS = {'raw': 0, 'copyrect': 1, 'zrle': 16, 'cursor': -239, 'desktopsize': -223, 'lastrect': -224}
 
 
+class PixelFormat:
+    """An RFB pixel format (RFC 6143, 7.4), true colour, and how its pixels become BGRX."""
+
+    def __init__(self, bpp=32, depth=24, big_endian=False, maxes=(255, 255, 255), shifts=(16, 8, 0), true_colour=True):
+        self.bpp, self.depth, self.big_endian, self.true_colour = bpp, depth, big_endian, true_colour
+        self.maxes, self.shifts = tuple(maxes), tuple(shifts)
+        self.size = bpp // 8
+        # each channel value as 8 bits, and what an 8-bit value comes back as through this format (the server rounds)
+        self.expand = [[(v * 255 + m // 2) // m for v in range(m + 1)] for m in self.maxes]
+        self.round_trip = [bytes(e[(c * m + 127) // 255] for c in range(256)) for e, m in zip(self.expand, self.maxes)]
+        self.lossless = all(m == 255 for m in self.maxes)
+
+    @classmethod
+    def from_bytes(cls, b):
+        """The 16 bytes of ServerInit's or SetPixelFormat's format."""
+        bpp, depth, be, tc, rm, gm, bm, rs, gs, bs = struct.unpack('>BBBBHHHBBBxxx', b)
+        return cls(bpp, depth, bool(be), (rm, gm, bm), (rs, gs, bs), bool(tc))
+
+    @classmethod
+    def parse(cls, text):
+        """'bpp/depth/le|be/rmax,gmax,bmax/rshift,gshift,bshift', e.g. Screen Sharing's 32/32/le/255,255,255/16,8,0."""
+        bpp, depth, order, maxes, shifts = text.split('/')
+        return cls(int(bpp), int(depth), order == 'be', [int(m) for m in maxes.split(',')],
+                   [int(s) for s in shifts.split(',')])
+
+    def __repr__(self):
+        return '%d/%d/%s/%s/%s' % (self.bpp, self.depth, 'be' if self.big_endian else 'le',
+                                    ','.join(map(str, self.maxes)), ','.join(map(str, self.shifts)))
+
+    def message(self):
+        """SetPixelFormat."""
+        return struct.pack('>BxxxBBBBHHHBBBxxx', 0, self.bpp, self.depth, 1 if self.big_endian else 0,
+                           1 if self.true_colour else 0, *self.maxes, *self.shifts)
+
+    def cpixel(self):
+        """ZRLE's CPIXEL as (size, where its bytes start in the pixel, in wire order), by the viewers' rule (TigerVNC's,
+        libvncclient's, macOS Screen Sharing's): a 32-bit true-colour pixel whose channels all fit in its least
+        significant three bytes, or else its most significant three, travels as those three bytes, whatever its depth
+        (RFC 6143 also asks for depth <= 24, but Screen Sharing asks for depth 32 and decodes 3 bytes); else the whole
+        pixel."""
+        if self.bpp != 32 or not self.true_colour:
+            return self.size, 0
+        used = 0
+        for m, s in zip(self.maxes, self.shifts):
+            used |= m << s
+        if used < 1 << 24:
+            return 3, 1 if self.big_endian else 0
+        if used & 0xff == 0:
+            return 3, 0 if self.big_endian else 1
+        return 4, 0
+
+    def _byte_of(self, shift):
+        """The byte (wire order) of a 32-bit pixel that is the channel at shift, if a whole byte."""
+        if shift % 8:
+            return None
+        return 3 - shift // 8 if self.big_endian else shift // 8
+
+    def to_bgrx(self, data):
+        """data's pixels as BGRX (X: the server's byte in its own format, else 255)."""
+        n = len(data) // self.size
+        if self.lossless and self.bpp == 32:
+            r, g, b = (self._byte_of(s) for s in self.shifts)
+            if (r, g, b) == (2, 1, 0):
+                return bytes(data)
+            if None not in (r, g, b):
+                out = bytearray(b'\xff' * (n * 4))
+                out[0::4], out[1::4], out[2::4] = data[b::4], data[g::4], data[r::4]
+                return bytes(out)
+        out = bytearray(b'\xff' * (n * 4))
+        order, sz = 'big' if self.big_endian else 'little', self.size
+        (rm, gm, bm), (rs, gs, bs), (er, eg, eb) = self.maxes, self.shifts, self.expand
+        for i in range(n):
+            v = int.from_bytes(data[i * sz:i * sz + sz], order)
+            o = i * 4
+            out[o], out[o + 1], out[o + 2] = eb[(v >> bs) & bm], eg[(v >> gs) & gm], er[(v >> rs) & rm]
+        return bytes(out)
+
+
+NATIVE = PixelFormat()
+# What the viewers send after ServerInit, as the probe logged them (the scope's "Confirmed with real viewers").
+# macOS Screen Sharing: RFB 3.3, VNC authentication, shared; depth 32 BGRX; Apple's own encodings (1000-1200), which a
+# server must ignore, around Zlib, ZRLE, Cursor and DesktopSize.
+SCREEN_SHARING_FORMAT = PixelFormat(32, 32, False, (255, 255, 255), (16, 8, 0))
+SCREEN_SHARING_ENCODINGS = [1011, 1002, 6, 16, -239, 1104, 1100, -223, 1101, 1105, 1107, 1109, 1110]
+# TigerVNC: RFB 3.8, VNC authentication; its full-colour format; Tight, CopyRect, JPEG, ZRLE, Hextile, RRE, Raw,
+# CompressLevel2, JPEGQuality8, then pseudo-encodings: CursorWithAlpha, VMwareCursor, Cursor, XCursor, DesktopSize,
+# ExtendedDesktopSize, LastRect, ExtendedClipboard, ContinuousUpdates, Fence, QEMUExtendedKeyEvent, DesktopName,
+# QEMULEDState, VMware LED state.
+TIGERVNC_FORMAT = PixelFormat(32, 24, False, (255, 255, 255), (16, 8, 0))
+TIGERVNC_ENCODINGS = [7, 1, 21, 16, 5, 2, 0, -254, -24, -314, 0x574d5664, -239, -240, -223, -308, -224, -1063131698,
+                      -313, -312, -258, -307, -261, 0x574d5668]
+
+
 class RfbError(Exception):
     pass
 
 
 class RfbClient:
-    """One connection. fb is the framebuffer, width * height BGRX pixels (the X byte as the server sent it)."""
+    """One connection. fb is the framebuffer, width * height BGRX pixels. encodings_seen: every encoding the server
+    sent a rectangle in. With decode False, rectangles are read (ZRLE's stream inflated) but not drawn."""
 
     def __init__(self, host, port, timeout=20):
         self.sock = socket.create_connection((host, port), timeout=timeout)
@@ -182,7 +278,9 @@ class RfbClient:
         self.last_rects = []
         self.updates = 0
         self.bytes_read = 0
-        self.shifts = (16, 8, 0)
+        self.encodings_seen = set()
+        self.decode = True
+        self.use_format(NATIVE)
 
     # -- bytes
     def recv(self, n):
@@ -256,18 +354,30 @@ class RfbClient:
         self.send(bytes([1 if shared else 0]))
         self.width, self.height = self.u16(), self.u16()
         self.server_format = self.recv(16)
+        self.use_format(PixelFormat.from_bytes(self.server_format))
         self.name = self.reason()
         self.fb = bytearray(self.width * self.height * 4)
 
     # -- client messages
-    def set_encodings(self, names):
-        codes = [ENCODINGS[n] if isinstance(n, str) else n for n in names]
-        self.send(struct.pack('>BBH', 2, 0, len(codes)) + b''.join(struct.pack('>i', c) for c in codes))
+    def use_format(self, pf):
+        self.pf = pf
+        self.cpixel_size, self.cpixel_offset = pf.cpixel()
+
+    def set_pixel_format(self, pf):
+        """SetPixelFormat to a PixelFormat (or its text, PixelFormat.parse); pixels come in it from then on."""
+        if isinstance(pf, str):
+            pf = PixelFormat.parse(pf)
+        self.send(pf.message())
+        self.use_format(pf)
 
     def set_pixel_format_rgbx(self):
         """32-bit true colour, red at 0, green 8, blue 16 (another byte order than the server's, decoded back to BGRX)."""
-        self.send(struct.pack('>BxxxBBBBHHHBBBxxx', 0, 32, 24, 0, 1, 255, 255, 255, 0, 8, 16))
-        self.shifts = (0, 8, 16)
+        self.set_pixel_format(PixelFormat(32, 24, False, (255, 255, 255), (0, 8, 16)))
+
+    def set_encodings(self, names):
+        codes = [ENCODINGS[n] if isinstance(n, str) else n for n in names]
+        self.encodings = codes
+        self.send(struct.pack('>BBH', 2, 0, len(codes)) + b''.join(struct.pack('>i', c) for c in codes))
 
     def request(self, incremental=True, rect=None):
         x, y, w, h = rect or (0, 0, self.width, self.height)
@@ -288,20 +398,27 @@ class RfbClient:
         self.send(struct.pack('>BxxxI', 6, len(data)) + data)
 
     # -- server messages
+    def wait_readable(self, timeout):
+        """Whether bytes are there (buffered, or arriving within timeout seconds)."""
+        if self.buf:
+            return True
+        self.sock.settimeout(timeout)
+        try:
+            chunk = self.sock.recv(65536)
+        except socket.timeout:
+            return False
+        finally:
+            self.sock.settimeout(20)
+        if not chunk:
+            raise RfbError('the server closed the connection')
+        self.bytes_read += len(chunk)
+        self.buf += chunk
+        return True
+
     def read_message(self, timeout=None):
         """One server message; answer its type, or None if none came within timeout (seconds)."""
-        if timeout is not None and not self.buf:
-            self.sock.settimeout(timeout)
-            try:
-                chunk = self.sock.recv(65536)
-            except socket.timeout:
-                return None
-            finally:
-                self.sock.settimeout(20)
-            if not chunk:
-                raise RfbError('the server closed the connection')
-            self.bytes_read += len(chunk)
-            self.buf += chunk
+        if timeout is not None and not self.wait_readable(timeout):
+            return None
         t = self.u8()
         if t == 0:
             self.read_update()
@@ -328,49 +445,61 @@ class RfbClient:
         n = self.u16()
         self.last_rects = []
         self.updates += 1
+        size = self.pf.size
         while n == 0xFFFF or len(self.last_rects) < n:
             x, y, w, h, enc = struct.unpack('>HHHHi', self.recv(12))
             self.last_rects.append((enc, (x, y, w, h)))
+            self.encodings_seen.add(enc)
             if enc == -224:
                 break
             elif enc == 0:
-                self._put(x, y, w, h, self._to_bgrx(self.recv(w * h * 4)))
+                data = self.recv(w * h * size)
+                if self.decode:
+                    self._put(x, y, w, h, self.pf.to_bgrx(data))
             elif enc == 1:
                 sx, sy = self.u16(), self.u16()
-                rows = [bytes(self.fb[((sy + r) * self.width + sx) * 4:((sy + r) * self.width + sx + w) * 4])
-                        for r in range(h)]
-                self._put(x, y, w, h, b''.join(rows))
+                if self.decode:
+                    rows = [bytes(self.fb[((sy + r) * self.width + sx) * 4:((sy + r) * self.width + sx + w) * 4])
+                            for r in range(h)]
+                    self._put(x, y, w, h, b''.join(rows))
             elif enc == 16:
                 self._zrle(x, y, w, h)
             elif enc == -239:
-                self.cursor = ((x, y), (w, h), self.recv(w * h * 4), self.recv((w + 7) // 8 * h))
+                self.cursor = ((x, y), (w, h), self.recv(w * h * size), self.recv((w + 7) // 8 * h))
             elif enc == -223:
                 self.width, self.height = w, h
                 self.fb = bytearray(w * h * 4)
             else:
                 raise RfbError('unknown encoding %d' % enc)
 
-    def _to_bgrx(self, data):
-        if self.shifts == (16, 8, 0):
-            return data
-        out = bytearray(data)
-        out[0::4], out[2::4] = data[2::4], data[0::4]
-        return bytes(out)
-
     def _put(self, x, y, w, h, bgrx):
         for r in range(h):
             o = ((y + r) * self.width + x) * 4
             self.fb[o:o + w * 4] = bgrx[r * w * 4:(r + 1) * w * 4]
 
+    def _cpixels(self, raw):
+        """CPIXELs as BGRX: 3-byte ones put back at their place in a pixel of the format, then converted."""
+        cp, off = self.cpixel_size, self.cpixel_offset
+        if cp == self.pf.size:
+            return self.pf.to_bgrx(raw)
+        n = len(raw) // cp
+        px = bytearray(n * 4)
+        for k in range(3):
+            px[off + k::4] = raw[k::3]
+        return self.pf.to_bgrx(bytes(px))
+
     def _zrle(self, x, y, w, h):
         data = self.zlib.decompress(self.recv(self.u32()))
+        if not self.decode:
+            return
         p = 0
+        cp = self.cpixel_size
 
-        def cpixel():
+        def cpixels(n):
             nonlocal p
-            px = data[p:p + 3] + b'\xff'
-            p += 3
-            return self._to_bgrx(px)
+            px = self._cpixels(data[p:p + cp * n])
+            p += cp * n
+            return px
 
         def run_length():
             nonlocal p
@@ -388,11 +517,12 @@ class RfbClient:
                 sub = data[p]
                 p += 1
                 if sub == 0:
-                    tile = b''.join(cpixel() for _ in range(tw * th))
+                    tile = cpixels(tw * th)
                 elif sub == 1:
-                    tile = cpixel() * (tw * th)
+                    tile = cpixels(1) * (tw * th)
                 elif 2 <= sub <= 16:
-                    palette = [cpixel() for _ in range(sub)]
+                    palette = cpixels(sub)
+                    palette = [palette[i * 4:i * 4 + 4] for i in range(sub)]
                     bits = 1 if sub == 2 else 2 if sub <= 4 else 4
                     pixels = []
                     for _ in range(th):
@@ -404,11 +534,14 @@ class RfbClient:
                             pixels.append(palette[(row[bit // 8] >> (8 - bits - bit % 8)) & ((1 << bits) - 1)])
                     tile = b''.join(pixels)
                 elif sub == 128 or sub >= 130:
-                    palette = [cpixel() for _ in range(sub - 128)] if sub >= 130 else None
+                    palette = None
+                    if sub >= 130:
+                        palette = cpixels(sub - 128)
+                        palette = [palette[i * 4:i * 4 + 4] for i in range(sub - 128)]
                     pixels, count = [], 0
                     while count < tw * th:
                         if palette is None:
-                            px = cpixel()
+                            px = cpixels(1)
                             n = run_length()
                         else:
                             b = data[p]
@@ -420,27 +553,33 @@ class RfbClient:
                     tile = b''.join(pixels)
                 else:
                     raise RfbError('ZRLE: bad subencoding %d' % sub)
+                if len(tile) != tw * th * 4:
+                    raise RfbError('ZRLE: a %dx%d tile at %d,%d decoded to %d pixels' % (tw, th, x + tx, y + ty,
+                                                                                         len(tile) // 4))
                 self._put(x + tx, y + ty, tw, th, tile)
         if p != len(data):
-            raise RfbError('ZRLE: %d bytes left over' % (len(data) - p))
+            raise RfbError('ZRLE: %d bytes left over (CPIXEL %d bytes)' % (len(data) - p, cp))
 
     # -- comparing
     def differences(self, width, height, rgba, from_row=0):
         """Pixels whose colour differs from an RGBA image of the same size (the X/alpha byte aside), and the first;
-        from from_row on."""
+        from from_row on. In a format of fewer bits a channel, the image's colours as that format keeps them."""
         if (width, height) != (self.width, self.height):
             return width * height, 'size %dx%d, framebuffer %dx%d' % (width, height, self.width, self.height)
         fb = bytes(self.fb[from_row * width * 4:])
         rgba = rgba[from_row * width * 4:]
-        if fb[2::4] == rgba[0::4] and fb[1::4] == rgba[1::4] and fb[0::4] == rgba[2::4]:
+        r, g, b = rgba[0::4], rgba[1::4], rgba[2::4]
+        if not self.pf.lossless:
+            r, g, b = (c.translate(t) for c, t in zip((r, g, b), self.pf.round_trip))
+        if fb[2::4] == r and fb[1::4] == g and fb[0::4] == b:
             return 0, None
         count, first = 0, None
         for i in range(width * (height - from_row)):
             o = i * 4
-            if (fb[o + 2], fb[o + 1], fb[o]) != (rgba[o], rgba[o + 1], rgba[o + 2]):
+            if (fb[o + 2], fb[o + 1], fb[o]) != (r[i], g[i], b[i]):
                 count += 1
                 if first is None:
-                    first = 'at %d,%d: screenshot %r, RFB %r' % (i % width, i // width + from_row, tuple(rgba[o:o + 3]),
+                    first = 'at %d,%d: screenshot %r, RFB %r' % (i % width, i // width + from_row, (r[i], g[i], b[i]),
                                                                 (fb[o + 2], fb[o + 1], fb[o]))
         return count, first
 
@@ -459,14 +598,18 @@ def main():
     ap.add_argument('--version', default='3.8', choices=['3.3', '3.8'])
     ap.add_argument('--auth', default='vencrypt', choices=['vnc', 'vencrypt', 'none'])
     ap.add_argument('--secret-file', help='the VNC password or the session token, its first line')
-    ap.add_argument('--encodings', default='zrle,copyrect,cursor,desktopsize,lastrect')
+    ap.add_argument('--encodings', default='zrle,copyrect,cursor,desktopsize,lastrect',
+                    help='names or numbers, comma-separated')
+    ap.add_argument('--pixel-format', help='SetPixelFormat bpp/depth/le|be/rmax,gmax,bmax/rshift,gshift,bshift')
     ap.add_argument('--save', help='write the framebuffer as a PPM')
     ap.add_argument('--compare', help='compare the framebuffer with a PNG, pixel for pixel')
     a = ap.parse_args()
     secret = open(a.secret_file).readline().strip() if a.secret_file else None
     c = RfbClient(a.host, a.port)
     c.handshake(a.version, a.auth, secret)
-    c.set_encodings(a.encodings.split(','))
+    if a.pixel_format:
+        c.set_pixel_format(a.pixel_format)
+    c.set_encodings([e if e in ENCODINGS else int(e, 0) for e in a.encodings.split(',')])
     if not c.update(incremental=False):
         sys.exit('no update')
     print('%s %dx%d, %d bytes, rects %r' % (c.name, c.width, c.height, c.bytes_read, [e for e, _ in c.last_rects]))

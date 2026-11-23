@@ -1,13 +1,18 @@
 #!/bin/sh
-# The image's remote display (RfbServer, docs/remote.md: the frame tap's screen, hosted and on UEFI) seen by RFB clients (tests/remote/rfb_client.py): RFB 3.3 with
-# VNC authentication and ZRLE (as macOS Screen Sharing), RFB 3.8 with VeNCrypt-Plain and Raw in another pixel format,
-# None never offered; the decoded framebuffer equals the image's own screenshot pixel for pixel at first, after typing,
-# after a window move, after keys sent through RFB, and for a client that asked for nothing for a while; a wrong
+# The image's remote display (RfbServer, docs/remote.md: the frame tap's screen, hosted and on
+# UEFI) seen by RFB clients (tests/remote/rfb_client.py): RFB 3.3 with
+# VNC authentication and ZRLE, RFB 3.8 with VeNCrypt-Plain and Raw in another pixel format, ZRLE in two more (CPIXELs
+# in the high bytes; 16-bit RGB565 big-endian), and two clients that do what the viewers do (rfb_client.py's
+# SCREEN_SHARING_* and TIGERVNC_*: macOS Screen Sharing's RFB 3.3, VNC authentication, shared, depth 32 BGRX and its
+# encodings with Apple's unknown ones; TigerVNC's 3.8, VNC authentication, its encodings and pseudo-encodings), each
+# sent only rectangles in encodings it offered; None never offered; the decoded framebuffer equals the image's own
+# screenshot pixel for pixel at first, after typing, after a window move, after keys sent through RFB, and for a client
+# that asked for nothing for a while; a wrong
 # password is refused and makes the next attempt wait; a fifth client is refused. Below the top bar: its readout of
 # the compositor's frame times is redrawn twice a second whenever frames were presented (so, for ever) and its REMOTE
 # tag flashes with each samaltak-ctl command, so no screenshot is of the same instant as a frame sent.
 # usage: tests/remote/rfb_test.sh [--uefi] [image]   (hosted: default build/samaltak.image; --uefi: the VM in QEMU,
-#        samaltak-ctl open --uefi --vnc n --vnc-server image: the image's server forwarded from 127.0.0.1:5900+n)
+#        samaltak-ctl open --uefi --vnc n: the image's server forwarded from 127.0.0.1:5900+n)
 set -u
 cd "$(dirname "$0")/../.."
 UEFI=
@@ -31,9 +36,9 @@ for n in random.sample(range(10, 90), 80):
         pass
     finally:
         s.close()')
-  $CTL open --uefi --window-size 1024x768 --vnc "$n" --vnc-server image >"$WORK/open.log" 2>&1 || { echo "FAIL open --uefi"; cat "$WORK/open.log"; exit 1; }
+  printf 'rfb%04d\n' $(($$ % 10000)) > "$WORK/password"
+  $CTL open --uefi --window-size 1024x768 --vnc "$n" --vnc-password-file "$WORK/password" >"$WORK/open.log" 2>&1 || { echo "FAIL open --uefi"; cat "$WORK/open.log"; exit 1; }
   PORT=$((5900 + n))
-  cp "$DIR/$SAMALTAK_SESSION.vnc-password" "$WORK/password"
 else
   printf 'rfb%04d\n' $(($$ % 10000)) > "$WORK/password"
   $CTL open --hidden --image "$IMAGE" --window-size 640x400 --display-port 0 --display-password-file "$WORK/password" >"$WORK/open.log" 2>&1 \
@@ -50,7 +55,8 @@ $CTL wait idle 5000 >/dev/null
 python3 -u - "$PORT" "$WORK" "$CTL" <<'EOF'
 import base64, os, subprocess, sys, time
 sys.path.insert(0, 'tests/remote')
-from rfb_client import RfbClient, RfbError, read_png
+from rfb_client import (RfbClient, RfbError, PixelFormat, read_png, SCREEN_SHARING_FORMAT, SCREEN_SHARING_ENCODINGS,
+                        TIGERVNC_FORMAT, TIGERVNC_ENCODINGS)
 
 port, work, ctl_path = int(sys.argv[1]), sys.argv[2], sys.argv[3]
 password = open(os.path.join(work, 'password')).readline().strip()
@@ -73,12 +79,14 @@ def ctl(*args):
     return r.stdout.strip()
 
 
-def connect(label, version, auth, secret, encodings, rgbx=False):
+def connect(label, version, auth, secret, encodings, rgbx=False, pf=None, shared=True):
     c = RfbClient('127.0.0.1', port)
     c.label = label
-    c.handshake(version, auth, secret)
+    c.handshake(version, auth, secret, shared=shared)
     if rgbx:
         c.set_pixel_format_rgbx()
+    if pf:
+        c.set_pixel_format(pf)
     c.set_encodings(encodings)
     if not c.update(incremental=False):
         raise RfbError('no first update')
@@ -146,11 +154,24 @@ try:
     in_sync('first frame equals the screenshot', a, b)
     print('     a full ZRLE frame: %d bytes in %.0f ms (Raw: %d)' % (first_bytes, first_ms, a.width * a.height * 4))
 
+    # ZRLE in other formats: CPIXELs in a pixel's high three bytes, and 16 bits a pixel (a CPIXEL is the whole pixel)
+    for label, pf in [('ZRLE, 32/32 shifts 24/16/8', PixelFormat(32, 32, False, (255, 255, 255), (24, 16, 8))),
+                      ('ZRLE, RGB565 big-endian', PixelFormat(16, 16, True, (31, 63, 31), (11, 5, 0)))]:
+        x = connect(label, '3.8', 'vencrypt', token, ['zrle', 'lastrect'], pf=pf)
+        in_sync('first frame equals the screenshot', x)
+        x.close()
+
+    # what the viewers send (the scope's probe of them): the server picks ZRLE from their lists and ignores the rest
+    ss = connect('Screen Sharing', '3.3', 'vnc', password, SCREEN_SHARING_ENCODINGS, pf=SCREEN_SHARING_FORMAT)
+    tv = connect('TigerVNC', '3.8', 'vnc', password, TIGERVNC_ENCODINGS, pf=TIGERVNC_FORMAT)
+    viewers = [ss, tv]
+    in_sync('first frame equals the screenshot', *viewers)
+
     ctl('type', '@w1.text', '\nTyped for RFB: the quick brown fox', '--end')
-    in_sync('after typing', a, b)
+    in_sync('after typing', a, b, *viewers)
 
     ctl('drag', '@w1', '37', '23')
-    in_sync('after a window move', a, b)
+    in_sync('after a window move', a, b, *viewers)
 
     # keys through RFB (RfbInput), into the Workspace: it has the keyboard focus after a click
     ctl('click', '@w1.text')
@@ -163,7 +184,14 @@ try:
         ok('keys sent through RFB reach the Workspace')
     else:
         fail('keys sent through RFB: the Workspace has %r' % text[-200:])
-    in_sync('after keys through RFB', a)
+    in_sync('after keys through RFB', a, *viewers)
+    for v in viewers:
+        sent, offered = sorted(v.encodings_seen), set(v.encodings) | {0}
+        if 16 in v.encodings_seen and set(sent) <= offered:
+            ok('%s got only encodings it offered: %r' % (v.label, sent))
+        else:
+            fail('%s offered %r and got %r' % (v.label, v.encodings, sent))
+        v.close()
 
     # b asks for nothing while the screen changes, then gets it all at once
     ctl('type', '@w1.text', ' while b was away', '--end')
