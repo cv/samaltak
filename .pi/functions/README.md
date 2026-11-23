@@ -38,9 +38,17 @@ Check with `context.get().projectFunctions`.
   at once (UEFI_TEST_JOBS, each in `OUT/uefi-<arch>/run-<part>`, kept when one fails). The log ends with a timeline:
   each stage's span, then the build's and the slowest stage's steps (the critical path); all stages' with
   `tests/timeline.sh build/gate-runs/<id>.timeline all`. Shards are balanced by the
-  class times in this directory's `build/test-times` (the gate's runs keep them up to date). All test VMs on the
-  machine share SAMALTAK_TEST_SLOTS slots (default nproc / 2, flock files in `/tmp/samaltak-test-slots-<uid>`), so
-  concurrent gates wait for each other's VMs instead of each starting 8 per stage. It tests HEAD's committed tree only
+  class times in this directory's `build/test-times` (the gate's runs keep them up to date). All test VMs and test-uefi's
+  QEMUs on the machine share SAMALTAK_TEST_SLOTS slots (default 4/5 of the CPUs, 16 on the DGX Spark, at most one per
+  3 GB available; flock files in `/tmp/samaltak-test-slots-<uid>`), so concurrent gates wait for each other's VMs
+  instead of each starting 8 per stage; a suite's shard with its longest class and the RFB scenarios get the next free
+  slot first. test-core's and test-tools's parts (the suites beside the main one, the scenarios) run at once too.
+  Timings are shared by the machine's worktrees (`~/.cache/samaltak/test-times`), so a fresh worktree's first run
+  is balanced. The gate's VM comes from `~/.cache/samaltak/build` when its `vm/` was built before (the log says
+  `build-cache: the VM from the cache`; tests/build-cache.sh), so a re-run or a rebase that left `vm/` alone skips
+  the VM's compile. Flakes: every stage's result goes into `~/.cache/samaltak/gate-ledger.tsv`; a failed stage first
+  names lines that failed in earlier gates (`flakes: known: ...`), and `tests/flakes.sh` lists the failures by
+  frequency and how many of their trees also passed (a flake). It tests HEAD's committed tree only
   (not uncommitted or untracked files) and runs one at a time per directory. A failure blocks only if the test passes on origin/main: rerun it alone with `suite` before suspecting
   your change (JIT tests have failed under load). `push` accepts a passed run of the same tree, or of the same change
   when the commits that landed since touch none of your files.

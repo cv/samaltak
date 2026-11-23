@@ -13,7 +13,7 @@ async function gate(
   // The push gate (AGENTS.md) as CI runs it: Xvfb + software Vulkan (lavapipe), in the background, for the current
   // directory's HEAD. start: begin a run of targets (default ["test-core"]; add "test-uefi", "test-jit-baseline",
   // "test-jit-opt" as AGENTS.md requires, "test-nv" on a machine with an NVIDIA GPU; the targets run at once after one
-  // build (tests/stages.sh), each suite sharded over test VMs: all five stages take ~3.5 min, test-core alone ~2.5;
+  // build (tests/stages.sh), each suite sharded over test VMs: all five stages take ~2.5 min (~2 when the VM comes from the build cache), test-core alone ~2;
   // concurrent gates share the machine's test slots and take longer; results end with a line per stage, "stage
   // <target>: passed|FAILED (exit N) in N s", and "stages: ..."; or ["auto"]: test-core, plus test-uefi when src/,
   // vm/, boot/, the Makefile,
@@ -65,9 +65,9 @@ async function gate(
     const targets: string[] = rec.targets.split(" ");
     // stages run at once (tests/stages.sh): the build, then about the slowest stage, plus some for sharing the slots
     const stageS = (t: string) =>
-      t === "test-core" ? 160 : t === "test-uefi" ? 90 : t === "test-tools" ? 130 : t.startsWith("test-jit-") ? 150 : 120;
+      t === "test-core" ? 125 : t === "test-uefi" ? 100 : t === "test-tools" ? 80 : t.startsWith("test-jit-") ? 130 : 120;
     const expectedS =
-      40 + Math.max(0, ...targets.map(stageS)) + 15 * Math.max(0, targets.filter((t) => t !== "test-uefi").length - 1);
+      20 + Math.max(0, ...targets.map(stageS)) + 15 * Math.max(0, targets.filter((t) => t !== "test-uefi").length - 1);
     return {
       ...rec,
       elapsedS: Math.round((rec.finished ?? Date.now() / 1000) - rec.started),
