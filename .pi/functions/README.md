@@ -26,6 +26,8 @@ Check with `context.get().projectFunctions`.
 
 ## Notes
 
+- test-core checks that every file here parses as TypeScript (`tests/tools/pi_functions_test.sh`, with bun or node's
+  type stripping): pi cannot load a file it cannot parse (gate.ts once had a shell `${...}` inside a template literal).
 - Timeouts: a typescript tool call defaults to 30 s and allows at most 300 s. Give the call a `timeoutMs` above the
   function's `timeoutS` (evalImage 25 s, suite 280 s, uefiEval 240 s by default); split longer work (the gate's
   `wait` returns after at most 280 s, call it again).

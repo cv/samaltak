@@ -92,7 +92,7 @@ PLATFORM_CHECK = @[ -f vm/build/.variant-platform ] || { echo "make test: FAILED
 # suite first, each part's output shown when it ends; every part's VMs hold the machine's test slots (tests/st_suite.sh,
 # tests/with-slot).
 # Every part runs to its end (-k).
-TEST_CORE_PARTS := suite vm gen layering cli-quit resume-rng verify-gc heap weather agents wodify
+TEST_CORE_PARTS := suite vm gen layering cli-quit resume-rng verify-gc heap weather agents wodify pi-functions
 TEST_CORE_JOBS ?= $(words $(TEST_CORE_PARTS))
 # make -j N -O, but one at a time on make 3.81 (macOS's), which has no -O
 TEST_PARTS_SYNC = $(if $(filter 3.%,$(MAKE_VERSION)),-j1,-j$(1) -O --no-print-directory)
@@ -105,6 +105,8 @@ test-core-part-vm: vm
 	tests/with-slot vm/tests/run.sh
 test-core-part-gen:
 	tests/with-slot tests/vm/gen_test.sh $(OUT)/samaltak.image
+test-core-part-pi-functions:
+	tests/tools/pi_functions_test.sh
 test-core-part-layering:
 	tests/with-slot tests/boot/layering_test.sh
 test-core-part-cli-quit:
