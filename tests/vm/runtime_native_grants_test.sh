@@ -23,6 +23,22 @@ double ffi_test_mix(int32_t a, double b, uint64_t c, int64_t d, uint32_t e, doub
     return (double)a + b + (double)c + (double)d + (double)e + f;
 }
 
+int32_t ffi_test_i32(int32_t n) { return n; }
+uint32_t ffi_test_u32(uint32_t n) { return n; }
+int64_t ffi_test_i64(int64_t n) { return n; }
+uint64_t ffi_test_u64(uint64_t n) { return n; }
+
+uint64_t ffi_test_boundary_mix(int32_t a, double b, uint64_t c, int64_t d, uint32_t e, double f)
+{
+    if (b != 1.25 || f != -0.25 || e != UINT32_MAX)
+        return 0;
+    if (a == INT32_MIN && c == UINT64_MAX && d == INT64_MIN)
+        return c;
+    if (a == INT32_MAX && c == (uint64_t)INT64_MAX + 1 && d == INT64_MAX)
+        return c;
+    return 0;
+}
+
 uint64_t ffi_test_checksum(uint64_t seed, const uint8_t *bytes, size_t length)
 {
     for (size_t i = 0; i < length; ++i)
@@ -84,7 +100,12 @@ SAMALTAK_NATIVE_GRANTS="$PAIR
 $MIX
 $VOID
 $CHECKSUM
-$CHECKSUM_TWO"
+$CHECKSUM_TWO
+fixture|ffi_test_i32|i32(i32)|$LIB
+fixture|ffi_test_u32|u32(u32)|$LIB
+fixture|ffi_test_i64|i64(i64)|$LIB
+fixture|ffi_test_u64|u64(u64)|$LIB
+fixture|ffi_test_boundary_mix|u64(i32,f64,u64,i64,u32,f64)|$LIB"
 export SAMALTAK_NATIVE_GRANTS
 
 expect true "$IMAGE" --headless --eval "
@@ -107,6 +128,36 @@ expect true "$IMAGE" --headless --eval "
         binding primInvoke: (binding instVarNamed: 'id')
             library: 'fixture' symbol: 'ffi_test_i32_pair'
             types: #[2 1] result: 1 arguments: #(11 5)]"
+
+# Build the edges with arithmetic too, so both literals and the VM's limb output
+# cross the native boundary; reject values that would fit only if truncated.
+expect true "$IMAGE" --headless --eval "
+    | s32 s64 u32 u64 mixed check p31 p32 p62 p63 p64 |
+    s32 := FFI bind: #(call 'fixture' 'ffi_test_i32' (i32) i32).
+    u32 := FFI bind: #(call 'fixture' 'ffi_test_u32' (u32) u32).
+    s64 := FFI bind: #(call 'fixture' 'ffi_test_i64' (i64) i64).
+    u64 := FFI bind: #(call 'fixture' 'ffi_test_u64' (u64) u64).
+    mixed := FFI bind: #(call 'fixture' 'ffi_test_boundary_mix' (i32 f64 u64 i64 u32 f64) u64).
+    p31 := 1 bitShift: 31.
+    p32 := 1 bitShift: 32.
+    p62 := 1 bitShift: 62.
+    p63 := 1 bitShift: 63.
+    p64 := 1 bitShift: 64.
+    check := [:binding :valid :invalid |
+        (valid allSatisfy: [:n | (binding invoke: {n}) = n])
+            and: [invalid allSatisfy: [:n |
+                [binding invoke: {n}. false] on: FFIError do: [:e | true]]]].
+    (check value: s32 value: {p31 negated. p31 negated + 1. p31 - 2. p31 - 1}
+        value: {p31 negated - 1. p31. p32 + 1}) ifFalse: [^false].
+    (check value: u32 value: {0. p31 - 1. p31. p32 - 2. p32 - 1}
+        value: {-1. p32. p32 + 1}) ifFalse: [^false].
+    (check value: s64 value: {p63 negated. p63 negated + 1. p62 negated - 1. p62 negated.
+        p62 - 1. p62. p63 - 2. p63 - 1}
+        value: {p63 negated - 1. p63. p64 - 1. p64 + 1}) ifFalse: [^false].
+    (check value: u64 value: {0. p62 - 1. p62. p63 - 1. p63. p63 + 1. p64 - 2. p64 - 1}
+        value: {-1. p63 negated. p64. p64 + 1}) ifFalse: [^false].
+    ((mixed invoke: {p31 negated. 1.25. 16rFFFFFFFFFFFFFFFF. p63 negated. p32 - 1. -0.25}) + 1 = p64)
+        and: [(mixed invoke: {p31 - 1. 1.25. p63. 16r7FFFFFFFFFFFFFFF. p32 - 1. -0.25}) = p63]"
 
 expect true "$IMAGE" --headless --eval "
     | checksum two bytes reject |
