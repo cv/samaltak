@@ -1,5 +1,5 @@
 VMCoreModule subclass: #Scheduler
-	instanceVariableNames: 'interruptPending lastPreempted lastPreemptedAtEntry allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs sliceStartNs windowStartNs windowCpuUs ledgerProcs ledgerNs ledgerN statReconciles startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs sliceUs sliceDueUs slicePriority sliceExpired runHint'
+	instanceVariableNames: 'interruptPending lastPreempted lastPreemptedAtEntry allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs sliceStartTk windowStartTk windowStartNs windowCpuUs reconcileTk ledgerProcs ledgerTk ledgerN cycles statReconciles startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs sliceUs sliceDueUs slicePriority sliceExpired runHint'
 	classVariableNames: 'LEDGER_SIZE RECONCILE_NS TICK_DEADLINE TICK_POLL WORK_CLOCK_FLOOR WORK_CLOCK_POLL_US WORK_CYCLES_PER_US'
 	package: 'VM-Core'!
 
@@ -9,19 +9,40 @@ The run lists are scanned for the highest ready Process from runHint down: no ru
 
 Time slicing (setTimeSlice:): while another Process of the active one''s priority is ready, the active one runs at most sliceUs before it goes to the back of its run list, so equal-priority Processes take turns. The slice''s deadline is armed only under that contention (a Process made ready at the active priority, a switch to a Process with peers waiting): a program whose Processes do not compete, or that idles, has no timer for it.
 
-Processes are charged the VM thread''s CPU time (threadCpuUs) in batches, as one read of that clock costs a system call: a switch adds the outgoing Process''s slice, by the monotonic clock, to its entry in a ledger of LEDGER_SIZE entries. Once the ledger is full or its window older than RECONCILE_NS (or when charging pauses, or a Process in it or running is asked its time), reconcile splits the thread clock''s advance over the window among the entries in proportion to their slices, exactly. While the VM waits or compiles, charging pauses (pauseCharging, resumeCharging).
+Processes are charged the VM thread''s CPU time (threadCpuUs) in batches, as one read of that clock costs a system call: a switch adds the outgoing Process''s slice, in ticks of the CPU''s counter (CycleCounter: no system call, a third of the cost of the monotonic clock), to its entry in a ledger of LEDGER_SIZE entries. Once the ledger is full or its window older than RECONCILE_NS (reconcileTk ticks, as reconcile measures them against the monotonic clock) (or when charging pauses, or a Process in it or running is asked its time), reconcile splits the thread clock''s advance over the window among the entries in proportion to their slices, exactly. While the VM waits or compiles, charging pauses (pauseCharging, resumeCharging).
 
 While Smalltalk runs, a timer of the Ticker (its thread calls tickFired:) requests an interrupt check when the timer or the CPU sampler is due, and a periodic one every tickPollUs if the platform asked for polls (requestPeriodicPoll:). While the VM waits in the platform''s wait both are disarmed: the wait''s timeout covers the timer and the sampler, and the platform wakes it for events. tickUpdate (VM thread) re-arms after any change.
 
 While a video is recorded (workClockStart:semaphore:) my clock is the work clock, so that what is recorded does not depend on the machine''s load: it counts the cycles of the VM thread at 3.3 GHz (not real time, not CPU time), jumps to the next deadline when no Process can run, and stands still between the commands of the driver (workClockRunning:), when only the Processes at WORK_CLOCK_FLOOR and above run. It never passes a deadline, so frames and Delays land on their exact times; the work a late interrupt check lets through is not counted. The Ticker only polls then. While an external program runs (workClockPaced:) it also moves at least at the pace of real time, and does not stand still.'!
 
 !Scheduler class methodsFor: 'declaring'!
+cPreamble
+	"CycleCounter's counter. x86-64: the time-stamp counter. arm64: the virtual counter, cntvct_el0, which Linux and macOS let user code read (not tested here: obviously the architected register, nothing more). Elsewhere: the monotonic clock in ns."
+	^'#if defined(__x86_64__) || defined(__aarch64__)
+#else
+#include <time.h>
+#endif
+static inline __UINT64_TYPE__ samaltak_cycles(void)
+{
+#if defined(__x86_64__)
+	return __builtin_ia32_rdtsc();
+#elif defined(__aarch64__)
+	__UINT64_TYPE__ t;
+	__asm__ volatile("mrs %0, cntvct_el0" : "=r"(t));
+	return t;
+#else
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (__UINT64_TYPE__)ts.tv_sec * 1000000000u + (__UINT64_TYPE__)ts.tv_nsec;
+#endif
+}'
+!
 declarations
 	^#((interruptPending atomic_int) (lastPreempted oop) (lastPreemptedAtEntry bool) (allocSampleClass oop) (allocSampleSize int64_t)
 		(allocSampleInterval int64_t) (allocSampleCountdown int64_t) (allocSampleSema int32_t) (statProcessSwitches uint64_t)
 		(allocSamplePending bool) (inIdle bool) (preemptToFront bool) (allocSampleUnread bool) (samplerTickUnread bool)
-		(timerMs int64_t -1) (samplerIntervalUs int64_t) (samplerNextUs int64_t) (sliceStartNs int64_t) (windowStartNs int64_t) (windowCpuUs int64_t)
-		(ledgerProcs 'oop[16]') (ledgerNs 'int64_t[16]') (ledgerN int32_t) (statReconciles uint64_t) (startUs int64_t)
+		(timerMs int64_t -1) (samplerIntervalUs int64_t) (samplerNextUs int64_t) (sliceStartTk int64_t) (windowStartTk int64_t) (windowStartNs int64_t) (windowCpuUs int64_t) (reconcileTk int64_t)
+		(ledgerProcs 'oop[16]') (ledgerTk 'int64_t[16]') (cycles CycleCounter) (ledgerN int32_t) (statReconciles uint64_t) (startUs int64_t)
 		(samplerSema int32_t) (pendingExt 'int32_t *') (pendingExtN int32_t) (pendingExtCap int32_t)
 		(tickIdle bool) (tickPollUs int64_t) (tickArmedPoll int64_t) (tickArmedDeadline int64_t 16r7FFFFFFFFFFFFFFF)
 		(tickDeadlineFired atomic_bool) (ticker Ticker)
@@ -32,7 +53,7 @@ declarations
 		(runHint int64_t 16r7FFFFFFFFFFFFFFF))
 !
 initialize
-	"Charging: the ledger's entries (the size of ledgerProcs and ledgerNs), the longest window between two reads of the thread clock (ns)."
+	"Charging: the ledger's entries (the size of ledgerProcs and ledgerTk), the longest window between two reads of the thread clock (ns)."
 	LEDGER_SIZE := 16.
 	RECONCILE_NS := 200000.
 	TICK_DEADLINE := 1.
@@ -114,6 +135,11 @@ rawNowUs
 	posix clockGettime: posix CLOCK_MONOTONIC into: ts.
 	^(ts tv_sec * 1000000) + (ts tv_nsec quo: 1000)
 !
+ticks
+	"The CPU's counter (CycleCounter): it ticks at a constant rate, which reconcile measures."
+	<function>
+	^cycles count asInt64
+!
 rawNowNs
 	<function>
 	| ts |
@@ -150,48 +176,56 @@ pauseCharging
 resumeCharging
 	"Charging goes on: a new window and slice from now. Answer the thread clock."
 	<function>
-	sliceStartNs := self rawNowNs.
-	windowStartNs := sliceStartNs.
+	sliceStartTk := self ticks.
+	windowStartTk := sliceStartTk.
+	windowStartNs := self rawNowNs.
 	windowCpuUs := self threadCpuUs.
 	^windowCpuUs
 !
 reconcile
-	"End the running slice and the window: split the thread clock's advance since the window began among the ledger's Processes in proportion to their slices (rounding the running sums, so that the shares add up to it), empty the ledger and begin the next window. Answer the thread clock."
+	"End the running slice and the window: split the thread clock's advance since the window began among the ledger's Processes in proportion to their slices (rounding the running sums, so that the shares add up to it), empty the ledger and begin the next window. From a window long enough to tell, measure how many ticks RECONCILE_NS is. Answer the thread clock."
 	<function>
-	| now cpu t total scale acc given share |
-	now := self rawNowNs.
-	self ledgerAdd: self activeProcess ns: now - sliceStartNs.
+	| now ns dns cpu t total scale acc given share |
+	now := self ticks.
+	ns := self rawNowNs.
+	self ledgerAdd: self activeProcess ticks: now - sliceStartTk.
 	cpu := self threadCpuUs.
 	t := cpu - windowCpuUs.
 	total := 0.
-	0 to: ledgerN - 1 do: [:i | total := total + (ledgerNs at: i)].
+	0 to: ledgerN - 1 do: [:i | total := total + (ledgerTk at: i)].
 	"weights below 2^24: t times one does not overflow"
 	scale := 0.
 	[(total >> scale) > 16rFFFFFF] whileTrue: [scale := scale + 1].
 	acc := 0.
 	given := 0.
 	0 to: ledgerN - 1 do: [:i |
-		acc := acc + (ledgerNs at: i).
+		acc := acc + (ledgerTk at: i).
 		share := total = 0
 			ifTrue: [i = (ledgerN - 1) ifTrue: [t] ifFalse: [0]]
 			ifFalse: [t * (acc >> scale) quo: (total >> scale)].
 		self charge: (ledgerProcs at: i) us: share - given.
 		given := share].
 	ledgerN := 0.
-	sliceStartNs := now.
-	windowStartNs := now.
+	dns := ns - windowStartNs.
+	(dns >= (RECONCILE_NS quo: 4) and: [dns <= 1000000000]) ifTrue: [
+		reconcileTk := (now - windowStartTk) * RECONCILE_NS quo: dns].
+	sliceStartTk := now.
+	windowStartTk := now.
+	windowStartNs := ns.
 	windowCpuUs := cpu.
 	statReconciles := statReconciles + 1.
 	^cpu
 !
-ledgerAdd: proc ns: ns
-	"Add ns to proc's entry, a new one if it has none (there is room)."
+ledgerAdd: proc ticks: n
+	"Add n ticks to proc's entry, a new one if it has none (there is room). A counter that went back (another core's, not quite in step with this one's) adds nothing."
+	| tk |
+	tk := n < 0 ifTrue: [0] ifFalse: [n].
 	0 to: ledgerN - 1 do: [:i |
 		(ledgerProcs at: i) = proc ifTrue: [
-			ledgerNs at: i put: (ledgerNs at: i) + ns.
+			ledgerTk at: i put: (ledgerTk at: i) + tk.
 			^self]].
 	ledgerProcs at: ledgerN put: proc.
-	ledgerNs at: ledgerN put: ns.
+	ledgerTk at: ledgerN put: tk.
 	ledgerN := ledgerN + 1
 !
 inLedger: proc
@@ -445,6 +479,7 @@ init
 	startUs := self rawNowUs.
 	lastPreempted := memory nilOop.
 	allocSampleClass := memory nilOop.
+	reconcileTk := RECONCILE_NS.
 	self resumeCharging.
 	ticker start
 ! !
@@ -528,10 +563,10 @@ transferTo: aProcess
 	"only the process that ran into the safepoint is at an entry"
 	interpreter safepointAtEntry: false.
 	proc value = lastPreempted ifTrue: [lastPreemptedAtEntry := false].
-	now := self rawNowNs.
-	self ledgerAdd: old ns: now - sliceStartNs.
-	sliceStartNs := now.
-	(ledgerN = LEDGER_SIZE or: [now - windowStartNs >= RECONCILE_NS]) ifTrue: [self reconcile].
+	now := self ticks.
+	self ledgerAdd: old ticks: now - sliceStartTk.
+	sliceStartTk := now.
+	(ledgerN = LEDGER_SIZE or: [now - windowStartTk >= reconcileTk]) ifTrue: [self reconcile].
 	self storeRef: old at: PROC_SUSPENDED put: interpreter activeCtx.
 	self storeRef: self processor at: SCHED_ACTIVE put: proc value.
 	ctx := self loadRef: proc value at: PROC_SUSPENDED.
@@ -773,4 +808,17 @@ relinquish: microseconds
 				self tickSetIdle: false]].
 	self resumeCharging.
 	self requestInterruptCheck
+! !
+
+CLibrary subclass: #CycleCounter
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-Core'!
+
+CycleCounter comment: 'A counter of the CPU that ticks at a constant rate and is read without a system call (Scheduler class>>cPreamble): the ticks of the slices Scheduler weighs its ledger with. Simulated: the simulator''s clock in ns.'!
+
+!CycleCounter methodsFor: 'counting'!
+count
+	<c: 'uint64_t samaltak_cycles(void)'>
+	^sim microsecondClock * 1000
 ! !
