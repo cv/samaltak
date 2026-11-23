@@ -150,7 +150,7 @@ polylinesTolerance: tolerance
 				n := self segmentsFromX: x y: y cubic: cmd tolerance: tolerance.
 				1 to: n do: [:i |
 					| t mt |
-					t := i asFloat / n.
+					t := i / n.
 					mt := 1.0 - t.
 					pts add: (mt * mt * mt * x) + (3.0 * mt * mt * t * (cmd at: 2)) + (3.0 * mt * t * t * (cmd at: 4)) + (t * t * t * (cmd at: 6)).
 					pts add: (mt * mt * mt * y) + (3.0 * mt * mt * t * (cmd at: 3)) + (3.0 * mt * t * t * (cmd at: 5)) + (t * t * t * (cmd at: 7))].

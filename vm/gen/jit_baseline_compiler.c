@@ -130766,9 +130766,25 @@ static bool jit_baseline_compiler_float_arith(int32_t k, int32_t pc, int pushes)
     uint8_t k_2;
     int32_t t;
     int64_t r_temp_double;
-    uint8_t k_3;
     int32_t t_2;
+    int64_t r_loop_reg_of;
+    int32_t c;
+    int32_t i;
+    int32_t t_3;
+    int64_t r_loop_reg_of_2;
+    int32_t c_2;
+    int32_t i_2;
+    uint8_t k_3;
+    int32_t t_4;
     int64_t r_temp_double_2;
+    int32_t t_5;
+    int64_t r_loop_reg_of_3;
+    int32_t c_3;
+    int32_t i_3;
+    int32_t t_6;
+    int64_t r_loop_reg_of_4;
+    int32_t c_4;
+    int32_t i_4;
     int32_t reg;
     int32_t rm;
     int64_t rex;
@@ -130785,7 +130801,7 @@ static bool jit_baseline_compiler_float_arith(int32_t k, int32_t pc, int pushes)
     uint8_t op_2;
     int64_t j_2;
     int64_t pc_2;
-    int32_t t_3;
+    int32_t t_7;
     bool if_true;
     int taken;
     int64_t j;
@@ -131077,6 +131093,41 @@ exit_temp_double:;
         sl_a[s] = k_2 == SS_SELF ? X21 : (int32_t)ss_val[a];
         goto exit_operand;
     }
+    if ((k_2 == SS_TEMP) && ({
+    t_2 = (int32_t)ss_val[a];
+    ({
+    if (!loop_active) {
+        r_loop_reg_of = -1;
+        goto exit_loop_reg_of;
+    }
+    c = loop_table[4 * loop_id];
+    for (i = 0; i <= c - 1; i++) {
+        if (loop_table[4 * loop_id + 1 + i] == t_2) {
+            r_loop_reg_of = X26 + i;
+            goto exit_loop_reg_of;
+        }
+    }
+    r_loop_reg_of = -1;
+exit_loop_reg_of:;
+    r_loop_reg_of; }) >= 0; })) {
+        t_3 = (int32_t)ss_val[a];
+        sl_a[s] = (int8_t)({
+    if (!loop_active) {
+        r_loop_reg_of_2 = -1;
+        goto exit_loop_reg_of_2;
+    }
+    c_2 = loop_table[4 * loop_id];
+    for (i_2 = 0; i_2 <= c_2 - 1; i_2++) {
+        if (loop_table[4 * loop_id + 1 + i_2] == t_3) {
+            r_loop_reg_of_2 = X26 + i_2;
+            goto exit_loop_reg_of_2;
+        }
+    }
+    r_loop_reg_of_2 = -1;
+exit_loop_reg_of_2:;
+    r_loop_reg_of_2; });
+        goto exit_operand;
+    }
     if (k_2 == SS_CONST) {
         sl_a[s] = -2;
         sl_x[s] = ss_val[a];
@@ -131091,13 +131142,13 @@ exit_operand:;
         goto exit_operand_2;
     }
     if ((k_3 == SS_TEMP) && ({
-    t_2 = (int32_t)ss_val[b];
+    t_4 = (int32_t)ss_val[b];
     ({
-    if ((t_2 < 0) || (t_2 >= cur_args + cur_temps)) {
+    if ((t_4 < 0) || (t_4 >= cur_args + cur_temps)) {
         r_temp_double_2 = -1;
         goto exit_temp_double_2;
     }
-    r_temp_double_2 = (int32_t)temp_d[t_2];
+    r_temp_double_2 = (int32_t)temp_d[t_4];
 exit_temp_double_2:;
     r_temp_double_2; }) >= 0; })) {
         sl_b[s] = -4;
@@ -131106,6 +131157,41 @@ exit_temp_double_2:;
     }
     if ((k_3 == SS_PINNED) || (k_3 == SS_SELF)) {
         sl_b[s] = k_3 == SS_SELF ? X21 : (int32_t)ss_val[b];
+        goto exit_operand_2;
+    }
+    if ((k_3 == SS_TEMP) && ({
+    t_5 = (int32_t)ss_val[b];
+    ({
+    if (!loop_active) {
+        r_loop_reg_of_3 = -1;
+        goto exit_loop_reg_of_3;
+    }
+    c_3 = loop_table[4 * loop_id];
+    for (i_3 = 0; i_3 <= c_3 - 1; i_3++) {
+        if (loop_table[4 * loop_id + 1 + i_3] == t_5) {
+            r_loop_reg_of_3 = X26 + i_3;
+            goto exit_loop_reg_of_3;
+        }
+    }
+    r_loop_reg_of_3 = -1;
+exit_loop_reg_of_3:;
+    r_loop_reg_of_3; }) >= 0; })) {
+        t_6 = (int32_t)ss_val[b];
+        sl_b[s] = (int8_t)({
+    if (!loop_active) {
+        r_loop_reg_of_4 = -1;
+        goto exit_loop_reg_of_4;
+    }
+    c_4 = loop_table[4 * loop_id];
+    for (i_4 = 0; i_4 <= c_4 - 1; i_4++) {
+        if (loop_table[4 * loop_id + 1 + i_4] == t_6) {
+            r_loop_reg_of_4 = X26 + i_4;
+            goto exit_loop_reg_of_4;
+        }
+    }
+    r_loop_reg_of_4 = -1;
+exit_loop_reg_of_4:;
+    r_loop_reg_of_4; });
         goto exit_operand_2;
     }
     if (k_3 == SS_CONST) {
@@ -131256,13 +131342,13 @@ exit_fused_jump_after:;
         goto exit_emit_compare_result;
     }
     pc_2 = j_2 + 1;
-    t_3 = (int32_t)(j_2 + 3 + (int32_t)(int16_t)(ana_bcs[pc_2] | (((int64_t)ana_bcs[pc_2 + 1]) << 8)));
+    t_7 = (int32_t)(j_2 + 3 + (int32_t)(int16_t)(ana_bcs[pc_2] | (((int64_t)ana_bcs[pc_2 + 1]) << 8)));
     if_true = ana_bcs[j_2] == 0x91;
     taken = if_true ? v_2 : v_2 ^ 1;
     if (asm_noting) {
         note("compare and branch (fused with the conditional jump)", 0);
     }
-    fused_target = branch(taken, t_3);
+    fused_target = branch(taken, t_7);
     pc_merge[j_2] = 2;
     r_emit_compare_result = j_2;
 exit_emit_compare_result:;
@@ -132080,9 +132166,25 @@ static bool jit_baseline_compiler_float_arith(int32_t k, int32_t pc, int pushes)
     uint8_t k_2;
     int32_t t;
     int64_t r_temp_double;
-    uint8_t k_3;
     int32_t t_2;
+    int64_t r_loop_reg_of;
+    int32_t c;
+    int32_t i;
+    int32_t t_3;
+    int64_t r_loop_reg_of_2;
+    int32_t c_2;
+    int32_t i_2;
+    uint8_t k_3;
+    int32_t t_4;
     int64_t r_temp_double_2;
+    int32_t t_5;
+    int64_t r_loop_reg_of_3;
+    int32_t c_3;
+    int32_t i_3;
+    int32_t t_6;
+    int64_t r_loop_reg_of_4;
+    int32_t c_4;
+    int32_t i_4;
     uint64_t a_word;
     int rr;
     int v;
@@ -132095,7 +132197,7 @@ static bool jit_baseline_compiler_float_arith(int32_t k, int32_t pc, int pushes)
     int64_t j_2;
     uint64_t a_word_2;
     int64_t pc_2;
-    int32_t t_3;
+    int32_t t_7;
     bool if_true;
     int taken;
     int64_t j;
@@ -132214,6 +132316,41 @@ exit_temp_double:;
         sl_a[s] = k_2 == SS_SELF ? X21 : (int32_t)ss_val[a];
         goto exit_operand;
     }
+    if ((k_2 == SS_TEMP) && ({
+    t_2 = (int32_t)ss_val[a];
+    ({
+    if (!loop_active) {
+        r_loop_reg_of = -1;
+        goto exit_loop_reg_of;
+    }
+    c = loop_table[4 * loop_id];
+    for (i = 0; i <= c - 1; i++) {
+        if (loop_table[4 * loop_id + 1 + i] == t_2) {
+            r_loop_reg_of = X26 + i;
+            goto exit_loop_reg_of;
+        }
+    }
+    r_loop_reg_of = -1;
+exit_loop_reg_of:;
+    r_loop_reg_of; }) >= 0; })) {
+        t_3 = (int32_t)ss_val[a];
+        sl_a[s] = (int8_t)({
+    if (!loop_active) {
+        r_loop_reg_of_2 = -1;
+        goto exit_loop_reg_of_2;
+    }
+    c_2 = loop_table[4 * loop_id];
+    for (i_2 = 0; i_2 <= c_2 - 1; i_2++) {
+        if (loop_table[4 * loop_id + 1 + i_2] == t_3) {
+            r_loop_reg_of_2 = X26 + i_2;
+            goto exit_loop_reg_of_2;
+        }
+    }
+    r_loop_reg_of_2 = -1;
+exit_loop_reg_of_2:;
+    r_loop_reg_of_2; });
+        goto exit_operand;
+    }
     if (k_2 == SS_CONST) {
         sl_a[s] = -2;
         sl_x[s] = ss_val[a];
@@ -132228,13 +132365,13 @@ exit_operand:;
         goto exit_operand_2;
     }
     if ((k_3 == SS_TEMP) && ({
-    t_2 = (int32_t)ss_val[b];
+    t_4 = (int32_t)ss_val[b];
     ({
-    if ((t_2 < 0) || (t_2 >= cur_args + cur_temps)) {
+    if ((t_4 < 0) || (t_4 >= cur_args + cur_temps)) {
         r_temp_double_2 = -1;
         goto exit_temp_double_2;
     }
-    r_temp_double_2 = (int32_t)temp_d[t_2];
+    r_temp_double_2 = (int32_t)temp_d[t_4];
 exit_temp_double_2:;
     r_temp_double_2; }) >= 0; })) {
         sl_b[s] = -4;
@@ -132243,6 +132380,41 @@ exit_temp_double_2:;
     }
     if ((k_3 == SS_PINNED) || (k_3 == SS_SELF)) {
         sl_b[s] = k_3 == SS_SELF ? X21 : (int32_t)ss_val[b];
+        goto exit_operand_2;
+    }
+    if ((k_3 == SS_TEMP) && ({
+    t_5 = (int32_t)ss_val[b];
+    ({
+    if (!loop_active) {
+        r_loop_reg_of_3 = -1;
+        goto exit_loop_reg_of_3;
+    }
+    c_3 = loop_table[4 * loop_id];
+    for (i_3 = 0; i_3 <= c_3 - 1; i_3++) {
+        if (loop_table[4 * loop_id + 1 + i_3] == t_5) {
+            r_loop_reg_of_3 = X26 + i_3;
+            goto exit_loop_reg_of_3;
+        }
+    }
+    r_loop_reg_of_3 = -1;
+exit_loop_reg_of_3:;
+    r_loop_reg_of_3; }) >= 0; })) {
+        t_6 = (int32_t)ss_val[b];
+        sl_b[s] = (int8_t)({
+    if (!loop_active) {
+        r_loop_reg_of_4 = -1;
+        goto exit_loop_reg_of_4;
+    }
+    c_4 = loop_table[4 * loop_id];
+    for (i_4 = 0; i_4 <= c_4 - 1; i_4++) {
+        if (loop_table[4 * loop_id + 1 + i_4] == t_6) {
+            r_loop_reg_of_4 = X26 + i_4;
+            goto exit_loop_reg_of_4;
+        }
+    }
+    r_loop_reg_of_4 = -1;
+exit_loop_reg_of_4:;
+    r_loop_reg_of_4; });
         goto exit_operand_2;
     }
     if (k_3 == SS_CONST) {
@@ -132385,13 +132557,13 @@ exit_fused_jump_after:;
         goto exit_emit_compare_result;
     }
     pc_2 = j_2 + 1;
-    t_3 = (int32_t)(j_2 + 3 + (int32_t)(int16_t)(ana_bcs[pc_2] | (((int64_t)ana_bcs[pc_2 + 1]) << 8)));
+    t_7 = (int32_t)(j_2 + 3 + (int32_t)(int16_t)(ana_bcs[pc_2] | (((int64_t)ana_bcs[pc_2 + 1]) << 8)));
     if_true = ana_bcs[j_2] == 0x91;
     taken = if_true ? v : v ^ 1;
     if (asm_noting) {
         note("compare and branch (fused with the conditional jump)", 0);
     }
-    fused_target = branch(taken, t_3);
+    fused_target = branch(taken, t_7);
     pc_merge[j_2] = 2;
     r_emit_compare_result = j_2;
 exit_emit_compare_result:;
