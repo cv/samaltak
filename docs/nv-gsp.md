@@ -381,6 +381,8 @@ tinygrad (`f0b8003`, `tinygrad/runtime/support/nv/ip.py`) boots discrete GPUs: S
    GPU has FLR (4.1), so a failed attempt can often be retried without a power cycle (whether FLR resets SEC2 and the
    GSP lockdown is to be found out; rebinding nvidia.ko is the check); VFIO's IOMMU mapping gives the same "DMA address"
    abstraction `PciDevice` gives on UEFI, so the driver above it is the same code; no console or USB stick per attempt.
+   `VfioPciDevice` is that `PciDevice` (section 13); the GPU's firmware RMR ranges may make the kernel refuse VFIO
+   (section 13).
 3. **Each milestone then bare metal by USB** (`make usb-image`), with the serial console (the Spark has a UART at
    0x16A00000, `earlycon`, SPCR/DBG2) for logs. Differences VFIO hides: the SMMU (bypass or RMR identity on UEFI, 4.3), the
    GPU's state after the GOP, interrupts.
@@ -626,3 +628,44 @@ buffers, 74,692 KB with a token heap). `NvGspFirmwareTest` (everywhere) uses a s
 - `NvGspBoot queueSystemInfo:registry:` queues both before the boot. All layouts (GspSystemInfo, the registry structs,
   the sequencer RPC, the opcodes) are in `NvGspLayouts`, so `NvGspLayoutTest` checks them against the compiler too
   (GspSystemInfo's header needs RM's port library configured: tools/nv-gsp-layouts.sh does it).
+
+## 13. The hosted loop: PciDevice over VFIO
+
+`VfioPciDevice` (System-Devices) is a `PciDevice` whose function Linux gives to user space through VFIO: the reading and
+driving protocol the firmware's PCI I/O gives on UEFI (`config:width:`, `barResource:`, `mem32At:bar:`,
+`mem32At:bar:put:`, `enable`, `allocate:`, `deviceAddress:`, `release`), so `NvProbe`, `NvBar0`, `NvPciDmaMemory`
+and `NvGspBoot` run over it unchanged (section 6.1's main loop). It talks to the kernel through `PosixDevice` (ioctl,
+mmap, and pread/pwrite, primitives added for it):
+
+- `open:` (Documentation/driver-api/vfio.rst's order): `/dev/vfio/vfio`, `VFIO_GET_API_VERSION` (0),
+  `VFIO_CHECK_EXTENSION` (Type1 v2, else Type1), `/dev/vfio/<group>` (the group from
+  `/sys/kernel/iommu_groups/*/devices`), `VFIO_GROUP_GET_STATUS` (viable), `VFIO_GROUP_SET_CONTAINER`,
+  `VFIO_SET_IOMMU`, `VFIO_GROUP_GET_DEVICE_FD` ("000f:01:00.0"), `VFIO_DEVICE_GET_INFO`, the configuration region's
+  `VFIO_DEVICE_GET_REGION_INFO`.
+- Configuration space: pread/pwrite of the configuration region (index 7). BARs: each memory BAR's region mmap'd shared
+  on first use, registers read and written there (a barrier before each store, so CPU writes to DMA memory reach the GPU
+  before a doorbell); pread/pwrite where the region cannot be mapped.
+- DMA: anonymous memory (`mmap` with `MAP_ANONYMOUS`, zeroed) mapped read-write at IOVAs from 4 GB up
+  (`VFIO_IOMMU_MAP_DMA`), skipping the group's `reserved_regions` and staying below 2^40; `deviceAddress:` answers the
+  IOVA. So the GSP boot's ~600 MB fit, which `PciDevice allocate:` below 4 GB does not promise (section 10).
+- `reset`: `VFIO_DEVICE_RESET` (FLR on this GPU), only when called. No interrupts: everything polls.
+- `VfioPciDevice availability`: the container's API version and IOMMU types, read only (no group opened).
+
+The structures (`vfio_group_status`, `vfio_device_info`, `vfio_region_info`, `vfio_iommu_type1_info`,
+`vfio_iommu_type1_dma_map`, `vfio_iommu_type1_dma_unmap`) and the numbers are checked against the C compiler:
+`tools/vfio-layouts.sh` writes `VfioLayouts` from `linux/vfio.h` and `VfioLayoutTest` compares. `VfioFake` (Tests-Devices)
+is VFIO without a kernel: `VfioPciDeviceTest` checks the exact ioctl sequence with each structure's bytes, configuration
+space, BARs through mmap and through pread/pwrite, IOVAs past reserved regions, release in reverse order, the refusals;
+`NvVfioTest` holds this Spark's configuration space and an unbooted GB10B's registers in the fake's BAR0 and runs
+`NvProbe` (the same lines as on UEFI), `NvBar0` (writes in the mapping, refusals), `NvPciDmaMemory` and the GSP boot's
+dry run (every buffer VFIO-mapped, BAR0 untouched). **All of this is verified against the fake only.**
+
+On this (shared) Spark, read only **[obs]**: `/dev/vfio/vfio` answers API version 0 with Type1, Type1 v2 and no-IOMMU
+(kernel 7.0.0-1024-nvidia: the container is iommufd's compatibility one, `CONFIG_VFIO_CONTAINER` unset,
+`CONFIG_IOMMUFD_VFIO_CONTAINER=y`, `CONFIG_VFIO_DEVICE_CDEV=y`). The GPU's group 20 has these `reserved_regions`:
+`0x08000000-0x080fffff msi`, `0xa1600000-0xb97fffff direct`, `0x280000000-0x302ffffff direct` (the IORT RMRs, 4.3,
+not relaxable). **Risk** **[inf, strong]**: Linux refuses to switch a device with non-relaxable direct regions to a
+blocking domain ("Firmware has requested this device have a 1:1 IOMMU mapping, rejecting configuring the device without
+a 1:1 mapping", iommu.c, since 6.x), and taking a group's DMA ownership for VFIO (`VFIO_GROUP_SET_CONTAINER`, or binding
+the cdev to iommufd) does exactly that. So `open:` will most likely fail on the GB10 with EINVAL at
+`VFIO_GROUP_SET_CONTAINER`; its error says so, and the kernel log (`dmesg`) has the line above. Checking that is the first thing to do on the dedicated Spark.
