@@ -553,6 +553,24 @@ testInputGoesToTheHandler
 	self deliver: (RfbTestClient key: 16rFFE7 down: true), (RfbTestClient pointer: 5 at: 12 @ 34), (RfbTestClient cutText: 'caf', (String with: (Character value: 233))).
 	self assert: events asArray equals: (Array with: (Array with: #key with: 16rFFE7 with: true) with: (Array with: #pointer with: 5 with: 12 @ 34) with: (Array with: #cut with: 'caf', (String with: (Character value: 233))))
 !
+testScreenSharingGetsTheAppleKeys
+	"A viewer's SetEncodings with Apple's encodings makes its input's profile #apple: Alt_L is cmd; the server can force a profile."
+	| input |
+	self connected.
+	input := RfbInput queue: (InputQueue new extent: 100 @ 70; yourself).
+	connection input: input.
+	self deliver: (RfbTestClient setEncodings: #(1011 1002 6 16 -239 1104 1100 -223)), (RfbTestClient key: 16rFFE9 down: true).
+	self assert: connection keyProfile equals: #apple.
+	self assert: input modifiers equals: 8.
+	self deliver: (RfbTestClient key: 16rFFE9 down: false), (RfbTestClient setEncodings: #(16 -239)), (RfbTestClient key: 16rFFE9 down: true).
+	self assert: connection keyProfile equals: #standard.
+	self assert: input modifiers equals: 4.
+	input keyProfile: #apple.
+	self deliver: (RfbTestClient setEncodings: #(16 -239)).
+	self assert: connection keyProfile equals: #apple.
+	self should: [server keyProfile: #pc] raise: Error.
+	input close
+!
 testCutTextLimit
 	self connected.
 	socket deliver: #[6 0 0 0], (RfbTestClient u32: 2000000).

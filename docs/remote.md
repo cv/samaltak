@@ -106,9 +106,24 @@ screen). That password is 8 random characters of its own, never derived from the
   the server's own format.
 - TigerVNC: the same tunnel, then `vncviewer localhost::5901` (two colons: a port). It picks VNC authentication; it
   could also use VeNCrypt Plain with the control token as the password (user: anything).
-- Keys arrive as X keysyms and become the image's key codes and modifiers (`RfbInput`): Command is cmd whichever way a
-  viewer sends it (Screen Sharing: Meta_L; TigerVNC: Mode_switch), Option is alt, and the characters Option composes
-  (é) are typed as text; Control and Shift as usual. The pointer is drawn by the viewer; middle button and wheel work.
+- Keys arrive as X keysyms and become the image's key codes and modifiers (`RfbInput`): Command is cmd and Option alt
+  whichever keysyms a viewer sends for them, Control and Shift as usual. The viewers disagree on the keysyms, so each
+  connection has a key profile, picked from what the viewer lists in SetEncodings: Apple's own encodings (1002, 1011,
+  1100-1110, which only macOS Screen Sharing sends; it also speaks RFB 3.3) make it `apple`, anything else
+  `standard`:
+
+  | key | Screen Sharing sends | TigerVNC sends | `apple` (Screen Sharing) | `standard` (TigerVNC, the others) |
+  | --- | --- | --- | --- | --- |
+  | ⌘ Command | Alt_L / Alt_R | Mode_switch | Alt_L/R → cmd | Mode_switch, Meta_L/R, Super_L/R → cmd |
+  | ⌥ Option | Meta_L / Meta_R | Alt_L / Alt_R | Meta_L/R → alt | Alt_L/R → alt |
+  | Control, Shift | Control_L/R, Shift_L/R | the same | ctrl, shift | ctrl, shift |
+
+  Mode_switch and Super are cmd in both. A modifier's key code follows what it means (cmd: the GUI keys, alt: the Alt
+  keys). Text comes with alt held but not with cmd or ctrl, so a character Option composes is typed when the viewer
+  sends its keysym (é, 0xe9) and Option-e is alt-e when it sends e. `--display-keys apple` or `standard` forces a
+  profile on every viewer (`auto`, the default: each its own), as does `RfbServer current keyProfile: #apple` (nil:
+  by the viewer) on the running server, connected viewers too; an RfbInput's `altIsCmd: true` or `false` overrides
+  what Alt_L/R mean (nil: the profile's). The pointer is drawn by the viewer; middle button and wheel work.
 - The clipboard goes both ways in Latin-1 (RFB's classic cut text): what a viewer sends becomes the image's clipboard,
   and what the image copies is sent to the viewers, characters beyond Latin-1 as `?`. Screen Sharing sends no clipboard
   to servers other than Apple's; TigerVNC does. Cut text goes only to authenticated viewers and is never logged.
@@ -137,7 +152,9 @@ remote display seen by RFB clients (`tests/remote/rfb_client.py`): RFB 3.3 with 
 VeNCrypt-Plain and Raw in another byte order, ZRLE with its CPIXELs in a pixel's high bytes and in 16-bit RGB565, and
 two clients that negotiate as the viewers do (rfb_client.py's `SCREEN_SHARING_*`: RFB 3.3, VNC authentication, shared,
 depth 32 BGRX, its encodings with Apple's unknown ones; `TIGERVNC_*`: 3.8, its encodings and pseudo-encodings), each sent
-only rectangles in encodings it offered. Each decoded framebuffer equals the image's screenshot pixel for pixel at
+only rectangles in encodings it offered; each gets its key profile, and its own Command and Option work in the
+Workspace (Screen Sharing: Alt_L-A selects all, Meta_L-Backspace deletes a word, Meta_L-é is text; TigerVNC:
+Mode_switch-A and Alt_L-Backspace). Each decoded framebuffer equals the image's screenshot pixel for pixel at
 first, after typing, after a window move, after a window dragged through RFB (which comes as CopyRect), after keys sent
 through RFB and after an Agent window streamed text into a
 paragraph laid out again with each delta (which also checks that what was sent is mostly the 16x16 blocks that changed

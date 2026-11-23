@@ -254,6 +254,10 @@ SCREEN_SHARING_ENCODINGS = [1011, 1002, 6, 16, -239, 1104, 1100, -223, 1101, 110
 TIGERVNC_FORMAT = PixelFormat(32, 24, False, (255, 255, 255), (16, 8, 0))
 TIGERVNC_ENCODINGS = [7, 1, 21, 16, 5, 2, 0, -254, -24, -314, 0x574d5664, -239, -240, -223, -308, -224, -1063131698,
                       -313, -312, -258, -307, -261, 0x574d5668]
+# The keysyms of a Mac's Command and Option (the probe's logs, and the operator's Screen Sharing): Screen Sharing sends
+# Command as Alt_L and Option as Meta_L; TigerVNC Command as Mode_switch and Option as Alt_L.
+SCREEN_SHARING_COMMAND, SCREEN_SHARING_OPTION = 0xffe9, 0xffe7
+TIGERVNC_COMMAND, TIGERVNC_OPTION = 0xff7e, 0xffe9
 
 
 class RfbError(Exception):

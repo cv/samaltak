@@ -3,7 +3,7 @@ TestCase subclass: #RfbInputTest
 	classVariableNames: ''
 	package: 'Tests-Remote'!
 
-RfbInputTest comment: 'A remote display client''s input (RfbInput): RFB key sequences as macOS Screen Sharing and TigerVNC send them (keysyms; Command as Meta_L or Mode_switch) make the events the firmware keyboard would (InputQueueTest), pointer masks the pointer''s, and cut text the clipboard, both ways in Latin-1.'!
+RfbInputTest comment: 'A remote display client''s input (RfbInput): RFB key sequences as macOS Screen Sharing and TigerVNC send them (keysyms; Command as Alt_L in Screen Sharing, its #apple key profile, and as Mode_switch in TigerVNC) make the events the firmware keyboard would (InputQueueTest), pointer masks the pointer''s, and cut text the clipboard, both ways in Latin-1.'!
 
 !RfbInputTest methodsFor: 'running'!
 setUp
@@ -51,7 +51,7 @@ testShiftAndCapitals
 	self assert: self keys equals: {{5. 16rE9. 1. false}. {7. 0. 1. (Character value: 16rC9) asString}. {6. 16rE9. 1. false}}
 !
 testCommandFromBothViewers
-	"macOS Screen Sharing sends Command as Meta_L, TigerVNC as Mode_switch; Super too: cmd, and cmd-c types no text."
+	"The standard profile: TigerVNC sends Command as Mode_switch; Meta and Super are cmd too, and cmd-c types no text."
 	#(16rFFE7 16rFF7E 16rFFEB 16rFFE8 16rFFEC) do: [:cmd |
 		input key: cmd down: true.
 		self type: #(16r63).
@@ -71,7 +71,51 @@ testControlAndAlt
 	input altIsCmd: true.
 	input key: 16rFFEA down: true.
 	self type: #(16r71).
-	self assert: (self keys collect: [:e | {e first. e at: 2. e at: 3}]) equals: #(#(5 16r400000E6 8) #(5 113 8) #(6 113 8))
+	self assert: (self keys collect: [:e | {e first. e at: 2. e at: 3}]) equals: #(#(5 16r400000E7 8) #(5 113 8) #(6 113 8))
+!
+testScreenSharingsCommandAndOption
+	"macOS Screen Sharing (Apple's encodings): Command comes as Alt_L/R, so cmd (the GUI keys' keycodes), and cmd-j types no text; Option as Meta_L/R, so alt, and the character it composes is still text; Mode_switch and Super stay cmd."
+	| g |
+	input viewerEncodings: #(1011 1002 6 16 -239 1104 1100 -223 1101 1105 1107 1109 1110).
+	self assert: input keyProfile equals: #apple.
+	input key: 16rFFE9 down: true.
+	self type: #(16r6A).
+	input key: 16rFFE9 down: false.
+	self assert: self keys equals: {{5. 16r400000E3. 8. false}. {5. 106. 8. false}. {6. 106. 8. false}. {6. 16r400000E3. 0. false}}.
+	input key: 16rFFE7 down: true.
+	self type: #(16rE9).
+	input key: 16rFFE7 down: false.
+	self assert: self keys equals: {{5. 16r400000E2. 4. false}. {5. 16rE9. 4. false}. {7. 0. 4. (Character value: 16rE9) asString}. {6. 16rE9. 4. false}. {6. 16r400000E2. 0. false}}.
+	g := #(16rFFEA 8 16r400000E7 16rFFE8 4 16r400000E6 16rFF7E 8 16r400000E3 16rFFEB 8 16r400000E3).
+	1 to: g size by: 3 do: [:i |
+		input key: (g at: i) down: true.
+		self assert: input modifiers equals: (g at: i + 1).
+		input key: (g at: i) down: false.
+		self assert: (self keys collect: [:k | k at: 2]) equals: {g at: i + 2. g at: i + 2}]
+!
+testKeyProfileByViewer
+	"TigerVNC's encodings (or any without Apple's) keep the standard profile; a forced profile wins until it is let go; altIsCmd overrides what Alt is in either."
+	input viewerEncodings: #(7 1 21 16 5 2 0 -254 -24 -314 -239 -223 -308 -224 -258).
+	self assert: input keyProfile equals: #standard.
+	input key: 16rFFE9 down: true.
+	self assert: input modifiers equals: 4.
+	input key: 16rFFE9 down: false.
+	input keyProfile: #apple.
+	input viewerEncodings: #(16 -239).
+	self assert: input keyProfile equals: #apple.
+	input keyProfile: nil.
+	input viewerEncodings: #(16 -239).
+	self assert: input keyProfile equals: #standard.
+	input viewerEncodings: #(1011 16).
+	input altIsCmd: false.
+	input key: 16rFFE9 down: true.
+	self assert: input modifiers equals: 4.
+	input key: 16rFFE9 down: false.
+	input altIsCmd: nil.
+	input key: 16rFFE9 down: true.
+	self assert: input modifiers equals: 8.
+	input key: 16rFFE9 down: false.
+	self should: [input keyProfile: #pc] raise: Error
 !
 testNamedKeys
 	"Arrows, home, end, the page keys, insert, delete, F1 .. F12, escape, return, tab, backspace, the keypad's: keycodes without text."

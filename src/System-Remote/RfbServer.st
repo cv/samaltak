@@ -1,5 +1,5 @@
 Object subclass: #RfbServer
-	instanceVariableNames: 'socket port host process connections lock source token password allowNone maxClients authLock failures blockedUntil backoffMs desktopName maxRate'
+	instanceVariableNames: 'socket port host process connections lock source token password allowNone maxClients authLock failures blockedUntil backoffMs desktopName maxRate keyProfile'
 	classVariableNames: 'Current MadePassword'
 	package: 'System-Remote'!
 
@@ -11,7 +11,7 @@ Authentication, by what each client speaks:
 	None (1) only when allowNone is set (tests) and I listen on 127.0.0.1 only: TigerVNC picks None whenever it is offered.
 Each failed authentication makes the next wait: 1 s, doubling to 32 s, back to none after a success (authenticate:). At most maxClients (4) clients at once: one more is told why and closed; a client that asks for exclusive access (ClientInit shared = 0) disconnects the others.
 
-Started by --display (from the startup list): --display-port N (5900; 0 picks a free one), --display-host address (127.0.0.1), --display-port-file path, --display-vnc-auth (offer VNC authentication, for Screen Sharing; the password from --display-password-file path, else made and shown once: display: password ...), --display-allow-none (tests, honoured on 127.0.0.1 only), --display-rate N (updates a second, 60).
+Started by --display (from the startup list): --display-port N (5900; 0 picks a free one), --display-host address (127.0.0.1), --display-port-file path, --display-vnc-auth (offer VNC authentication, for Screen Sharing; the password from --display-password-file path, else made and shown once: display: password ...), --display-allow-none (tests, honoured on 127.0.0.1 only), --display-rate N (updates a second, 60), --display-keys apple|standard (every viewer''s key profile, RfbInput; default auto: macOS Screen Sharing''s Command is its Alt key, the others'' Meta or Mode_switch).
 
 My Process (''rfb server'', priority 45, below the network stack and the compositor) accepts; each connection runs its own two.'!
 
@@ -109,6 +109,16 @@ maxRate
 !
 maxRate: anInteger
 	maxRate := anInteger
+!
+keyProfile
+	"The key profile forced on every viewer's input (RfbInput keyProfiles), or nil: each viewer's own (default)."
+	^keyProfile
+!
+keyProfile: aSymbolOrNil
+	"Force a key profile (#standard, #apple; nil: by the viewer) on new viewers and those connected."
+	(aSymbolOrNil isNil or: [RfbInput keyProfiles includes: aSymbolOrNil]) ifFalse: [^self error: 'no key profile ', aSymbolOrNil printString].
+	keyProfile := aSymbolOrNil.
+	self connections do: [:c | (c input respondsTo: #keyProfile:) ifTrue: [c input keyProfile: aSymbolOrNil]]
 !
 isFull
 	"More connections than maxClients (the newest is refused)."
@@ -229,6 +239,10 @@ startFromCommandLine
 		(Smalltalk vm arguments includes: '--display-vnc-auth') ifTrue: [server password: self displayPassword].
 		server allowNone: (Smalltalk vm arguments includes: '--display-allow-none').
 		(Smalltalk argumentAfter: '--display-rate') ifNotNil: [:r | server maxRate: (Integer readFrom: r ifFail: [60])].
+		(Smalltalk argumentAfter: '--display-keys') ifNotNil: [:k |
+			(#('apple' 'standard') includes: k) ifTrue: [server keyProfile: k asSymbol].
+			(#('apple' 'standard' 'auto') includes: k) ifFalse: [
+				Smalltalk vm stderrWrite: 'display: --display-keys ', k, ': not apple, standard or auto', (String with: Character lf)]].
 		server startOn: p host: h source: self defaultSource] on: Error do: [:e |
 			Smalltalk vm stderrWrite: 'display: ', e messageText, (String with: Character lf).
 			e return: nil].

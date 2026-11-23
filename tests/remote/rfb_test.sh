@@ -58,7 +58,8 @@ python3 -u - "$PORT" "$WORK" "$CTL" <<'EOF'
 import base64, json, os, subprocess, sys, time
 sys.path.insert(0, 'tests/remote')
 from rfb_client import (RfbClient, RfbError, PixelFormat, read_png, SCREEN_SHARING_FORMAT, SCREEN_SHARING_ENCODINGS,
-                        TIGERVNC_FORMAT, TIGERVNC_ENCODINGS)
+                        TIGERVNC_FORMAT, TIGERVNC_ENCODINGS, SCREEN_SHARING_COMMAND, SCREEN_SHARING_OPTION,
+                        TIGERVNC_COMMAND, TIGERVNC_OPTION)
 
 port, work, ctl_path = int(sys.argv[1]), sys.argv[2], sys.argv[3]
 password = open(os.path.join(work, 'password')).readline().strip()
@@ -241,6 +242,59 @@ try:
     else:
         fail('keys sent through RFB: the Workspace has %r' % text[-200:])
     in_sync('after keys through RFB', a, *viewers)
+
+    # each viewer's own modifier keys (RfbInput's key profiles, picked from SetEncodings): Screen Sharing (Apple's
+    # encodings) sends Command as Alt_L and Option as Meta_L; TigerVNC Command as Mode_switch and Option as Alt_L. In the
+    # Workspace Option-Backspace deletes a word, an Option-composed character is text, Command-A selects all and the next
+    # key replaces it.
+    profiles = ctl('eval', '(RfbServer current connections collect: [:c | c keyProfile]) asArray printString')
+    if profiles.count('apple') == 1 and profiles.count('standard') == 3:
+        ok('Screen Sharing gets the apple key profile, the others the standard one: %s' % profiles)
+    else:
+        fail('key profiles of a, b, Screen Sharing, TigerVNC: %s' % profiles)
+
+    def chord(c, modifier, keysym):
+        c.key(modifier, True)
+        c.tap(keysym)
+        c.key(modifier, False)
+
+    def workspace():
+        time.sleep(1)
+        return ctl('snapshot', '@w1.text')
+
+    BACKSPACE = 0xff08
+    for ch in ' alpha beta':
+        ss.tap(ord(ch))
+    chord(ss, SCREEN_SHARING_OPTION, BACKSPACE)
+    chord(ss, SCREEN_SHARING_OPTION, 0xe9)
+    ss.tap(ord('x'))
+    text = workspace()
+    if 'alpha' in text and 'beta' not in text and ('\u00e9x' in text or '\\u00e9x' in text):
+        ok('Screen Sharing: Option (Meta_L) is alt: Option-Backspace deletes a word, Option-e is text')
+    else:
+        fail('Screen Sharing, Option: the Workspace has %r' % text[-200:])
+    chord(ss, SCREEN_SHARING_COMMAND, ord('a'))
+    ss.tap(ord('q'))
+    text = workspace()
+    if 'alpha' not in text and 'rfbkeys' not in text and 'q' in text:
+        ok('Screen Sharing: Command (Alt_L) is cmd: Command-A selects all')
+    else:
+        fail('Screen Sharing, Command-A: the Workspace has %r' % text[-200:])
+    for ch in ' gamma delta':
+        tv.tap(ord(ch))
+    chord(tv, TIGERVNC_OPTION, BACKSPACE)
+    text = workspace()
+    if 'gamma' in text and 'delta' not in text:
+        ok('TigerVNC: Option (Alt_L) is alt: Option-Backspace deletes a word')
+    else:
+        fail('TigerVNC, Option: the Workspace has %r' % text[-200:])
+    chord(tv, TIGERVNC_COMMAND, ord('a'))
+    tv.tap(ord('z'))
+    text = workspace()
+    if 'gamma' not in text and 'z' in text:
+        ok('TigerVNC: Command (Mode_switch) is cmd: Command-A selects all')
+    else:
+        fail('TigerVNC, Command-A: the Workspace has %r' % text[-200:])
     for v in viewers:
         sent, offered = sorted(v.encodings_seen), set(v.encodings) | {0}
         if 16 in v.encodings_seen and set(sent) <= offered:

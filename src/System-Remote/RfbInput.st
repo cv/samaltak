@@ -1,11 +1,11 @@
 Object subclass: #RfbInput
-	instanceVariableNames: 'queue display ownsQueue scale heldKeys heldModifiers buttons altIsCmd clipboardBlock clipboardSetter lastClipboard'
+	instanceVariableNames: 'queue display ownsQueue scale heldKeys heldModifiers buttons altIsCmd keyProfile profileForced clipboardBlock clipboardSetter lastClipboard'
 	classVariableNames: 'Keys KeypadCharacters Modifiers ScanModifiers'
 	package: 'System-Remote'!
 
 RfbInput comment: 'I am a remote display client''s input (RFB, RFC 6143 7.5.4-7.5.6; one of me per connection, made after auth): its KeyEvents (X keysyms, pressed and released separately), PointerEvents (a button mask) and ClientCutText become the image''s input events and clipboard, as the hosted and firmware keyboards and pointers make them.
 
-Keys: named keys (arrows, F1..F12, return, ...) become SDL keycodes (keycodeOf:); printable keysyms (Latin-1, 16r01000000 + Unicode, the keypad''s) a keyDown of the lowercase character, its text unless ctrl or cmd is held (alt is not: a Mac''s Option composes characters), and a keyUp when released; a capital adds shift. Modifiers are keys too (their SDL keycodes) and held state: Shift 1, Control 2, Alt 4 (cmd if altIsCmd), and cmd 8 from Meta_L/R (macOS Screen Sharing''s Command), Mode_switch (TigerVNC''s Command) and Super_L/R. A key pressed again while held is a repeat; a release of a key not held is ignored. QEMUExtendedKeyEvent (qemuKey:code:down:) maps the modifier keys by their XT scan code (16rDB/16rDC, the logo keys, are cmd), the rest by keysym.
+Keys: named keys (arrows, F1..F12, return, ...) become SDL keycodes (keycodeOf:); printable keysyms (Latin-1, 16r01000000 + Unicode, the keypad''s) a keyDown of the lowercase character, its text unless ctrl or cmd is held (alt is not: a Mac''s Option composes characters), and a keyUp when released; a capital adds shift. Modifiers are keys too (the SDL keycodes of what they mean: the GUI keys for cmd, the Alt keys for alt) and held state: Shift 1, Control 2, alt 4 and cmd 8, by the viewer''s key profile (keyProfile: picked from its SetEncodings by viewerEncodings:, unless forced with keyProfile:). #standard (TigerVNC and the others): Alt_L/R are alt; Meta_L/R, Super_L/R and Mode_switch (TigerVNC''s Command) cmd. #apple (macOS Screen Sharing, which lists Apple''s encodings 1002, 1011, 1100-1110): Alt_L/R are Command, so cmd, and Meta_L/R Option, so alt; Super and Mode_switch cmd. altIsCmd: true or false overrides what the Alt keys are (nil: the profile''s). A key pressed again while held is a repeat; a release of a key not held is ignored. QEMUExtendedKeyEvent (qemuKey:code:down:) maps the modifier keys by their XT scan code (16rDB/16rDC, the logo keys, are cmd), the rest by keysym.
 
 The pointer: pointerAt:buttons: with the RFB mask (1 left, 2 middle, 4 right; a press of 8/16 a wheel notch up/down, of 32/64 left/right), in framebuffer pixels (scale: pixels a point).
 
@@ -24,7 +24,9 @@ setQueue: anInputQueue display: aDisplayOrNil owns: aBoolean
 	heldKeys := Dictionary new.
 	heldModifiers := Dictionary new.
 	buttons := 0.
-	altIsCmd := false.
+	altIsCmd := nil.
+	keyProfile := #standard.
+	profileForced := false.
 	clipboardSetter := [:s | RemoteClipboard set: s]
 ! !
 
@@ -38,11 +40,27 @@ extent: aPoint scale: aNumber
 	ownsQueue ifTrue: [queue extent: (aPoint / aNumber) ceiling]
 !
 altIsCmd
-	^altIsCmd
+	"Whether the Alt keys are cmd: the override, else the profile's (macOS Screen Sharing sends Command as Alt)."
+	^altIsCmd ifNil: [keyProfile = #apple]
 !
-altIsCmd: aBoolean
-	"Alt is cmd, as the firmware keyboard and Linux have it (default false: the Mac viewers send Command as Meta or Mode_switch)."
-	altIsCmd := aBoolean
+altIsCmd: aBooleanOrNil
+	"Alt is cmd (true, as the firmware keyboard and Linux have it) or alt (false), whatever the profile; nil: the profile's."
+	altIsCmd := aBooleanOrNil
+!
+keyProfile
+	"#standard or #apple (the class comment)."
+	^keyProfile
+!
+keyProfile: aSymbolOrNil
+	"Force a key profile (#standard, #apple) whatever the viewer; nil: the viewer's again from its next SetEncodings."
+	aSymbolOrNil isNil ifTrue: [^profileForced := false].
+	(self class keyProfiles includes: aSymbolOrNil) ifFalse: [^self error: 'no key profile ', aSymbolOrNil printString].
+	keyProfile := aSymbolOrNil.
+	profileForced := true
+!
+viewerEncodings: aList
+	"The viewer's SetEncodings: Apple's encodings are macOS Screen Sharing's, so the #apple profile; else #standard (unless forced)."
+	profileForced ifFalse: [keyProfile := self class profileForEncodings: aList]
 !
 modifiers
 	"The image's modifier bits held: 1 shift, 2 ctrl, 4 alt, 8 cmd."
@@ -58,16 +76,17 @@ key: keysym down: down
 	"A KeyEvent."
 	| bit code ch mods text repeat |
 	(Modifiers at: keysym ifAbsent: [nil]) ifNotNil: [:m |
-		bit := ((m first = 4) and: [altIsCmd]) ifTrue: [8] ifFalse: [m first].
+		bit := self bitOfModifier: keysym.
+		code := bit = m first ifTrue: [m last] ifFalse: [self class keycodeOfModifier: bit right: (m last bitAnd: 16rFF) >= 16rE4].
 		down
 			ifTrue: [
 				repeat := heldModifiers includesKey: keysym.
 				heldModifiers at: keysym put: bit.
-				queue keyDown: m last modifiers: self modifiers repeat: repeat]
+				queue keyDown: code modifiers: self modifiers repeat: repeat]
 			ifFalse: [
 				(heldModifiers includesKey: keysym) ifFalse: [^self].
 				heldModifiers removeKey: keysym.
-				queue keyUp: m last modifiers: self modifiers].
+				queue keyUp: code modifiers: self modifiers].
 		^self].
 	mods := self modifiers.
 	code := self class keycodeOf: keysym.
@@ -87,6 +106,14 @@ key: keysym down: down
 		ifTrue: [(Character value: ch) asString].
 	queue keyDown: code modifiers: mods repeat: repeat.
 	text isNil ifFalse: [queue text: text modifiers: mods]
+!
+bitOfModifier: keysym
+	"The image's modifier bit of a modifier keysym, by the profile: the Alt keys alt (cmd if altIsCmd), Meta cmd (alt in #apple: Screen Sharing's Option)."
+	| bit |
+	bit := (Modifiers at: keysym) first.
+	bit = 4 ifTrue: [^self altIsCmd ifTrue: [8] ifFalse: [4]].
+	((keysym = 16rFFE7 or: [keysym = 16rFFE8]) and: [keyProfile = #apple]) ifTrue: [^4].
+	^bit
 !
 qemuKey: keysym code: scancode down: down
 	"A QEMUExtendedKeyEvent: the modifier keys by their XT scan code (the logo keys are cmd), the others by keysym."
@@ -185,6 +212,23 @@ initialize
 	ScanModifiers := Dictionary new.
 	#(16r2A 16rFFE1 16r36 16rFFE2 16r1D 16rFFE3 16r9D 16rFFE4 16r38 16rFFE9 16rB8 16rFFEA 16rDB 16rFFEB 16rDC 16rFFEC)
 		pairsDo: [:scan :sym | ScanModifiers at: scan put: sym]
+! !
+
+!RfbInput class methodsFor: 'key profiles'!
+keyProfiles
+	^#(#standard #apple)
+!
+isAppleViewer: encodings
+	"Whether a SetEncodings list has Apple's own encodings (1002, 1011, 1100-1110), as macOS Screen Sharing sends: no other viewer does."
+	^encodings anySatisfy: [:e | e = 1002 or: [e = 1011 or: [e between: 1100 and: 1110]]]
+!
+profileForEncodings: encodings
+	^(self isAppleViewer: encodings) ifTrue: [#apple] ifFalse: [#standard]
+!
+keycodeOfModifier: bit right: aBoolean
+	"The SDL keycode of a modifier key that means alt (4) or cmd (8): the Alt or GUI key, left or right."
+	bit = 8 ifTrue: [^aBoolean ifTrue: [16r400000E7] ifFalse: [16r400000E3]].
+	^aBoolean ifTrue: [16r400000E6] ifFalse: [16r400000E2]
 ! !
 
 !RfbInput class methodsFor: 'translating'!

@@ -126,6 +126,10 @@ input
 input: anObject
 	input := anObject
 !
+keyProfile
+	"My input's key profile (RfbInput: #standard, or #apple for macOS Screen Sharing), or nil."
+	^(input respondsTo: #keyProfile) ifTrue: [input keyProfile]
+!
 isShared
 	^shared
 !
@@ -275,7 +279,8 @@ readSetEncodings
 	n := self nextU16.
 	n > 1024 ifTrue: [^RfbError signal: 'SetEncodings: too many'].
 	list := (1 to: n) collect: [:i | self nextS32].
-	lock critical: [self useEncodings: (list first: (n min: 256))]
+	lock critical: [self useEncodings: (list first: (n min: 256))].
+	self toInput: [:i | (i respondsTo: #viewerEncodings:) ifTrue: [i viewerEncodings: list]]
 !
 useEncodings: aList
 	"The first of ZRLE and Raw the client lists is its choice; the pseudo-encodings I speak that it lists are on."
@@ -339,6 +344,7 @@ setUpInput: anRfbInput
 	| e |
 	e := source extent.
 	e isNil ifFalse: [anRfbInput extent: e scale: source pointScale].
+	(server notNil and: [server keyProfile notNil]) ifTrue: [anRfbInput keyProfile: server keyProfile].
 	anRfbInput clipboardBlock: [:latin1 |
 		lock critical: [pendingCutText := latin1].
 		wake signal]
