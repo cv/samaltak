@@ -7,6 +7,8 @@
 # their VMs gets an Xvfb of its own (SAMALTAK_TEST_XVFB=1) when DISPLAY is set, so that the stages' windows do not meet.
 # Build cache: the VM (vm/build) comes from and goes into the machine's cache, keyed by vm/'s tree and the compilers
 # (tests/build-cache.sh; SAMALTAK_BUILD_CACHE=0: none), so that a gate of an already built vm/ skips its compile.
+# Flakes: each stage's result and failure lines go into the machine's ledger (tests/flakes.sh; report: tests/flakes.sh),
+# and a failed stage's lines that failed in earlier gates are named first ("flakes: known: ...").
 # Timeline: every recipe line, test VM and slot wait goes into OUT/stages/timeline (SAMALTAK_TIMELINE; set it empty
 # for none), and the end shows each stage's span and the steps of the build and of the stage that ended last, the
 # critical path (tests/timeline.sh; tests/timeline.sh OUT/stages/timeline all: every stage's).
@@ -60,6 +62,9 @@ for s in $STAGES; do
 done
 echo "stages: running$STAGES at once (logs in $LOGS)"
 
+# the ledger of the gates' failures (tests/flakes.sh): this tree, -dirty with uncommitted changes
+TREE=$(git rev-parse 'HEAD^{tree}' 2>/dev/null || echo unknown)
+[ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ] && TREE=$TREE-dirty
 left=$STAGES
 failed=
 while [ -n "$left" ]; do
@@ -71,8 +76,11 @@ while [ -n "$left" ]; do
       cat "$LOGS/$s.log"
       if [ "$e" = 0 ]; then
         echo "stage $s: passed in $secs s"
+        tests/flakes.sh record "$TREE" "$s" passed "$LOGS/$s.log"
       else
+        tests/flakes.sh known "$s" "$LOGS/$s.log"
         echo "stage $s: FAILED (exit $e) in $secs s"
+        tests/flakes.sh record "$TREE" "$s" failed "$LOGS/$s.log"
         failed="$failed $s"
       fi
     else
