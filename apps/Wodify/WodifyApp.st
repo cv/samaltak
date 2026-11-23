@@ -65,3 +65,9 @@ openInBrowser
 	"The gym's member app, as the card's click does."
 	service url isNil ifFalse: [Omarchy launch: (Array with: 'xdg-open' with: service url)]
 ! !
+
+!WodifyApp methodsFor: 'agent'!
+agentContext
+	"The Agent of my right-click menu also has my service (what it fetched, and fetching again)."
+	^super agentContext bind: #service to: service; yourself
+! !

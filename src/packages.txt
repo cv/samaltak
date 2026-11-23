@@ -56,9 +56,10 @@ UI-Widgets 4
 Tests-UI-Widgets 4 uses Graphics-Canvas
 UI-Omarchy 4
 Tests-UI-Omarchy 4
+UI-Agent 4
 Tools 5
 Tools-Agent 5
 Tests-Tools 5 uses UI-Windows Graphics-Canvas
 Tests-Tools-Profiler 5 uses Tests-UI-Windows UI-Windows
 Tests-Tools-Debugger 5 uses UI-Windows
-Tests-Tools-Agent 5
+Tests-Tools-Agent 5 uses UI-Windows
