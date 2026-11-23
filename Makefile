@@ -89,7 +89,8 @@ test: test-core
 	@echo "make test: all passed"
 PLATFORM_CHECK = @[ -f vm/build/.variant-platform ] || { echo "make test: FAILED: the VM was built without the platform layer (SDL3), UI tests would not run"; exit 1; }
 # test-core's parts run at once (make -j -O: TEST_CORE_JOBS, all of them by default; 1: one after another), the main
-# suite first, each part's output shown when it ends; their test VMs share the machine's test slots (tests/st_suite.sh).
+# suite first, each part's output shown when it ends; every part's VMs hold the machine's test slots (tests/st_suite.sh,
+# tests/with-slot).
 # Every part runs to its end (-k).
 TEST_CORE_PARTS := suite vm gen layering cli-quit resume-rng verify-gc heap weather agents wodify
 TEST_CORE_JOBS ?= $(words $(TEST_CORE_PARTS))
@@ -100,15 +101,16 @@ test-core: $(TEST_IMAGE)
 	$(MAKE) -k $(call TEST_PARTS_SYNC,$(TEST_CORE_JOBS)) $(addprefix test-core-part-,$(TEST_CORE_PARTS))
 test-core-part-suite:
 	tests/st_suite.sh $(OUT)/samaltak.image
-test-core-part-vm: test-vm
+test-core-part-vm: vm
+	tests/with-slot vm/tests/run.sh
 test-core-part-gen:
-	tests/vm/gen_test.sh $(OUT)/samaltak.image
+	tests/with-slot tests/vm/gen_test.sh $(OUT)/samaltak.image
 test-core-part-layering:
-	tests/boot/layering_test.sh
+	tests/with-slot tests/boot/layering_test.sh
 test-core-part-cli-quit:
-	tests/boot/cli_quit_test.sh $(OUT)/samaltak.image
+	tests/with-slot tests/boot/cli_quit_test.sh $(OUT)/samaltak.image
 test-core-part-resume-rng:
-	tests/boot/resume_rng_test.sh $(OUT)/samaltak.image
+	tests/with-slot tests/boot/resume_rng_test.sh $(OUT)/samaltak.image
 test-core-part-verify-gc:
 	SAMALTAK_VERIFY_GC=1 tests/st_suite.sh $(OUT)/samaltak.image --eden 1 -- Tests-Kernel Tests-Compiler
 test-core-part-heap:
@@ -345,43 +347,45 @@ UEFI_TEST_PARTS = tests lowspace mp cpu1 reset world world-gpu files fat rfb net
 # make 3.81 (macOS's) has no -O: there the parts run one after another
 UEFI_TEST_SYNC = $(call TEST_PARTS_SYNC,$(UEFI_TEST_JOBS))
 UEFI_PART_RUN = $(UEFI)/run-$(patsubst test-uefi-part-%,%,$@)
-UEFI_PART_BOOT = $(MAKE) uefi-boot UEFI_RUN=$(UEFI_PART_RUN) UEFI_SLOT=tests/with-slot
+UEFI_PART_BOOT = uefi-boot UEFI_RUN=$(UEFI_PART_RUN) UEFI_SLOT=tests/with-slot
 UEFI_PART_LOG = $(UEFI_PART_RUN)/console.log
-# what starts a samaltak-ctl session (make uefi-control) for a part: its boot directory and slot, and none of this make's
-# flags (its -O would hold the session's console back until QEMU ends)
-UEFI_PART_ENV = MAKEFLAGS= UEFI_RUN=$(UEFI_PART_RUN) UEFI_SLOT=tests/with-slot UEFI_AFFINITY=$(UEFI_AFFINITY) OUT=$(OUT)
+# what starts a samaltak-ctl session (make uefi-control) for a part: its boot directory, and none of this make's flags
+# (its -O would hold the session's console back until QEMU ends). Its slot is taken before the session picks its
+# ports (rfb), or not at all (the short network sessions): a QEMU waiting for a slot would leave time for another
+# session to take the port it was given.
+UEFI_PART_ENV = MAKEFLAGS= UEFI_RUN=$(UEFI_PART_RUN) UEFI_AFFINITY=$(UEFI_AFFINITY) OUT=$(OUT)
 test-uefi:
 	rm -rf $(UEFI)/image.disk $(UEFI)/run-*
 	$(MAKE) uefi $(UEFI_EXT4_DISK) $(UEFI_EXT4_GPT_DISK)
 	$(MAKE) -k $(UEFI_TEST_SYNC) $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS))
 	rm -rf $(UEFI)/image.disk $(UEFI)/run-*
 test-uefi-part-tests:
-	$(UEFI_PART_BOOT) UEFI_ARGS='--headless --test $(UEFI_TESTS)'
+	$(MAKE) $(UEFI_PART_BOOT) UEFI_ARGS='--headless --test $(UEFI_TESTS)'
 	grep -q "^samaltak: $(UEFI_CPUS) CPUs" $(UEFI_PART_LOG)
 test-uefi-part-lowspace:
-	$(UEFI_PART_BOOT) UEFI_HEAP_MB=128 UEFI_ARGS='--headless --test LowSpaceTest StackOverflowTest'
+	$(MAKE) $(UEFI_PART_BOOT) UEFI_HEAP_MB=128 UEFI_ARGS='--headless --test LowSpaceTest StackOverflowTest'
 test-uefi-part-mp:
-	$(UEFI_PART_BOOT) UEFI_ARGS="--headless --eval \"$(UEFI_MP)\""
+	$(MAKE) $(UEFI_PART_BOOT) UEFI_ARGS="--headless --eval \"$(UEFI_MP)\""
 	$(if $(filter-out 1,$(UEFI_CPUS)),grep -qE "^mp bg jobs [1-9]" $(UEFI_PART_LOG))
 test-uefi-part-cpu1:
-	$(UEFI_PART_BOOT) UEFI_CPUS=1 UEFI_ARGS='--headless --test SoftwareGPUTest SoftwareGPUBandsTest JitOptBackgroundTest'
+	$(MAKE) $(UEFI_PART_BOOT) UEFI_CPUS=1 UEFI_ARGS='--headless --test SoftwareGPUTest SoftwareGPUBandsTest JitOptBackgroundTest'
 	grep -q "^samaltak: 1 CPUs" $(UEFI_PART_LOG)
 test-uefi-part-reset:
-	-$(UEFI_PART_BOOT) UEFI_ARGS="--headless --eval \"$(UEFI_RESET)\""
+	-$(MAKE) $(UEFI_PART_BOOT) UEFI_ARGS="--headless --eval \"$(UEFI_RESET)\""
 	grep -q "^samaltak: reset cold" $(UEFI_PART_LOG) && grep -q "'Restart' 'Warm restart' 'Power off'" $(UEFI_PART_LOG)
 test-uefi-part-world:
-	$(UEFI_PART_BOOT) UEFI_ARGS="--eval \"$(UEFI_WORLD)\""
+	$(MAKE) $(UEFI_PART_BOOT) UEFI_ARGS="--eval \"$(UEFI_WORLD)\""
 	grep -qE "^world [0-9]+@[0-9]+ true 123@45" $(UEFI_PART_LOG)
 test-uefi-part-world-gpu:
-	$(UEFI_PART_BOOT) UEFI_GPU=virtio-gpu-pci UEFI_ARGS="--window-size 1920x1080 --eval \"$(UEFI_WORLD)\""
+	$(MAKE) $(UEFI_PART_BOOT) UEFI_GPU=virtio-gpu-pci UEFI_ARGS="--window-size 1920x1080 --eval \"$(UEFI_WORLD)\""
 	grep -qE "^world 1920@1080 true 123@45" $(UEFI_PART_LOG)
 test-uefi-part-files:
-	$(UEFI_PART_BOOT) UEFI_DISKS="$(UEFI_EXT4_DISK)@nvme $(UEFI_EXT4_GPT_DISK)@virtio-blk-pci" UEFI_ARGS="--headless --eval \"$(UEFI_FILES)\""
+	$(MAKE) $(UEFI_PART_BOOT) UEFI_DISKS="$(UEFI_EXT4_DISK)@nvme $(UEFI_EXT4_GPT_DISK)@virtio-blk-pci" UEFI_ARGS="--headless --eval \"$(UEFI_FILES)\""
 	while read -r line; do grep -qF "$$line" $(UEFI_PART_LOG) || { echo "test-uefi: files: no line: $$line"; exit 1; }; done < tests/uefi/files.expected
 test-uefi-part-fat:
 	$(MAKE) test-uefi-fat UEFI_RUN=$(UEFI_PART_RUN) UEFI_SLOT=tests/with-slot
 test-uefi-part-rfb:
-	SLOT_POLL=0.2 $(UEFI_PART_ENV) tests/remote/rfb_test.sh --uefi
+	SLOT_POLL=0.2 $(UEFI_PART_ENV) tests/with-slot tests/remote/rfb_test.sh --uefi
 test-uefi-part-net:
 	$(UEFI_PART_ENV) tools/samaltak-ctl --session uefi-test open --uefi --headless
 	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); N=$(UEFI_PART_RUN)/net.log; \
@@ -396,13 +400,13 @@ test-uefi-part-net:
 	tools/samaltak-ctl --session uefi-test close; cat $$N; [ $$ok = 0 ] && grep -q pong $$N && grep -q "'bulk true" $$N \
 		&& grep -q "'driver $(call UEFI_DRIVER,$(UEFI_NIC))'" $$N && grep -q "'https 200 " $$N
 test-uefi-part-nic:
-	$(MAKE) test-uefi-nic UEFI_NIC=virtio-net-pci UEFI_RUN=$(UEFI_PART_RUN) UEFI_SLOT=tests/with-slot
+	$(MAKE) test-uefi-nic UEFI_NIC=virtio-net-pci UEFI_RUN=$(UEFI_PART_RUN)
 test-uefi-part-snapshot:
-	$(UEFI_PART_BOOT) UEFI_ARGS="--headless --eval \"$(UEFI_SNAPSHOT)\""
+	$(MAKE) $(UEFI_PART_BOOT) UEFI_ARGS="--headless --eval \"$(UEFI_SNAPSHOT)\""
 	grep -q "'saved'" $(UEFI_PART_LOG)
-	$(UEFI_PART_BOOT) UEFI_ARGS=--headless
+	$(MAKE) $(UEFI_PART_BOOT) UEFI_ARGS=--headless
 	grep -o "'resumed 42 [0-9A-F]*'" $(UEFI_PART_LOG) > $(UEFI_PART_RUN)/resumed.txt && [ -s $(UEFI_PART_RUN)/resumed.txt ]
-	$(UEFI_PART_BOOT) UEFI_ARGS=--headless
+	$(MAKE) $(UEFI_PART_BOOT) UEFI_ARGS=--headless
 	grep -o "'resumed 42 [0-9A-F]*'" $(UEFI_PART_LOG) | { read -r again; [ -n "$$again" ] && [ "$$again" != "$$(cat $(UEFI_PART_RUN)/resumed.txt)" ]; } \
 		|| { echo 'test-uefi: a snapshot resumed twice answered the same SecureRandom bytes'; exit 1; }
 # test-uefi-fat: writable FAT volumes and crash reports (tests/uefi/fat.sh): the VM booted from a FAT32 EFI system

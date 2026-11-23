@@ -1,11 +1,11 @@
 # The machine's test slots (sourced by tests/st_suite.sh and tests/with-slot): every test VM or QEMU first takes one
 # of SAMALTAK_TEST_SLOTS lock files in SAMALTAK_TEST_SLOT_DIR (default /tmp/samaltak-test-slots-<uid>, with flock(1)),
 # so that concurrent suites and boots (gate stages, several agents' gates) together run at most that many; the rest
-# wait for a slot. The default: four fifths of the CPUs (16 of 20, 3 of 4: a test VM keeps about one busy), at most
-# one per 3 GB of available memory, at least 1.
+# wait for a slot. The default: three quarters of the CPUs (15 of 20, 3 of 4: a test VM keeps about one busy, its
+# renderer and compiler threads some more), at most one per 3 GB of available memory, at least 1.
 SLOT_NPROC=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)
 slot_default() {
-  n=$(( SLOT_NPROC * 4 / 5 ))
+  n=$(( SLOT_NPROC * 3 / 4 ))
   m=$(awk '/^MemAvailable:/ { print int($2 / 3145728) }' /proc/meminfo 2>/dev/null)
   case $m in ''|*[!0-9]*) ;; *) [ "$m" -lt "$n" ] && n=$m ;; esac
   [ "$n" -lt 1 ] && n=1

@@ -39,7 +39,7 @@ Check with `context.get().projectFunctions`.
   each stage's span, then the build's and the slowest stage's steps (the critical path); all stages' with
   `tests/timeline.sh build/gate-runs/<id>.timeline all`. Shards are balanced by the
   class times in this directory's `build/test-times` (the gate's runs keep them up to date). All test VMs and test-uefi's
-  QEMUs on the machine share SAMALTAK_TEST_SLOTS slots (default 4/5 of the CPUs, 16 on the DGX Spark, at most one per
+  QEMUs on the machine share SAMALTAK_TEST_SLOTS slots (default 3/4 of the CPUs, 15 on the DGX Spark, at most one per
   3 GB available; flock files in `/tmp/samaltak-test-slots-<uid>`), so concurrent gates wait for each other's VMs
   instead of each starting 8 per stage; a suite's shard with its longest class and the RFB scenarios get the next free
   slot first. test-core's and test-tools's parts (the suites beside the main one, the scenarios) run at once too.
