@@ -41,12 +41,12 @@ save)
     if [ -d "$E" ] && { [ ! -x vm/build/platform-vm/samaltak ] || [ -d "$E/platform-vm" ]; } \
         && { [ ! -x vm/build/platform-test/gpu_test ] || [ -d "$E/platform-test" ]; }; then touch "$E"; exit 0; fi
     rm -rf "$E.tmp" && cp -R vm/build "$E.tmp" && rm -rf "$E" && mv "$E.tmp" "$E" || { rm -rf "$E.tmp"; exit 0; }
+    echo "build-cache: saved the VM ($(basename "$E"))"
     total=0
     for d in $(ls -dt "$C"/vm-* 2>/dev/null); do
       total=$((total + $(du -sk "$d" | cut -f1)))
       [ "$d" != "$E" ] && [ $total -gt $((MB * 1024)) ] && rm -rf "$d"
     done
-    exit 0' sh "$E" "$C" "$MB"
-  echo "build-cache: saved the VM ($key)" ;;
+    exit 0' sh "$E" "$C" "$MB" ;;
 *) echo "usage: tests/build-cache.sh restore|save"; exit 2 ;;
 esac
