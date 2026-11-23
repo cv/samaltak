@@ -235,8 +235,10 @@ One DMA region, described to GSP in the init arguments (`_getMsgQueueParams`, `g
 and the status queue (GSP → CPU), 0x40000 bytes each (71-72). Each queue starts with a `msgqTxHeader` { `version`,
 `size`, `msgSize`, `msgCount`, `writePtr`, `flags`, `rxHdrOff`, `entryOff` } and a `msgqRxHeader` { `readPtr` }
 (`src/nvidia/inc/kernel/gpu/gsp/msgq/msgq_priv.h` 48-65), then `msgCount` entries of `msgSize` = 4 KB. Our read pointer
-for the status queue lives in the command queue's RX header and vice versa (`rxHdrOff`; the usual msgq crossing)
-**[inf]**.
+for the status queue lives in the command queue's RX header and vice versa: both queues are made with
+`MSGQ_FLAGS_SWAP_RX`, so each side writes its read pointer into its own queue's `msgqRxHeader` (`msgqTxCreate`,
+`msgqRxLink`, `src/common/shared/msgq/msgq.c` 188-245, 331-420) **[src]**. Each queue's header page: `msgqTxHeader` at 0,
+`msgqRxHeader` at 32 (aligned to 16), entries from 4096; 63 entries of 4 KB in 256 KB; one entry always stays free.
 
 An element (`GSP_MSG_QUEUE_ELEMENT`, `src/nvidia/inc/kernel/gpu/gsp/message_queue_priv.h` 43-51) **[src]**: `authTagBuffer`
 [16], `aadBuffer` [16] (confidential computing; zero here), `checkSum`, `seqNum`, `elemCount` (4 KB pages it spans):
@@ -263,6 +265,11 @@ shape with `rpc_result` set.
 | `ALLOC_MEMORY` | 4 | a memory object's pages (PTE list) | none: done by the kernel module today |
 | `GSP_SET_SYSTEM_INFO`, `SET_REGISTRY` | 72, 73 | before boot (2.2) | none |
 | `GET_GSP_STATIC_INFO` | 65 | after boot | none |
+
+The header's `length` is the header and the payload struct, for `GSP_RM_CONTROL` also the parameters (rpc.c 10978-10981),
+but for `GSP_RM_ALLOC` not: `rpcWriteCommonHeader` gets `sizeof(rpc_gsp_rm_alloc_v03_00)` and the parameters are copied
+after it (11197-11217), so they travel in the element's 4 KB entry past the checksummed length **[src]**. A new root client
+(`NV01_ROOT`) always carries a whole `NV0000_ALLOC_PARAMETERS` (120 bytes, 11176-11180) **[src]**.
 
 The client side: `rpcRmApiAlloc_GSP` (`src/nvidia/src/kernel/vgpu/rpc.c` 11138), `rpcRmApiControl_GSP` (10853),
 `rpcRmApiFree_GSP` (11311) **[src]**. Embedded pointers in parameter blocks (NvRm's `NvP64` fields) cannot cross: the
@@ -484,3 +491,34 @@ firmware (no NVIDIA GPU).
 - **D1** (polling): yes for boot and RPCs (3.1).
 - **A1, A4, B1, B2, C5, E1, F1-F3**: open; A4 can be measured in step 1 (the fuse read), F1 partly by dumping LIBOS log
   buffers raw.
+
+## 9. Step 2: the transport seam and the structures
+
+- **The seam** (System-NV): `NvDevice` and `NvMemory` make every RM call and mapping through an `NvTransport`
+  (`alloc:client:parent:params:`, `control:client:object:params:`, `free:client:parent:`, `mapMemory:`/`mapUsermode:`,
+  `unmapCpu:size:`, `mapToGpu:`/`unmapFromGpu:`, `attachGpu:`, `open`/`close`). `NvIoctlTransport` is the kernel
+  module's ioctls (today's path, unchanged: `make test-nv` passes); `NvDevice open: 0 over: aTransport` takes another.
+  `NvTransportTest` runs NvDevice over a fake transport that logs the calls.
+- **The structures** (`NvGsp`): the C declarations of `NVDM_PAYLOAD_COT`, `GSP_FMC_BOOT_PARAMS`, `GspFwWprMeta`,
+  `LibosMemoryRegionInitArgument`, `GSP_ARGUMENTS_CACHED`, `RM_RISCV_UCODE_DESC`, `msgqTxHeader`/`msgqRxHeader`,
+  `GSP_MSG_QUEUE_ELEMENT`, `rpc_message_header_v03_00`, `rpc_gsp_rm_alloc_v03_00`, `rpc_gsp_rm_control_v03_00`,
+  `rpc_free_v03_00` and `NV0000_ALLOC_PARAMETERS`, laid out by `NvLayout` with C's rules, and builders that fill them as
+  nvidia.ko does (2.2-2.4, 3): the SEC2 message (MCTP word 1, NVDM 16r1410DE7E, the COT payload, `QUEUE_TAIL` 864), the
+  FMC parameters, WprMeta for GB10B, LIBOS regions and ids (`'RMARGS'` = 16r524D41524753), the GSP arguments, radix-3
+  tables (`radix3Counts: 74985472` = 1, 1, 36, 18307 pages), RPC headers and the three RM messages, the queue checksum.
+- **Byte for byte**: `tools/nv-gsp-layouts.sh` compiles a program against open-gpu-kernel-modules at 580.178.04 that
+  prints `sizeof` and every member's `offsetof`/size of those structures, and the constants used, into
+  `src/Tests-NV/NvGspLayouts.st` (generated; rerun when the driver version moves). `NvGspLayoutTest` requires NvGsp's
+  layouts and constants to equal them; `NvGspTest` checks each builder's bytes at those offsets.
+- **The queues and the transport**: `NvGspQueues` is the shared region (page table, command and status queues),
+  `NvGspEndpoint` one side of it (send: elements with checksum, sequence number and entry count, wrapping the ring;
+  receive: checks both), `NvGspTransport` NvDevice's RM calls as RPCs over the CPU endpoint, ringing a doorbell block
+  (on the GB10: `NV_PGSP_QUEUE_HEAD(0)` = 0) and polling for the reply, keeping events. It picks handles as a client RM
+  does and refuses, saying which step does them, the controls whose parameters point at other memory (class list, GR
+  info: FINN serialization, step 4) and the mappings (client-side RM, step 5).
+- **The fake GSP** (`NvFakeGsp`, Tests-NV) is GSP-RM's side over the same memory: it makes the status queue as GSP does,
+  checks every message, and answers allocs, controls and frees. `NvGspTransportTest` runs the transport against it:
+  headers and page table, an RPC's element as it sits in the queue, 150 calls around the 63-entry ring, a two-entry
+  message, events before a reply, errors, and `NvDevice open:over:` the GSP transport up to the class list.
+
+All of these tests need no GPU and run in `make test-core` and, in QEMU, `make test-uefi`.

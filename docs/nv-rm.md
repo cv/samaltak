@@ -23,6 +23,7 @@ NvDevice during: [:gpu | | compute vadd a b c |
 | --- | --- |
 | `NvDevice` | `open`/`during:`/`close` (`open:over:` a transport): the RM object tree, `alloc:parent:params:`, `control:object:params:`, `free:parent:`, `mapToCpu:size:`/`mapToGpu:size:` and their unmaps, `allocate:` (NvMemory), `newChannel`, `newCompute`; GR info (`smVersion`, `smCount`), `classes` |
 | `NvTransport`, `NvIoctlTransport` | the seam to RM: every RM call and mapping NvDevice makes; the ioctl one is today's path (the kernel module), a GSP one is the UEFI driver's (docs/nv-gsp.md) |
+| `NvGsp`, `NvLayout`, `NvGspStruct`, `NvGspQueues`, `NvGspEndpoint`, `NvGspTransport` | GSP-RM's boot and RPC structures as driver 580.178.04 lays them out, its message queues, and RM calls as RPCs over them (docs/nv-gsp.md, sections 2, 3 and 9) |
 | `NvMemory` | system memory mapped for both: `gpuAddress`, `cpuAddress`, `uint32At:(put:)`, `uint64At:(put:)`, `bytesAt:count:`, `bytesAt:put:`, `free` |
 | `NvChannel` | channel group + GPFIFO channel + compute object; `submit:` (an NvPushBuffer), `submitWithFence:`, `fence`, `wait:`, `sync`, `close` |
 | `NvCompute` | compute class setup; `launch:grid:block:arguments:` (answers a fence), `run:...` (waits), `close` |
@@ -104,7 +105,7 @@ docs/nv.md's Struct layouts; NvEncodingTest checks their offsets.
 
 ## Tests and numbers
 
-`make test-core` runs NvCubinTest, NvEncodingTest and NvTransportTest (no GPU: NvDevice over a fake transport that logs the RM calls). `make test-nv` runs NvGpuTest on the GPU: it is not
+`make test-core` runs NvCubinTest, NvEncodingTest, NvTransportTest (NvDevice over a fake transport that logs the RM calls), NvProbeTest, and the GSP tests (NvGspLayoutTest, NvGspTest, NvGspTransportTest against a fake GSP), none of which needs a GPU; `make test-uefi` runs them too. `make test-nv` runs NvGpuTest on the GPU: it is not
 part of `make test` (`NvGpuTest class>>runsByDefault` is false, so `--test` without names leaves it out) and fails,
 saying so, where there is no NVIDIA driver. `NvGpuMeasure report` (evaluate it) measures, on the GB10 (48 SMs),
 best of a few runs:
