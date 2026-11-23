@@ -138,7 +138,8 @@ VeNCrypt-Plain and Raw in another byte order, ZRLE with its CPIXELs in a pixel's
 two clients that negotiate as the viewers do (rfb_client.py's `SCREEN_SHARING_*`: RFB 3.3, VNC authentication, shared,
 depth 32 BGRX, its encodings with Apple's unknown ones; `TIGERVNC_*`: 3.8, its encodings and pseudo-encodings), each sent
 only rectangles in encodings it offered. Each decoded framebuffer equals the image's screenshot pixel for pixel at
-first, after typing, after a window move, after keys sent through RFB and after an Agent window streamed text into a
+first, after typing, after a window move, after a window dragged through RFB (which comes as CopyRect), after keys sent
+through RFB and after an Agent window streamed text into a
 paragraph laid out again with each delta (which also checks that what was sent is mostly the 16x16 blocks that changed
 and at most a third of what was damaged); a client that asked for nothing catches up; a
 wrong password is refused with backoff; a fifth client is refused. The client decodes CPIXELs by the viewers' rule (3
@@ -155,25 +156,26 @@ VNC authentication, ZRLE, CopyRect, Cursor, DesktopSize, LastRect in the server'
 as soon as an update has come, as the viewers do). Keys and the pointer are RFB events, so they take each server's own
 input path (QEMU's: its USB keyboard and virtio tablet). Each interaction lasts 10 s. The numbers are medians of 5
 runs (image) and 3 (QEMU). CPU is QEMU's process (user + system) in % of one core: the guest's vCPUs, so the image's
-own server, and QEMU's VNC server. "Before" is the server that sent each damaged rectangle whole; "image" sends only the
-16x16 blocks that changed (RfbDiffSource, below). The image's columns were measured again without the NIC's spin
-(below), on 913de31 with it gone, interleaved with runs of 913de31 itself; the idle rows again on fd1a733, where an idle
-World presents almost nothing (below).
+own server, and QEMU's VNC server. "Before" is the server that sent each damaged rectangle whole; "blocks" sends only
+the 16x16 blocks that changed (RfbDiffSource, below), measured without the NIC's spin (below), on 913de31 with it gone,
+interleaved with runs of 913de31 itself (the idle rows again on fd1a733, where an idle World presents almost nothing,
+below); "image" also sends CopyRect for dragged windows and scrolled lists (below), on
+ce6dbbd (the machine's load 1-11).
 
-| interaction | before: B/s | image: B/s | updates/s | B an update (median) | CPU | QEMU: B/s | updates/s | B an update (median) | CPU |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| idle, the World as it opens | 107 K | 0.6 K | 0.6 | 900 (682) | 4 % | 3.7 K | 4.9 | 763 (700) | 7 % |
-| idle, Mandelbrot and Process Browser closed | 0 | 146 | 0.1 | 1.5 K | 2 % | 60 | 0.2 | 298 | 2 % |
-| typing, 16 keys/s into the Workspace | 36 K | 34 K | 18.4 | 1.9 K (214) | 20 % | 48 K | 17.0 | 2.8 K (182) | 12 % |
-| scrolling the class list, 10 notches/s | 56 K | 54 K | 12.8 | 4.2 K (4.4 K) | 18 % | 51 K | 11.9 | 4.3 K (4.7 K) | 10 % |
-| dragging the Inspector, 60 moves/s | 452 K | 575 K | 43.3 | 13.3 K (13.1 K) | 43 % | 298 K | 22.0 | 13.4 K (14.9 K) | 18 % |
-| the Agent window streaming, 40 deltas/s | 89 K | 14 K | 40.5 | 358 (309) | 19 % | 13.6 K | 24.2 | 555 (467) | 12 % |
+| interaction | before: B/s | blocks: B/s | CPU | image: B/s | updates/s | B an update (median) | CPU | QEMU: B/s | updates/s | B an update (median) | CPU |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| idle, the World as it opens | 107 K | 0.6 K | 4 % | 262 | 0.4 | 656 (658) | 4 % | 3.7 K | 4.9 | 763 (700) | 7 % |
+| idle, Mandelbrot and Process Browser closed | 0 | 146 | 2 % | 137 | 0.1 | 1.4 K | 2 % | 60 | 0.2 | 298 | 2 % |
+| typing, 16 keys/s into the Workspace | 36 K | 34 K | 20 % | 20 K | 18.5 | 1.1 K (214) | 25 % | 48 K | 17.0 | 2.8 K (182) | 12 % |
+| scrolling the class list, 10 notches/s | 56 K | 54 K | 18 % | 15 K | 12.8 | 1.2 K (1.3 K) | 19 % | 51 K | 11.9 | 4.3 K (4.7 K) | 10 % |
+| dragging the Inspector, 60 moves/s | 452 K | 575 K | 43 % | 16 K | 32.7 | 464 (192) | 23 % | 298 K | 22.0 | 13.4 K (14.9 K) | 18 % |
+| the Agent window streaming, 40 deltas/s | 89 K | 14 K | 19 % | 14 K | 40.7 | 355 (307) | 18 % | 13.6 K | 24.2 | 555 (467) | 12 % |
 
 | | image | QEMU |
 | --- | --- | --- |
-| a key to its pixels (one every 300 ms: KeyEvent sent → end of the first update that changes the Workspace) | 18 ms (12-24 over the runs, p90 15-27; with the spin: 30) | 82 ms (82-97) |
-| full-screen update (a non-incremental request of the whole screen → its last byte) | 43 ms, 128 KB (before ZRLE's fixes below: 62; with the spin: 64) | 97 ms (94-114), 125 KB |
-| first connect (TCP connect → the first full update) | 0.34 s, 206 KB | 0.32 s, 200 KB |
+| a key to its pixels (one every 300 ms: KeyEvent sent → end of the first update that changes the Workspace) | 18 ms (10-22 over the runs, p90 12-27; with the spin: 30) | 82 ms (82-97) |
+| full-screen update (a non-incremental request of the whole screen → its last byte) | 39 ms, 127 KB (before ZRLE's fixes below: 62; with the spin: 64) | 97 ms (94-114), 125 KB |
+| first connect (TCP connect → the first full update) | 0.29 s, 204 KB | 0.32 s, 200 KB |
 
 **Only the blocks that changed.** The compositor's damage is in quads' bounds: text laid out again damages a whole
 paragraph, of which few pixels change, and the Process Browser redrew its list every second with the same pixels.
@@ -232,13 +234,15 @@ open (it is not in the World as it opens).
 changed, making and sending updates), in ms an update, medians of 5 runs (with the NIC's spin, before 913de31's
 successors: it does not change them):
 
-| interaction | sending whole rectangles | changed blocks | and ZRLE without copies |
-| --- | --- | --- | --- |
-| idle, the World as it opens | 5.9 | 1.6 | 1.7 |
-| typing | 0.8 | 0.8 | 0.6 |
-| scrolling | 2.7 | 2.0 | 1.2 |
-| dragging | 6.2 | 4.2 | 2.6 |
-| the Agent streaming | 1.4 | 0.3 | 0.3 |
+| interaction | sending whole rectangles | changed blocks | and ZRLE without copies | and CopyRect |
+| --- | --- | --- | --- | --- |
+| idle, the World as it opens | 5.9 | 1.6 | 1.7 | 1.8 |
+| typing | 0.8 | 0.8 | 0.6 | 0.6 |
+| scrolling | 2.7 | 2.0 | 1.2 | 0.9 |
+| dragging | 6.2 | 4.2 | 2.6 | 0.6 |
+| the Agent streaming | 1.4 | 0.3 | 0.3 | 0.1 |
+
+(The last column is without the NIC's spin, the others with it: the spin costs the server's own time nothing.)
 
 Most of it was ZRLE. ZLib's streaming deflate copied the whole history it keeps (up to 96 KB) into a new input for each
 rectangle, and its Huffman code lengths searched the list of nodes for the lightest two (quadratic in the alphabet,
@@ -250,29 +254,39 @@ the tiles take 0.75 ms an update, deflate 0.8 (of which 0.1 the matches and 0.3 
 codes), comparing with the copy 0.5. In the Profiler, allocation and `Delay` scheduling look larger than they are:
 its CPU samples are taken when the timer Process wakes, which allocating 256 KB and scheduling a Delay make it do.
 
+**CopyRect.** When the compositor draws a window's layer at the same size and opacity as in the last frame but moved by
+whole device pixels (a window dragged, lifted and a little smaller or not), it tells the frame tap before presenting the
+frame (`FrameTap>>moved:to:`, on UEFI the firmware screen's tap; hosted its own, `presented:moves:extent:`); the
+listeners take the moves with the damage of the same frames. RfbDiffSource moves its copy's pixels, passes the move on to
+the connections (a CopyRect where a client's pixels there are up to date, else damage), and compares the destination
+again: a move is a hint, and what a window over the moved one, or damage at its origin not yet compared, makes differ
+there is found and sent. A tall damaged rectangle whose sample rows (the middle three quarters of 12 rows that changed
+and are not of one colour) are all found in the copy the same few rows lower or higher (at most 64; the last distance
+first) is a scroll: the rows around them that moved too are moved the same way. Dragging so sends 16 KB/s instead of
+575 (QEMU's 298), scrolling 15 instead of 54 (QEMU's 51), typing 20 instead of 34 (a new line scrolls the Workspace);
+looking for a scroll costs 0.1-0.2 ms a tall rectangle that changed.
+
 **Where the image's CPU goes.**
 
-- The server itself costs little: the table above, 1-2 % of a core, 10 % dragging.
+- The server itself costs little: the table above, 1-2 % of a core.
 - The rest is the input and the drawing. With `--silent` (the client asks for no updates; the same input and
   drawing, nothing encoded) the guest takes 17 % typing, 15 % scrolling, 33 % dragging (at 59 frames/s) and 10 %
   streaming; with the spin it took 41, 29, 108 and 10, with QEMU's server 14, 10, 20 and 10. QEMU's input comes
   through its USB keyboard and tablet, with no network frames.
-- The bytes are now QEMU's or fewer, but for dragging (more updates a second than QEMU's, each as large).
+- The bytes are now QEMU's or fewer.
 
 **Against the targets** (the remote display's scope, Performance targets):
 
-- typing, ≤ 1 KB a frame: met. The median update is 216 B; the mean of 1.9 KB includes the top bar's readout and the
-  line scrolling.
+- typing, ≤ 1 KB a frame: met. The median update is 214 B; the mean of 1.1 KB includes the line scrolling.
 - typing, encode ≤ 0.5 ms a frame: 0.6 ms an update, finding what changed, making and sending. Close, but not met.
 - typing latency, ≤ 1 frame + RTT + 10 ms: met. 18 ms on loopback (QEMU's: 82 ms).
 - idle with a client, no CPU: met for a still World (no updates, 2 %, as with QEMU's). The World as it opens costs
-  0.6 KB/s and 4 %, about one update a second for readings that move (QEMU's server sends 3.7 KB/s).
-- dragging, ≥ 15 updates/s of 20-60 KB: met. 43.3 updates/s of 13 KB (QEMU's: 22).
-- full-screen update, ≤ 150 ms (≤ 50 ms with primitives): 43 ms for 128 KB.
-- first connect, the whole screen within 0.5 s: 0.34 s.
+  262 B/s and 4 %, an update every few seconds for readings that move (QEMU's server sends 3.7 KB/s).
+- dragging, ≥ 15 updates/s of 20-60 KB: met, at 32.7 updates/s of 464 B (CopyRect; QEMU's: 22 of 13 KB).
+- full-screen update, ≤ 150 ms (≤ 50 ms with primitives): 39 ms for 127 KB.
+- first connect, the whole screen within 0.5 s: 0.29 s.
 
 **For phase 2**, by these numbers:
 
-1. CopyRect for window drags (the compositor knows the move): fewer bytes than 500 KB/s, and less than 4.2 ms an update.
-2. The ZRLE tile primitive (D12) is not needed for these targets: a full screen takes 43 ms, and the tiles of a
-   dragged window's 13 rectangles 0.75 ms.
+1. The ZRLE tile primitive (D12) is not needed for these targets: a full screen takes 39 ms, and a dragged window is a
+   CopyRect.
