@@ -3,7 +3,7 @@ TestCase subclass: #TestIsolationFixture
 	classVariableNames: 'Log Value'
 	package: 'Tests-Agent'!
 
-TestIsolationFixture comment: 'The tests TestIsolationTest runs to check TestCase''s cleanups: a test that replaces a value (class-side value) and fails, one whose cleanup fails, one that needs a throwaway image. Not run by itself (isAbstract).'!
+TestIsolationFixture comment: 'The tests TestIsolationTest runs to check TestCase''s cleanups: a test that replaces a value (class-side value) and fails, one whose cleanup fails, one that needs a throwaway image, one that waits until it is stopped. Not run by itself (isAbstract).'!
 
 !TestIsolationFixture methodsFor: 'running'!
 tearDown
@@ -27,6 +27,10 @@ testCleanupFails
 !
 testNeedsThrowaway
 	self needsThrowawayImage: 'a test of needsThrowawayImage:'
+!
+testWaits
+	self class log: (OrderedCollection with: #started).
+	(Delay forMilliseconds: 30000) wait
 ! !
 
 !TestIsolationFixture class methodsFor: 'accessing'!

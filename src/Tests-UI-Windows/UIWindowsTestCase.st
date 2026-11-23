@@ -1,5 +1,5 @@
 TestCase subclass: #UIWindowsTestCase
-	instanceVariableNames: 'world previous'
+	instanceVariableNames: 'world'
 	classVariableNames: ''
 	package: 'Tests-UI-Windows'!
 
@@ -7,11 +7,12 @@ UIWindowsTestCase comment: 'I am the abstract superclass of the window-system in
 
 !UIWindowsTestCase methodsFor: 'running'!
 setUp
-	previous := World current.
+	"World current comes back after the test (a cleanup), whatever happens to world."
+	self keep: #current of: World.
 	world := World openHidden: 1000 @ 700
 !
 tearDown
-	[world isNil ifFalse: [world stop]] ensure: [World current: previous]
+	world isNil ifFalse: [world stop]
 !
 timeLimitMilliseconds
 	^30000

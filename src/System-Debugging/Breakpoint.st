@@ -296,7 +296,8 @@ nextId
 
 !Breakpoint class methodsFor: 'ignoring'!
 ignoreProcess: aProcess
-	"Breakpoints and watchpoints never stop aProcess (a debugger's own process)."
+	"Breakpoints and watchpoints never stop aProcess (a debugger's own process). Processes that ended are dropped."
+	Ignored := Ignored reject: [:each | each isTerminated].
 	Ignored add: aProcess
 !
 unignoreProcess: aProcess

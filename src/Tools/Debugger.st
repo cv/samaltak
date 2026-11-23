@@ -171,9 +171,11 @@ windowClosed
 	self abandonSession
 !
 abandonSession
+	| w |
 	session isSuspended ifFalse: [^self].
+	w := session process window.
 	[session abandon] on: Error do: [:e | e return: nil].
-	DebuggerTools restartWindowOf: session process
+	DebuggerTools restartWindow: w
 !
 scheduleTick
 	| w |

@@ -3,11 +3,12 @@ TestCase subclass: #TestIsolationTest
 	classVariableNames: ''
 	package: 'Tests-Agent'!
 
-TestIsolationTest comment: 'Tests that tests leave a live image as they found it (TestCase''s comment), as they must now that the agent runs them in the image it lives in (its run-tests tool). testLiveImageSurvivesTheTests makes this image look like that one: an ApiKeyAccount and a GitHubAccount holding a key and a token as the defaults, a SourceFiler default on a source directory, an open AgentConversation, a breakpoint, a watchpoint and a process filter of its own; it marks the image live (TestCase runsInThrowawayImage: false), runs the test classes that use or replace that state, and checks that every piece is still there and unchanged, that the tests which cannot help changing the whole image were skipped, that no global was left behind, and that the AgentConversations the tests made are garbage once they ran although the TestResult is kept. The other tests check TestCase''s cleanups on TestIsolationFixture.'!
+TestIsolationTest comment: 'Tests that tests leave a live image as they found it (TestCase''s comment), as they must now that the agent runs them in the image it lives in (its run-tests tool). testLiveImageSurvivesTheTests makes this image look like that one: an ApiKeyAccount and a GitHubAccount holding a key and a token as the defaults, a SourceFiler default on a source directory, an open AgentConversation, a breakpoint, a watchpoint and a process filter of its own; it marks the image live (TestCase runsInThrowawayImage: false), runs the test classes that use or replace that state, and checks that every piece is still there and unchanged, that the tests which cannot help changing the whole image were skipped, that no global was left behind, and that the AgentConversations the tests made are garbage once they ran although the TestResult is kept. testLiveWorldSurvivesTheUITests does the same for the window system (its classes looked up by name: this package comes before it): a running World with a window of its own as World current, the UI tests run (their own Worlds, nested Worlds stopped out of order, AppWorlds, applications, the debugger and the tools), and World current, that World, its windows and compositor are unchanged and no World or Compositor of the tests survives a garbage collection. testStoppedRunStopsItsTest: a run that is stopped (the run-tests tool''s timeout) stops the test it runs, which tears down, instead of leaving it running on into the next run. The other tests check TestCase''s cleanups on TestIsolationFixture.'!
 
 !TestIsolationTest methodsFor: 'running'!
 timeLimitMilliseconds
-	^240000
+	"The UI tests take minutes on a software GPU (lavapipe)."
+	^testSelector == #testLiveWorldSurvivesTheUITests ifTrue: [600000] ifFalse: [240000]
 !
 tearDown
 	breakpoint isNil ifFalse: [breakpoint remove].
@@ -55,7 +56,65 @@ commandsOf: aRegistryState
 	^commands
 ! !
 
+!TestIsolationTest methodsFor: 'window system'!
+uiClassNames
+	"Test classes that open Worlds of their own and make them current: a World per test (UIWindowsTestCase, ToolsTestCase), nested Worlds stopped out of order (WorldCurrentTest), AppWorlds, applications, the debugger's windows, a theme's World, the profiler's (those not in this image are left out)."
+	^#('WorldCurrentTest' 'AppWorldTest' 'ApplicationTest' 'OmarchyThemeTest' 'DebuggerUITest' 'ProfilerViewTest' 'WorkspaceTest')
+!
+uiTestClasses
+	^((self uiClassNames collect: [:each | Smalltalk at: each asSymbol ifAbsent: [nil]]) reject: [:each | each isNil]) asArray
+!
+survivorsOf: aClass
+	"aClass's instances that survive a garbage collection, once the Processes of closed windows ended."
+	(Delay forMilliseconds: 300) wait.
+	Smalltalk vm garbageCollect.
+	^aClass allInstances size
+! !
+
 !TestIsolationTest methodsFor: 'tests'!
+testLiveWorldSurvivesTheUITests
+	| world live window compositor worlds compositors result compositorClass |
+	world := Smalltalk at: #World ifAbsent: [^self].
+	compositorClass := Smalltalk at: #Compositor.
+	self keep: #current of: world.
+	live := world openHidden: 800 @ 600.
+	self addCleanup: [live stop].
+	window := (Smalltalk at: #Window) new title: 'live'; content: (Smalltalk at: #View) new; bounds: (40 @ 60 extent: 300 @ 200); yourself.
+	window openIn: live.
+	self assert: (live waitUntilSettled: 5000).
+	compositor := live compositor.
+	self pauseProfiler.
+	worlds := self survivorsOf: world.
+	compositors := self survivorsOf: compositorClass.
+	self replace: #runsInThrowawayImage of: TestCase with: false.
+	result := TestResult new.
+	result runClasses: self uiTestClasses.
+	self assert: result hasPassed description: [String new: 200 streamContents: [:s |
+		s nextPutAll: 'UI tests failed in a live image:'.
+		(result failures, result errors) do: [:each | s space; print: each key; nextPutAll: ': '; nextPutAll: (each value ifNil: ['']) asString]]].
+	self assert: world current identicalTo: live.
+	self assert: live isRunning.
+	self assert: live windows asArray equals: (Array with: window).
+	self assert: window isOpen.
+	self assert: live compositor identicalTo: compositor.
+	self assert: (compositorClass running includes: compositor).
+	"What the stopped Worlds' Processes still do (the close animations' end) takes a moment."
+	self assert: (self waitFor: [(self survivorsOf: world) <= worlds] timeout: 10000)
+		description: [((self survivorsOf: world) - worlds) printString, ' Worlds of the UI tests survive them'].
+	self assert: (self waitFor: [(self survivorsOf: compositorClass) <= compositors] timeout: 10000)
+		description: [((self survivorsOf: compositorClass) - compositors) printString, ' Compositors of the UI tests survive them'].
+	self assert: result runCount > 50
+!
+testStoppedRunStopsItsTest
+	| result runner |
+	TestIsolationFixture log: OrderedCollection new.
+	result := TestResult new.
+	runner := self fork: [result runCase: (TestIsolationFixture selector: #testWaits)] named: 'stopped run' at: Processor userSchedulingPriority.
+	self assert: (self waitFor: [TestIsolationFixture log includes: #started]).
+	runner terminate.
+	self assert: (TestIsolationFixture log includes: #tearDown).
+	self deny: ((Process allInstances select: [:p | p isTerminated not and: [p name = 'TestIsolationFixture>>#testWaits']]) notEmpty)
+!
 testLiveImageSurvivesTheTests
 	| key token keyAccount gitHub filerClass filer directory filerStore files openAI signedIn filter useSmalltalkTLS roots mountTable registry globals before result skipped expected commands after |
 	key := self newSecret: 'sk-live-'.

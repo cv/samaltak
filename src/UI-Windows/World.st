@@ -1,6 +1,6 @@
 Object subclass: #World
-	instanceVariableNames: 'displayWindow extent scale windows overlays activeWindow compositor dispatcher topBar toasts tooltip lock windowCounter closingWindows needsFrame remotePointer hidden imageName clipboardText running curtain closingFrontWindows'
-	classVariableNames: 'All Current HelpHandler UserInterruptHandler WorldMenuBuilder QuitHandler PresentsContinuously'
+	instanceVariableNames: 'displayWindow extent scale windows overlays activeWindow compositor dispatcher topBar toasts tooltip lock windowCounter closingWindows needsFrame remotePointer hidden imageName clipboardText running curtain closingFrontWindows stopped'
+	classVariableNames: 'All Current Made HelpHandler UserInterruptHandler WorldMenuBuilder QuitHandler PresentsContinuously'
 	package: 'UI-Windows'!
 
 World comment: 'I am the desktop: the host window (a DisplayWindow), the halftone desk, the windows (z-order, front to back), the active window, the top bar, and the overlays (menus, toasts, the tooltip, the remote pointer). The Compositor (priority 70, vsync) draws me; the InputDispatcher (priority 60) routes input and moves and resizes windows. World current is the running one (an application''s other host windows are Worlds of their own: World all).
@@ -93,6 +93,10 @@ isHidden
 !
 isRunning
 	^running
+!
+isStopped
+	"Was I stopped (stop) or abandoned after an image restart? A stopped World is never current."
+	^stopped == true
 !
 windowNamed: aString
 	"The window whose remoteName (w3) or title is aString, or nil."
@@ -380,6 +384,7 @@ start
 	"Start the compositor and the input dispatcher."
 	running ifTrue: [^self].
 	running := true.
+	stopped := false.
 	All := (All ifNil: [#()]) copyWith: self.
 	compositor := Compositor world: self.
 	dispatcher := InputDispatcher world: self.
@@ -399,7 +404,8 @@ stop
 	overlays := #().
 	closingWindows := #().
 	[displayWindow close] on: Error do: [:e | e return: nil].
-	Current == self ifTrue: [Current := nil]
+	stopped := true.
+	self class stopped: self
 !
 abandon
 	"After an image restart: my processes and handles are gone; forget them without touching the GPU."
@@ -408,7 +414,8 @@ abandon
 	compositor isNil ifFalse: [compositor abandon].
 	running := false.
 	All := (All ifNil: [#()]) copyWithout: self.
-	Current == self ifTrue: [Current := nil]
+	stopped := true.
+	self class stopped: self
 !
 resumeHidden: aBoolean
 	"After an image restart from a snapshot taken while I ran: my host window, GPU objects, compositor and input dispatcher died with the old VM; my windows and their Processes did not. Re-open the host window (same size; hidden if aBoolean), start a new compositor and input dispatcher, and composite every window again. Animations and toasts ran on the old clock: animations jump to their end, toasts go."
@@ -526,7 +533,13 @@ presentsContinuously: aBoolean
 	PresentsContinuously := aBoolean
 !
 current
-	^Current
+	"The World windows open in: the one made current last. When it stopped (or none is current) while another World runs, the World made current before it that still runs, else the running compositors' World (runningWorld), with a line on the Transcript: windows never fail to open because a test's World stopped."
+	| world |
+	(Current isNil or: [Current isStopped]) ifFalse: [^Current].
+	world := self runningWorld.
+	world isNil ifTrue: [^Current := nil].
+	Transcript show: 'World current: ', (Current isNil ifTrue: ['none'] ifFalse: ['a stopped World']), ', using the running ', world printString; cr.
+	^self current: world
 !
 all
 	"The running Worlds: the current one and an application's other host windows."
@@ -540,7 +553,27 @@ restyleAll
 	self allDo: [:world | world restyle]
 !
 current: aWorld
-	Current := aWorld
+	"Make aWorld the World windows open in (nil: none). A stopped World is never made current: the World that runs instead is (current)."
+	(aWorld notNil and: [aWorld isStopped]) ifTrue: [
+		Current := nil.
+		^self current].
+	aWorld isNil ifFalse: [
+		Made := ((Made ifNil: [#()]) reject: [:w | w == aWorld or: [w isStopped]]) copyWith: aWorld.
+		Made size > 8 ifTrue: [Made := Made copyFrom: Made size - 7 to: Made size]].
+	^Current := aWorld
+!
+runningWorld
+	"A running World to fall back on: of those made current, the last that still runs, else the first started of the running ones (all) that is shown, else any; nil if none runs."
+	| worlds |
+	(Made ifNil: [#()]) reverseDo: [:w | w isRunning ifTrue: [^w]].
+	worlds := self all select: [:w | w isRunning].
+	worlds isEmpty ifTrue: [^nil].
+	^worlds detect: [:w | w isHidden not] ifNone: [worlds first]
+!
+stopped: aWorld
+	"aWorld stopped: forget it; if it was current, the World current before it that still runs is current again (runningWorld), never nil while another World runs."
+	Made isNil ifFalse: [Made := Made reject: [:w | w == aWorld or: [w isStopped]]].
+	Current == aWorld ifTrue: [Current := self runningWorld]
 !
 worldMenuBuilder
 	^WorldMenuBuilder
@@ -580,7 +613,7 @@ openExtent: aPoint hidden: aBoolean
 	display := DisplayWindow width: aPoint x height: aPoint y title: 'Samaltak' hidden: aBoolean.
 	Font deviceScale = display scale ifFalse: [Font deviceScale: display scale].
 	world := self new setDisplayWindow: display hidden: aBoolean.
-	Current := world.
+	self current: world.
 	world start.
 	^world
 !

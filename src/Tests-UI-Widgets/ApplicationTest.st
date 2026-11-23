@@ -1,5 +1,5 @@
 TestCase subclass: #ApplicationTest
-	instanceVariableNames: 'previous app'
+	instanceVariableNames: 'app'
 	classVariableNames: ''
 	package: 'Tests-UI-Widgets'!
 
@@ -7,14 +7,12 @@ ApplicationTest comment: 'Tests Application on a hidden host window: the window 
 
 !ApplicationTest methodsFor: 'running'!
 setUp
-	previous := World current
+	self keep: #current of: World
 !
 tearDown
 	[Application removeMenuItem: #test.
 	(app notNil and: [app world notNil and: [app world isRunning]]) ifTrue: [app world stop]]
-		ensure: [
-			World current: previous.
-			Profiler resume]
+		ensure: [Profiler resume]
 !
 timeLimitMilliseconds
 	^30000

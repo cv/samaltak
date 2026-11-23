@@ -68,7 +68,8 @@ runCase: aTestCase
 		done signal] newProcess.
 	process priority: Processor userSchedulingPriority; name: aTestCase printString.
 	process resume.
-	timedOut := done waitTimeoutMSecs: aTestCase timeLimitMilliseconds.
+	"If the run is stopped (the run-tests tool's timeout, an interrupted turn), the test stops with it, tearing down: a test left running would overlap the next run's and put back each other's World current."
+	timedOut := [done waitTimeoutMSecs: aTestCase timeLimitMilliseconds] ifCurtailed: [process terminate].
 	timedOut ifTrue: [
 		process terminate.
 		outcome := #error -> ('Timed out after ', aTestCase timeLimitMilliseconds printString, ' ms')].

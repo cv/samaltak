@@ -7,7 +7,7 @@ ProfilerViewTest comment: 'I run the Profiler window on real data: a factorial l
 
 !ProfilerViewTest methodsFor: 'running'!
 setUp
-	previous := World current.
+	self keep: #current of: World.
 	"A profiler of this test's own, as in the walkthrough (not the earlier tests' Processes and marks, nor the image's)."
 	self useOwnProfiler.
 	world := World openHidden: 1100 @ 760.

@@ -7,7 +7,7 @@ AppWorldTest comment: 'Tests AppWorld and AppWindow on a hidden host window: the
 
 !AppWorldTest methodsFor: 'running'!
 setUp
-	previous := World current.
+	self keep: #current of: World.
 	world := AppWorld openExtent: 300 @ 200 title: 'App test' hidden: true
 ! !
 

@@ -100,10 +100,12 @@ isDebuggerWindow: aWindow
 	^(content isKindOf: Debugger) or: [(content isKindOf: Notifier) or: [content isKindOf: BreakpointsBrowser]]
 !
 restartWindowOf: aProcess
-	"After abandoning a window's Process: give the window a fresh event loop."
-	| w |
-	w := aProcess window.
-	(w notNil and: [w isOpen]) ifTrue: [w restartProcess]
+	"Give aProcess's window, if open, a fresh event loop."
+	^self restartWindow: aProcess window
+!
+restartWindow: aWindowOrNil
+	"After abandoning a window's Process (which then forgets its window: read it before): give the window a fresh event loop."
+	(aWindowOrNil notNil and: [aWindowOrNil isOpen]) ifTrue: [aWindowOrNil restartProcess]
 !
 boundsFor: anExtent
 	"Where a debugging window of anExtent opens: offset from the active window, else cascading."

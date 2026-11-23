@@ -156,7 +156,7 @@ openExtent: aPoint title: aString hidden: aBoolean main: mainBoolean resizable: 
 	Font deviceScale = display scale ifFalse: [Font deviceScale: display scale].
 	world := self new setDisplayWindow: display hidden: aBoolean.
 	world isMain: mainBoolean.
-	(mainBoolean or: [Current isNil]) ifTrue: [Current := world].
+	(mainBoolean or: [self current isNil]) ifTrue: [self current: world].
 	world start.
 	^world
 ! !

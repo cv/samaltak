@@ -1,5 +1,5 @@
 TestCase subclass: #OmarchyThemeTest
-	instanceVariableNames: 'dir previousTheme previousWorld world'
+	instanceVariableNames: 'dir previousTheme world'
 	classVariableNames: ''
 	package: 'Tests-UI-Omarchy'!
 
@@ -63,7 +63,7 @@ bright_green = "#b9f27c"
 	^OmarchyTheme new setDirectory: d userShell: d / 'none.toml'
 !
 tearDown
-	world isNil ifFalse: [world stop. World current: previousWorld].
+	world isNil ifFalse: [world stop].
 	previousTheme isNil ifFalse: [
 		OmarchyTheme uninstall.
 		Theme current: previousTheme.
@@ -169,7 +169,7 @@ testInstallingPublishesTheRolesAndUninstallingRestoresTheBlueBook
 testTheWorldIsDrawnInTheTheme
 	| form |
 	self use: self darkTheme.
-	previousWorld := World current.
+	self keep: #current of: World.
 	world := World openHidden: 400 @ 300.
 	self assert: (world waitUntilSettled: 5000).
 	form := world compositor sync: [:c | c screenshotScale: 1].

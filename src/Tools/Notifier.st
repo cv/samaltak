@@ -123,9 +123,11 @@ closeWindow
 	w isNil ifFalse: [w close]
 !
 abandonSession
+	| w |
 	session isSuspended ifFalse: [^self].
+	w := session process window.
 	[session abandon] on: Error do: [:e | e return: nil].
-	DebuggerTools restartWindowOf: session process
+	DebuggerTools restartWindow: w
 !
 windowClosed
 	done ifTrue: [^self].

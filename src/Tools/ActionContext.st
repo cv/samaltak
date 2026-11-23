@@ -56,8 +56,7 @@ copied: context
 forEditor: editor
  | env evaluator |
  env := editor window ifNil: [AgentContext new] ifNotNil: [:w | (w content respondsTo: #agentContext) ifTrue: [w content agentContext] ifFalse: [AgentContext new]].
- Editors ifNil: [Editors := IdentityDictionary new].
- evaluator := Editors at: editor ifAbsent: [nil].
+ evaluator := self evaluatorOf: editor.
  evaluator ifNotNil: [env receiver: evaluator receiver; bindings: evaluator bindings].
  ^(self new environment: env text: editor selectionOrLine) origin: (editor window ifNotNil: [:w | w content]); yourself
 !
@@ -70,8 +69,19 @@ for: aTool
 
 !ActionContext class methodsFor: 'registration'!
 register: editor evaluator: evaluator
- Editors ifNil: [Editors := IdentityDictionary new].
- Editors at: editor put: evaluator
+ "Editors is weak: a closed workspace's evaluator, its editor and window (and their World) are garbage."
+ | i |
+ (Editors isNil or: [(Editors isKindOf: WeakArray) not]) ifTrue: [Editors := WeakArray new: 16].
+ i := Editors indexOf: nil.
+ i = 0 ifTrue: [
+  Editors := (WeakArray new: Editors size * 2) replaceFrom: 1 to: Editors size with: Editors startingAt: 1; yourself.
+  i := Editors indexOf: nil].
+ Editors at: i put: evaluator
+!
+evaluatorOf: editor
+ Editors isNil ifTrue: [^nil].
+ Editors do: [:each | (each notNil and: [each editor == editor]) ifTrue: [^each]].
+ ^nil
 ! !
 
 !ActionContext methodsFor: 'testing'!

@@ -1,5 +1,5 @@
 TestCase subclass: #DebuggerUITest
-	instanceVariableNames: 'world previous savedOpener savedErrorHandler savedRegistry savedPointer savedWindowId cleanups'
+	instanceVariableNames: 'world savedOpener savedErrorHandler savedRegistry savedPointer savedWindowId cleanups'
 	classVariableNames: ''
 	package: 'Tests-Tools-Debugger'!
 
@@ -8,7 +8,7 @@ DebuggerUITest comment: 'End-to-end tests of the debugging tools in a real World
 !DebuggerUITest methodsFor: 'running'!
 setUp
 	cleanups := OrderedCollection new.
-	previous := World current.
+	self keep: #current of: World.
 	savedOpener := DebugSession openerBlock.
 	savedErrorHandler := Window errorHandler.
 	world := World openHidden: 1440 @ 900.
@@ -31,7 +31,6 @@ tearDown
 			RemoteControl registryState: savedRegistry.
 			RemoteInputDevice default pointer: savedPointer; windowId: savedWindowId.
 			world stop.
-			World current: previous.
 			DebugSession openerBlock: savedOpener.
 			Window errorHandler: savedErrorHandler]
 !

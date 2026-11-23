@@ -303,9 +303,15 @@ open
 	^self openIn: World current
 !
 openIn: aWorld
+	"Open me in aWorld; if it has stopped, in the World that runs instead (World current), with a line on the Transcript."
+	| target |
 	state == #new ifFalse: [^self].
-	aWorld isNil ifTrue: [^self error: 'No World to open in'].
-	world := aWorld.
+	target := aWorld.
+	(target notNil and: [target isStopped]) ifTrue: [
+		target := World current.
+		Transcript show: 'Window ', title printString, ': its World stopped, opening in ', target printString; cr].
+	target isNil ifTrue: [^self error: 'No World to open in'].
+	world := target.
 	state := #open.
 	bounds := self constrain: bounds.
 	self startProcess.

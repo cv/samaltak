@@ -81,6 +81,11 @@ terminate
 				thisContext terminateTo: ctx.
 				unwindBlock value]].
 		thisContext terminateTo: nil.
+		"This context stays my suspended context: it keeps no unwind block (nor what that block's home held)."
+		unwindBlock := nil.
+		ctx := nil.
+		window := nil.
+		errorHandler := nil.
 		terminated := true.
 		self primSuspend.
 		^self].
@@ -96,7 +101,10 @@ terminate
 			(ctx tempAt: 1) value].
 		next := ctx sender.
 		ctx terminate.
-		ctx := next]
+		ctx := next].
+	"A terminated Process held on to (the profiler's process table, a debugger's ignore list) does not keep its window (nor, through its error handler, the window's World)."
+	window := nil.
+	errorHandler := nil
 !
 signalException: anException
 	"Signal anException in me. If I am waiting on a Semaphore I wake up to handle it and, if it is resumed, wait again."
