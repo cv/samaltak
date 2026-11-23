@@ -179,7 +179,7 @@ updateMeters: dt
 gpuMicroseconds
 	"The GPU time of the frames presented so far (GPUTimer), nil without a compositor that measures it."
 	| compositor timer |
-	compositor := [World current compositor] on: Error do: [:e | e return: nil].
+	compositor := [Tools world compositor] on: Error do: [:e | e return: nil].
 	compositor isNil ifTrue: [^nil].
 	timer := compositor gpuTimer.
 	(timer isNil or: [(timer respondsTo: #totalMicroseconds) not]) ifTrue: [^nil].
