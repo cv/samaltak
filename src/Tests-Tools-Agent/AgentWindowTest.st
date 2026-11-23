@@ -302,6 +302,18 @@ testEditedItemsAndNotesAreShown
 	self assert: (AgentItemView for: item) title equals: 'Code-mode · elided'.
 	self assert: ((AgentItemView for: (AgentItem kind: #note text: 'Note plan: x')) isKindOf: AgentMessageView).
 	self assert: ((AgentItemView for: (AgentItem kind: #notice text: 'Context: 50%')) isKindOf: AgentMessageView)
+!
+testCodeCellCaption
+	"A code-mode cell's leading comment is its title, not part of the source shown."
+	| view |
+	view := AgentItemView for: (AgentItem kind: #code text: '"Find the
+	agent classes"
+Smalltalk allClasses size').
+	self assert: view title equals: 'Code-mode · Find the agent classes'.
+	self assert: view source equals: 'Smalltalk allClasses size'.
+	view := AgentItemView for: (AgentItem kind: #code text: '3 "three"').
+	self assert: view title equals: 'Code-mode'.
+	self assert: view source equals: '3 "three"'
 ! !
 
 !AgentWindowTest methodsFor: 'tests - contexts'!
