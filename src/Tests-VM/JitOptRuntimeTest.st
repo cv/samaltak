@@ -1261,6 +1261,15 @@ testStringHashAndCompareCallStubs
 	1 to: 1200 do: [:i | self assert: (o compare: 'abc' with: 'abb' asWideString) equals: 1].
 	self stressed ifFalse: [self deny: ((self listingOf: #compare:with:) includesSubstring: 'the string compare stub')]
 !
+testConstantsStoredIntoAnArray
+	"Optimized code stores nil, true and false (x86: words of the JitState, in no register) into an Array's elements, at indices checked once before the loop and at one checked where it is stored."
+	| o |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'mark: a | n | n := a size. 1 to: n do: [:i | i odd ifTrue: [a at: i put: true] ifFalse: [a at: i put: false]]. a at: n put: nil. ^a'.
+	o := JitRuntimeTestSubject new.
+	1 to: 1200 do: [:i | self assert: (o mark: (Array new: 4)) equals: #(true false true nil)].
+	self assert: ((JitRuntimeTestSubject >> #mark:) jitCode: #opt) notNil description: 'mark: is not compiled by the optimizer'
+!
 testCopyOfAStringIsFused
 	"copyFrom:to: of a String (its species a global's class the code speculates on, isWideString folded) allocates and copies with only the new object's last slot zeroed."
 	| o |
