@@ -1,5 +1,5 @@
 Object subclass: #RfbConnection
-	instanceVariableNames: 'server socket source inBuffer inStart inEnd deadline version running closed reader writer lock sendLock wake format pendingFormat encodings encoding supports request damage moves resizePending cursorPending clientExtent lastSentAt lastCostMs firstDamageAt wakeAt input zrle shared lastError pendingCutText updates bytesSent rectsSent'
+	instanceVariableNames: 'server socket source inBuffer inStart inEnd deadline version running closed reader writer lock sendLock wake format pendingFormat encodings encoding supports request damage moves resizePending cursorPending clientExtent lastSentAt lastCostMs firstDamageAt wakeAt input zrle shared lastError pendingCutText updates bytesSent rectsSent totalCostMs'
 	classVariableNames: ''
 	package: 'System-Remote'!
 
@@ -34,6 +34,7 @@ setServer: anRfbServer socket: aSocket
 	resizePending := false.
 	cursorPending := false.
 	lastCostMs := 0.
+	totalCostMs := 0.
 	zrle := RfbZrleEncoder new.
 	updates := 0.
 	bytesSent := 0.
@@ -135,12 +136,13 @@ socket
 	^socket
 !
 statistics
-	"Updates, bytes and rectangles sent, and how long the last update took to make and send."
+	"Updates, bytes and rectangles sent, and how long the last update and all of them took to make and send (ms)."
 	^Dictionary new
 		at: 'updates' put: updates;
 		at: 'bytes' put: bytesSent;
 		at: 'rects' put: rectsSent;
 		at: 'lastMs' put: lastCostMs;
+		at: 'totalMs' put: totalCostMs;
 		yourself
 ! !
 
@@ -499,6 +501,7 @@ sendUpdate
 	self send: out contents.
 	lastSentAt := Time millisecondClockValue.
 	lastCostMs := lastSentAt - start.
+	totalCostMs := totalCostMs + lastCostMs.
 	updates := updates + 1.
 	rectsSent := rectsSent + count
 !
