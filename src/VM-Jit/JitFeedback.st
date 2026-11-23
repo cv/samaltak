@@ -138,6 +138,15 @@ flagsAt: m pc: pc
 	((self uint8At: (self floatBitAddressFor: m pc: pc)) ~= 0 and: [jit hasCode: (jit lookup: m)]) ifTrue: [f := f bitOr: FB_FLOAT].
 	^f
 !
+siteFlagsAt: m pc: pc
+	"flagsAt:pc: without the Float byte: for an instruction whose lower-tier code has no inline Float path, which neither sets nor clears the byte at its hash (another method's)."
+	<function>
+	<var: #pc type: 'int64_t'>
+	| s |
+	s := self siteAt: m pc: pc.
+	s isNull ifTrue: [^0 asUInt32].
+	^s flags
+!
 clear
 	<function>
 	libc memset: fbSites value: 0 size: (self sizeof: 'FeedbackSite') * FB_MAX.

@@ -1427,7 +1427,7 @@ special: k pc: pc act: a rcvSlot: r
 		self push: (self compare: (k = 23 ifTrue: [O_EQ] ifFalse: [O_NE]) a: x b: (self constant: memory nilOop)) act: a depth: r.
 		^self].
 	(k <= 10 or: [k = 12 or: [k = 13 or: [k = 14 or: [k = 15]]]]) ifTrue: [
-		fl := feedback flagsAt: (ir act: a) method pc: pc.
+		fl := self arithFlags: k pc: pc act: a.
 		(k <= 9 and: [(runtime flag: runtime unboxFlag) and: [(fl bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0 and: [
 			(self isFloat: x) or: [(self isFloat: y) or: [(self sawOnlyNumbersAt: pc act: a) and: [(fl bitAnd: feedback sawFloat) ~= 0 or: [self sawFloatIn: (ir act: a) method]]]]]]]) ifTrue: [
 				^self floatArith: k x: x y: y pc: pc act: a rcvSlot: r].
@@ -1435,6 +1435,12 @@ special: k pc: pc act: a rcvSlot: r
 			self sawOnlyIntsAt: pc act: a]) ifTrue: [
 				^self intArith: k x: x y: y pc: pc act: a rcvSlot: r]].
 	self sendSelector: (self loadRef: (memory special: SO_SPECIAL_SELECTORS) at: k) argc: argc kind: 2 special: k pc: pc act: a rcvSlot: r
+!
+arithFlags: k pc: pc act: a
+	"The profile bits of SmallInteger arithmetic or comparison k (a special selector's index) at act a's pc: with the Float byte (JitFeedback>>flagsAt:pc:) only where the lower tier's code sets it, an inline Float path (k <= 9). At bitShift:, //, \\, bitAnd: and the rest no code of the method sets or clears the byte at its hash: what it holds is another method's Float, and taking it would send what could be inline."
+	<returns: 'uint32_t'>
+	k <= 9 ifTrue: [^feedback flagsAt: (ir act: a) method pc: pc].
+	^feedback siteFlagsAt: (ir act: a) method pc: pc
 !
 guessedClassOf: x
 	"The class to take x for where at:, at:put: or size reported none (the lower tier takes Arrays and Strings inline): the class of what an outer temp holds now, of a closure the frame shows; else the class the latest guard of x in this compilation took it for; else Array."
@@ -1985,7 +1991,7 @@ inlinePrimitive: p class: cls argc: argc pc: pc act: a rcvSlot: r
 		^true].
 	(kind >= OPK_INT and: [argc = 1]) ifTrue: [
 		cls = memory clsSmallint ifFalse: [^false].
-		fl := feedback flagsAt: (ir act: a) method pc: pc.
+		fl := self arithFlags: kind - OPK_INT pc: pc act: a.
 		"the argument was not always a SmallInteger: Floats as doubles, else the send"
 		(fl bitAnd: ((feedback sawFloat bitOr: feedback sawNonInt) bitOr: (feedback deoptArith bitOr: feedback overflowed))) ~= 0 ifTrue: [
 			(kind - OPK_INT <= 9 and: [(runtime flag: runtime unboxFlag) and: [(fl bitAnd: feedback sawFloat) ~= 0 and: [(fl bitAnd: (feedback sawNonInt bitOr: feedback deoptOther)) = 0]]]) ifFalse: [^false].
