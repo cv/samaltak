@@ -1,8 +1,9 @@
 # Foreign function interface
 
 `FFI bind:` accepts literal or computed descriptors. A call descriptor names a
-registered native export and its exact C signature. The binding invokes that
-export synchronously through a generated adapter.
+registered native export and its exact C signature. `FFI bind:` resolves and
+checks the export and prepares a generated call wrapper. An `FFIBinding` can
+then invoke it synchronously many times.
 
 ```smalltalk
 (FFI bind: #(call 'libm' 'sqrt' (f64) f64)) invoke: #(9.0)
@@ -15,8 +16,7 @@ The shape is `#(call library symbol argumentTypes resultType)`. The library and
 symbol are case-sensitive names (Strings or Symbols, 1–127 ASCII bytes with no
 NUL). The library is a logical name, not a path. `argumentTypes` is an Array of
 zero to six type Symbols; `resultType` is a type Symbol. A binding keeps its
-own copy of the names and signature. Send it `invoke:` with an Array of the
-same arity.
+immutable copy of the names and signature.
 
 | Type | Value |
 | --- | --- |
@@ -27,9 +27,9 @@ same arity.
 | `byteSlice` | Argument only for `memcmp`; a read-only byte slice |
 | `bytesWithLength` | Argument only for a `syncBorrow` grant; a read-only byte slice with its length |
 
-An invalid descriptor, unavailable export, signature mismatch or rejected
-argument signals `FFIError`. Integers must fit the declared width; `f64`
-requires a Float. An export's own status return is not an `FFIError`.
+An invalid descriptor, unavailable export or signature mismatch signals
+`FFIError` at bind time. Integers must fit the declared width; `f64` requires
+a Float.
 
 A byte slice is `{aByteArray. oneBasedOffset. length}` with a `ByteArray` and
 `SmallInteger` offset and length. It must fit inside the ByteArray; a zero-length
@@ -42,6 +42,20 @@ compare := FFI bind: #(call 'libc' 'memcmp' (byteSlice byteSlice u64) i32).
 compare invoke: {{#[10 20 30]. 2. 2}. {#[20 30]. 1. 2}. 2}
 "0"
 ```
+
+## Invoking a binding
+
+Send `invoke:` with an Array of the declared arity (use `#()` for no
+arguments). Rejection signals `FFIError` before the target runs. A call that
+reaches the target enters it exactly once. A native status such as zero or a
+negative value, or `nil` for `void`, is a completed call, not a rejection.
+
+Platform facades use the private positional protocol: `tryInvoke0`,
+`tryInvoke1:`, `tryInvoke2:with:`, and so on up to six arguments. Like the
+private Array form `tryInvoke:`, these sends answer `false` only for
+pre-entry rejection. A facade may take an alternate path on `false`, but
+must not retry a completed call, even if it returned zero, an error status
+or `nil`.
 
 ## Built-in exports
 
@@ -127,10 +141,7 @@ mutate, retain or hand off any borrowed bytes. The borrow ends when the call
 returns.
 
 A grant is not a sandbox: trust the library, its dependencies and constructors.
-The launcher must supply the actual C prototype; the VM cannot infer it. At bind
-and on every invoke the VM checks the names and full signature against the
-current process's registry. Restoring a saved binding does not restore its
-grant; the new launch must authorize the same names and signature.
+The launcher must supply the actual C prototype; the VM cannot infer it.
 
 ## Targets and lifetime
 
@@ -146,10 +157,50 @@ borrow or reenter Smalltalk. A synchronous call occupies the VM thread, so
 a blocking export also blocks other Smalltalk processes. Use fixed signatures:
 no variadic calls, structs by value or arbitrary callback registration.
 
-Libraries and generated adapters stay mapped until VM exit. Dropping a binding
-does not unload a library or free an adapter. Calls to the same native target
-and signature reuse an adapter. Calls and notifications share a limit of 1024
-publications per process; ordinary JIT cache flushes do not reclaim them.
+### Generated call wrappers
+
+Binding checks the names and full signature against the VM's registry. The VM
+generates a wrapper for the target and signature on a cache miss. Each wrapper
+calls a fixed native address for that VM session. A warm invocation checks the
+binding's session-local handle without resolving the export again. The wrapper
+validates the Smalltalk arguments, places the converted values in the native
+ABI's argument registers, calls the target, and converts the result back to a
+Smalltalk object. The positional path builds neither a Smalltalk argument
+Array nor an array of converted native scalars.
+
+Saving a snapshot does not invalidate bindings in the running VM. A restored
+binding keeps its descriptor, not native authority: on first use it must
+prepare again against the new VM's registry. Launcher grants are fixed at
+startup; revoke a grant by restarting without it. A restored binding whose
+grant is missing or no longer matches is rejected before native entry.
+
+Libraries and generated wrappers stay mapped until VM exit. The VM can
+publish up to 1024 downcall wrappers per process. Dropping a binding or
+flushing the ordinary JIT cache does not reclaim them.
+
+## Headless verification
+
+With a hosted VM and full image, run:
+
+```sh
+tests/vm/runtime_native_grants_test.sh build/samaltak.image vm/build/samaltak
+tests/vm/wrapped_ffi_specialization_test.sh build/samaltak.image vm/build/samaltak
+```
+
+Both checks passed on Linux x86-64. The grant test covers bind-time
+validation and reauthorization after restore. The wrapper test covers Array
+and positional invocation in interpreter and optimizing JIT modes, native
+entry counts on completion and rejection, and restore with reordered or
+missing grants. For a hosted `NO_PLATFORM=1` build, pass `--no-pty` to the
+wrapper test after the VM path.
+
+The [wrapper benchmark](../vm/tests/bench/wrapped-ffi.py) binds before
+timing: it measures warm invocation and allocation, not binding or code
+generation. On Linux x86-64 (EPYC 7B13, 10 rounds of 50,000 calls per
+case after warmup), the scalar case using `invoke:` with a fresh Array
+allocated about 24 more bytes per call than the positional case. In that run,
+the median paired time ratio (Array / positional) was 1.94× with `--jit none`
+and 1.21× with `--jit opt`.
 
 ## Notifications
 
