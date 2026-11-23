@@ -632,14 +632,18 @@ isMutableBytes: o size: n
 	^(self isBytes: o size: n) and: [(self isImmutable: o) not]
 !
 primZlibMatches
-	"(input, start, head, prev, literals, distances, chain): the LZ77 tokens of a deflate block of the byte object input from the 1-based start, as ZLib>>matchesFrom: makes them (DeflateMatcher): head and prev the hash chains, 32768 uint32 each; literals and distances the tokens, 65535 uint16 each (the most a block has); chain the candidates tried a position, 1 to 4096. Answers the position after the tokens times 65536 plus their count. Fails unless input is a byte object, 1 <= start <= its size + 1, and the four tables distinct mutable byte objects of those sizes."
+	"(input, start, head, prev, literals, distances, chain[, size]): the LZ77 tokens of a deflate block of the byte object input (its first size bytes, all of them without size) from the 1-based start, as ZLib>>matchesFrom: makes them (DeflateMatcher): head and prev the hash chains, 32768 uint32 each; literals and distances the tokens, 65535 uint16 each (the most a block has); chain the candidates tried a position, 1 to 4096. Answers the position after the tokens times 65536 plus their count. Fails unless input is a byte object, 0 <= size <= its size, 1 <= start <= size + 1, and the four tables distinct mutable byte objects of those sizes."
 	<vmPrimitive: 208 name: 'zlibMatches'>
 	<leaf>
 	| input n start chain head prev lits dists |
-	self argCount = 7 ifFalse: [^self fail].
+	(self argCount = 7 or: [self argCount = 8]) ifFalse: [^self fail].
 	input := self arg: 0.
 	((self isPtr: input) and: [(self formatOf: input) >= F_BYTES and: [(self formatOf: input) < (F_BYTES + 8)]]) ifFalse: [^self fail].
 	n := (memory byteSize: input) asInt64.
+	self argCount = 8 ifTrue: [
+		(self isInt: (self arg: 7)) ifFalse: [^self fail].
+		((self intVal: (self arg: 7)) >= 0 and: [(self intVal: (self arg: 7)) <= n]) ifFalse: [^self fail].
+		n := (self intVal: (self arg: 7)) asInt64].
 	((self isInt: (self arg: 1)) and: [self isInt: (self arg: 6)]) ifFalse: [^self fail].
 	start := self intVal: (self arg: 1).
 	chain := self intVal: (self arg: 6).

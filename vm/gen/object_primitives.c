@@ -2252,8 +2252,12 @@ void prim_zlib_matches(void)
     oop o;
     oop o_2;
     oop o_3;
-    int64_t start;
     oop o_4;
+    oop o_5;
+    oop o_6;
+    oop o_7;
+    int64_t start;
+    oop o_8;
     int64_t chain;
     oop head;
     oop prev;
@@ -2269,7 +2273,7 @@ void prim_zlib_matches(void)
     int32_t f_4;
     int64_t v;
     uint64_t v_2;
-    if (!(prim_nargs == 7)) {
+    if (!((prim_nargs == 7) || (prim_nargs == 8))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -2281,18 +2285,36 @@ void prim_zlib_matches(void)
         return;
     }
     n = (int64_t)byte_size(input);
-    o = prim_base[2];
-    if (!(((o & 1) != 0) && ({
-    o_2 = prim_base[7];
-    (o_2 & 1) != 0; }))) {
+    if (prim_nargs == 8) {
+        o = prim_base[8];
+        if (!((o & 1) != 0)) {
+            prim_status = PS_FAIL;
+            prim_error_code = -1;
+            return;
+        }
+        o_2 = prim_base[8];
+        if (!(((((int64_t)o_2) >> 1) >= 0) && ({
+    o_3 = prim_base[8];
+    (((int64_t)o_3) >> 1) <= n; }))) {
+            prim_status = PS_FAIL;
+            prim_error_code = -1;
+            return;
+        }
+        o_4 = prim_base[8];
+        n = ((int64_t)o_4) >> 1;
+    }
+    o_5 = prim_base[2];
+    if (!(((o_5 & 1) != 0) && ({
+    o_6 = prim_base[7];
+    (o_6 & 1) != 0; }))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
     }
-    o_3 = prim_base[2];
-    start = ((int64_t)o_3) >> 1;
-    o_4 = prim_base[7];
-    chain = ((int64_t)o_4) >> 1;
+    o_7 = prim_base[2];
+    start = ((int64_t)o_7) >> 1;
+    o_8 = prim_base[7];
+    chain = ((int64_t)o_8) >> 1;
     if (!((start >= 1) && (start <= n + 1) && ((chain >= 1) && (chain <= 4096)))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;

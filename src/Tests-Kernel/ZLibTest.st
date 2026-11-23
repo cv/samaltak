@@ -78,7 +78,11 @@ testMatchesPrimitiveRefusesBadArguments
 	self assert: (ZLib primMatches: #[1 2 3] from: 1 head: head prev: prev literals: lits distances: dists chain: 0) isNil.
 	self assert: (ZLib primMatches: #[1 2 3] from: 1 head: head prev: head literals: lits distances: dists chain: 16) isNil.
 	self assert: (ZLib primMatches: #[1 2 3] from: 1 head: head prev: prev literals: (ByteArray new: 100) distances: dists chain: 16) isNil.
-	self assert: (ZLib primMatches: #(1 2 3) from: 1 head: head prev: prev literals: lits distances: dists chain: 16) isNil
+	self assert: (ZLib primMatches: #(1 2 3) from: 1 head: head prev: prev literals: lits distances: dists chain: 16) isNil.
+	"Of the first bytes only."
+	self assert: (ZLib primMatches: #[1 2 3 4 5] from: 1 head: head prev: prev literals: lits distances: dists chain: 16 size: 3) equals: (4 bitShift: 16) + 3.
+	self assert: (ZLib primMatches: #[1 2 3] from: 1 head: head prev: prev literals: lits distances: dists chain: 16 size: 4) isNil.
+	self assert: (ZLib primMatches: #[1 2 3] from: 5 head: head prev: prev literals: lits distances: dists chain: 16 size: 3) isNil
 !
 testTokenPrimitivesMatchSmalltalk
 	"The VM's token coding (zlibWriteTokens) and counting (zlibTokenCounts) are ZLib's Smalltalk's, bit for bit: blocks of literals, short and long matches at every distance code, after 0 to 7 pending bits, with fixed and with skewed dynamic codes."
@@ -91,7 +95,7 @@ testTokenPrimitivesMatchSmalltalk
 	lits := ByteArray new: 131070.
 	dists := ByteArray new: 131070.
 	z := ZLib new.
-	z instVarNamed: 'input' put: data.
+	z instVarNamed: 'input' put: data; instVarNamed: 'inputSize' put: data size.
 	r := z matchesInSmalltalkFrom: 1 head: head prev: prev literals: lits distances: dists.
 	count := r bitAnd: 65535.
 	self assert: count = 65535.
@@ -175,7 +179,7 @@ matchesOf: data from: start chain: chain garbage: garbage primitive: aBoolean
 	lits := ByteArray new: 131070.
 	dists := ByteArray new: 131070.
 	z := ZLib new maxChain: chain; yourself.
-	z instVarNamed: 'input' put: data.
+	z instVarNamed: 'input' put: data; instVarNamed: 'inputSize' put: data size.
 	r := aBoolean
 		ifTrue: [ZLib primMatches: data from: start head: head prev: prev literals: lits distances: dists chain: chain]
 		ifFalse: [z matchesInSmalltalkFrom: start head: head prev: prev literals: lits distances: dists].
@@ -187,6 +191,47 @@ randomBytes: n seed: anInteger
 	bytes := ByteArray new: n.
 	1 to: n do: [:i | bytes at: i put: (random nextInt: 256) - 1].
 	^bytes
+! !
+
+!ZLibTest methodsFor: 'huffman'!
+referenceLengths: freqs
+	"Huffman code lengths as ZLib made them before its two queues: the two lightest of a list of nodes (of equal weights the first in it: leaves in symbol order, then merged nodes as made) merged until one is left."
+	| used m weights parents active next lengths lightest |
+	lengths := Array new: freqs size withAll: 0.
+	used := (1 to: freqs size) select: [:i | (freqs at: i) > 0].
+	m := used size.
+	weights := Array new: 2 * m.
+	parents := Array new: 2 * m withAll: 0.
+	1 to: m do: [:i | weights at: i put: (freqs at: (used at: i))].
+	active := (1 to: m) asOrderedCollection.
+	next := m.
+	lightest := [| index |
+		index := 1.
+		2 to: active size do: [:i | (weights at: (active at: i)) < (weights at: (active at: index)) ifTrue: [index := i]].
+		active removeIndex: index].
+	[active size > 1] whileTrue: [| a b |
+		a := lightest value.
+		b := lightest value.
+		next := next + 1.
+		weights at: next put: (weights at: a) + (weights at: b).
+		parents at: a put: next.
+		parents at: b put: next.
+		active add: next].
+	1 to: m do: [:i | | depth node |
+		depth := 0.
+		node := i.
+		[(parents at: node) > 0] whileTrue: [depth := depth + 1. node := parents at: node].
+		lengths at: (used at: i) put: depth].
+	^lengths
+!
+testHuffmanLengthsBreakTiesAsBefore
+	"Many equal weights (ties between leaves, and between leaves and merged nodes): the same lengths as the list of nodes gave, so that deflate's output is unchanged."
+	| random |
+	random := Random seed: 42.
+	1 to: 200 do: [:k | | freqs |
+		freqs := (1 to: (#(2 3 19 30 286) at: k \\ 5 + 1)) collect: [:i |
+			(random next * 3) floor = 0 ifTrue: [0] ifFalse: [(random next * (#(2 5 40 1000) at: k \\ 4 + 1)) floor + 1]].
+		self assert: (ZLib huffmanLengths: freqs) equals: (self referenceLengths: freqs)]
 ! !
 
 !ZLibTest methodsFor: 'streaming'!
@@ -226,7 +271,7 @@ testStreamKeepsOnlyAWindow
 		d := (self randomBytes: 3000 + (i * 97) seed: i \\ 5) , (self randomBytes: 500 seed: 99).
 		all := all , d.
 		pieces add: (z deflate: d final: false).
-		self assert: (z instVarNamed: 'input') size <= (ZLib historyLimit + d size)].
+		self assert: (z instVarNamed: 'inputSize') <= (ZLib historyLimit + d size)].
 	self assert: (self inflatePieces: pieces) equals: all.
 	self assert: (pieces inject: 0 into: [:s :p | s + p size]) < (all size * 9 // 10) description: 'repeats across pieces were found'
 !

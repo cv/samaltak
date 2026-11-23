@@ -1,5 +1,5 @@
 Object subclass: #ZLib
-	instanceVariableNames: 'input output size bits bitCount position maxChain head prev litLens distances adler'
+	instanceVariableNames: 'input inputSize output size bits bitCount position maxChain head prev litLens distances adler'
 	classVariableNames: 'CodeLengthOrder DistanceBase DistanceCodes DistanceExtra FixedDistanceLengths FixedLiteralLengths LengthBase LengthCodes LengthExtra'
 	package: 'System-Support'!
 
@@ -74,6 +74,11 @@ primMatches: input from: start head: head prev: prev literals: litLens distances
 	<primitive: 'zlibMatches'>
 	^nil
 !
+primMatches: input from: start head: head prev: prev literals: litLens distances: distances chain: maxChain size: n
+	"The same of input's first n bytes only (a buffer with room after them); nil if it cannot (an older VM, n beyond input's size)."
+	<primitive: 'zlibMatches'>
+	^nil
+!
 adler32: a1 then: a2 length: n
 	"The Adler-32 of two byte sequences one after the other, from the first's (a1), the second's (a2) and the second's size n."
 	| s1 s2 |
@@ -82,8 +87,8 @@ adler32: a1 then: a2 length: n
 	^(s2 bitShift: 16) + s1
 !
 historyLimit
-	"The most bytes a stream keeps of its earlier pieces and the next together before it drops all but the window (deflate:final:): 96 KB, copied once a piece."
-	^98304
+	"The most bytes a stream keeps of its earlier pieces and the next together before it drops all but the window (deflate:final:): 1 MB, in a buffer the pieces are copied into, so that the window moves (and the hash chains are rebased) only once a megabyte."
+	^1048576
 !
 adler32InSmalltalkOf: bytes
 	"Sums are reduced modulo 65521 every 5552 bytes."
@@ -137,29 +142,34 @@ lengthsFor: freqs limit: maxBits
 	^lengths
 !
 huffmanLengths: freqs
-	"Unlimited Huffman code lengths: merge the two lightest nodes until one is left; a leaf's length is its depth."
-	| used m weights parents active next a b lengths |
+	"Unlimited Huffman code lengths: merge the two lightest nodes until one is left (of equal weights the one made first: leaves in symbol order, then merged nodes in the order they were made); a leaf's length is its depth. Two queues, the leaves sorted by weight and the merged nodes (whose weights never decrease), give the lightest at once."
+	| used m weights parents leaves li ni next pick depths lengths |
 	lengths := Array new: freqs size withAll: 0.
-	used := (1 to: freqs size) select: [:i | (freqs at: i) > 0].
-	m := used size.
+	m := 0.
+	used := Array new: freqs size.
+	1 to: freqs size do: [:i | (freqs at: i) > 0 ifTrue: [used at: (m := m + 1) put: i]].
 	weights := Array new: 2 * m.
 	parents := Array new: 2 * m withAll: 0.
 	1 to: m do: [:i | weights at: i put: (freqs at: (used at: i))].
-	active := (1 to: m) asOrderedCollection.
+	leaves := (1 to: m) asArray sort: [:x :y | (weights at: x) < (weights at: y) or: [(weights at: x) = (weights at: y) and: [x < y]]].
+	li := 1.
+	ni := m + 1.
 	next := m.
-	[active size > 1] whileTrue: [
-		a := self removeLightest: active weights: weights.
-		b := self removeLightest: active weights: weights.
+	pick := [| node |
+		(li <= m and: [ni > next or: [(weights at: (leaves at: li)) <= (weights at: ni)]])
+			ifTrue: [node := leaves at: li. li := li + 1]
+			ifFalse: [node := ni. ni := ni + 1].
+		node].
+	[m - li + 1 + (next - ni + 1) > 1] whileTrue: [| a b |
+		a := pick value.
+		b := pick value.
 		next := next + 1.
 		weights at: next put: (weights at: a) + (weights at: b).
 		parents at: a put: next.
-		parents at: b put: next.
-		active add: next].
-	1 to: m do: [:i | | depth node |
-		depth := 0.
-		node := i.
-		[(parents at: node) > 0] whileTrue: [depth := depth + 1. node := parents at: node].
-		lengths at: (used at: i) put: depth].
+		parents at: b put: next].
+	depths := Array new: 2 * m withAll: 0.
+	next - 1 to: 1 by: -1 do: [:node | depths at: node put: (depths at: (parents at: node)) + 1].
+	1 to: m do: [:i | lengths at: (used at: i) put: (depths at: i)].
 	^lengths
 !
 removeLightest: nodes weights: weights
@@ -219,7 +229,7 @@ deflate: bytes
 	| n head prev litLens distances count blockStart pos r final |
 	self class tables.
 	input := bytes.
-	n := bytes size.
+	inputSize := n := bytes size.
 	output := ByteArray new: n // 4 + 1024.
 	head := ByteArray new: 131072.
 	prev := ByteArray new: 131072.
@@ -241,13 +251,13 @@ deflate: bytes
 !
 matchesFrom: start head: head prev: prev literals: litLens distances: distances
 	"The LZ77 tokens of a block from start, until there are 65535 or the input ends: token i (0-based) is the uint16 at 2i + 1 of litLens (a literal byte, or 256 + a match's length) and of distances (the match's distance, 0 for a literal); head and prev are the hash chains, 32768 uint32 each (positions, 0 for none). Answer the position after the tokens times 65536 plus their count. The VM's primitive (DeflateMatcher), else matchesInSmalltalkFrom:head:prev:literals:distances:."
-	^(self class primMatches: input from: start head: head prev: prev literals: litLens distances: distances chain: maxChain)
+	^(self class primMatches: input from: start head: head prev: prev literals: litLens distances: distances chain: maxChain size: inputSize)
 		ifNil: [self matchesInSmalltalkFrom: start head: head prev: prev literals: litLens distances: distances]
 !
 matchesInSmalltalkFrom: start head: head prev: prev literals: litLens distances: distances
 	"matchesFrom:head:prev:literals:distances: in Smalltalk: greedy, at most maxChain candidates a position (each before it, nearer than 32768); the positions inside a match of at most 16 bytes are hashed too."
 	| n pos count best bestDistance candidate chain limit length hash |
-	n := input size.
+	n := inputSize.
 	pos := start.
 	count := 0.
 	[pos <= n and: [count < 65535]] whileTrue: [
@@ -351,8 +361,10 @@ headerFor: litLengths distances: distLengths
 	257 to: 286 do: [:k | (litLengths at: k) > 0 ifTrue: [hlit := k]].
 	hdist := 1.
 	1 to: 30 do: [:k | (distLengths at: k) > 0 ifTrue: [hdist := k]].
-	all := (litLengths copyFrom: 1 to: hlit), (distLengths copyFrom: 1 to: hdist).
-	symbols := OrderedCollection new.
+	all := Array new: hlit + hdist.
+	all replaceFrom: 1 to: hlit with: litLengths startingAt: 1.
+	all replaceFrom: hlit + 1 to: hlit + hdist with: distLengths startingAt: 1.
+	symbols := OrderedCollection new: 2 * all size + 8.
 	i := 1.
 	[i <= all size] whileTrue: [ | len run r k |
 		len := all at: i.
@@ -478,8 +490,8 @@ deflate: bytes final: aBoolean
 	self class tables.
 	self startStream.
 	self append: bytes.
-	n := input size.
-	output := ByteArray new: bytes size // 4 + 64.
+	n := inputSize.
+	(output isNil or: [output size < (bytes size // 4 + 64)]) ifTrue: [output := ByteArray new: bytes size // 4 + 64].
 	size := 0.
 	pos := n - bytes size + 1.
 	blockStart := pos.
@@ -519,26 +531,34 @@ startStream
 	prev := ByteArray new: 131072.
 	litLens := ByteArray new: 131070.
 	distances := ByteArray new: 131070.
-	input := ByteArray new: 0.
+	input := ByteArray new: 65536.
+	inputSize := 0.
 	bits := 0.
 	bitCount := 0
 !
 endStream
 	head := prev := litLens := distances := nil.
 	input := nil.
+	inputSize := 0.
 	bits := 0.
 	bitCount := 0
 !
 append: bytes
-	"input := what is kept of the earlier pieces (at least the last 32 KB, the window), then bytes. When that would pass historyLimit, the bytes before the window are dropped in steps of 32768, so that the hash chains' positions only move by that (prev is indexed by the position modulo 32768)."
-	| shift |
-	input size + bytes size > self class historyLimit ifTrue: [
-		shift := input size - 32768 // 32768 * 32768.
+	"Copy bytes into input after what is kept of the earlier pieces (its first inputSize bytes: at least the last 32 KB, the window). When that would pass historyLimit, the bytes before the window are dropped in steps of 32768, so that the hash chains' positions only move by that (prev is indexed by the position modulo 32768); the buffer grows when it must."
+	| shift grown |
+	inputSize + bytes size > self class historyLimit ifTrue: [
+		shift := inputSize - 32768 // 32768 * 32768.
 		shift > 0 ifTrue: [
-			input := input copyFrom: shift + 1 to: input size.
+			input replaceFrom: 1 to: inputSize - shift with: input startingAt: shift + 1.
+			inputSize := inputSize - shift.
 			self rebase: head by: shift.
 			self rebase: prev by: shift]].
-	input := input , bytes
+	inputSize + bytes size > input size ifTrue: [
+		grown := ByteArray new: (inputSize + bytes size) * 3 // 2.
+		grown replaceFrom: 1 to: inputSize with: input startingAt: 1.
+		input := grown].
+	input replaceFrom: inputSize + 1 to: inputSize + bytes size with: bytes startingAt: 1.
+	inputSize := inputSize + bytes size
 !
 rebase: aTable by: shift
 	"The positions (uint32, 0 none) in aTable moved back by shift; those dropped become none."
