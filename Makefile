@@ -127,18 +127,32 @@ test-core-part-wodify: fresh-runtime
 test-nv: $(TEST_IMAGE)
 	tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvComputeGPUTest NvGspFirmwareFileTest
 	tests/nv/run.sh $(OUT)
+# test-tools's parts run at once too (TEST_TOOLS_JOBS, all by default; 1: one after another), the longest first, each
+# holding a test slot and, with SAMALTAK_TEST_XVFB=1 (tests/stages.sh), on an Xvfb of its own (tests/with-display).
+TEST_TOOLS_PARTS := rfb platform reboot desktop snapshot recording cli auth quit-signal
+TEST_TOOLS_JOBS ?= $(words $(TEST_TOOLS_PARTS))
+TOOLS_PART = tests/with-slot tests/with-display
 test-tools: $(TEST_IMAGE)
 	$(PLATFORM_CHECK)
-	$(MAKE) -C vm/platform test st-test
-	tests/remote/cli_test.sh $(OUT)/samaltak.image
-	tests/remote/auth_test.sh $(OUT)/samaltak.image
-	tests/remote/recording_test.sh $(OUT)/samaltak.image
-	tests/remote/rfb_test.sh $(OUT)/samaltak.image
-	tests/tools/desktop_test.sh $(OUT)/samaltak.image
-	tests/tools/snapshot_test.sh $(OUT)/samaltak.image
-	tests/tools/reboot_test.sh $(OUT)/samaltak.image
-	tests/tools/quit_signal_test.sh $(OUT)/samaltak.image
-
+	$(MAKE) -k $(call TEST_PARTS_SYNC,$(TEST_TOOLS_JOBS)) $(addprefix test-tools-part-,$(TEST_TOOLS_PARTS))
+test-tools-part-platform:
+	$(TOOLS_PART) $(MAKE) -C vm/platform test st-test
+test-tools-part-cli:
+	$(TOOLS_PART) tests/remote/cli_test.sh $(OUT)/samaltak.image
+test-tools-part-auth:
+	$(TOOLS_PART) tests/remote/auth_test.sh $(OUT)/samaltak.image
+test-tools-part-recording:
+	$(TOOLS_PART) tests/remote/recording_test.sh $(OUT)/samaltak.image
+test-tools-part-rfb:
+	$(TOOLS_PART) tests/remote/rfb_test.sh $(OUT)/samaltak.image
+test-tools-part-desktop:
+	$(TOOLS_PART) tests/tools/desktop_test.sh $(OUT)/samaltak.image
+test-tools-part-snapshot:
+	$(TOOLS_PART) tests/tools/snapshot_test.sh $(OUT)/samaltak.image
+test-tools-part-reboot:
+	$(TOOLS_PART) tests/tools/reboot_test.sh $(OUT)/samaltak.image
+test-tools-part-quit-signal:
+	$(TOOLS_PART) tests/tools/quit_signal_test.sh $(OUT)/samaltak.image
 # The Renderer's raster work as CUDA kernels for the NVIDIA GB10 (gpu/nv, docs/nv-kernels.md): rebuild the cubin with
 # nvcc and regenerate src/System-Devices/NvRasterKernels.st. Not part of test or CI.
 nv-kernels:
@@ -557,4 +571,4 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS)) $(addprefix test-core-part-,$(TEST_CORE_PARTS)) all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-fat test-uefi-nic usb-image usb-disk usb-run usb-boot test-usb-image test-install test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels test video mindblown-video jit-video clean
+.PHONY: $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS)) $(addprefix test-core-part-,$(TEST_CORE_PARTS)) $(addprefix test-tools-part-,$(TEST_TOOLS_PARTS)) all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-fat test-uefi-nic usb-image usb-disk usb-run usb-boot test-usb-image test-install test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels test video mindblown-video jit-video clean

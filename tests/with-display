@@ -1,0 +1,17 @@
+#!/bin/sh
+# usage: tests/with-display COMMAND...: COMMAND on an X display of its own, an Xvfb it starts and ends (-displayfd
+# picks a free one), when SAMALTAK_TEST_XVFB is 1, DISPLAY is set and there is Xvfb (tests/stages.sh: test-tools's
+# parts, which run at once); else on DISPLAY. VMs that share a display disturb each other (tests/st_suite.sh).
+if [ "${SAMALTAK_TEST_XVFB:-}" != 1 ] || [ -z "${DISPLAY:-}" ] || ! command -v Xvfb >/dev/null 2>&1; then exec "$@"; fi
+d=$(mktemp "${TMPDIR:-/tmp}/with-display.XXXXXX") || exec "$@"
+Xvfb -displayfd 3 -nolisten tcp -screen 0 1280x1024x24 3>"$d" >/dev/null 2>&1 &
+x=$!
+n=0
+while [ ! -s "$d" ] && [ $n -lt 100 ] && kill -0 $x 2>/dev/null; do sleep 0.1; n=$((n + 1)); done
+if [ -s "$d" ]; then DISPLAY=:$(head -1 "$d"); export DISPLAY; else echo "(with-display: Xvfb did not start; on DISPLAY=$DISPLAY)"; fi
+rm -f "$d"
+"$@"
+s=$?
+kill $x 2>/dev/null
+wait $x 2>/dev/null
+exit $s
