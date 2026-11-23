@@ -64,6 +64,23 @@ uiClassNames
 uiTestClasses
 	^((self uiClassNames collect: [:each | Smalltalk at: each asSymbol ifAbsent: [nil]]) reject: [:each | each isNil]) asArray
 !
+uiSamples
+	"Of the two classes that take most of the UI tests' time (DebuggerUITest a minute, ProfilerViewTest 40 s on lavapipe, each test a World of its own opened and stopped as in the others), the tests that reach into the live World's machinery: a breakpoint on every Window's redraw (the live window's too), in the Compositor and on the window manager with stand-ins, notifiers and debuggers on window Processes, the Breakpoints window, a method created from the debugger; the profiler's live updates, process filter and remote names. The other classes run in full."
+	^Dictionary new
+		at: #DebuggerUITest put: #(#testBreakpointHaltsOnlyOneWindowsProcess #testBreakpointInTheCompositorWithAStandIn #testWatchpointStopsTheWindowManagerWithAStandIn #testNotifierDebugOpensDebuggerAndCloseAbandons #testErrorNotifierAbandon #testBreakpointsWindow #testDoesNotUnderstandCreateAcceptProceed);
+		at: #ProfilerViewTest put: #(#testLiveUpdatesMarkAndPause #testProcessFilter #testRemoteNames);
+		yourself
+!
+uiTestCases
+	"Every test of the UI classes but DebuggerUITest's and ProfilerViewTest's, of which uiSamples."
+	| samples |
+	samples := self uiSamples.
+	^self uiTestClasses inject: OrderedCollection new into: [:all :class |
+		all addAll: ((samples at: class name asSymbol ifAbsent: [nil])
+			ifNil: [class suite]
+			ifNotNil: [:selectors | selectors collect: [:each | self assert: (class includesSelector: each). class selector: each]]).
+		all]
+!
 survivorsOf: aClass
 	"aClass's instances that survive a garbage collection, once the Processes of closed windows ended."
 	(Delay forMilliseconds: 300) wait.
@@ -73,7 +90,7 @@ survivorsOf: aClass
 
 !TestIsolationTest methodsFor: 'tests'!
 testLiveWorldSurvivesTheUITests
-	| world live window compositor worlds compositors result compositorClass |
+	| world live window compositor worlds compositors result compositorClass cases |
 	world := Smalltalk at: #World ifAbsent: [^self].
 	compositorClass := Smalltalk at: #Compositor.
 	self keep: #current of: world.
@@ -88,7 +105,8 @@ testLiveWorldSurvivesTheUITests
 	compositors := self survivorsOf: compositorClass.
 	self replace: #runsInThrowawayImage of: TestCase with: false.
 	result := TestResult new.
-	result runClasses: self uiTestClasses.
+	cases := self uiTestCases.
+	cases do: [:each | result runCase: each].
 	self assert: result hasPassed description: [String new: 200 streamContents: [:s |
 		s nextPutAll: 'UI tests failed in a live image:'.
 		(result failures, result errors) do: [:each | s space; print: each key; nextPutAll: ': '; nextPutAll: (each value ifNil: ['']) asString]]].
@@ -103,7 +121,8 @@ testLiveWorldSurvivesTheUITests
 		description: [((self survivorsOf: world) - worlds) printString, ' Worlds of the UI tests survive them'].
 	self assert: (self waitFor: [(self survivorsOf: compositorClass) <= compositors] timeout: 10000)
 		description: [((self survivorsOf: compositorClass) - compositors) printString, ' Compositors of the UI tests survive them'].
-	self assert: result runCount > 50
+	self assert: result runCount equals: cases size.
+	self assert: cases size > 30
 !
 testStoppedRunStopsItsTest
 	| result runner |
