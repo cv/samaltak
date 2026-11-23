@@ -173,8 +173,8 @@ ce6dbbd (the machine's load 1-11).
 
 | | image | QEMU |
 | --- | --- | --- |
-| a key to its pixels (one every 300 ms: KeyEvent sent → end of the first update that changes the Workspace) | 18 ms (10-22 over the runs, p90 12-27; with the spin: 30) | 82 ms (82-97) |
-| full-screen update (a non-incremental request of the whole screen → its last byte) | 39 ms, 127 KB (before ZRLE's fixes below: 62; with the spin: 64) | 97 ms (94-114), 125 KB |
+| a key to its pixels (one every 300 ms: KeyEvent sent → end of the first update that changes the Workspace) | 18 ms (10-22 over the runs, p90 12-27; with the spin: 30; with the primitives below 15, 9-23) | 82 ms (82-97) |
+| full-screen update (a non-incremental request of the whole screen → its last byte) | 39 ms, 127 KB (before ZRLE's fixes below: 62; with the spin: 64; with the primitives below: 19) | 97 ms (94-114), 125 KB |
 | first connect (TCP connect → the first full update) | 0.29 s, 204 KB | 0.32 s, 200 KB |
 
 **Only the blocks that changed.** The compositor's damage is in quads' bounds: text laid out again damages a whole
@@ -182,7 +182,7 @@ paragraph, of which few pixels change, and the Process Browser redrew its list e
 RfbDiffSource (System-Remote), between the frame tap and the connections, keeps one copy of the screen for all viewers
 (BGRA8 whatever their pixel formats, 8 MB at 1920x1080, made when the first viewer comes and dropped when the last goes).
 When a connection's writer is about to send, it reads what was damaged since anyone last did (once for all viewers),
-compares it with the copy in 16x16 blocks (`ByteArray>>indexOfMismatchAt:with:at:size:`, 16 bytes at a time, skipping
+compares it with the copy in 16x16 blocks (the `pixelBlocksDiff` primitive, below: 16 bytes at a time, skipping
 blocks of a 16-row band already known to differ), copies it in and gives every connection the blocks that differ, joined
 into runs (each connection's RfbDamage merges them further where a rectangle's header costs more than the unchanged pixels
 between). Pixels are sent from the copy, so a viewer always has the copy less the damage it has yet to take: right for
@@ -234,13 +234,13 @@ open (it is not in the World as it opens).
 changed, making and sending updates), in ms an update, medians of 5 runs (with the NIC's spin, before 913de31's
 successors: it does not change them):
 
-| interaction | sending whole rectangles | changed blocks | and ZRLE without copies | and CopyRect |
-| --- | --- | --- | --- | --- |
-| idle, the World as it opens | 5.9 | 1.6 | 1.7 | 1.8 |
-| typing | 0.8 | 0.8 | 0.6 | 0.6 |
-| scrolling | 2.7 | 2.0 | 1.2 | 0.9 |
-| dragging | 6.2 | 4.2 | 2.6 | 0.6 |
-| the Agent streaming | 1.4 | 0.3 | 0.3 | 0.1 |
+| interaction | sending whole rectangles | changed blocks | and ZRLE without copies | and CopyRect | and primitives |
+| --- | --- | --- | --- | --- | --- |
+| idle, the World as it opens | 5.9 | 1.6 | 1.7 | 1.8 | 1.4 |
+| typing | 0.8 | 0.8 | 0.6 | 0.6 | 0.3 |
+| scrolling | 2.7 | 2.0 | 1.2 | 0.9 | 0.3 |
+| dragging | 6.2 | 4.2 | 2.6 | 0.6 | 0.2 |
+| the Agent streaming | 1.4 | 0.3 | 0.3 | 0.1 | 0.1 |
 
 (The last column is without the NIC's spin, the others with it: the spin costs the server's own time nothing.)
 
@@ -253,6 +253,22 @@ the output is the same, byte for byte. Measured by the clock in the image while 
 the tiles take 0.75 ms an update, deflate 0.8 (of which 0.1 the matches and 0.3 choosing and writing the blocks'
 codes), comparing with the copy 0.5. In the Profiler, allocation and `Delay` scheduling look larger than they are:
 its CPU samples are taken when the timer Process wakes, which allocating 256 KB and scheduling a Delay make it do.
+
+**Primitives.** Two loops moved into the VM. The `zrleTiles` primitive (ZrleCoder, the scope's D12) codes all of a
+rectangle's tiles in one call: a tile's runs are found 16 bytes at a time (each pixel compared with the one before it,
+ByteSearch's NEON or SSE2 mismatch search), the palette in a small open-addressed table, raw tiles packed by
+PixelPacker, and each tile coded by RfbZrleEncoder's cost rule (raw, solid, packed palette, plain RLE, palette RLE). Its
+bytes are the Smalltalk's (which stays where the primitive cannot run): checked on random tiles of every kind, on the
+repository's screenshots and on the UEFI World's own screen, in 4-byte pixels with 3-byte CPIXELs from either end, with
+4-byte CPIXELs, and in 16- and 8-bit formats. The `pixelBlocksDiff` primitive (PixelDiff) compares a damaged rectangle
+with RfbDiffSource's copy in 16x16 blocks, marks the blocks that differ and copies it in, also in one call; the runs of
+marked blocks are joined in Smalltalk as before. On the UEFI World's screen (1920x1080, by the image's clock) the
+tiles take 2-3 ms instead of 19-36 (by format), comparing the whole screen 1.7 ms instead of 8.3; a full-screen update
+takes 19 ms instead of 36 and a key 15 ms to its pixels instead of 22 (medians of 5 runs of each, interleaved, on
+6e54bb6 and with the primitives). Over a minute of typing, scrolling, dragging and streaming, the Profiler finds the
+tiles in 16 of the server's 259 ms (77 of 356 before), mostly copying out the result; deflate is the largest part left
+(58 ms). The bytes, the updates a second and the guest's CPU stay as they were: the server's own time was a small part of
+the guest's.
 
 **CopyRect.** When the compositor draws a window's layer at the same size and opacity as in the last frame but moved by
 whole device pixels (a window dragged, lifted and a little smaller or not), it tells the frame tap before presenting the
@@ -278,15 +294,17 @@ looking for a scroll costs 0.1-0.2 ms a tall rectangle that changed.
 **Against the targets** (the remote display's scope, Performance targets):
 
 - typing, ≤ 1 KB a frame: met. The median update is 214 B; the mean of 1.1 KB includes the line scrolling.
-- typing, encode ≤ 0.5 ms a frame: 0.6 ms an update, finding what changed, making and sending. Close, but not met.
+- typing, encode ≤ 0.5 ms a frame: met, with the primitives: 0.3 ms an update, finding what changed, making and
+  sending (0.6 before them).
 - typing latency, ≤ 1 frame + RTT + 10 ms: met. 18 ms on loopback (QEMU's: 82 ms).
 - idle with a client, no CPU: met for a still World (no updates, 2 %, as with QEMU's). The World as it opens costs
   262 B/s and 4 %, an update every few seconds for readings that move (QEMU's server sends 3.7 KB/s).
 - dragging, ≥ 15 updates/s of 20-60 KB: met, at 32.7 updates/s of 464 B (CopyRect; QEMU's: 22 of 13 KB).
-- full-screen update, ≤ 150 ms (≤ 50 ms with primitives): 39 ms for 127 KB.
+- full-screen update, ≤ 150 ms (≤ 50 ms with primitives): 19 ms for 127 KB (39 before the primitives).
 - first connect, the whole screen within 0.5 s: 0.29 s.
 
 **For phase 2**, by these numbers:
 
-1. The ZRLE tile primitive (D12) is not needed for these targets: a full screen takes 39 ms, and a dragged window is a
-   CopyRect.
+1. The ZRLE tile primitive (D12) is done (above), and so is the block compare. What is left of an update's time is
+   mostly deflate's Huffman codes for each block (its matches, counts and token writing are primitives already): about
+   half of the server's samples now, still a small fraction of a core.
