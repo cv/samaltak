@@ -1232,9 +1232,18 @@ emitAddSub: n
 !
 emitDivShift: n
 	"SmallInteger modulo and division (floored, aux 1 truncated: rem: quo:, aux 2 exact: /, a remainder deoptimizes; a zero divisor deoptimizes; \\ by a divisor that turns out a positive power of two: a mask) and bitShift: (a result that does not fit deoptimizes)."
-	| nd s op neg done d k r general |
+	| nd s op neg done d k r general b |
 	nd := ir node: n.
 	op := nd op asInt32.
+	b := ir node: nd b.
+	(op = O_ISHIFT and: [b op asInt32 = O_CONST and: [(self isInt: b aux asUInt64) and: [(self intVal: b aux asUInt64) < 0]]]) ifTrue: [
+		"right by a constant k, on the tagged value 2x + 1: shifted by k it is 2(x >> k) or 2(x >> k) + 1"
+		k := (self intVal: b aux asUInt64) negated min: 63.
+		r := self dst: n.
+		asm comment: 'bitShift: right by the constant %d' with: k.
+		asm asr: r with: (self src: nd a into: self scratchA) imm: k.
+		asm orr: r with: r imm: 1.
+		^self def: n from: r].
 	d := self constantDivisorOf: n.
 	(nd aux = 0 and: [d > 1 and: [(d bitAnd: d - 1) = 0 and: [d < 16r40000000]]]) ifTrue: [
 		"floored by 2^k, on the tagged value 2x + 1: shifted right by k it is the quotient's 2q or 2q + 1, its low k + 1 bits are the remainder's 2r + 1"
