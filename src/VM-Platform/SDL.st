@@ -213,6 +213,23 @@ destroyWindow: window
 	<c: 'void SDL_DestroyWindow(SDL_Window *window)'>
 	^self notSimulated
 !
+createWindowWithProperties: props
+	<c: 'SDL_Window *SDL_CreateWindowWithProperties(Uint32 props)'>
+	^self notSimulated
+!
+getWindowProperties: window
+	<c: 'Uint32 SDL_GetWindowProperties(SDL_Window *window)'>
+	^self notSimulated
+!
+setWindowPosition: window x: x y: y
+	<c: 'bool SDL_SetWindowPosition(SDL_Window *window, int x, int y)'>
+	^self notSimulated
+!
+getCurrentVideoDriver
+	"NULL before the video subsystem is up."
+	<c: 'const char *SDL_GetCurrentVideoDriver(void)'>
+	^self notSimulated
+!
 startTextInput: window
 	<c: 'bool SDL_StartTextInput(SDL_Window *window)'>
 	^self notSimulated
@@ -363,6 +380,68 @@ setClipboardText: text
 !
 getClipboardData: mime size: size
 	<c: 'void *SDL_GetClipboardData(const char *mime_type, size_t *size)'>
+	^self notSimulated
+! !
+
+!SDL methodsFor: 'properties'!
+createProperties
+	<c: 'Uint32 SDL_CreateProperties(void)'>
+	^self notSimulated
+!
+destroyProperties: props
+	<c: 'void SDL_DestroyProperties(Uint32 props)'>
+	^self notSimulated
+!
+getGlobalProperties
+	<c: 'Uint32 SDL_GetGlobalProperties(void)'>
+	^self notSimulated
+!
+setStringProperty: props name: name value: value
+	<c: 'bool SDL_SetStringProperty(Uint32 props, const char *name, const char *value)'>
+	^self notSimulated
+!
+setNumberProperty: props name: name value: value
+	<c: 'bool SDL_SetNumberProperty(Uint32 props, const char *name, int64_t value)'>
+	^self notSimulated
+!
+setBooleanProperty: props name: name value: value
+	<c: 'bool SDL_SetBooleanProperty(Uint32 props, const char *name, bool value)'>
+	^self notSimulated
+!
+setPointerProperty: props name: name value: value
+	<c: 'bool SDL_SetPointerProperty(Uint32 props, const char *name, void *value)'>
+	^self notSimulated
+!
+getPointerProperty: props name: name default: value
+	<c: 'void *SDL_GetPointerProperty(Uint32 props, const char *name, void *value)'>
+	^self notSimulated
+!
+SDL_PROP_WINDOW_CREATE_TITLE_STRING
+	<cMacro: 'const char *SDL_PROP_WINDOW_CREATE_TITLE_STRING'>
+	^self notSimulated
+!
+SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER
+	<cMacro: 'const char *SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER'>
+	^self notSimulated
+!
+SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER
+	<cMacro: 'const char *SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER'>
+	^self notSimulated
+!
+SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER
+	<cMacro: 'const char *SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER'>
+	^self notSimulated
+!
+SDL_PROP_WINDOW_CREATE_WAYLAND_SURFACE_ROLE_CUSTOM_BOOLEAN
+	<cMacro: 'const char *SDL_PROP_WINDOW_CREATE_WAYLAND_SURFACE_ROLE_CUSTOM_BOOLEAN'>
+	^self notSimulated
+!
+SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER
+	<cMacro: 'const char *SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER'>
+	^self notSimulated
+!
+SDL_PROP_GLOBAL_VIDEO_WAYLAND_WL_DISPLAY_POINTER
+	<cMacro: 'const char *SDL_PROP_GLOBAL_VIDEO_WAYLAND_WL_DISPLAY_POINTER'>
 	^self notSimulated
 ! !
 

@@ -196,6 +196,9 @@ window: window title: aString
 window: window width: w height: h
 	^self display window: window width: w height: h
 !
+window: window x: x y: y
+	^self display window: window x: x y: y
+!
 window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
 	^self display window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
 !

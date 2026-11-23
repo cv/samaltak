@@ -191,6 +191,11 @@ window: window width: w height: h
 	<primitive: 'windowSetSize'>
 	^false
 !
+window: window x: x y: y
+	"Move window to x @ y points (a desktop window: from the top left of the area the bar leaves free); false where the VM cannot (it predates the primitive, or the platform refused)."
+	<primitive: 'windowSetPosition'>
+	^false
+!
 window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
 	<primitive: 'windowSetTextInputArea'>
 	^self fail: 'windowSetTextInputArea'

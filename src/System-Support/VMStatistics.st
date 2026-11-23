@@ -78,6 +78,10 @@ cpuTimeReconciles
 	"Reads of the VM thread's CPU time that charged it to the Processes that ran (Scheduler>>reconcile)."
 	^self counterAt: 48
 !
+timerArms
+	"The Ticker's timers set or cleared (Scheduler>>tickUpdate): the deadline (timer, sampler, time slice) and the periodic poll."
+	^self counterAt: 43
+!
 weakSlotsCleared
 	^self counterAt: 12
 !
@@ -212,5 +216,5 @@ counters: anArray
 !VMStatistics class methodsFor: 'accessing'!
 counterNames
 	"Answer my counter accessors in vmStats order."
-	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures #jitInlineCacheMisses #jitInlineCacheLinks #jitPolymorphicCaches #jitMegamorphicSites #jitBlockCacheMisses #jitPrimitiveCalls #jitFrameWalks #optMethodsCompiled #optBytecodesCompiled #optCompileMicroseconds #optCodeBytes #optDeoptimizations #optOsrEntries #optInvalidations #optCompileFailures #optRuntimeSends #tenureAge #maxHeapBytes #heapReserve #optBackgroundJobs #optBackgroundDiscarded #optBackgroundMicroseconds #optBackgroundDeferred #cpuTimeReconciles)
+	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures #jitInlineCacheMisses #jitInlineCacheLinks #jitPolymorphicCaches #jitMegamorphicSites #jitBlockCacheMisses #jitPrimitiveCalls #jitFrameWalks #optMethodsCompiled #optBytecodesCompiled #optCompileMicroseconds #optCodeBytes #optDeoptimizations #optOsrEntries #optInvalidations #optCompileFailures #optRuntimeSends #tenureAge #maxHeapBytes #heapReserve #optBackgroundJobs #optBackgroundDiscarded #optBackgroundMicroseconds #optBackgroundDeferred #cpuTimeReconciles #timerArms)
 ! !

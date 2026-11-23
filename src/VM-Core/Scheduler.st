@@ -1,5 +1,5 @@
 VMCoreModule subclass: #Scheduler
-	instanceVariableNames: 'interruptPending lastPreempted lastPreemptedAtEntry allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs sliceStartTk windowStartTk windowStartNs windowCpuUs reconcileTk ledgerProcs ledgerTk ledgerN cycles statReconciles startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs sliceUs sliceDueUs slicePriority sliceExpired runHint'
+	instanceVariableNames: 'interruptPending lastPreempted lastPreemptedAtEntry allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs sliceStartTk windowStartTk windowStartNs windowCpuUs reconcileTk ledgerProcs ledgerTk ledgerN cycles statReconciles startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs sliceUs sliceDueUs slicePriority sliceExpired sliceBreaks sliceBreaksAtArm statTimerArms runHint'
 	classVariableNames: 'LEDGER_SIZE RECONCILE_NS TICK_DEADLINE TICK_POLL WORK_CLOCK_FLOOR WORK_CLOCK_POLL_US WORK_CYCLES_PER_US'
 	package: 'VM-Core'!
 
@@ -7,7 +7,7 @@ Scheduler comment: 'Process scheduler, semaphores and interrupts: the timer, the
 
 The run lists are scanned for the highest ready Process from runHint down: no run list at or above runHint holds a Process. Making a Process ready raises it to the Process''s priority; a scan lowers it to just above the list it took the Process from (or to where it ended), so a switch does not look at the empty lists of the priorities above. The image changes the run lists only through primitives (resume, suspend, yield).
 
-Time slicing (setTimeSlice:): while another Process of the active one''s priority is ready, the active one runs at most sliceUs before it goes to the back of its run list, so equal-priority Processes take turns. The slice''s deadline is armed only under that contention (a Process made ready at the active priority, a switch to a Process with peers waiting): a program whose Processes do not compete, or that idles, has no timer for it.
+Time slicing (setTimeSlice:): equal-priority Processes take turns. The slice''s deadline is armed when contention starts (a Process made ready at the active priority, a switch to a Process with peers waiting) and no slice is armed; a program whose Processes do not compete, or that idles (idleWait clears it), has no timer for it. The deadline is armed lazily, so that Processes handing the CPU to each other (a signal and a wait) do not re-arm the timer, a system call, at every switch: contention ending leaves it armed and only counts a break (sliceBreaks), contention starting again while it is armed does not re-arm it. When it comes, the active Process goes to the back of its run list if contention was unbroken since the slice was armed; else a fresh slice starts if there is contention. So CPU-bound Processes of one priority still rotate every sliceUs; a Process made ready at the active priority waits at most about two slices (the armed one, which a break began, then a fresh one), where it waited one; higher priorities are not affected.
 
 Processes are charged the VM thread''s CPU time (threadCpuUs) in batches, as one read of that clock costs a system call: a switch adds the outgoing Process''s slice, in ticks of the CPU''s counter (CycleCounter: no system call, a third of the cost of the monotonic clock), to its entry in a ledger of LEDGER_SIZE entries. Once the ledger is full or its window older than RECONCILE_NS (reconcileTk ticks, as reconcile measures them against the monotonic clock) (or when charging pauses, or a Process in it or running is asked its time), reconcile splits the thread clock''s advance over the window among the entries in proportion to their slices, exactly. While the VM waits or compiles, charging pauses (pauseCharging, resumeCharging).
 
@@ -49,7 +49,7 @@ declarations
 		(workClockOn bool) (workClockRunning bool) (workClockPaced bool) (workClockUsesCycles bool)
 		(workClockUs int64_t) (workClockCycles int64_t) (workClockRaw int64_t) (workClockHeld bool) (workClockHoldCycles int64_t) (workClockQuerying bool)
 		(frameSema int32_t) (frameFps int64_t) (frameOriginUs int64_t) (frameIndex int64_t) (frameNextUs int64_t)
-		(sliceUs int64_t) (sliceDueUs int64_t) (slicePriority int64_t) (sliceExpired bool)
+		(sliceUs int64_t) (sliceDueUs int64_t) (slicePriority int64_t) (sliceExpired bool) (sliceBreaks uint64_t) (sliceBreaksAtArm uint64_t) (statTimerArms uint64_t)
 		(runHint int64_t 16r7FFFFFFFFFFFFFFF))
 !
 initialize
@@ -119,6 +119,9 @@ statProcessSwitches
 !
 statReconciles
 	^statReconciles
+!
+statTimerArms
+	^statTimerArms
 !
 ledgerProcs
 	^ledgerProcs
@@ -457,9 +460,11 @@ tickUpdate
 		now := self nowUs.
 		due <= now ifTrue: [self requestInterruptCheck].
 		ticker arm: TICK_DEADLINE microseconds: ((due = 16r7FFFFFFFFFFFFFFF or: [due <= now]) ifTrue: [-1] ifFalse: [due - now]) periodic: false.
+		statTimerArms := statTimerArms + 1.
 		tickArmedDeadline := due].
 	poll ~= tickArmedPoll ifTrue: [
 		ticker arm: TICK_POLL microseconds: (poll ~= 0 ifTrue: [poll] ifFalse: [-1]) periodic: true.
+		statTimerArms := statTimerArms + 1.
 		tickArmedPoll := poll]
 !
 tickSetIdle: aBoolean
@@ -711,13 +716,15 @@ handleInterrupts
 	preemptToFront := false.
 	(frameSema ~= 0 and: [now >= frameNextUs]) ifTrue: [self workClockFrameDue].
 	(sliceDueUs ~= 0 and: [inIdle not and: [now >= sliceDueUs]]) ifTrue: [
-		"The slice is over: the active Process goes to the back of its run list if one of its priority waits; the switch starts the next one's slice. Over while a higher Process interrupted the slice's (the profiler's timer Process, woken in this same check): it stays over, and that Process goes to the back as soon as its priority runs again (sliceCheck)."
+		"The slice is over. Contention broke since it was armed (sliceCheck): a fresh slice if there is contention now. Else the active Process goes to the back of its run list if one of its priority waits; the switch starts the next one's slice. Over while a higher Process interrupted the slice's (the profiler's timer Process, woken in this same check): it stays over, and that Process goes to the back as soon as its priority runs again (sliceCheck)."
 		sliceDueUs := 0.
-		(self priorityOf: self activeProcess) = slicePriority
-			ifTrue: [
-				sliceExpired := false.
-				self processorYield]
-			ifFalse: [sliceExpired := true].
+		sliceExpired := false.
+		sliceBreaks ~= sliceBreaksAtArm
+			ifTrue: [self sliceCheck]
+			ifFalse: [
+				(self priorityOf: self activeProcess) = slicePriority
+					ifTrue: [self processorYield]
+					ifFalse: [sliceExpired := true]].
 		sliceDueUs = 0 ifTrue: [self tickUpdate]].
 	gc finalizationPending ifTrue: [
 		gc finalizationPending: false.
@@ -742,12 +749,13 @@ setTimeSlice: us
 	self tickUpdate
 !
 sliceCheck
-	"After a switch, or a Process made ready at the active one's priority: the slice runs while another Process of the active one's priority is ready (it starts when none ran, or for another priority), and stops when none is; a Process of higher priority interrupting leaves it running."
+	"After a switch, or a Process made ready at the active one's priority: the slice is armed when another Process of the active one's priority is ready and none is armed (or one for another priority); when none is ready, an armed slice stays armed and the break is counted (see my comment); a Process of higher priority interrupting leaves it running."
 	<function>
 	| pri contended |
 	sliceUs = 0 ifTrue: [^self].
 	pri := self priorityOf: self activeProcess.
-	((sliceDueUs ~= 0 or: [sliceExpired]) and: [pri > slicePriority]) ifTrue: [^self].
+	"a running slice (armed, unbroken) or one run out is left to its priority; a broken one does not keep a higher priority's from starting"
+	(((sliceDueUs ~= 0 and: [sliceBreaks = sliceBreaksAtArm]) or: [sliceExpired]) and: [pri > slicePriority]) ifTrue: [^self].
 	contended := inIdle not and: [(self loadRef: (self runList: pri) at: LL_FIRST) ~= memory nilOop].
 	contended
 		ifTrue: [
@@ -756,18 +764,18 @@ sliceCheck
 					"its slice ran out while a higher Process ran: due now"
 					sliceExpired := false.
 					sliceDueUs := self nowUs.
+					sliceBreaksAtArm := sliceBreaks.
 					self tickUpdate]
 				ifFalse: [
 					(sliceDueUs = 0 or: [slicePriority ~= pri]) ifTrue: [
 						sliceExpired := false.
 						sliceDueUs := self nowUs + sliceUs.
 						slicePriority := pri.
+						sliceBreaksAtArm := sliceBreaks.
 						self tickUpdate]]]
 		ifFalse: [
 			sliceExpired := false.
-			sliceDueUs ~= 0 ifTrue: [
-				sliceDueUs := 0.
-				self tickUpdate]]
+			sliceDueUs ~= 0 ifTrue: [sliceBreaks := sliceBreaks + 1]]
 !
 processCpuTimeUs: proc
 	"cpuTime, settled first if proc is running or has a slice in the ledger."

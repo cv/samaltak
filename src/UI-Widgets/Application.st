@@ -81,13 +81,21 @@ run
 !
 runHidden: aBoolean
 	"Open my window (hidden: offscreen, for tests) and answer myself."
+	^self openHidden: aBoolean main: true desktop: false
+!
+runOnDesktopHidden: aBoolean
+	"Open my window on the desktop, below every window, as one of several applications of this process (closing it does not quit; OmarchyDesk places it with world moveTo:); answer myself."
+	^self openHidden: aBoolean main: false desktop: true
+!
+openHidden: aBoolean main: mainBoolean desktop: desktopBoolean
 	| view |
 	Desktop windowErrorHandler: nil.
 	"The always-on sampling profiler wakes the VM every millisecond, also while it idles: an application, often idle all day, runs without it unless --profile."
 	(Smalltalk vm arguments includes: '--profile') ifFalse: [Profiler pause].
 	self prepare.
 	view := self content.
-	world := AppWorld openExtent: self extent title: self title hidden: aBoolean main: true resizable: self isResizable.
+	world := AppWorld openExtent: self extent title: self title hidden: aBoolean main: mainBoolean
+		resizable: (self isResizable and: [desktopBoolean not]) desktop: desktopBoolean.
 	world deskColor: self backgroundColor.
 	window := AppWindow new title: self title; content: view; yourself.
 	window menuBlock: [self contextMenu].

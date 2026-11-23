@@ -296,6 +296,17 @@ primWindowSetSize
 	(bad or: [wd < 1 or: [h < 1]]) ifTrue: [^self fail].
 	self answerOk: (windows setSize: w asInt32 width: wd asInt32 height: h asInt32)
 !
+primWindowSetPosition
+	"win x y (points)"
+	<vmPrimitive: 422 name: 'windowSetPosition'>
+	| w x y |
+	(self args: 3) ifFalse: [^self fail].
+	w := self intArg: 0.
+	x := self intArg: 1.
+	y := self intArg: 2.
+	bad ifTrue: [^self fail].
+	self answerOk: (windows setPosition: w asInt32 x: x asInt32 y: y asInt32)
+!
 primWindowSetTextInputArea
 	"win x y w h cursor (points; cursor: x of the caret within the rectangle)"
 	<vmPrimitive: 419 name: 'windowSetTextInputArea'>

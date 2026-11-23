@@ -93,6 +93,21 @@ stackOf: aSample includes: aSelector
 ! !
 
 !ProfilerTest methodsFor: 'tests'!
+testHandOversArmNoTimerPerSwitch
+	"With the profiler stopped (as applications run), the time slice's deadline is the Ticker's only timer: two Processes handing the CPU to each other 10,000 times (a signal and a wait each) must not set or clear it at every switch (vmStats 43; it was twice a switch), only about once a slice."
+	| running a b done before arms |
+	running := Profiler default isRunning.
+	Profiler default stop.
+	[a := Semaphore new.
+	 b := Semaphore new.
+	 done := Semaphore new.
+	 [10000 timesRepeat: [a wait. b signal]. done signal] fork.
+	 before := Smalltalk vm statistics timerArms.
+	 10000 timesRepeat: [a signal. b wait].
+	 arms := Smalltalk vm statistics timerArms - before.
+	 done wait] ensure: [running ifTrue: [Profiler default start]].
+	self assert: arms < 1000 description: [arms printString, ' timer arms in 20,000 switches']
+!
 testAlwaysOn
 	| profiler t0 profile |
 	profiler := Profiler default.

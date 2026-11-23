@@ -3,7 +3,8 @@
 # the top level regenerates them); gen/sources.mk says which files make the core and which the platform layer, and
 # which of them are for one OS only (VM_CORE_SOURCES_LINUX ...: this build adds those of its uname -s) or for one CPU
 # (VM_CORE_SOURCES_X86_64: this build adds those of its uname -m, arm64's on any CPU but x86-64).
-# macOS: Homebrew sdl3 and openssl@3, clang. Linux: sdl3, shaderc (GLSL → SPIR-V for SDL_GPU on Vulkan) and OpenSSL 3;
+# macOS: Homebrew sdl3 and openssl@3, clang. Linux: sdl3, shaderc (GLSL → SPIR-V for SDL_GPU on Vulkan), OpenSSL 3
+# and libwayland-client (desktop windows);
 # clang (linked with lld if there is one) when it is installed, else cc; CC=gcc builds with gcc.
 # Profile-guided (clang): pgo/<os>-<arch>.profdata (pgo/darwin-arm64.profdata, pgo/linux-arm64.profdata), if there is one
 # for this platform and this clang reads it, steers optimization; `make pgo IMAGE=...` retrains it (llvm-profdata of
@@ -39,6 +40,9 @@ else
   # The VM was written for Darwin's arm64 ABI, where char is signed; Linux's makes it unsigned.
   CFLAGS += -D_GNU_SOURCE -fsigned-char
   OS_PLATFORM_LIBS := $(shell pkg-config --libs shaderc 2>/dev/null || echo -lshaderc_shared)
+  # libwayland-client: desktop windows as wlr-layer-shell surfaces (WaylandDesktop).
+  OS_PLATFORM_LIBS += $(shell pkg-config --libs wayland-client 2>/dev/null || echo -lwayland-client)
+  OS_PLATFORM_CFLAGS := $(shell pkg-config --cflags wayland-client 2>/dev/null)
 endif
 LDLIBS += -lm -lpthread
 
@@ -91,7 +95,7 @@ endif
 ifneq ($(and $(PLATFORM_SRCS),$(SDL_LIBS),$(if $(NO_PLATFORM),,yes)),)
   VARIANT := platform
   SRCS := $(CORE_SRCS) $(PLATFORM_SRCS)
-  CFLAGS += $(SDL_CFLAGS) $(SSL_CFLAGS)
+  CFLAGS += $(SDL_CFLAGS) $(SSL_CFLAGS) $(OS_PLATFORM_CFLAGS)
   LDLIBS += $(SDL_LIBS) $(SSL_LIBS) $(OS_PLATFORM_LIBS)
 else
   VARIANT := headless

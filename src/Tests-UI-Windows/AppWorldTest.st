@@ -67,6 +67,38 @@ testAClosingWindowDoesNotFade
 	self assert: world closingWindows isEmpty.
 	self assert: world windows asArray equals: (Array with: first)
 !
+testADesktopHostWindow
+	"A desktop host window (hidden here: an ordinary one) is placed by its application and tells it its new size."
+	| desk w sizes |
+	desk := AppWorld openExtent: 200 @ 100 title: 'Card' hidden: true main: false resizable: false desktop: true.
+	[sizes := OrderedCollection new.
+	 desk whenResized: [:world | sizes add: world extent].
+	 w := AppWindow new title: 'Card'; content: (RecordingTestView new color: Color white; yourself); yourself.
+	 w openIn: desk.
+	 self assert: (desk waitUntilSettled: 5000).
+	 self deny: desk isMain.
+	 desk moveTo: 30 @ 40.
+	 self assert: (desk resizeTo: 200 @ 150).
+	 self assert: (self waitFor: [sizes includes: 200 @ 150]).
+	 self assert: w bounds equals: (0 @ 0 extent: 200 @ 150)]
+		ensure: [desk isRunning ifTrue: [desk stop]]
+!
+testAProcessQuitQuitsFromAnyHostWindow
+	"SIGTERM (a ProcessQuitEvent) quits the application even when another of its host windows, not the main one, receives it; the window manager closing that one only closes it."
+	| other quits |
+	other := AppWorld openExtent: 120 @ 80 title: 'Other' hidden: true main: false resizable: false.
+	quits := OrderedCollection new.
+	World quitHandler: [:aWorld | quits add: aWorld].
+	[(UIEvent fromPlatform: {UIEvent evQuit. 0. 0. 0. 0. 0. nil. nil}) dispatchTo: other dispatcher.
+	 self assert: quits asArray equals: (Array with: other).
+	 self assert: other isRunning.
+	 (UIEvent fromPlatform: {UIEvent evWindowCloseRequest. 0. 0. 0. 0. 0. nil. nil}) dispatchTo: other dispatcher.
+	 self assert: (self waitFor: [other isRunning not]).
+	 self assert: quits size equals: 1]
+		ensure: [
+			World quitHandler: nil.
+			other isRunning ifTrue: [other stop]]
+!
 testClosingTheLastWindowEndsTheWorld
 	| w |
 	w := self openApp: RecordingTestView new.

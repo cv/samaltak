@@ -336,6 +336,51 @@ testCpuTimeAddsUp
 	t := t1 - t0 - (j1 - j0).
 	self assert: (c - t) abs <= 2000
 !
+testSlicesRotateCpuBoundPeers
+	"Two CPU-bound Processes of one priority take turns every time slice (this process waits at a higher priority meanwhile): about 30 turns in 30 slices, a slice apart (a timer tick more where the timer ticks coarsely: UEFI's firmware, every 10 ms)."
+	| slice times n stop last procs gaps |
+	slice := self sliceMicroseconds.
+	times := Array new: 1000.
+	n := 0.
+	last := 0.
+	stop := false.
+	procs := (1 to: 2) collect: [:i |
+		self fork: [[stop] whileFalse: [
+			(last ~= i and: [n < times size]) ifTrue: [
+				last := i.
+				n := n + 1.
+				times at: n put: Time microsecondClockValue]]] at: Processor activePriority - 1].
+	(Delay forMilliseconds: 30 * slice // 1000) wait.
+	stop := true.
+	self assert: (self waitFor: [procs allSatisfy: [:p | p isTerminated]]) description: [procs printString, ' did not end'].
+	self assert: n >= 10 description: [n printString, ' turns in 30 slices'].
+	gaps := ((2 to: n) collect: [:i | (times at: i) - (times at: i - 1)]) asSortedCollection asArray.
+	self assert: (gaps at: gaps size + 1 // 2) <= (slice + 10000) description: ['the median turn lasts ', (gaps at: gaps size + 1 // 2) printString, ' µs']
+!
+testReadyProcessWaitsAtMostTwoSlices
+	"A Process made ready at the priority of the running CPU-bound one (this one, spinning) waits at most about two time slices: when contention broke since the slice was armed (another Process ran at the slice's end and waited again), the slice is not cut short but a fresh one follows it (Scheduler>>sliceCheck). Allowed: two slices and two coarse timer ticks (UEFI's firmware ticks every 10 ms)."
+	| slice pri s bRan before b worst cRan ready t0 |
+	slice := self sliceMicroseconds.
+	pri := Processor activePriority.
+	s := Semaphore new.
+	bRan := 0.
+	b := self fork: [[bRan := Time microsecondClockValue. s wait] repeat] at: pri.
+	worst := 0.
+	4 timesRepeat: [
+		before := bRan.
+		s signal.
+		t0 := Time microsecondClockValue.
+		[bRan = before and: [Time microsecondClockValue - t0 < 2000000]] whileTrue.
+		self deny: bRan = before description: 'the other Process did not run'.
+		cRan := nil.
+		ready := Time microsecondClockValue.
+		self fork: [cRan := Time microsecondClockValue] at: pri.
+		[cRan isNil and: [Time microsecondClockValue - ready < 2000000]] whileTrue.
+		self deny: cRan isNil description: 'the Process made ready did not run'.
+		worst := worst max: cRan - ready].
+	b terminate.
+	self assert: worst <= ((2 * slice) + 20000) description: ['waited ', worst printString, ' µs, a slice is ', slice printString]
+!
 testShortSlicesAreCharged
 	"Both sides of a fast ping-pong are charged, the one that works three times as much more."
 	| a b me other m0 o0 mine its |
@@ -412,6 +457,9 @@ registered
 !
 registryCapacity
 	^(Process classPool at: #Registry) size
+!
+sliceMicroseconds
+	^((ProcessorScheduler classPool at: #TimeSliceMilliseconds) ifNil: [10]) * 1000
 !
 cpuTimes
 	"Every live Process's CPU time, by Process."

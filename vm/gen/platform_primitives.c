@@ -32,7 +32,7 @@ static bool rect(oop r, int *out);
 static int64_t platform_primitives_slot(oop a, int i);
 static char *string_arg(int i);
 static char **string_vector(oop a, bool non_empty);
-static bool surface(oop a, raster_state *s);
+static bool platform_primitives_surface(oop a, raster_state *s);
 static bool text_or_delta(uint64_t o, pf_event *e);
 static bool word_of(oop o, uint64_t *w);
 
@@ -3779,7 +3779,7 @@ void prim_raster_blit(void)
     dr = local_4;
     memset(&local_5, 0, sizeof local_5);
     r = local_5;
-    if (!(surface(prim_base[1], s) && surface(prim_base[3], d))) {
+    if (!(platform_primitives_surface(prim_base[1], s) && platform_primitives_surface(prim_base[3], d))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -3904,7 +3904,7 @@ void prim_raster_draw(void)
     }
     memset(&local, 0, sizeof local);
     st = &local;
-    if (!surface(a, st)) {
+    if (!platform_primitives_surface(a, st)) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -4837,6 +4837,42 @@ void prim_window_refresh_rate(void)
     }
 }
 
+/* PlatformPrimitives>>primWindowSetPosition */
+void prim_window_set_position(void)
+{
+    bool r_args;
+    int64_t w;
+    int64_t x;
+    int64_t y;
+    bool a_boolean;
+    oop v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 3;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    w = int_arg(0);
+    x = int_arg(1);
+    y = int_arg(2);
+    if (bad) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    a_boolean = set_position((int32_t)w, (int32_t)x, (int32_t)y);
+    if (a_boolean) {
+        v = prim_base[0];
+        prim_result = v;
+        prim_status = PS_OK;
+    } else {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+    }
+}
+
 /* PlatformPrimitives>>primWindowSetSize */
 void prim_window_set_size(void)
 {
@@ -5108,7 +5144,7 @@ static char **string_vector(oop a, bool non_empty)
 }
 
 /* PlatformPrimitives>>surface:into: */
-static bool surface(oop a, raster_state *s)
+static bool platform_primitives_surface(oop a, raster_state *s)
 {
     int64_t n;
     int64_t n_2;

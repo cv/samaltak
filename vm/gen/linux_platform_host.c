@@ -21,6 +21,12 @@ SDL_Keymod alt_keymod(void)
     return SDL_KMOD_GUI;
 }
 
+/* LinuxPlatformHost>>closingDesktopWindow: */
+void closing_desktop_window(SDL_Window *sw)
+{
+    destroy_surface(sw);
+}
+
 /* LinuxPlatformHost>>cmdKeymod */
 SDL_Keymod cmd_keymod(void)
 {
@@ -90,6 +96,12 @@ char **environment(void)
     return environ;
 }
 
+/* LinuxPlatformHost>>moveDesktopWindow:x:y: */
+bool move_desktop_window(SDL_Window *sw, int32_t x, int32_t y)
+{
+    return place_surface(sw, x, y);
+}
+
 /* LinuxPlatformHost>>onXError:event: */
 static int on_x_error(void *display, void *event)
 {
@@ -102,6 +114,18 @@ static int on_x_error(void *display, void *event)
         return 0;
     }
     return x_previous(display, event);
+}
+
+/* LinuxPlatformHost>>openDesktopWindow:width:height:flags: */
+SDL_Window *open_desktop_window(char *title, int32_t w, int32_t h, SDL_WindowFlags flags)
+{
+    return open_surface(title, w, h, flags);
+}
+
+/* LinuxPlatformHost>>resizeDesktopWindow:width:height: */
+bool resize_desktop_window(SDL_Window *sw, int32_t w, int32_t h)
+{
+    return resize_surface(sw, w, h);
 }
 
 /* LinuxPlatformHost>>shaderFormats */

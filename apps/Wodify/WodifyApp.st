@@ -71,3 +71,8 @@ agentContext
 	"The Agent of my right-click menu also has my service (what it fetched, and fetching again)."
 	^super agentContext bind: #service to: service; yourself
 ! !
+
+!WodifyApp class methodsFor: 'desktop'!
+cardId
+	^'wodify'
+! !

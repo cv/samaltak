@@ -83,6 +83,7 @@
 #ifdef __linux__
 #include <dlfcn.h>
 #include <shaderc/shaderc.h>
+#include <wayland-client.h>
 #endif
 #endif
 
@@ -101,6 +102,8 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define ANA_RESUME 16
 #define ANA_START 1
 #define ANA_TARGET 4
+#define ANCHOR_LEFT 4
+#define ANCHOR_TOP 1
 #define ASM_EF_FORGET 5
 #define ASM_EF_LOAD 1
 #define ASM_EF_MOVE 3
@@ -366,6 +369,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define K_TEX 4
 #define K_WINDOW 1
 #define LAST_ERROR_SIZE 1024
+#define LAYER_BOTTOM 1
 #define LEDGER_SIZE 16
 #define LL_FIRST 0
 #define LL_LAST 1
@@ -591,6 +595,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define PF_VA_UBYTE4 6
 #define PF_VA_UBYTE4_NORM 5
 #define PF_VA_UINT 7
+#define PF_WIN_DESKTOP 8
 #define PF_WIN_HIDDEN 1
 #define PF_WIN_HIGH_DENSITY 4
 #define PF_WIN_RESIZABLE 2
@@ -734,6 +739,11 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define SS_SLOT 0
 #define SS_TEMP 5
 #define STUB_MAX_SYMBOLS 48
+#define SURFACE_ACK_CONFIGURE 6
+#define SURFACE_DESTROY 7
+#define SURFACE_SET_ANCHOR 1
+#define SURFACE_SET_MARGIN 3
+#define SURFACE_SET_SIZE 0
 #define TENURE_AGE 2
 #define TICK_DEADLINE 1
 #define TICK_POLL 2
@@ -1616,6 +1626,7 @@ extern oop ledger_procs[16];
 extern bool sampler_tick_unread;
 extern uint64_t stat_process_switches;
 extern uint64_t stat_reconciles;
+extern uint64_t stat_timer_arms;
 extern int32_t argc;
 extern int32_t args_start;
 extern char **argv;
@@ -2455,6 +2466,7 @@ void prim_window_hide(void);
 void prim_window_open(void);
 void prim_window_pixel_size(void);
 void prim_window_refresh_rate(void);
+void prim_window_set_position(void);
 void prim_window_set_size(void);
 void prim_window_set_text_input_area(void);
 void prim_window_set_title(void);
@@ -2519,6 +2531,7 @@ bool pixel_size(int32_t win, int *w, int *h);
 double refresh_rate(int32_t win);
 SDL_Window *sdl_window(int32_t win);
 bool set_cursor(int32_t kind);
+bool set_position(int32_t win, int32_t x, int32_t y);
 bool set_size(int32_t win, int32_t w, int32_t h);
 bool set_text_input_area(int32_t win, int32_t x, int32_t y, int32_t w, int32_t h, int32_t cursor);
 bool set_title(int32_t win, char *title);
@@ -2536,9 +2549,13 @@ void platform_interface_wait(int64_t timeout_us);
 void wake(void);
 #ifdef __APPLE__
 SDL_Keymod alt_keymod(void);
+void closing_desktop_window(SDL_Window *sw);
 SDL_Keymod cmd_keymod(void);
 void *platform_host_compile_shader(char *source, int32_t stage, size_t *size_out);
 char **environment(void);
+bool move_desktop_window(SDL_Window *sw, int32_t x, int32_t y);
+SDL_Window *open_desktop_window(char *title, int32_t w, int32_t h, SDL_WindowFlags flags);
+bool resize_desktop_window(SDL_Window *sw, int32_t w, int32_t h);
 SDL_GPUShaderFormat shader_formats(void);
 void socket_opened(int fd);
 char *utf8_ctype(void);
@@ -2548,15 +2565,23 @@ void vsync_stop(void);
 #endif
 #ifdef __linux__
 SDL_Keymod alt_keymod(void);
+void closing_desktop_window(SDL_Window *sw);
 SDL_Keymod cmd_keymod(void);
 void *platform_host_compile_shader(char *source, int32_t stage, size_t *size_out);
 char **environment(void);
+bool move_desktop_window(SDL_Window *sw, int32_t x, int32_t y);
+SDL_Window *open_desktop_window(char *title, int32_t w, int32_t h, SDL_WindowFlags flags);
+bool resize_desktop_window(SDL_Window *sw, int32_t w, int32_t h);
 SDL_GPUShaderFormat shader_formats(void);
 void socket_opened(int fd);
 char *utf8_ctype(void);
 void video_started(void);
 bool vsync_start(void);
 void vsync_stop(void);
+void destroy_surface(SDL_Window *sw);
+SDL_Window *open_surface(char *title, int32_t w, int32_t h, SDL_WindowFlags flags);
+bool place_surface(SDL_Window *sw, int32_t x, int32_t y);
+bool resize_surface(SDL_Window *sw, int32_t w, int32_t h);
 #endif
 #endif
 

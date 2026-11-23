@@ -196,6 +196,9 @@ hostResized: aPoint
 quitRequested
 	world quitRequested
 !
+processQuitRequested
+	world processQuitRequested
+!
 displayScaleChanged: aNumber
 	world displayScaleChanged: aNumber
 !

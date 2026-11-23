@@ -12,6 +12,8 @@ else
   # gcc's extra warnings about the generated code are not bugs (see ../Makefile)
   OS_CFLAGS := -D_GNU_SOURCE -fsigned-char -Wno-type-limits -Wno-parentheses -Wno-maybe-uninitialized -Wno-format-truncation
   OS_LIBS := $(shell pkg-config --libs shaderc 2>/dev/null || echo -lshaderc_shared)
+  OS_LIBS += $(shell pkg-config --libs wayland-client 2>/dev/null || echo -lwayland-client)
+  OS_CFLAGS += $(shell pkg-config --cflags wayland-client 2>/dev/null)
 endif
 # OpenSSL 3, as in ../Makefile
 SSL_CFLAGS := $(shell pkg-config --cflags openssl 2>/dev/null)

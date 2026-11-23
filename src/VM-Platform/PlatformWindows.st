@@ -57,7 +57,11 @@ open: w height: h title: title flags: flags
 	(flags bitAnd: PF_WIN_HIDDEN) ~= 0 ifTrue: [f := f bitOr: sdl SDL_WINDOW_HIDDEN].
 	(flags bitAnd: PF_WIN_RESIZABLE) ~= 0 ifTrue: [f := f bitOr: sdl SDL_WINDOW_RESIZABLE].
 	(flags bitAnd: PF_WIN_HIGH_DENSITY) ~= 0 ifTrue: [f := f bitOr: sdl SDL_WINDOW_HIGH_PIXEL_DENSITY].
-	sw := sdl createWindow: (title notNull ifTrue: [title] ifFalse: ['']) width: w height: h flags: f.
+	"A desktop window, unless hidden (offscreen) or the system has none: then an ordinary one."
+	sw := ((flags bitAnd: PF_WIN_DESKTOP) ~= 0 and: [(flags bitAnd: PF_WIN_HIDDEN) = 0])
+		ifTrue: [host openDesktopWindow: (title notNull ifTrue: [title] ifFalse: ['']) width: w height: h flags: f]
+		ifFalse: [self null].
+	sw isNull ifTrue: [sw := sdl createWindow: (title notNull ifTrue: [title] ifFalse: ['']) width: w height: h flags: f].
 	sw isNull ifTrue: [
 		common setError: 'SDL_CreateWindow: %s' with: sdl getError.
 		^0].
@@ -73,6 +77,7 @@ close: win
 	sw isNull ifTrue: [^false].
 	gpu windowClosing: win.
 	sdl stopTextInput: sw.
+	host closingDesktopWindow: sw.
 	sdl destroyWindow: sw.
 	common table: table remove: win.
 	^true
@@ -125,7 +130,18 @@ setSize: win width: w height: h
 	<export>
 	| sw |
 	sw := self sdlWindow: win.
-	^sw notNull and: [sdl setWindowSize: sw w: w h: h]
+	sw isNull ifTrue: [^false].
+	(host resizeDesktopWindow: sw width: w height: h) ifTrue: [^true].
+	^sdl setWindowSize: sw w: w h: h
+!
+setPosition: win x: x y: y
+	"Move to x @ y points: a desktop window from the top left of the area the bar leaves free, another from the screen's (where the window manager lets an application place its windows)."
+	<export>
+	| sw |
+	sw := self sdlWindow: win.
+	sw isNull ifTrue: [^false].
+	(host moveDesktopWindow: sw x: x y: y) ifTrue: [^true].
+	^sdl setWindowPosition: sw x: x y: y
 !
 setTextInputArea: win x: x y: y width: w height: h cursor: cursor
 	"Where the text being typed is (points): the input method puts its candidates next to it."

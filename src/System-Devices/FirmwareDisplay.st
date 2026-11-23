@@ -101,6 +101,11 @@ window: window width: w height: h
 	self check: window.
 	^false
 !
+window: window x: x y: y
+	"The screen stays where it is."
+	self check: window.
+	^false
+!
 window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
 	self check: window
 !

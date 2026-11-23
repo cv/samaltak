@@ -466,6 +466,15 @@ setSize: win width: w height: h
 	common setError: 'not on UEFI'.
 	^false
 !
+setPosition: win x: x y: y
+	<function>
+	<var: #win type: 'int32_t'>
+	<var: #x type: 'int32_t'>
+	<var: #y type: 'int32_t'>
+	<returns: 'bool'>
+	common setError: 'not on UEFI'.
+	^false
+!
 setTitle: win title: title
 	<function>
 	<var: #win type: 'int32_t'>

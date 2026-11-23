@@ -4,8 +4,8 @@ set -euo pipefail
 
 if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" != 0 ]; then SUDO=sudo; else SUDO=; fi
 
-# shaderc (GLSL -> SPIR-V for SDL_GPU on Vulkan); OpenSSL 3 (TLS); cmake and ninja build SDL3
-PKGS="libshaderc-dev libssl-dev cmake ninja-build libvulkan-dev spirv-tools pkg-config git"
+# shaderc (GLSL -> SPIR-V for SDL_GPU on Vulkan); OpenSSL 3 (TLS); libwayland-client (desktop windows); cmake and ninja build SDL3
+PKGS="libshaderc-dev libssl-dev libwayland-dev cmake ninja-build libvulkan-dev spirv-tools pkg-config git"
 # the UEFI VM (make uefi, docs/uefi.md): a freestanding cross compiler and linker, QEMU and its UEFI firmware
 PKGS="$PKGS clang lld qemu-system-x86 ovmf"
 # the ext4 tests' fixtures (tests/storage/ext4_fixtures.sh): mke2fs, debugfs and e2fsck; test-uefi's ext4 disks: sgdisk;

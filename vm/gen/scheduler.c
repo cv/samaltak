@@ -49,6 +49,8 @@ static int64_t sampler_interval_us;
 static int64_t sampler_next_us;
 static int32_t sampler_sema;
 bool sampler_tick_unread;
+static uint64_t slice_breaks;
+static uint64_t slice_breaks_at_arm;
 static int64_t slice_due_us;
 static bool slice_expired;
 static int64_t slice_priority;
@@ -57,6 +59,7 @@ static int64_t slice_us;
 static int64_t start_us;
 uint64_t stat_process_switches;
 uint64_t stat_reconciles;
+uint64_t stat_timer_arms;
 static int64_t tick_armed_deadline = 9223372036854775807LL;
 static int64_t tick_armed_poll;
 static atomic_bool tick_deadline_fired;
@@ -209,8 +212,10 @@ void handle_interrupts(void)
     }
     if ((slice_due_us != 0) && ((!in_idle) && (now >= slice_due_us))) {
         slice_due_us = 0;
-        if (priority_of(active_process()) == slice_priority) {
-            slice_expired = false;
+        slice_expired = false;
+        if (slice_breaks != slice_breaks_at_arm) {
+            slice_check();
+        } else if (priority_of(active_process()) == slice_priority) {
             processor_yield();
         } else {
             slice_expired = true;
@@ -1072,7 +1077,7 @@ static void slice_check(void)
         return;
     }
     pri = priority_of(active_process());
-    if (((slice_due_us != 0) || slice_expired) && (pri > slice_priority)) {
+    if ((((slice_due_us != 0) && (slice_breaks == slice_breaks_at_arm)) || slice_expired) && (pri > slice_priority)) {
         return;
     }
     contended = (!in_idle) && ({
@@ -1085,18 +1090,19 @@ static void slice_check(void)
         if (slice_expired && (pri == slice_priority)) {
             slice_expired = false;
             slice_due_us = now_us();
+            slice_breaks_at_arm = slice_breaks;
             tick_update();
         } else if ((slice_due_us == 0) || (slice_priority != pri)) {
             slice_expired = false;
             slice_due_us = now_us() + slice_us;
             slice_priority = pri;
+            slice_breaks_at_arm = slice_breaks;
             tick_update();
         }
     } else {
         slice_expired = false;
         if (slice_due_us != 0) {
-            slice_due_us = 0;
-            tick_update();
+            slice_breaks = slice_breaks + 1;
         }
     }
 }
@@ -1181,10 +1187,12 @@ static void tick_update(void)
             request_interrupt_check();
         }
         arm(TICK_DEADLINE, (due == 0x7FFFFFFFFFFFFFFFLL) || (due <= now) ? -1 : due - now, false);
+        stat_timer_arms = stat_timer_arms + 1;
         tick_armed_deadline = due;
     }
     if (poll != tick_armed_poll) {
         arm(TICK_POLL, poll != 0 ? poll : -1, true);
+        stat_timer_arms = stat_timer_arms + 1;
         tick_armed_poll = poll;
     }
 }

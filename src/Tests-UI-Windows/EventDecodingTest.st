@@ -61,7 +61,7 @@ testEachPlatformEventReachesItsHandler
 	{UIEvent evMouseMove -> #handlePointer:. UIEvent evMouseDown -> #handlePointer:. UIEvent evMouseUp -> #handlePointer:.
 	 UIEvent evWheel -> #handlePointer:. UIEvent evKeyDown -> #handleKey:. UIEvent evKeyUp -> #handleKey:.
 	 UIEvent evTextInput -> #handleText:. UIEvent evWindowResized -> #hostResized:.
-	 UIEvent evWindowCloseRequest -> #quitRequested. UIEvent evQuit -> #quitRequested. UIEvent evFocusLost -> #focusLost.
+	 UIEvent evWindowCloseRequest -> #quitRequested. UIEvent evQuit -> #processQuitRequested. UIEvent evFocusLost -> #focusLost.
 	 UIEvent evDisplayScaleChanged -> #displayScaleChanged:. UIEvent evMouseLeave -> #pointerLeft.
 	 UIEvent evWindowExposed -> #exposed} do: [:each |
 		dispatched := nil.
@@ -96,6 +96,9 @@ hostResized: aPoint
 !
 quitRequested
 	dispatched := {#quitRequested}
+!
+processQuitRequested
+	dispatched := {#processQuitRequested}
 !
 focusLost
 	dispatched := {#focusLost}
