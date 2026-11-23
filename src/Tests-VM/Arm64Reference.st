@@ -421,6 +421,7 @@ cases
 		('frintp d0, d1' 1688 (16r1E64C020) ('frintp d0, d1'))
 		('frintz d0, d1' 1692 (16r1E65C020) ('frintz d0, d1'))
 		('frintn d0, d1' 1696 (16r1E644020) ('frintn d0, d1'))
+		('ccmn x6, #0, #2, hs' 1700 (16rBA4028C2) ('ccmn x6, #0x0, #0x2, hs'))
 	)
 !
 logicalImmediates64

@@ -695,7 +695,8 @@ ccmp: rn imm: imm nzcv: f cond: c
 	self fail: ASM_ERR_IMMEDIATE
 !
 ccmn: rn imm: imm nzcv: f cond: c
-	"The flags of rn + imm (-31 to 31) if c holds, else nzcv f."
+	"The flags of rn + imm (-31 to 31) if c holds, else nzcv f. For 0 an addition's (C clear), as on x86, not ccmp #0's (C set)."
+	imm = 0 ifTrue: [^self condCompare: 0 rn: rn rm: 0 imm: true nzcv: f cond: c].
 	self ccmp: rn imm: imm negated nzcv: f cond: c
 ! !
 

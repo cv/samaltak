@@ -486,5 +486,7 @@ floatingPoint
 	self case: 'frintm d0, d1' emit: [asm frintm: D0 with: D1].
 	self case: 'frintp d0, d1' emit: [asm frintp: D0 with: D1].
 	self case: 'frintz d0, d1' emit: [asm frintz: D0 with: D1].
-	self case: 'frintn d0, d1' emit: [asm frintn: D0 with: D1]
+	self case: 'frintn d0, d1' emit: [asm frintn: D0 with: D1].
+	"ccmn #0: an addition's flags (C clear), not ccmp #0's"
+	self case: 'ccmn x6, #0, #2, hs' emit: [asm ccmn: X6 imm: 0 nzcv: 2 cond: COND_HS]
 ! !

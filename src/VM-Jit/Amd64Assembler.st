@@ -950,7 +950,8 @@ cmpAny: rn imm: imm
 	self alu: 7 w: (self wide: rn) dst: (self source: rn) imm: imm
 !
 cmn: rn imm: imm
-	"The flags of rn + imm: those of rn - -imm (the same arithmetic, the carry as a subtraction's)."
+	"The flags of rn + imm: those of rn - -imm (the same arithmetic, the carry as a subtraction's); for 0 those of tst rn, rn (C clear, as an addition's: cmp rn, 0 would set it)."
+	imm = 0 ifTrue: [^self tst: rn with: rn].
 	self cmp: rn imm: imm asInt64 negated
 !
 add: rd with: rn with: rm

@@ -437,6 +437,7 @@ cases
 		('pop rdi|pop rsi' 2789 ('5f' 'pop    rdi' '5e' 'pop    rsi'))
 		('push rdi' 2791 ('57' 'push   rdi'))
 		('pop rdi|lea rsp, [rsp+8]' 2792 ('5f' 'pop    rdi' '488d642408' 'lea    rsp,[rsp+0x8]'))
+		('test rdx, rdx' 2798 ('4885d2' 'test   rdx,rdx'))
 	)
 !
 disassembly

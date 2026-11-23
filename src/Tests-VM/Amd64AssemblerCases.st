@@ -528,5 +528,7 @@ runtime
 	self case: 'push rsi|push rdi' emit: [asm stp: X0 with: X1 base: SP preIndex: -16].
 	self case: 'pop rdi|pop rsi' emit: [asm ldp: X0 with: X1 base: SP postIndex: 16].
 	self case: 'push rdi' emit: [asm stp: X29 with: X0 base: SP preIndex: -16].
-	self case: 'pop rdi|lea rsp, [rsp+8]' emit: [asm ldr: X0 base: SP postIndex: 16]
+	self case: 'pop rdi|lea rsp, [rsp+8]' emit: [asm ldr: X0 base: SP postIndex: 16].
+	"cmn #0: an addition's flags (C clear), not cmp's of 0"
+	self case: 'test rdx, rdx' emit: [asm cmn: X2 imm: 0]
 ! !

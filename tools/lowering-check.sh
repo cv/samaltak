@@ -4,7 +4,8 @@
 # usage: tools/lowering-check.sh IMAGE [seed [count [length]]]
 # On x86-64 it needs aarch64-linux-gnu-gcc and qemu-aarch64; on arm64 X86_CC (a C compiler for static x86-64 programs,
 # e.g. clang --target=x86_64-linux-gnu -fuse-ld=lld with a sysroot) and qemu-x86_64. X86_CC, X86_RUN, ARM64_CC and
-# ARM64_RUN override either.
+# ARM64_RUN override either. Without X86_CC and x86_64-linux-gnu-gcc on PATH, arm64 uses tools/x86-toolchain.sh's (it
+# downloads one without root: run it once).
 set -u
 cd "$(dirname "$0")/.."
 IMAGE=$1
@@ -18,7 +19,12 @@ $VM "$IMAGE" --headless --eval "[(VMTranslator modules: {AsmLoweringFuzz. Arm64A
 grep -q "^'ok'$" "$DIR/translate.out" || { echo "lowering-check: translation failed"; cat "$DIR/translate.out"; exit 1; }
 case $(uname -m) in
 x86_64|amd64) X86_CC=${X86_CC:-cc}; X86_RUN=${X86_RUN:-}; ARM64_CC=${ARM64_CC:-aarch64-linux-gnu-gcc -static}; ARM64_RUN=${ARM64_RUN:-qemu-aarch64} ;;
-*) X86_CC=${X86_CC:-x86_64-linux-gnu-gcc -static}; X86_RUN=${X86_RUN:-qemu-x86_64}; ARM64_CC=${ARM64_CC:-cc}; ARM64_RUN=${ARM64_RUN:-} ;;
+*) if [ -z "${X86_CC:-}" ] && ! command -v x86_64-linux-gnu-gcc >/dev/null 2>&1; then
+     T=$(tools/x86-toolchain.sh --path)
+     [ -x "$T/bin/x86_64-linux-gnu-gcc" ] || { echo "lowering-check: no x86-64 cross compiler: run tools/x86-toolchain.sh (or set X86_CC, X86_RUN)"; exit 1; }
+     eval "$(tools/x86-toolchain.sh --env)"
+   fi
+   X86_CC=${X86_CC:-x86_64-linux-gnu-gcc -static}; X86_RUN=${X86_RUN:-qemu-x86_64}; ARM64_CC=${ARM64_CC:-cc}; ARM64_RUN=${ARM64_RUN:-} ;;
 esac
 $X86_CC -std=gnu11 -O1 -w -fsigned-char -o "$DIR/x86" "$DIR"/*.c || exit 1
 $ARM64_CC -std=gnu11 -O1 -w -fsigned-char -o "$DIR/arm64" "$DIR"/*.c || exit 1
