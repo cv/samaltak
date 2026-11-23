@@ -12,7 +12,9 @@ ffiCandidateSetViewport: pass x: x y: y width: w height: h
 	^self
 !
 ffiViewportNumber: aNumber
-	^aNumber class == Float or: [aNumber class == SmallInteger]
+	| cls |
+	cls := aNumber class.
+	^cls == SmallFloat64 or: [cls == BoxedFloat64 or: [cls == SmallInteger]]
 !
 ffiCandidateSetScissor: pass x: x y: y width: w height: h
 	| binding result |

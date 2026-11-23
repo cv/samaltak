@@ -20,7 +20,7 @@ testScalarPassStateAndConsumption
 			Compiler compile: 'setViewport: p x: x y: y width: w height: h self error: ''legacy viewport fallback''' in: gpu class.
 			Compiler compile: 'setScissor: p x: x y: y width: w height: h self error: ''legacy scissor fallback''' in: gpu class.
 			Compiler compile: 'endPass: p self error: ''legacy end-pass fallback''' in: gpu class.
-			self assert: (gpu ffiCandidateSetViewport: pass x: 0 y: 0.0 width: 4 height: 4.0) identicalTo: gpu.
+			self assert: (gpu ffiCandidateSetViewport: pass x: 0 y: 1.0e-300 width: 4 height: 4.0) identicalTo: gpu.
 			self assert: (gpu ffiCandidateSetScissor: pass x: 0 y: 0 width: 4 height: 4) identicalTo: gpu.
 			self assert: (gpu ffiCandidateEndPass: pass) identicalTo: gpu.
 			self should: [gpu ffiCandidateEndPass: pass] raise: GPUError withExceptionDo: [:e |
@@ -114,7 +114,7 @@ testBeginClearAndLoad
 	[
 		Compiler compile: 'beginPass: cmd target: t clear: c self error: ''legacy begin fallback''' in: gpu class.
 		cmd := gpu acquireCommandBuffer: dev.
-		pass := gpu ffiCandidateBeginPass: cmd target: tex clear: #(0 1 0.0 1).
+		pass := gpu ffiCandidateBeginPass: cmd target: tex clear: #(0 1.0 1.0e-300 1).
 		gpu endPass: pass.
 		pass := gpu ffiCandidateBeginPass: cmd target: tex clear: nil.
 		gpu endPass: pass.
