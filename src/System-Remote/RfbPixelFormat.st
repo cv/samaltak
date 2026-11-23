@@ -75,13 +75,13 @@ byteOfShift: aShift
 
 !RfbPixelFormat methodsFor: 'ZRLE'!
 cpixelSize
-	"ZRLE's CPIXEL: 3 bytes for a true-colour 32-bit pixel of depth <= 24 whose channels fit in its low or high three bytes, else the whole pixel."
+	"ZRLE's CPIXEL: 3 bytes for a true-colour 32-bit pixel whose channels fit in its low or high three bytes, else the whole pixel."
 	^self cpixelOffset isNil ifTrue: [self bytesPerPixel] ifFalse: [3]
 !
 cpixelOffset
-	"Where the 3-byte CPIXEL starts inside a pixel in memory (0 or 1), or nil when CPIXEL is the whole pixel."
+	"Where the 3-byte CPIXEL starts inside a pixel in memory (0 or 1), or nil when CPIXEL is the whole pixel. RFC 6143 also asks for depth <= 24, but viewers and servers (macOS Screen Sharing, TigerVNC, libvncserver, QEMU) decide by the channels alone: Screen Sharing asks for depth 32 and decodes 3-byte CPIXELs."
 	| used low |
-	(bitsPerPixel = 32 and: [trueColour and: [depth <= 24]]) ifFalse: [^nil].
+	(bitsPerPixel = 32 and: [trueColour]) ifFalse: [^nil].
 	used := ((redMax bitShift: redShift) bitOr: (greenMax bitShift: greenShift)) bitOr: (blueMax bitShift: blueShift).
 	used < 16r1000000 ifTrue: [low := true] ifFalse: [
 		(used bitAnd: 255) = 0 ifFalse: [^nil].

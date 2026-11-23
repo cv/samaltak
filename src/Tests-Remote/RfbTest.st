@@ -328,6 +328,8 @@ testPixelFormats
 	self assert: RfbPixelFormat native cpixelSize equals: 3.
 	self assert: RfbPixelFormat native cpixelOffset equals: 0.
 	self assert: ((RfbPixelFormat bitsPerPixel: 32 depth: 24 bigEndian: false maxes: #(255 255 255) shifts: #(24 16 8)) cpixelOffset) equals: 1.
+	"macOS Screen Sharing asks for depth 32 and decodes 3-byte CPIXELs, as TigerVNC, libvncserver and QEMU do."
+	self assert: ((RfbPixelFormat bitsPerPixel: 32 depth: 32 bigEndian: false maxes: #(255 255 255) shifts: #(16 8 0)) cpixelSize) equals: 3.
 	self assert: ((RfbPixelFormat bitsPerPixel: 16 depth: 16 bigEndian: false maxes: #(31 63 31) shifts: #(11 5 0)) cpixelSize) equals: 2.
 	self assert: (RfbPixelFormat fromBytes: RfbPixelFormat native asBytes) equals: RfbPixelFormat native.
 	self assert: (RfbPixelFormat fromBytes: #[8 8 0 0 0 0 0 0 0 0 0 0 0 0 0 0]) problem notNil
