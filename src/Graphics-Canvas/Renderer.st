@@ -1,5 +1,5 @@
 Object subclass: #Renderer
-	instanceVariableNames: 'device pipeline nearestSampler linearSampler vertexBuffer bufferOffset commandBuffer white uniforms sourceGeneration pipelineVersion'
+	instanceVariableNames: 'device pipeline nearestSampler linearSampler vertexBuffer bufferOffset commandBuffer white uniforms sourceGeneration pipelineVersion lock'
 	classVariableNames: 'Default SourceGeneration ShaderErrorHandler'
 	package: 'Graphics-Canvas'!
 
@@ -21,7 +21,8 @@ setDevice: aDevice
 	bufferOffset := 0.
 	white := Form width: 1 height: 1.
 	white fill: Color white.
-	uniforms := ByteArray new: 16
+	uniforms := ByteArray new: 16.
+	lock := Mutex new
 ! !
 
 !Renderer methodsFor: 'accessing'!
@@ -80,7 +81,13 @@ fill: scissors color: aColor into: aTexture commandBuffer: aCommandBuffer
 	self render: c displayList into: aTexture clear: nil commandBuffer: aCommandBuffer
 !
 render: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer within: scissorsOrNil
-	"The same, drawing only inside the rectangles scissorsOrNil ({x. y. width. height} device pixels; nil: everywhere): each batch once per rectangle, its clip cut to it and to the batch's quads (DisplayList>>boundsOfBatch:), those it leaves nothing of skipped. Inside them the pixels are those of drawing everywhere (damage-limited rendering, DamageRegion)."
+	"The same, drawing only inside the rectangles scissorsOrNil ({x. y. width. height} device pixels; nil: everywhere): each batch once per rectangle, its clip cut to it and to the batch's quads (DisplayList>>boundsOfBatch:), those it leaves nothing of skipped. Inside them the pixels are those of drawing everywhere (damage-limited rendering, DamageRegion). One Process at a time: the uniforms, the vertex buffer's ring and the pipeline are shared, and the Compositor (priority 70) may wake in the middle of another Process's encoding (a Surface's render:clear:) and leave its own width and height in the uniforms that Process pushes next."
+	^self lock critical: [self encode: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer within: scissorsOrNil]
+!
+lock
+	^lock ifNil: [lock := Mutex new]
+!
+encode: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer within: scissorsOrNil
 	| byteCount offset textures pass w h tx ty |
 	sourceGeneration = SourceGeneration ifFalse: [self updatePipeline].
 	commandBuffer := aCommandBuffer.
