@@ -1,5 +1,5 @@
 ToolPane subclass: #Inspector
-	instanceVariableNames: 'object fields valueView valueHeader evalHeader evalEditor evaluator lastValueText pixelView pixelHeader pixelStatus'
+	instanceVariableNames: 'object fields valueView valueHeader evalHeader evalEditor evaluator lastValueText pixelView pixelHeader pixelStatus lastTags'
 	classVariableNames: ''
 	package: 'Tools'!
 
@@ -146,9 +146,11 @@ showField: aField
 	valueHeader rightText: (self className: (self valueOf: aField))
 !
 refresh
-	"Re-read the selected field's value and the tags (my window's Process, twice a second)."
+	"Re-read the selected field's value and the tags (my window's Process, twice a second); the fields are drawn again only when a tag changed."
+	| tags |
 	fields selection isNil ifFalse: [self showField: fields selection].
-	fields invalidate.
+	tags := fields items collect: [:f | self tagOf: f].
+	tags = lastTags ifFalse: [lastTags := tags. fields invalidate].
 	pixelView isNil ifFalse: [pixelView refresh]
 !
 dive: aField

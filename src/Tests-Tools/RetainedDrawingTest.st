@@ -17,8 +17,8 @@ tearDown
 
 !RetainedDrawingTest methodsFor: 'support'!
 assertRetainedDrawingOfAll
-	"Every window but the Process Browser: it shows the Processes' live states, which change from one drawing to the next."
-	world windows do: [:w | (w content isKindOf: ProcessBrowser) ifFalse: [self assertRetainedDrawingOf: w]]
+	"Every window, the Process Browser too: it draws the Processes' states as its last refresh read them."
+	world windows do: [:w | self assertRetainedDrawingOf: w]
 !
 assertRetainedDrawingOf: aWindow
 	self assertRetainedDrawingOf: aWindow after: []

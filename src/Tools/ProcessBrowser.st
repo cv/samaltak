@@ -1,9 +1,11 @@
 ToolPane subclass: #ProcessBrowser
-	instanceVariableNames: 'table stack source debugButton suspendButton terminateButton countLabel lastCpu lastTime cpu stackKey meters lastStats lastGpu'
+	instanceVariableNames: 'table stack source debugButton suspendButton terminateButton countLabel samples cpu shownCpu shownMeters rowKeys rows stackKey meters'
 	classVariableNames: ''
 	package: 'Tools'!
 
-ProcessBrowser comment: 'I am the Process Browser (prototypes/1-classic/tools.js openProcessBrowser): a live table of every Process (priority, name — with a window glyph for a window''s Process —, state, and CPU share from Process>>cpuMicroseconds deltas), refreshed four times a second; above it a LoadMeters row with the load of each core the VM uses and of the GPU: cpu, the VM''s own core (every Process but the idle one, with the GC and the JIT: a Process''s CPU is its share of this core), jit, the core the background compiler runs on (VMStatistics>>optBackgroundMicroseconds), and gpu, the frames'' GPU time (GPUTimer>>totalMicroseconds); the toolbar sums the cores'' load (0.25 cores: a quarter of one core''s time). The application processors'' raster bands (CpuWorkers) are not measured by the VM: they show only as GPU time. below, the selected Process''s stack (its real suspendedContext chain) and the source of the selected frame with its current expression marked.
+ProcessBrowser comment: 'I am the Process Browser (prototypes/1-classic/tools.js openProcessBrowser): a live table of every Process (priority, name — with a window glyph for a window''s Process —, state, and CPU share from Process>>cpuMicroseconds deltas over the last second), refreshed four times a second; above it a LoadMeters row with the load of each core the VM uses and of the GPU: cpu, the VM''s own core (every Process but the idle one, with the GC and the JIT: a Process''s CPU is its share of this core), jit, the core the background compiler runs on (VMStatistics>>optBackgroundMicroseconds), and gpu, the frames'' GPU time (GPUTimer>>totalMicroseconds); the toolbar sums the cores'' load (0.25 cores: a quarter of one core''s time). The application processors'' raster bands (CpuWorkers) are not measured by the VM: they show only as GPU time. below, the selected Process''s stack (its real suspendedContext chain) and the source of the selected frame with its current expression marked.
+
+An idle browser presents nothing: a reading (a Process''s CPU, a meter) changes on the screen only when it moved by a visible step (shown:for:in:) or came to or left zero, and the table, the meters and the stack are drawn again only when what they show changed.
 
 Debug opens a debugger on the Process (Tools debugProcess:), Suspend / Resume and Terminate act on it; the window system''s own Processes (above user priority) are refused. Double-click a row to debug it. While I refresh I am the running Process; a runnable Process that used CPU since the last refresh is shown running (time-sliced), one that did not is ready.'!
 
@@ -11,8 +13,9 @@ Debug opens a debugger on the Process (Tools debugProcess:), Suspend / Resume an
 initialize
 	super initialize.
 	cpu := IdentityDictionary new.
-	lastCpu := IdentityDictionary new.
-	lastTime := Time microsecondClockValue.
+	shownCpu := IdentityDictionary new.
+	shownMeters := Dictionary new.
+	samples := OrderedCollection new.
 	self build
 !
 build
@@ -38,10 +41,10 @@ build
 	table := TableView new name: 'processes'; title: 'Processes'; yourself.
 	table
 		addColumn: (TableColumn title: '' width: 8 draw: [:canvas :rect :p :inverted | self drawStateSquareOn: canvas in: rect for: p inverted: inverted]);
-		addColumn: ((TableColumn title: 'Pri' width: 24 text: [:p | p priority printString]) align: #right; remoteKey: 'pri'; yourself);
+		addColumn: ((TableColumn title: 'Pri' width: 24 text: [:p | ((self rowOf: p) at: 1) printString]) align: #right; remoteKey: 'pri'; yourself);
 		addColumn: ((TableColumn title: 'Process' flex: 1 text: [:p | p name ifNil: ['a Process']])
 			drawBlock: [:canvas :rect :p :inverted | self drawNameOn: canvas in: rect for: p inverted: inverted]; yourself);
-		addColumn: ((TableColumn title: 'State' width: 74 text: [:p | self stateOf: p])
+		addColumn: ((TableColumn title: 'State' width: 74 text: [:p | (self rowOf: p) at: 4])
 			styleBlock: [:p | self stateStyleOf: p]; remoteKey: ''; yourself);
 		addColumn: ((TableColumn title: 'CPU' width: 84 draw: (TableView barCell: [:p | (self cpuOf: p) / 100.0] text: [:p | ((self cpuOf: p) printShowingDecimalPlaces: 1), '%']))
 			textBlock: [:p | ((self cpuOf: p) printShowingDecimalPlaces: 1), '%']; remoteKey: 'cpu'; yourself).
@@ -81,24 +84,58 @@ selectProcess: aProcess
 
 !ProcessBrowser methodsFor: 'sampling'!
 refresh
-	"Re-read every Process (my window's Process, 4 Hz)."
-	| now dt procs |
+	"Re-read every Process (my window's Process, 4 Hz): the CPU over the last second (the refreshes in it), shown in visible steps. The table is drawn again only when a row shows something else, and laid out again only when the Processes or their order changed."
+	| now procs times stats raw sorted keys |
 	now := Time microsecondClockValue.
-	dt := now - lastTime max: 1.
 	procs := Processor allProcesses.
-	cpu := IdentityDictionary new.
+	times := IdentityDictionary new.
+	procs do: [:p | times at: p put: p cpuMicroseconds].
+	stats := Smalltalk vm statistics.
+	samples addLast: (Array with: now with: times with: stats optBackgroundMicroseconds with: self gpuMicroseconds).
+	[samples size > 1 and: [now - (samples at: 2) first >= 1000000]] whileTrue: [samples removeFirst].
+	raw := IdentityDictionary new.
 	procs do: [:p |
-		| t |
-		t := p cpuMicroseconds.
-		cpu at: p put: ((t - (lastCpu at: p ifAbsent: [t])) * 100.0 / dt min: 100.0).
-		lastCpu at: p put: t].
-	(lastCpu keys reject: [:p | procs includes: p]) do: [:p | lastCpu removeKey: p].
-	lastTime := now.
-	meters isNil ifFalse: [self updateMeters: dt].
-	table items: (procs asSortedCollection: [:a :b | self process: a sortsBefore: b]) asArray.
+		| since |
+		since := samples detect: [:s | (s at: 2) includesKey: p].
+		raw at: p put: (((times at: p) - ((since at: 2) at: p)) * 100.0 / (now - since first max: 1) min: 100.0)].
+	(shownCpu keys reject: [:p | times includesKey: p]) do: [:p | shownCpu removeKey: p].
+	cpu := IdentityDictionary new.
+	procs do: [:p | cpu at: p put: (self shown: (raw at: p) for: p in: shownCpu)].
+	meters isNil ifFalse: [self updateMeters: raw jobs: stats optBackgroundJobs].
+	sorted := (procs asSortedCollection: [:a :b | self process: a sortsBefore: b]) asArray.
+	keys := sorted collect: [:p | self rowKeyOf: p].
+	(table items notNil and: [table items = sorted])
+		ifTrue: [keys = rowKeys ifFalse: [table invalidate]]
+		ifFalse: [table items: sorted].
+	rowKeys := keys.
+	rows := IdentityDictionary new.
+	sorted with: keys do: [:p :k | rows at: p put: k].
 	table selection isNil ifTrue: [self selectFirstWindowProcess].
 	self updateButtons.
 	self updateStack
+!
+shown: new for: key in: aDictionary
+	"The reading to show for key (a percent, or nil: not measured): the new one when it moved from the one shown by a visible step (half a point, or a tenth of the reading for large ones), or came to or left zero; else the one shown, so readings that only jitter stay still."
+	| old |
+	old := aDictionary at: key ifAbsent: [^aDictionary at: key put: new].
+	(new isNil or: [old isNil]) ifTrue: [^aDictionary at: key put: new].
+	((new - old) abs >= (old abs / 10 max: 0.5) or: [(new = 0) ~= (old = 0)]) ifTrue: [^aDictionary at: key put: new].
+	^old
+!
+rowKeyOf: aProcess
+	"What a row shows of aProcess, read at a refresh: priority, name, whether it has a window, state, busy, note, CPU. The rows are drawn from it (rowOf:), so a redraw between refreshes draws what a replay would, and refresh draws the table again when it changes."
+	^(Array new: 7)
+		at: 1 put: aProcess priority;
+		at: 2 put: (aProcess name ifNil: ['a Process']);
+		at: 3 put: aProcess window notNil;
+		at: 4 put: (self stateOf: aProcess);
+		at: 5 put: (self isBusy: aProcess);
+		at: 6 put: (self noteFor: aProcess);
+		at: 7 put: ((self cpuOf: aProcess) printShowingDecimalPlaces: 1);
+		yourself
+!
+rowOf: aProcess
+	^(rows isNil ifFalse: [rows at: aProcess ifAbsent: [nil]]) ifNil: [self rowKeyOf: aProcess]
 !
 cpuOf: aProcess
 	^cpu at: aProcess ifAbsent: [0.0]
@@ -154,27 +191,25 @@ isBusy: aProcess
 	^(self stateOf: aProcess) = 'running'
 !
 stateStyleOf: aProcess
-	| s |
-	s := self stateOf: aProcess.
-	s = 'running' ifTrue: [^(self isBusy: aProcess) ifTrue: [#(#bold #accent)] ifFalse: [#bold]].
+	| row s |
+	row := self rowOf: aProcess.
+	s := row at: 4.
+	s = 'running' ifTrue: [^(row at: 5) ifTrue: [#(#bold #accent)] ifFalse: [#bold]].
 	s = 'suspended' ifTrue: [^#bold].
 	^#(#italic #muted)
 !
-updateMeters: dt
-	"The load of each core the VM uses and of the GPU over the last dt µs: the VM's core is every Process but the idle one (with the GC and the JIT); the background compiler runs on a core of its own."
-	| stats gpu list |
-	stats := Smalltalk vm statistics.
-	gpu := self gpuMicroseconds.
+updateMeters: raw jobs: jobs
+	"The load of each core the VM uses and of the GPU over the last second (the samples), from the Processes' raw CPU: the VM's core is every Process but the idle one (with the GC and the JIT); the background compiler runs on a core of its own. Shown in visible steps, as the CPU column."
+	| first last dt gpu list |
+	first := samples first.
+	last := samples last.
+	dt := last first - first first max: 1.
 	list := OrderedCollection new.
-	list add: 'cpu' -> ((cpu keys inject: 0.0 into: [:sum :p | p == Processor idleProcess ifTrue: [sum] ifFalse: [sum + (cpu at: p)]]) min: 100.0).
-	stats optBackgroundJobs > 0 ifTrue: [
-		list add: 'jit' -> (lastStats isNil
-			ifTrue: [0.0]
-			ifFalse: [(stats optBackgroundMicroseconds - lastStats optBackgroundMicroseconds) * 100.0 / dt min: 100.0])].
-	list add: 'gpu' -> ((gpu isNil or: [lastGpu isNil]) ifFalse: [(gpu - lastGpu) * 100.0 / dt min: 100.0]).
-	lastStats := stats.
-	lastGpu := gpu.
-	meters meters: list asArray
+	list add: 'cpu' -> ((raw keys inject: 0.0 into: [:sum :p | p == Processor idleProcess ifTrue: [sum] ifFalse: [sum + (raw at: p)]]) min: 100.0).
+	jobs > 0 ifTrue: [list add: 'jit' -> ((last at: 3) - (first at: 3) * 100.0 / dt min: 100.0)].
+	gpu := ((first at: 4) isNil or: [(last at: 4) isNil]) ifFalse: [(last at: 4) - (first at: 4) * 100.0 / dt min: 100.0].
+	list add: 'gpu' -> gpu.
+	meters meters: (list asArray collect: [:each | each key -> (self shown: each value for: each key in: shownMeters)])
 !
 gpuMicroseconds
 	"The GPU time of the frames presented so far (GPUTimer), nil without a compositor that measures it."
@@ -195,12 +230,12 @@ coresBusy
 drawStateSquareOn: aCanvas in: aRect for: aProcess inverted: inverted
 	| theme r s fg bg |
 	theme := self theme.
-	s := self stateOf: aProcess.
+	s := (self rowOf: aProcess) at: 4.
 	r := aRect left @ (aRect top + (aRect height - 6 / 2)) extent: 6 @ 6.
 	fg := inverted ifTrue: [theme paper] ifFalse: [theme ink].
 	bg := inverted ifTrue: [theme ink] ifFalse: [theme paper].
 	s = 'running' ifTrue: [
-		^aCanvas fillRect: r color: ((self isBusy: aProcess) & inverted not ifTrue: [theme ultramarine] ifFalse: [fg])].
+		^aCanvas fillRect: r color: (((self rowOf: aProcess) at: 5) & inverted not ifTrue: [theme ultramarine] ifFalse: [fg])].
 	s = 'suspended' ifTrue: [
 		aCanvas strokeRect: (r outsetBy: 2) color: fg width: 1.
 		^aCanvas fillRect: r color: fg].
@@ -208,23 +243,22 @@ drawStateSquareOn: aCanvas in: aRect for: aProcess inverted: inverted
 	aCanvas strokeRect: r color: (s = 'ready' & inverted not ifTrue: [theme ultramarine] ifFalse: [fg]) width: 1
 !
 drawNameOn: aCanvas in: aRect for: aProcess inverted: inverted
-	| theme fg x name font extra |
-	"The rows show the Processes' live state (CPU, state, progress) whenever drawn."
-	aCanvas noteVolatile.
+	| theme fg x name font extra row |
+	row := self rowOf: aProcess.
 	theme := self theme.
 	fg := inverted ifTrue: [theme paper] ifFalse: [theme ink].
 	x := aRect left.
-	aProcess window notNil ifTrue: [
+	(row at: 3) ifTrue: [
 		| g |
 		g := x @ (aRect top + (aRect height - 9 / 2)) rounded extent: 11 @ 9.
 		aCanvas strokeRect: g color: fg width: 1.
 		aCanvas fillRect: (g left @ (g top + 2) extent: g width @ 1) color: fg.
 		x := x + 17].
-	name := aProcess name ifNil: ['a Process'].
+	name := row at: 2.
 	font := theme font: #ui.
 	aCanvas clip: aRect during: [
 		aCanvas drawString: name in: (x @ aRect top corner: aRect corner) font: font color: fg align: #left.
-		extra := self noteFor: aProcess.
+		extra := row at: 6.
 		extra isNil ifFalse: [
 			aCanvas drawString: extra in: ((x + (font widthOf: name) + 6) @ aRect top corner: aRect corner)
 				font: (theme font: #smallItalic) color: (inverted ifTrue: [theme color: #inverseMuted] ifFalse: [theme muted]) align: #left]]
@@ -263,9 +297,13 @@ processSelected: aProcess
 	self updateStack
 !
 updateStack
-	"Show the selected Process's frames; keep the selected frame while the chain is the same."
+	"Show the selected Process's frames; keep the selected frame while the chain is the same, and draw the list again only when its frames changed."
 	| frames key index |
 	frames := self framesOf: table selection.
+	(self frames: frames are: stack items) ifTrue: [
+		index := stack selectionIndex.
+		index > 0 ifTrue: [self showFrame: (frames at: index)].
+		^self].
 	key := frames collect: [:ctx | ctx method].
 	key = stackKey
 		ifTrue: [
@@ -279,6 +317,12 @@ updateStack
 			frames isEmpty
 				ifTrue: [stack selectionIndex: 0. source text: '']
 				ifFalse: [stack selectionIndex: 1. self showFrame: frames first]]
+!
+frames: anArray are: items
+	"Whether the stack list shows exactly these contexts."
+	(items isNil or: [items size ~= anArray size]) ifTrue: [^false].
+	1 to: anArray size do: [:i | (anArray at: i) == (items at: i) ifFalse: [^false]].
+	^true
 !
 showFrame: aContext
 	| text interval isTop |
