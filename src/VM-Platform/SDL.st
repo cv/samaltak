@@ -265,6 +265,10 @@ showWindow: window
 	<c: 'bool SDL_ShowWindow(SDL_Window *window)'>
 	^self notSimulated
 !
+raiseWindow: window
+	<c: 'bool SDL_RaiseWindow(SDL_Window *window)'>
+	^self notSimulated
+!
 hideWindow: window
 	<c: 'bool SDL_HideWindow(SDL_Window *window)'>
 	^self notSimulated

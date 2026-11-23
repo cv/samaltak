@@ -323,7 +323,7 @@ install
 	(Theme current isKindOf: self) ifFalse: [Theme current: (self new setDirectory: self defaultDirectory userShell: self defaultUserShell)].
 	Theme current publishPalette; applyFonts.
 	self startWatching.
-	World current ifNotNil: [:world | world restyle].
+	World restyleAll.
 	^Theme current
 !
 uninstall
@@ -333,7 +333,7 @@ uninstall
 	#('JetBrainsMono-Regular' 'JetBrainsMono-Bold' 'JetBrainsMono-Italic') do: [:each | Font substituteFace: each with: nil].
 	Theme current: Theme blueBook.
 	Theme current publishPalette.
-	World current ifNotNil: [:world | world restyle]
+	World restyleAll
 !
 wanted
 	"Whether this image should follow the desktop's theme: on an Omarchy desktop, with a display, not running tests, and not told otherwise (--theme blue-book)."
@@ -369,7 +369,7 @@ checkForChanges
 	theme := Theme current.
 	((theme isKindOf: self) and: [theme isStale]) ifFalse: [^self].
 	[theme refresh] on: Error do: [:e | e return: nil].
-	World current ifNotNil: [:world | world restyle]
+	World restyleAll
 ! !
 
 !OmarchyTheme class methodsFor: 'fonts'!

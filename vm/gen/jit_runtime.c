@@ -639,7 +639,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
     if (!ensure_open()) {
         return (jit_method *)NULL;
     }
-    t0 = thread_cpu_us();
+    t0 = pause_charging();
     start = cache_top;
     map_count = 0;
     begin_writing();
@@ -664,7 +664,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
         end_writing();
         invalidate((void *)start, 0);
         flush_pending = true;
-        uncharge(thread_cpu_us() - t0);
+        resume_charging();
         return (jit_method *)NULL;
     }
     if (ok && (err == ASM_OK)) {
@@ -679,7 +679,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
     invalidate((void *)start, size);
     if (h == NULL) {
         flush_pending = true;
-        uncharge(thread_cpu_us() - t0);
+        resume_charging();
         return (jit_method *)NULL;
     }
     if ((h != NULL) && ((h->flags & JM_FAILED) == 0)) {
@@ -690,9 +690,8 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
             perf_map_code(h, md);
         }
     }
-    dt = thread_cpu_us() - t0;
+    dt = resume_charging() - t0;
     stat_compile_us = stat_compile_us + (uint64_t)dt;
-    uncharge(dt);
     return h;
 }
 
@@ -711,7 +710,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
     if (!ensure_open()) {
         return (jit_method *)NULL;
     }
-    t0 = thread_cpu_us();
+    t0 = pause_charging();
     start = cache_top;
     map_count = 0;
     begin_writing();
@@ -736,7 +735,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
         end_writing();
         invalidate((void *)start, 0);
         flush_pending = true;
-        uncharge(thread_cpu_us() - t0);
+        resume_charging();
         return (jit_method *)NULL;
     }
     if (ok && (err == ASM_OK)) {
@@ -751,7 +750,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
     invalidate((void *)start, size);
     if (h == NULL) {
         flush_pending = true;
-        uncharge(thread_cpu_us() - t0);
+        resume_charging();
         return (jit_method *)NULL;
     }
     if ((h != NULL) && ((h->flags & JM_FAILED) == 0)) {
@@ -762,9 +761,8 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
             perf_map_code(h, md);
         }
     }
-    dt = thread_cpu_us() - t0;
+    dt = resume_charging() - t0;
     stat_compile_us = stat_compile_us + (uint64_t)dt;
-    uncharge(dt);
     return h;
 }
 

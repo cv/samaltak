@@ -137,7 +137,8 @@ entriesAt: aPath
 
 !FirmwareFileSystem methodsFor: 'writing'!
 open: aPath mode: mode
-	"A FirmwareFile on aPath: mode 0 to read, 1 to read and write (created if missing), 2 to append, 3 created or truncated."
+	"A FirmwareFile on aPath: mode 0 to read, 1 to read and write (created if missing), 2 to append, 3 created or truncated. Mode 4 (a private file, File writeSecret:to:) is refused: the firmware's FAT has no permissions, so the file could not be kept from other users."
+	mode = 4 ifTrue: [^FileError signal: 'A firmware (FAT) volume has no permissions, so it cannot hold a private file: ', aPath path: aPath].
 	^lock critical: [| file st |
 		mode = 0
 			ifTrue: [file := self openFile: aPath mode: 1 attributes: 0]

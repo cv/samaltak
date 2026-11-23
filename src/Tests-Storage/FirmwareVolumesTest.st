@@ -63,4 +63,12 @@ testNoFirmware
 testInstalledOnFirmware
 	"On UEFI every path is the mount table's."
 	self assert: (File mountTable notNil and: [File mountTable coversEverything]) = Machine hasFirmware
+!
+testNoPrivateFilesOnFirmwareVolumes
+	"The firmware's FAT has no permissions: a secret (File writeSecret:to:) is refused there, not written readable to all."
+	| esp |
+	Machine hasFirmware ifFalse: [^self].
+	esp := File mountTable mounts detect: [:m | m value isKindOf: FirmwareFileSystem] ifNone: [^self].
+	self should: [File writeSecret: 'x' to: esp key, '/secret-test.json'] raise: FileError.
+	self deny: (File exists: esp key, '/secret-test.json')
 ! !

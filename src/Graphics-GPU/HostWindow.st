@@ -69,6 +69,7 @@ textInputArea: aRectangle cursor: x
 
 !HostWindow methodsFor: 'showing'!
 show
+	"Show me, raised to the front with the focus (as far as the window manager lets an application)."
 	GPUPlatform showWindow: self handle
 !
 hide

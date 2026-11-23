@@ -1,9 +1,9 @@
 Column subclass: #AgentLoginCard
-	instanceVariableNames: 'titleLabel signInButton urlLabel codeRow codeLabel messageLabel urlCopyButton keyHelp accountsButton apiKeyButton'
+	instanceVariableNames: 'titleLabel signInButton urlLabel codeRow codeLabel messageLabel urlCopyButton keyHelp accountsButton apiKeyButton noAccounts'
 	classVariableNames: ''
-	package: 'Tools-Agent'!
+	package: 'UI-Agent'!
 
-AgentLoginCard comment: 'I am what an AgentWindow shows instead of its transcript while signed out: a "Sign in with ChatGPT" button, then the device login''s URL and code (large, with a Copy button), and a line of news (waiting, why the last attempt failed). The window runs the login; I only show its state. For an ApiKeyAccount without its key (showKeyHelp:) I say instead how to set it: in the Accounts window (my Accounts… button, AccountsPanel) or from the host (samaltak-ctl agent-config --from-pi). Beside Sign in with ChatGPT, "Use an API key…" opens the Accounts window too; the window sets both buttons'' action (onAccounts:).'!
+AgentLoginCard comment: 'I am what an AgentWindow shows instead of its transcript while signed out: a "Sign in with ChatGPT" button, then the device login''s URL and code (large, with a Copy button), and a line of news (waiting, why the last attempt failed). The window runs the login; I only show its state. For an ApiKeyAccount without its key (showKeyHelp:) I say instead how to set it: in the Accounts window (my Accounts… button, AccountsPanel) or from the host (samaltak-ctl agent-config --from-pi). Beside Sign in with ChatGPT, "Use an API key…" opens the Accounts window too; the window sets both buttons'' action (onAccounts:), or hides them where there is no Accounts window (withoutAccounts: an application''s runtime image).'!
 
 !AgentLoginCard methodsFor: 'initialization'!
 initialize
@@ -58,6 +58,11 @@ onAccounts: aBlock
 	accountsButton action: aBlock.
 	apiKeyButton action: aBlock
 !
+withoutAccounts
+	"No Accounts window here (an application's runtime image): only the host sets a key."
+	noAccounts := true.
+	apiKeyButton visible: false
+!
 code
 	^codeLabel text
 !
@@ -103,7 +108,7 @@ showKeyHelp: anApiKeyAccount
 	urlLabel text: 'or on the host: samaltak-ctl agent-config --from-pi'.
 	urlCopyButton label: 'Copy'; action: [self clipboardText: 'samaltak-ctl agent-config --from-pi']; sizeToContent.
 	urlLabel owner visible: true.
-	accountsButton visible: true.
+	accountsButton visible: noAccounts ~~ true.
 	codeRow visible: false.
 	messageLabel text: 'The key stays in memory: set it again after Save image or a restart.'
 ! !

@@ -3,7 +3,7 @@ Link subclass: #Process
 	classVariableNames: 'Registry RegistryCursor RegistryLap RegistryMutex'
 	package: 'Kernel-Processes'!
 
-Process comment: 'I am a green thread: a chain of Contexts (suspendedContext, while I am not running) scheduled by the ProcessorScheduler at my priority (1..80). myList is the LinkedList I wait in: a run queue of the scheduler or a Semaphore; nil while I am running or suspended. cpuTime counts the microseconds of CPU time I used (maintained by the VM). The first six fields are fixed by the VM; window and errorHandler belong to the UI (a window''s process, a per-process unhandled error handler). overflowContext and overflowLimit: the headroom a resumed StackOverflow left (see stackOverflowIn:depth:).'!
+Process comment: 'I am a green thread: a chain of Contexts (suspendedContext, while I am not running) scheduled by the ProcessorScheduler at my priority (1..80). myList is the LinkedList I wait in: a run queue of the scheduler or a Semaphore; nil while I am running or suspended. cpuTime counts the microseconds of CPU time I used (maintained by the VM, which settles it in batches; cpuMicroseconds settles it first). The first six fields are fixed by the VM; window and errorHandler belong to the UI (a window''s process, a per-process unhandled error handler). overflowContext and overflowLimit: the headroom a resumed StackOverflow left (see stackOverflowIn:depth:).'!
 
 !Process methodsFor: 'accessing'!
 suspendedContext

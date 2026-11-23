@@ -1,7 +1,7 @@
 Object subclass: #SourceDirectoryStore
 	instanceVariableNames: 'root'
 	classVariableNames: ''
-	package: 'Tools'!
+	package: 'Compiler'!
 
 SourceDirectoryStore comment: 'I am SourceFiler''s store for a local source directory (root, the src/ that holds packages.txt): paths are file paths under it, written at once. git keeps the change set, so I have none: commit and discard are git''s.
 

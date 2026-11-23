@@ -818,6 +818,14 @@ asDictionary
 		yourself
 ! !
 
+!SourceUpdate class methodsFor: 'class initialization'!
+initialize
+	"The update control command (SourceFiler class>>updateCommand:) and stage 2's base commit (SourceFiler class>>recordBuildCommit)."
+	(Smalltalk respondsTo: #addStage2Step:named:)
+		ifTrue: [Smalltalk addStage2Step: [SourceFiler recordBuildCommit] named: 'Base commit'].
+	RemoteControl registerCommand: 'update' handler: [:request | SourceFiler updateCommand: request]
+! !
+
 !SourceUpdate class methodsFor: 'instance creation'!
 account: aGitHubAccount ref: aString base: aShaOrNil
 	^self new setAccount: aGitHubAccount ref: aString base: aShaOrNil

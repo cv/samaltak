@@ -359,6 +359,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define K_TEX 4
 #define K_WINDOW 1
 #define LAST_ERROR_SIZE 1024
+#define LEDGER_SIZE 16
 #define LL_FIRST 0
 #define LL_LAST 1
 #define LOC_CONST 2
@@ -545,6 +546,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define PF_FD_SOCKET 1
 #define PF_FD_TLS 3
 #define PF_FILE_APPEND 2
+#define PF_FILE_CREATE_PRIVATE 4
 #define PF_FILE_CREATE_TRUNCATE 3
 #define PF_FILE_READ 0
 #define PF_FILE_READ_WRITE 1
@@ -628,6 +630,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define RA_MAX_SAFELIST 262144
 #define RA_MAX_SLOTS 1024
 #define RA_NREGS 36
+#define RECONCILE_NS 200000
 #define REG_D 128
 #define REG_SP 32
 #define REG_W 64
@@ -1594,8 +1597,11 @@ extern bool alloc_sample_unread;
 extern atomic_int interrupt_pending;
 extern oop last_preempted;
 extern bool last_preempted_at_entry;
+extern int32_t ledger_n;
+extern oop ledger_procs[16];
 extern bool sampler_tick_unread;
 extern uint64_t stat_process_switches;
+extern uint64_t stat_reconciles;
 extern int32_t argc;
 extern int32_t args_start;
 extern char **argv;
@@ -2123,12 +2129,14 @@ void handle_interrupts(void);
 void scheduler_init(void);
 int64_t scheduler_now_ms(void);
 int64_t now_us(void);
+int64_t pause_charging(void);
 int64_t process_cpu_time_us(oop proc);
 void processor_yield(void);
 void relinquish(int64_t microseconds);
 bool remove_link(oop link, uint64_t list);
 void request_interrupt_check(void);
 void request_periodic_poll(int64_t interval_us);
+int64_t resume_charging(void);
 void resume_process(oop proc);
 void scheduler_semaphore_signal(oop sem);
 void scheduler_semaphore_wait(oop sem);
@@ -2137,9 +2145,7 @@ void set_time_slice(int64_t us);
 void set_timer(int64_t ms);
 void signal_external_semaphore(int32_t index);
 void suspend_active(void);
-int64_t thread_cpu_us(void);
 void tick_fired(int32_t ident);
-void uncharge(int64_t us);
 void work_clock_charge(int64_t us);
 int64_t work_clock_held_us(void);
 void work_clock_hold(void);
@@ -2551,53 +2557,42 @@ static inline uint64_t lt_mul64(uint64_t a, uint64_t b, uint64_t c, uint64_t d, 
     return (uint64_t)t;
 }
 
-#if defined(SAMALTAK_UEFI)
-/* UEFI links no compiler runtime (__udivti3): Hacker's Delight divlu, 64-bit words in 32-bit halves (u1 < v) */
-static inline uint64_t lt_divlu(uint64_t u1, uint64_t u0, uint64_t v, uint64_t *r)
+static inline uint64_t lt_div128(uint64_t hi, uint64_t lo, uint64_t d, uint64_t *rem)
 {
-    const uint64_t b = (uint64_t)1 << 32;
-    int s = __builtin_clzll(v);
-    uint64_t vn1, vn0, un64, un10, un1, un0, q1, q0, rhat, un21;
-    v <<= s;
-    vn1 = v >> 32;
-    vn0 = v & 0xffffffffu;
-    un64 = s ? (u1 << s) | (u0 >> (64 - s)) : u1;
-    un10 = u0 << s;
-    un1 = un10 >> 32;
-    un0 = un10 & 0xffffffffu;
-    q1 = un64 / vn1;
-    rhat = un64 - q1 * vn1;
-    while (q1 >= b || q1 * vn0 > b * rhat + un1) {
+#if defined(__x86_64__)
+    /* hi < d: the quotient fits, divq does not trap (and no __udivti3, which UEFI builds lack) */
+    uint64_t q, r;
+    __asm__("divq %4" : "=a"(q), "=d"(r) : "a"(lo), "d"(hi), "rm"(d));
+    *rem = r;
+    return q;
+#elif defined(SAMALTAK_UEFI)
+    /* freestanding arm64, no __udivti3: Knuth D in two 64-by-32-bit steps, d normalized (divlu) */
+    int s = __builtin_clzll(d);
+    uint64_t v = d << s, vn1 = v >> 32, vn0 = v & 0xFFFFFFFFu;
+    uint64_t un32 = s == 0 ? hi : (hi << s) | (lo >> (64 - s)), un10 = lo << s;
+    uint64_t un1 = un10 >> 32, un0 = un10 & 0xFFFFFFFFu;
+    uint64_t q1 = un32 / vn1, rhat = un32 - q1 * vn1;
+    while (q1 > 0xFFFFFFFFu || q1 * vn0 > (rhat << 32) + un1) {
         q1--;
         rhat += vn1;
-        if (rhat >= b) break;
+        if (rhat > 0xFFFFFFFFu) break;
     }
-    un21 = un64 * b + un1 - q1 * v;
-    q0 = un21 / vn1;
+    uint64_t un21 = (un32 << 32) + un1 - q1 * v;
+    uint64_t q0 = un21 / vn1;
     rhat = un21 - q0 * vn1;
-    while (q0 >= b || q0 * vn0 > b * rhat + un0) {
+    while (q0 > 0xFFFFFFFFu || q0 * vn0 > (rhat << 32) + un0) {
         q0--;
         rhat += vn1;
-        if (rhat >= b) break;
+        if (rhat > 0xFFFFFFFFu) break;
     }
-    *r = (un21 * b + un0 - q0 * v) >> s;
-    return q1 * b + q0;
-}
-
-static inline uint64_t lt_div128(uint64_t hi, uint64_t lo, uint64_t d, uint64_t *rem)
-{
-    /* the quotient's low word, as the cast below answers it */
-    if (hi >= d) hi %= d;
-    return lt_divlu(hi, lo, d, rem);
-}
+    *rem = ((un21 << 32) + un0 - q0 * v) >> s;
+    return (q1 << 32) + q0;
 #else
-static inline uint64_t lt_div128(uint64_t hi, uint64_t lo, uint64_t d, uint64_t *rem)
-{
     unsigned __int128 n = ((unsigned __int128)hi << 64) | lo;
     uint64_t q = (uint64_t)(n / d);
     *rem = lo - q * d;
     return q;
-}
 #endif
+}
 
 #endif

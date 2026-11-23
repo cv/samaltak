@@ -29,7 +29,7 @@ JSON: System-Remote's `JSON` (already layer 0).
    - **run-tests** (`{"names": ["FooTest", "Tests-Agent"]}`): runs test classes, or the test classes of packages, as `TestCase runNamed:` does, in a fresh Process `agent run-tests`; after 300 s it is terminated and the result says what ran. Answers the TestResult's `oN` and summary, then a line per failure (its message) and error (the exception and the top of its stack), cut at 10,000 characters. An unknown name answers an error. The tests leave the image as they found it (docs/implementation.md); those that cannot (a snapshot) are skipped here. Its item (`#tests`) is drawn as a cell headed Run-tests, the equivalent Smalltalk as its source.
 10. **AgentInstructions**: one hand-written developer message — code-mode and `oN`, the context, layering (`src/packages.txt`), that code changes go through `SourceFiler default writeMethod:` so they reach `src/`, and that the agent then runs the affected tests and commits (`SourceFiler default commit:`, a pull request; docs/github.md), plus where changes go in this image (`sourceState`: GitHub, a local checkout, or nowhere, with how the operator sets an account).
 
-### Tools-Agent (new, layer 5)
+### Tools-Agent (new, layer 5; the window moved to UI-Agent, see In applications)
 11. **⌘J** in `ToolPane`, the Debugger, the Breakpoints window and the Profiler: `self agentContext`, then open the Agent window for that tool, or bring it back. `self` is the tool's subject when it is an object in the image; the selection and what is outside the image are named variables (omitted when nothing is selected); `describe` gives the model each variable's name, class and bounded printString. Contexts in version 1:
     - Workspace: its receiver; its variables (shared); the selected text.
     - Inspector: the object; `field` (the selected field's value).
@@ -59,6 +59,15 @@ JSON: System-Remote's `JSON` (already layer 0).
 3. **Headless agent** (5–10, 15): `(AgentConversation new ask: 'how many classes are in UI-Widgets?') wait` from a Workspace or `samaltak-ctl eval`.
 4. **Window and ⌘J** (11–13).
 
+## In applications
+
+The agent also runs in the apps' processes (docs/apps.md), in windows of the host's window manager. A right-click on an app → **Agent** opens it on the app; `bin/samaltak agent` opens it alone.
+
+- **Packages.** The window and its views are `UI-Agent` (layer 4, in the runtime image with System-Agent). `Tools-Agent` keeps what needs the desktop's tools: ⌘J (`AgentTools`, `AgentWindow openFor:context:`) and the tools' `agentContext` extensions. In an app the Inspect button of a shown object is hidden; ? and ⌘C/⌘J/⌘I/⌘B reach the tools only where they exist. `SourceFiler` and `ChunkFile` moved to Compiler (layer 0). `SourceFiler>>packageDirectory:` answers the directory a package was filed in from (`Compiler packageDirectoryOf:`), so an app's changes are written to `apps/<Name>/`.
+- **Windows.** `AgentWindow openNativeFor: anApp` opens an AppWorld that is not the app's main one. It is resizable, so Hyprland tiles it, and closing it closes only it. A second **Agent** raises the window already open.
+- **Context.** `Application>>agentContext` binds the app (`self`), `window`, `content` and `world`, and its `notes`, which `AgentInstructions` adds after the variables. They tell the model it runs in an app's process on the runtime image: no tools and no desktop World; widget code goes through `window do:`; and where the source is. Apps add bindings: `service` in Weather and Wodify.
+- **Sign-in.** Each app is its own process started from the runtime image, so the tokens cannot live in an image. `OpenAIAccount>>keepIn:` keeps them in `~/.local/state/samaltak/agent/account.json` (mode 600). A process reads the file again when its modification time or size changed; a refresh in another process (refresh tokens rotate) is taken from the file instead of being refreshed again; sign-out deletes the file. The desktop image keeps its tokens in the image as before.
+
 ## Later
 
 Each builds on a version 1 seam; none changes its shape.
@@ -68,7 +77,7 @@ Each builds on a version 1 seam; none changes its shape.
 - **Contexts**: an AGENT tag on the origin tool; top bar Agents ▾.
 - **Edits**: proposed edits as diff cells (Accept writes `src/`, Accept & Restart frame through `DebugSession>>recompile:inFrame:`); an approval mode that shows each cell before it runs.
 - **Platform**: `openURL` for the login card.
-- **Moves**: JSON to System-Support, `SourceFiler`/`ChunkFile` to layer 0, when the core needs them.
+- **Moves**: JSON to System-Support, when the core needs it (`SourceFiler`/`ChunkFile` are in Compiler now).
 - **Provider**: context compaction; generated instructions (image facts, docs excerpts).
 - **Remote control**: roles for the window, a `tests/remote` scenario.
 
@@ -86,7 +95,7 @@ Each builds on a version 1 seam; none changes its shape.
 
 **The provider is a risk.** `CodexProvider` uses an undocumented backend while presenting itself as the Codex CLI (its `client_id`, `originator`). It can break without notice and may not be allowed for third-party clients; decide before use beyond personal. Everything above it is the standard Responses API.
 
-**Secrets live in the image.** Saving the image saves the refresh token. `build/` is git-ignored, but anyone with the image file has the account. Sign out clears the tokens. An API key is the exception: it is never saved (below).
+**Secrets live in the image.** Saving the image saves the refresh token. `build/` is git-ignored, but anyone with the image file has the account. Sign out clears the tokens. Apps keep them in a file only the user can read (see In applications). An API key is the exception: it is never saved (below).
 
 ## API-key accounts (Anthropic Messages)
 

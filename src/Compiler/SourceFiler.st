@@ -1,9 +1,9 @@
 Object subclass: #SourceFiler
 	instanceVariableNames: 'sourceDirectory enabled useGitHub gitHubStore'
 	classVariableNames: 'BaseCommit BaseDirty Default LastUpdate NeedsRestart'
-	package: 'Tools'!
+	package: 'Compiler'!
 
-SourceFiler comment: 'I write what the browser accepts and the agent writes back into the image''s sources (src/<package>/<Class>.st, or <Class>.extension.st for a method in a ''*Package'' category), changing only that method, comment or definition chunk (ChunkFile), so unchanged methods stay byte-for-byte the same and a diff shows exactly the edit. Each write reads the file from my store, edits its chunks and gives it back; a file left without chunks is removed.
+SourceFiler comment: 'I write what the browser (or the agent) accepts back into the image''s sources (src/<package>/<Class>.st, or <Class>.extension.st for a method in a ''*Package'' category; a package filed in from a directory, as an application is, in that directory), changing only that method, comment or definition chunk (ChunkFile), so unchanged methods stay byte-for-byte the same and a diff shows exactly the edit. Each write reads the file from my store, edits its chunks and gives it back; a file left without chunks is removed.
 
 My store is the local source directory (a SourceDirectoryStore): --source-dir <dir>, else the first of <image dir>/../../src, <image dir>/../src, <image dir>/src, <current dir>/src that holds packages.txt. Or it is GitHub (a GitHubSourceStore: GitHubAccount default''s repository, read at the base branch''s head and edited in memory until committed) when that account is configured and there is no writable source directory (UEFI: its volumes are read-only), or always after useGitHub: true (false: never). --no-source-write turns me off; so does having no store (the browser then only changes the image).
 
@@ -42,7 +42,7 @@ useGitHub: aBooleanOrNil
 	useGitHub := aBooleanOrNil
 !
 gitHubStore
-	^gitHubStore ifNil: [gitHubStore := GitHubSourceStore new]
+	^gitHubStore ifNil: [gitHubStore := (Smalltalk at: #GitHubSourceStore) new]
 !
 gitHubStore: aGitHubSourceStore
 	"Use aGitHubSourceStore (on an account other than GitHubAccount default: tests) when I use GitHub."
@@ -54,10 +54,15 @@ isEnabled
 	^self store notNil
 !
 usesGitHub
+	"GitHubSourceStore is in Tools: an application's runtime image has none."
 	useGitHub == false ifTrue: [^false].
+	(Smalltalk at: #GitHubSourceStore ifAbsent: [nil]) isNil ifTrue: [^false].
 	useGitHub == true ifTrue: [^true].
 	(gitHubStore notNil and: [gitHubStore isStarted]) ifTrue: [^true].
 	^self gitHubStore account isConfigured and: [self hasWritableSourceDirectory not]
+!
+hasStartedGitHubStore
+	^gitHubStore notNil and: [gitHubStore isStarted]
 !
 hasWritableSourceDirectory
 	"A source directory not on a mounted (read-only) volume."
@@ -73,6 +78,8 @@ root
 	^self store ifNil: [sourceDirectory] ifNotNil: [:store | store root]
 !
 packageDirectory: aPackageName
+	"src/<package> in my store; with a local directory, the directory the package was filed in from (an application's) if it was."
+	self usesGitHub ifFalse: [(Compiler packageDirectoryOf: aPackageName) ifNotNil: [:directory | ^directory]].
 	^self root, '/', aPackageName
 !
 pathForClass: aClass
@@ -232,7 +239,7 @@ updateFrom: aRef dryRun: dryRun takeTheirs: takeTheirs
 !
 updateFrom: aRef dryRun: dryRun takeTheirs: takeTheirs force: force
 	| update |
-	update := (SourceUpdate account: self gitHubStore account ref: (aRef ifNil: [self gitHubStore account baseBranch]) base: self class baseCommit)
+	update := ((Smalltalk at: #SourceUpdate) account: self gitHubStore account ref: (aRef ifNil: [self gitHubStore account baseBranch]) base: self class baseCommit)
 		filer: self;
 		dryRun: dryRun;
 		takeTheirs: takeTheirs;
@@ -304,7 +311,7 @@ recordBuildCommit
 	"Stage 2: the commit the sources were built from (--base-commit <sha>, --base-dirty; the Makefile passes git rev-parse HEAD)."
 	| sha |
 	sha := Smalltalk argumentAfter: '--base-commit'.
-	BaseCommit := (sha notNil and: [SourceUpdate isSha: sha]) ifTrue: [sha] ifFalse: [nil].
+	BaseCommit := (sha notNil and: [(Smalltalk at: #SourceUpdate) isSha: sha]) ifTrue: [sha] ifFalse: [nil].
 	BaseDirty := Smalltalk vm arguments includes: '--base-dirty'.
 	NeedsRestart := nil.
 	LastUpdate := nil
@@ -318,19 +325,17 @@ updateCommand: aRemoteRequest
 		dryRun: (arguments at: 'dryRun' ifAbsent: [false]) == true
 		takeTheirs: (arguments at: 'takeTheirs' ifAbsent: [false]) == true
 		force: (arguments at: 'force' ifAbsent: [false]) == true) asDictionary]
-			on: Error do: [:e | RemoteError signal: 'update: ', e messageText asString]
+			on: Error do: [:e | (Smalltalk at: #RemoteError) signal: 'update: ', e messageText asString]
 ! !
 
 !SourceFiler class methodsFor: 'class initialization'!
 startUp: resuming
 	"The image may have moved: look for the sources again. A GitHub change set not yet committed is kept."
-	(Default notNil and: [Default gitHubStore isStarted])
+	(Default notNil and: [Default hasStartedGitHubStore])
 		ifTrue: [Default sourceDirectory: self findSourceDirectory]
 		ifFalse: [Default := nil]
 !
 initialize
-	Smalltalk addToStartUpList: self.
-	(Smalltalk respondsTo: #addStage2Step:named:)
-		ifTrue: [Smalltalk addStage2Step: [self recordBuildCommit] named: 'Base commit'].
-	RemoteControl registerCommand: 'update' handler: [:request | self updateCommand: request]
+	"SourceUpdate (Tools) registers the update command and the stage 2 step that records the base commit."
+	Smalltalk addToStartUpList: self
 ! !
