@@ -1024,6 +1024,12 @@ uint64_t publish_code(const uint8_t *bytes, uint32_t size)
     return entry;
 }
 
+/* FFIStubCompiler>>staticCoreEntry:signature: */
+uint64_t ffi_stub_compiler_static_core_entry(const char *name, uint32_t signature)
+{
+    return ffi_stub_memory_static_core_entry(name, signature);
+}
+
 /* FFIStubCompiler>>stubSlotFor:key: */
 static uint32_t stub_slot_for(uint64_t target, uint32_t key)
 {

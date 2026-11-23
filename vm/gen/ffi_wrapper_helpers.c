@@ -299,7 +299,7 @@ oop ffi_box_owned_text(ffi_text_buffer *out)
     uint8_t *bytes;
     data = out->data;
     if (data == NULL) {
-        return nil_oop;
+        return ffi_release_counted_text(out);
     }
     sync_pending_bound_frame();
     n = out->count;
@@ -307,7 +307,7 @@ oop ffi_box_owned_text(ffi_text_buffer *out)
     memset(&local, 0, sizeof local);
     word = &local;
     i = 0ULL;
-    while (i + 8 <= n) {
+    while (n - i >= 8) {
         memcpy(word, data + i, 8);
         if (((*word) & 9259542123273814144ULL) != 0) {
             r_ascii = false;
@@ -326,7 +326,7 @@ oop ffi_box_owned_text(ffi_text_buffer *out)
 exit_ascii:;
     r_ascii; })) {
         padding = (8 - (n & 7)) & 7;
-        slots = (n + padding) / 8;
+        slots = n / 8 + (padding != 0 ? 1 : 0);
         answer = alloc_unfilled_try(cls_bytestring, F_BYTES + (int32_t)padding, slots);
         if (answer == 0) {
             answer = nil_oop;
@@ -338,12 +338,10 @@ exit_ascii:;
             }
         }
     } else {
-        answer = string_from_utf8((const char *)data, n);
+        answer = string_from_utf8_try((const char *)data, n);
     }
-    if (out->allocation != NULL) {
-        free(out->allocation);
-    }
-    return answer;
+    ffi_release_counted_text(out);
+    return answer == 0 ? nil_oop : answer;
 }
 
 /* FFIWrapperHelpers>>ffiBoxOwnedTextWithGC: */
@@ -426,7 +424,7 @@ bool ffi_prepare_c_text(oop o, ffi_text_buffer *out)
     memset(&local, 0, sizeof local);
     word = &local;
     i = 0ULL;
-    while (i + 8 <= n) {
+    while (n - i >= 8) {
         memcpy(word, bytes + i, 8);
         if (((*word) & 9259542123273814144ULL) != 0) {
             r_ascii = false;
@@ -565,7 +563,7 @@ bool ffi_prepare_counted_text(oop o, ffi_text_buffer *out)
     memset(&local, 0, sizeof local);
     word = &local;
     i = 0ULL;
-    while (i + 8 <= n) {
+    while (n - i >= 8) {
         memcpy(word, bytes + i, 8);
         if (((*word) & 9259542123273814144ULL) != 0) {
             r_ascii = false;

@@ -207,22 +207,6 @@ bool platform_tls_semaphores(int32_t h, int32_t read_index, int32_t write_index)
     return platform_sockets_semaphores_kind_read_write(h, PF_FD_TLS, read_index, write_index);
 }
 
-/* PlatformTLS>>send:bytes:count: */
-int64_t platform_tls_send(int32_t h, const void *buf, uint64_t n)
-{
-    SSL *ssl;
-    tls_send_retry *retry;
-    ssl = ssl_of(h);
-    if (ssl == NULL) {
-        return -2;
-    }
-    retry = send_retry_of(h);
-    if (retry != NULL) {
-        return platform_tls_retry(retry, ssl, buf, n);
-    }
-    return platform_tls_write(ssl, h, buf, n);
-}
-
 /* PlatformTLS>>sendOwned:bytes:count: */
 int64_t send_owned(int32_t h, const void *buf, uint64_t n)
 {

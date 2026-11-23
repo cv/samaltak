@@ -344,7 +344,7 @@ int32_t platform_ptys_spawn(char **argv, char **envp, char *cwd, int32_t rows, i
     }
     child->pid = pid;
     child->reaped = false;
-    h = platform_sockets_add(*master, PF_FD_PTY, child);
+    h = add(*master, PF_FD_PTY, child);
     if (h == 0) {
         close(*master);
         kill(pid, SIGHUP);

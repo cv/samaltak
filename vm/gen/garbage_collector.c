@@ -50,7 +50,7 @@ uint64_t young_lo;
 static void garbage_collector_after_gc(void);
 static void become_root(oop *p);
 static void clear_weak_slots(bool (*is_dead)(oop *));
-static void discard(uint64_t p, uint64_t n);
+static void garbage_collector_discard(uint64_t p, uint64_t n);
 static void for_each_root(void (*fn)(oop *));
 static uint64_t full_copy(oop o);
 static bool full_dead(oop *v);
@@ -171,7 +171,7 @@ void collect_garbage(uint64_t need)
 }
 
 /* GarbageCollector>>discard:size: */
-static void discard(uint64_t p, uint64_t n)
+static void garbage_collector_discard(uint64_t p, uint64_t n)
 {
     uint64_t m;
     m = (n + 16383) & 18446744073709535232ULL;
@@ -316,7 +316,7 @@ void full_gc(void)
     if (update_weak_owners != NULL) {
         update_weak_owners(full_dead);
     }
-    discard(old_lo, old_used);
+    garbage_collector_discard(old_lo, old_used);
     lo = old_lo;
     hi = old_hi;
     old_lo = old_alt_lo;

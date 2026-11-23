@@ -383,8 +383,10 @@ uint64_t entry_slow(frame *f, uint64_t ret, uint64_t c)
     frame *g;
     oop m;
     int64_t r_method_prim;
-    uint64_t p;
+    uint64_t p_2;
+    int64_t p;
     oop o_6;
+    int64_t p_3;
     int32_t n_2;
     set_top(f, ret, 0);
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
@@ -449,12 +451,15 @@ uint64_t entry_slow(frame *f, uint64_t ret, uint64_t c)
             fatal_end();
         }
         m = h->method;
-        if (((({
-    p = *(uint64_t *)(m + 16 + 56);
-    r_method_prim = (p & 1) != 0 ? ((int64_t)p) >> 1 : 0;
-    r_method_prim; }) & CM_PRIM_ERROR_FLAG) != 0) && ({
+        p = ({
+    p_2 = *(uint64_t *)(m + 16 + 56);
+    r_method_prim = (p_2 & 1) != 0 ? ((int64_t)p_2) >> 1 : 0;
+    r_method_prim; });
+        if (((p & CM_PRIM_ERROR_FLAG) != 0) && ({
     o_6 = h->method;
-    *(uint64_t *)(o_6 + 16 + 40) != 1ULL; })) {
+    (*(uint64_t *)(o_6 + 16 + 40) != 1ULL) && ({
+    p_3 = p & CM_PRIM_MASK;
+    (uint64_t)primitive_table_lookup(p_3) != 0; }); })) {
             g->fp[n] = (uint64_t)state_block->ecode;
         }
     }
@@ -1551,6 +1556,10 @@ uint64_t jit_baseline_runtime_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t 
     int32_t code;
     int64_t v_2;
     uint64_t v_3;
+    if (fn == 0) {
+        state_block->ecode = (int64_t)nil_oop;
+        return 2;
+    }
     stat_prim_calls = stat_prim_calls + 1;
     n = (int32_t)(info & 255);
     leaf = (info & 256) != 0;

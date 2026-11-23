@@ -46,6 +46,7 @@ static void ffi_big_integer_rem(const uint64_t *a, int64_t an, const uint64_t *b
 static void ffi_big_integer_sub(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
 static int64_t ffi_test_non_negative_i64(int64_t value);
 static void invalidate_bindings(void);
+static uint64_t invocation_entry(oop owner, int32_t *arity);
 static void invoke_bound_array(oop args);
 static bool marshal(oop o, int32_t tag, uint64_t *out);
 static bool marshal_compare(oop array, uint64_t *words);
@@ -71,6 +72,7 @@ static double native_trunc(double x);
 static int64_t native_utc_microseconds(void);
 static void native_write_stderr(const void *bytes, uint64_t n);
 static void native_write_stdout(const void *bytes, uint64_t n);
+static bool owned_adopt(uint64_t ticket, uint8_t *allocation, uint64_t size, uint64_t capacity);
 static void owned_clear(ffi_owned_row *row);
 static int32_t owned_copy(uint64_t ticket, uint8_t *out, uint64_t length);
 static int32_t owned_release(uint64_t ticket);
@@ -78,7 +80,7 @@ static int32_t owned_reserve(uint32_t capacity, uint8_t *out, uint64_t length);
 static ffi_owned_row *owned_row(uint64_t ticket);
 static int32_t owned_size(uint64_t ticket);
 static int32_t owned_test(uint64_t ticket, int32_t mode);
-static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_out);
+static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_out, bool static_only);
 static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, const uint8_t *symbol, size_t sym_len, const uint8_t *tags, int32_t n, int32_t result, bool prepared, uint64_t *target);
 static void trace_bound_primitive(void);
 static void update_binding_owners(bool (*is_dead)(oop *));
@@ -988,6 +990,21 @@ static void invalidate_bindings(void)
     binding_session = 0;
 }
 
+/* FFIPrimitives>>invocationEntry:into: */
+static uint64_t invocation_entry(oop owner, int32_t *arity)
+{
+    uint64_t entry;
+    int32_t local;
+    int32_t *result;
+    entry = bound_entry(owner, arity);
+    if ((entry != 0) || can_publish_code()) {
+        return entry;
+    }
+    memset(&local, 0, sizeof local);
+    result = &local;
+    return prepare_entry(*(uint64_t *)(owner + 16 + 0), arity, result, true);
+}
+
 /* FFIPrimitives>>invokeBoundArray: */
 static void invoke_bound_array(oop args)
 {
@@ -997,7 +1014,7 @@ static void invoke_bound_array(oop args)
     uint32_t n;
     memset(&local, 0, sizeof local);
     arity = &local;
-    entry = bound_entry(prim_base[0], arity);
+    entry = invocation_entry(prim_base[0], arity);
     if (entry == 0) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -1383,9 +1400,6 @@ static void native_text_getenv(const char *key, uint64_t n, ffi_text_buffer *out
         return;
     }
     size = strlen(val);
-    if (size > 67108864) {
-        return;
-    }
     if (size <= 512) {
         copy = out->small;
     } else {
@@ -1504,7 +1518,7 @@ ffi_bound_site *new_bound_site(void)
 }
 
 /* FFIPrimitives>>ownedAdopt:from:size:capacity: */
-bool owned_adopt(uint64_t ticket, uint8_t *allocation, uint64_t size, uint64_t capacity)
+static bool owned_adopt(uint64_t ticket, uint8_t *allocation, uint64_t size, uint64_t capacity)
 {
     ffi_owned_row *row;
     if ((ticket == 0) || ((size > capacity) || (capacity == 0 ? allocation != NULL : allocation == NULL))) {
@@ -1744,8 +1758,8 @@ static int32_t owned_test(uint64_t ticket, int32_t mode)
     return published ? 1 : -23;
 }
 
-/* FFIPrimitives>>prepareEntry:into:result: */
-static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_out)
+/* FFIPrimitives>>prepareEntry:into:result:staticOnly: */
+static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_out, bool static_only)
 {
     int32_t n;
     int32_t slots;
@@ -1764,6 +1778,9 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_ou
     uint8_t local_3[6];
     uint8_t *tags;
     int32_t i;
+    int64_t signature;
+    int32_t i_2;
+    uint8_t tag;
     uint64_t local_4;
     uint64_t *target;
     int32_t id;
@@ -1814,6 +1831,22 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_ou
     if (slots > 6) {
         return 0;
     }
+    if (static_only) {
+        if (strcmp((const char *)library, "vm:core") != 0) {
+            return 0;
+        }
+        signature = 0U;
+        for (i_2 = 0; i_2 <= n - 1; i_2++) {
+            tag = tags[i_2];
+            if ((tag < 1) || (tag > 15)) {
+                return 0;
+            }
+            signature = (uint32_t)((((uint64_t)signature) << 4) | ((uint64_t)tag));
+        }
+        *arity = n;
+        *result_out = result;
+        return ffi_stub_compiler_static_core_entry((const char *)symbol, (uint32_t)((((uint64_t)signature) << 4) | ((uint64_t)result)));
+    }
     memset(&local_4, 0, sizeof local_4);
     target = &local_4;
     id = ffi_primitives_resolve(library, lib_len, symbol, sym_len, tags, n, result, true, target);
@@ -1840,7 +1873,7 @@ void prim_ffi_bound_invoke(void)
     uint64_t entry;
     memset(&local, 0, sizeof local);
     arity = &local;
-    entry = bound_entry(prim_base[0], arity);
+    entry = invocation_entry(prim_base[0], arity);
     if (entry == 0) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -1883,6 +1916,7 @@ void prim_ffi_prepare(void)
     int32_t local;
     int32_t *arity;
     uint64_t entry;
+    bool stateless;
     int32_t local_2;
     int32_t *result;
     int32_t slot;
@@ -1907,17 +1941,18 @@ void prim_ffi_prepare(void)
         prim_status = PS_OK;
         return;
     }
-    if (!can_publish_code()) {
+    stateless = !can_publish_code();
+    memset(&local_2, 0, sizeof local_2);
+    result = &local_2;
+    entry = prepare_entry(*(uint64_t *)(owner + 16 + 0), arity, result, stateless);
+    if (entry == 0) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
     }
-    memset(&local_2, 0, sizeof local_2);
-    result = &local_2;
-    entry = prepare_entry(*(uint64_t *)(owner + 16 + 0), arity, result);
-    if (entry == 0) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
+    if (stateless) {
+        prim_result = true_oop;
+        prim_status = PS_OK;
         return;
     }
     if (!ensure_binding_session()) {

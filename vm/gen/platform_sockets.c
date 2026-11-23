@@ -48,7 +48,7 @@ int32_t platform_sockets_accept(int32_t s, bool *would_block)
 }
 
 /* PlatformSockets>>add:kind:pointer: */
-int32_t platform_sockets_add(int fd, int kind, void *ptr)
+int32_t add(int fd, int kind, void *ptr)
 {
     int32_t h;
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
@@ -597,7 +597,7 @@ static int32_t wrap(int fd)
 {
     int32_t h;
     socket_opened(fd);
-    h = platform_sockets_add(fd, PF_FD_SOCKET, NULL);
+    h = add(fd, PF_FD_SOCKET, NULL);
     if (h == 0) {
         close(fd);
     }

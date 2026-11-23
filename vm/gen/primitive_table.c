@@ -82,7 +82,7 @@ oop names_array(void)
     oop *root;
     int i_2;
     primitive_entry *e;
-    uint64_t s;
+    oop s;
     oop o;
     int32_t i_3;
     t = vm_primitive_table;
@@ -103,7 +103,7 @@ oop names_array(void)
         o = *root;
         i_3 = e->number - 1;
         *(uint64_t *)(o + 16 + 8 * i_3) = s;
-        if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
+        if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
             remember(o);
         }
     }

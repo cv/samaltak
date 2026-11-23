@@ -27,4 +27,10 @@ uint64_t publish_ffi_stub(const uint8_t *bytes, uint32_t size)
     return (uint64_t)entry;
 }
 
+/* LinuxFFIStubMemory>>staticCoreEntry:signature: */
+uint64_t ffi_stub_memory_static_core_entry(const char *name, uint32_t signature)
+{
+    return 0;
+}
+
 #endif
