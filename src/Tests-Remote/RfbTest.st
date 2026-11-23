@@ -687,11 +687,11 @@ diffSource: ext copy: bytes
 !
 testChangedBlocksPrimitiveIsTheSmalltalk
 	"The pixelBlocksDiff primitive finds the blocks and makes the copy that the Smalltalk does: rectangles anywhere, of any size, with a few bytes changed or many."
-	| random ext |
+	| random ext base |
 	random := Random seed: 8642.
 	ext := 203 @ 117.
-	1 to: 200 do: [:t | | base x y w h rect bytes a b ca cb marks |
-		base := ((1 to: ext x * ext y * 4) collect: [:i | random nextInt: 3]) asByteArray.
+	base := ((1 to: ext x * ext y * 4) collect: [:i | random nextInt: 3]) asByteArray.
+	1 to: 200 do: [:t | | x y w h rect bytes a b ca cb marks |
 		x := (random nextInt: ext x) - 1.
 		y := (random nextInt: ext y) - 1.
 		w := random nextInt: ext x - x.
