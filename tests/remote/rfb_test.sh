@@ -55,7 +55,7 @@ $CTL eval '(World current windows reject: [:w | w title = '\''Workspace'\'' or: 
 $CTL wait idle 5000 >/dev/null
 
 python3 -u - "$PORT" "$WORK" "$CTL" <<'EOF'
-import base64, os, subprocess, sys, time
+import base64, json, os, subprocess, sys, time
 sys.path.insert(0, 'tests/remote')
 from rfb_client import (RfbClient, RfbError, PixelFormat, read_png, SCREEN_SHARING_FORMAT, SCREEN_SHARING_ENCODINGS,
                         TIGERVNC_FORMAT, TIGERVNC_ENCODINGS)
@@ -209,6 +209,25 @@ try:
 
     ctl('drag', '@w1', '37', '23')
     in_sync('after a window move', a, b, *viewers)
+
+    # a window dragged by its title bar through RFB, held, in steps: its pixels come as CopyRect (the compositor's
+    # moves, through the frame tap), what it uncovers as pixels, and the screen is right for every viewer
+    scale = float(ctl('eval', 'World current displayScale'))
+    bx = json.loads(ctl('bounds', '@w1'))
+    gx, gy = int((bx['x'] + bx['w'] / 2) * scale), int((bx['y'] + 8) * scale)
+    a.pointer(0, gx, gy)
+    a.pointer(1, gx, gy)
+    settle(a, 0.3)
+    for i in range(1, 13):
+        a.pointer(1, gx - 6 * i, gy + 4 * i)
+        settle(a, 0.06)
+    a.pointer(0, gx - 72, gy + 48)
+    settle(a, 0.5)
+    if 1 in a.encodings_seen:
+        ok('a window dragged through RFB comes as CopyRect')
+    else:
+        fail('a window dragged through RFB: no CopyRect (%r)' % sorted(a.encodings_seen))
+    in_sync('after a window dragged through RFB', a, *viewers)
 
     # keys through RFB (RfbInput), into the Workspace: it has the keyboard focus after a click
     ctl('click', '@w1.text')

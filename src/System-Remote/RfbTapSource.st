@@ -64,10 +64,14 @@ detach: aConnection
 	super detach: aConnection
 !
 collectFor: aConnection
-	| l d |
+	"The frames' moves first (moved:to:, a CopyRect where the client's pixels allow), then their damage."
+	| l t d |
 	l := self lock critical: [self tapListeners at: aConnection ifAbsent: [nil]].
 	(l isNil or: [l hasDamage not]) ifTrue: [^self].
-	d := l takeDamage.
+	t := l take.
+	d := t first.
+	(d bounds extent = aConnection damageExtent) ifTrue: [
+		(t at: 2) do: [:m | aConnection moved: m first to: (m at: 2)]].
 	aConnection takeDamage: d rects full: d isFull extent: d bounds extent
 !
 tapListeners

@@ -498,6 +498,38 @@ testCopyRectThroughChangedBlocks
 	self assert: r first first equals: 1.
 	self assert: client framebuffer equals: source bytes
 !
+testScrollIsACopyRect
+	"A list scrolled up by 7 rows inside a window (all of it damaged): its rows are found again 7 rows lower in the copy, a CopyRect moves them, and only the rows it uncovered (and what did not scroll) are sent."
+	| r region bytes w pixels |
+	source := RfbBufferSource extent: 200 @ 150.
+	source fillWith: [:x :y | Array with: x * 5 + y \\ 256 with: y * 3 \\ 256 with: x * y \\ 251].
+	self diffed.
+	region := 30 @ 20 extent: 140 @ 100.
+	bytes := source bytes.
+	w := 200 * 4.
+	region top to: region bottom - 8 do: [:y |
+		bytes replaceFrom: y * w + (region left * 4) + 1 to: y * w + (region right * 4) with: bytes startingAt: (y + 7) * w + (region left * 4) + 1].
+	source fill: (region left @ (region bottom - 7) extent: region width @ 7) red: 250 green: 250 blue: 250.
+	source redraw: region.
+	self deliver: (RfbTestClient updateRequest: true rect: (0 @ 0 extent: source extent)).
+	r := self update.
+	self assert: client framebuffer equals: source bytes.
+	self assert: r first first equals: 1.
+	self assert: (server source statistics at: 'scrolls') equals: 1.
+	pixels := (r reject: [:each | each first = 1]) inject: 0 into: [:sum :each | sum + each last area].
+	self assert: pixels < (region area // 3)
+!
+testMoveUnderAWindowStillMakesTheScreen
+	"A move is a hint: where a window over the moved one hides it, the screen did not change (and was not damaged); the destination is compared again and those pixels sent."
+	| r |
+	self diffed.
+	source notify: [:each | each moved: (0 @ 0 extent: 40 @ 30) to: 50 @ 35].
+	source move: (0 @ 0 extent: 10 @ 10) to: 60 @ 40.
+	self deliver: (RfbTestClient updateRequest: true rect: (0 @ 0 extent: source extent)).
+	r := self update.
+	self assert: (r collect: [:each | each first]) asArray first equals: 1.
+	self assert: client framebuffer equals: source bytes
+!
 testDesktopSizeThroughChangedBlocks
 	self diffed.
 	source extent: 40 @ 30.

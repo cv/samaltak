@@ -1,11 +1,11 @@
 RfbFrameSource subclass: #RfbDiffSource
-	instanceVariableNames: 'inner extent copy valid pending copyLock refreshes comparedArea changedArea diffMs'
+	instanceVariableNames: 'inner extent copy valid pending copyLock refreshes comparedArea changedArea diffMs scrolls lastScroll lastScrollRow movedTo'
 	classVariableNames: ''
 	package: 'System-Remote'!
 
 RfbDiffSource comment: 'I am a frame source that takes unchanged pixels out of another''s damage, as QEMU''s VNC server does: I keep one copy of the screen as it was last compared (BGRA8, shared by all my listeners whatever their pixel format: 8 MB at 1920x1080, made when the first listener comes and dropped when the last goes), and when a listener''s writer collects its damage (collectFor:) I read what my source damaged since (once, for all of them), compare it with my copy in 16x16 blocks (ByteArray>>indexOfMismatchAt:with:at:size:, 16 bytes at a time, skipping blocks of a band already known to differ), copy it in, and give every listener the blocks that changed, joined into runs (takeDamage:full:extent:; RfbDamage merges them further: a rectangle''s header against the unchanged pixels between). Re-laid-out text damages a whole paragraph of which few pixels change; a list redrawn the same changes none.
 
-Pixels sent (bgraOf:, bgraOfAll:) come from my copy, so each listener''s client has my copy less the damage it has yet to take: correct for any number of listeners, a slow one''s damage merging meanwhile, and a pixel that changes after it was compared is in my source''s next damage. A move (moved:to:) moves my copy''s pixels too, and where my source''s damage not yet compared touched its origin, its destination is compared again. A new size (resized:, or the extent a polled source hands me) makes my copy anew, all of it damage. Push sources (RfbBufferSource) tell me at once, and I only note the damage and wake my listeners; polled ones (RfbTapSource) signal me as a listener''s semaphore (signal wakes all of mine) and hand me their damage in collectFor:.
+Pixels sent (bgraOf:, bgraOfAll:) come from my copy, so each listener''s client has my copy less the damage it has yet to take: correct for any number of listeners, a slow one''s damage merging meanwhile, and a pixel that changes after it was compared is in my source''s next damage. A move (moved:to:: the compositor''s, of a window dragged, through the frame tap) moves my copy''s pixels too and is passed on (CopyRect); its destination is compared again, since a move is a hint (a window over the moved one, damage at its origin not yet compared). A tall damaged rectangle whose sample rows are my copy''s rows a few rows lower or higher (a list or text scrolled: findScrollIn:pixels:) is such a move too, found here. A new size (resized:, or the extent a polled source hands me) makes my copy anew, all of it damage. Push sources (RfbBufferSource) tell me at once, and I only note the damage and wake my listeners; polled ones (RfbTapSource) signal me as a listener''s semaphore (signal wakes all of mine) and hand me their damage in collectFor:.
 
 statistics: how often I compared (or made my copy whole), the area compared and the area found changed in it (pixels), and the time it took (ms).'!
 
@@ -17,7 +17,8 @@ setInner: anRfbFrameSource
 	refreshes := 0.
 	comparedArea := 0.
 	changedArea := 0.
-	diffMs := 0
+	diffMs := 0.
+	scrolls := 0
 ! !
 
 !RfbDiffSource methodsFor: 'accessing'!
@@ -33,6 +34,7 @@ statistics
 		at: 'comparedArea' put: comparedArea;
 		at: 'changedArea' put: changedArea;
 		at: 'diffMs' put: diffMs;
+		at: 'scrolls' put: scrolls;
 		yourself
 !
 hasCopy
@@ -134,7 +136,7 @@ cursorChanged
 	self listeners do: [:each | each cursorChanged]
 !
 moved: aRectangle to: aPoint
-	"My source moved aRectangle's pixels to aPoint: so do I, and so may my listeners (CopyRect); where its damage I have yet to compare touches aRectangle, compare the destination again."
+	"My source moved aRectangle's pixels to aPoint: so do I, and so may my listeners (CopyRect); the destination is compared again (the move is a hint: a window over the moved one, or damage at its origin I have yet to compare, makes the screen differ there)."
 	| dest bounds |
 	dest := aPoint extent: aRectangle extent.
 	copyLock critical: [
@@ -142,7 +144,8 @@ moved: aRectangle to: aPoint
 		(valid and: [(bounds containsRect: aRectangle) and: [bounds containsRect: dest]])
 			ifTrue: [
 				self moveCopy: aRectangle to: aPoint.
-				(pending notNil and: [pending intersects: aRectangle]) ifTrue: [pending add: dest].
+				pending isNil ifFalse: [pending add: dest].
+				(movedTo ifNil: [movedTo := OrderedCollection new]) add: dest.
 				self listeners do: [:each | each moved: aRectangle to: aPoint]]
 			ifFalse: [pending isNil ifFalse: [pending add: dest]]].
 	self signal
@@ -172,15 +175,18 @@ refresh
 				rects := pending rects asArray.
 				pending reset.
 				buffers := inner bgraOfAll: rects.
+				rects with: buffers do: [:r :b | b size = (r area * 4) ifTrue: [self findScrollIn: r pixels: b]].
 				changed := OrderedCollection new.
 				rects with: buffers do: [:r :b |
 					comparedArea := comparedArea + r area.
 					b size = (r area * 4) ifTrue: [self compare: r with: b into: changed]].
+				movedTo := nil.
 				changed isEmpty ifTrue: [
 					refreshes := refreshes + 1.
 					diffMs := diffMs + (Time millisecondClockValue - start).
 					^false]].
 		refreshes := refreshes + 1.
+		movedTo := nil.
 		changedArea := changedArea + (changed inject: 0 into: [:sum :r | sum + r area]).
 		self listeners do: [:each | each takeDamage: changed full: full extent: e].
 		diffMs := diffMs + (Time millisecondClockValue - start).
@@ -248,6 +254,77 @@ band: top to: bottom marks: marks first: firstBlock left: left right: right open
 				k := j + 1]].
 	changed addAll: open.
 	^runs
+! !
+
+!RfbDiffSource methodsFor: 'scrolling'!
+findScrollIn: r pixels: bytes
+	"If the new pixels of r (bytes) are my copy's scrolled up or down (a list or text scrolled: sample rows of it found again in my copy, all at the same distance), move my copy's rows and tell my listeners (moved:to:, a CopyRect); comparing r afterwards finds what the scroll uncovered, and what did not scroll with it."
+	| dy src rows |
+	dy := self scrollOf: r pixels: bytes.
+	dy isNil ifTrue: [^self].
+	rows := self rowsScrolledBy: dy in: r pixels: bytes.
+	rows last - rows first < 16 ifTrue: [^self].
+	src := r left @ (r top + rows first + dy) corner: r right @ (r top + rows last + dy).
+	self moveCopy: src to: src left @ (src top - dy).
+	scrolls := scrolls + 1.
+	self listeners do: [:each | each moved: src to: src left @ (src top - dy)]
+!
+rowsScrolledBy: dy in: r pixels: bytes
+	"{first. last + 1}: the rows of r (0-based) around the sample row that told dy which are my copy's rows dy lower (higher if dy is negative), in the middle of r: what scrolled (text inserted above a paragraph moves only what follows it)."
+	| h w x0 n y0 y1 |
+	h := r height.
+	w := r width.
+	x0 := w // 8.
+	n := w - (2 * x0) * 4.
+	y0 := lastScrollRow.
+	[y0 > 0 and: [y0 - 1 + dy >= 0 and: [y0 - 1 + dy < h and: [self row: y0 - 1 of: r pixels: bytes at: n from: x0 matchesCopyRow: y0 - 1 + dy]]]] whileTrue: [y0 := y0 - 1].
+	y1 := lastScrollRow + 1.
+	[y1 < h and: [y1 + dy >= 0 and: [y1 + dy < h and: [self row: y1 of: r pixels: bytes at: n from: x0 matchesCopyRow: y1 + dy]]]] whileTrue: [y1 := y1 + 1].
+	^Array with: y0 with: y1
+!
+scrollOf: r pixels: bytes
+	"The rows dy (not 0; the last one found first, then the nearest, at most half of r's height or 64) by which r's content moved up (down if negative): its new row y is my copy's row y + dy, for the middle of each sample row that changed and is not of one colour; nil if there is none (or fewer than 3 such rows to tell it by), or if r is where a window was moved to (the compositor told: moved:to:)."
+	| h w x0 n stride samples first limit |
+	h := r height.
+	w := r width.
+	(h >= 48 and: [w >= 32]) ifFalse: [^nil].
+	(movedTo notNil and: [movedTo anySatisfy: [:each | each intersects: r]]) ifTrue: [^nil].
+	x0 := w // 8.
+	n := w - (2 * x0) * 4.
+	stride := extent x * 4.
+	samples := OrderedCollection new.
+	1 to: 12 do: [:k | | y from |
+		y := h * k // 13.
+		from := y * w * 4 + (x0 * 4) + 1.
+		((bytes indexOfMismatchAt: from with: copy at: (r top + y) * stride + (r left + x0 * 4) + 1 size: n) ~= 0
+			and: [(bytes indexOfMismatchAt: from with: bytes at: from + 4 size: n - 4) ~= 0])
+				ifTrue: [samples add: y]].
+	samples size < 3 ifTrue: [^nil].
+	first := samples at: samples size + 1 // 2.
+	lastScrollRow := first.
+	limit := h // 2 min: 64.
+	(lastScroll notNil and: [lastScroll abs <= (h // 2) and: [self scroll: lastScroll fits: samples first: first in: r pixels: bytes at: n from: x0]]) ifTrue: [^lastScroll].
+	1 to: limit do: [:a |
+		(self scroll: a fits: samples first: first in: r pixels: bytes at: n from: x0) ifTrue: [^lastScroll := a].
+		(self scroll: a negated fits: samples first: first in: r pixels: bytes at: n from: x0) ifTrue: [^lastScroll := a negated]].
+	^nil
+!
+scroll: dy fits: samples first: first in: r pixels: bytes at: n from: x0
+	"Whether every sample row y (at least 3) for which y + dy is in r is my copy's row y + dy (the row first tried first)."
+	| h inRange |
+	h := r height.
+	(first + dy >= 0 and: [first + dy < h]) ifFalse: [^false].
+	(self row: first of: r pixels: bytes at: n from: x0 matchesCopyRow: first + dy) ifFalse: [^false].
+	inRange := 0.
+	samples do: [:y |
+		(y + dy >= 0 and: [y + dy < h]) ifTrue: [
+			inRange := inRange + 1.
+			(self row: y of: r pixels: bytes at: n from: x0 matchesCopyRow: y + dy) ifFalse: [^false]]].
+	^inRange >= 3
+!
+row: y of: r pixels: bytes at: n from: x0 matchesCopyRow: y2
+	"Whether n bytes from x0 of r's new row y (0-based in r) are those of my copy's row y2 (0-based in r) there."
+	^(bytes indexOfMismatchAt: y * r width * 4 + (x0 * 4) + 1 with: copy at: (r top + y2) * extent x * 4 + (r left + x0 * 4) + 1 size: n) = 0
 ! !
 
 !RfbDiffSource methodsFor: 'private'!
