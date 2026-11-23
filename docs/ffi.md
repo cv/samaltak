@@ -5,7 +5,8 @@ registered native export and its exact C signature. `FFI bind:` resolves and
 checks the export and prepares a generated call wrapper. An `FFIBinding` can
 then invoke it synchronously many times.
 
-See the [primitive audit](ffi-primitive-audit.md) for ID-by-ID dispositions.
+See the [primitive audit](ffi-primitive-audit.md) for ID-by-ID dispositions,
+and [bounded output](ffi-owned-output.md) for reviewed built-in protocols.
 
 ```smalltalk
 (FFI bind: #(call 'libm' 'sqrt' (f64) f64)) invoke: #(9.0)
@@ -27,16 +28,36 @@ immutable copy of the names and signature.
 | `f64` | Float (C `double`) |
 | `void` | Result only; answers `nil` |
 | `byteSlice` | Argument only for `memcmp`; a read-only byte slice |
-| `bytesWithLength` | Argument only for a `syncBorrow` grant; a read-only byte slice with its length |
+| `bytesWithLength` | Argument for a `syncBorrow` grant or registered built-in; a read-only byte slice with its length |
+| `writableBytesWithLength` | Argument only for an explicitly approved built-in; a mutable byte slice with its length |
 
 An invalid descriptor, unavailable export or signature mismatch signals
 `FFIError` at bind time. Integers must fit the declared width; `f64` requires
 a Float.
 
-A byte slice is `{aByteArray. oneBasedOffset. length}` with a `ByteArray` and
-`SmallInteger` offset and length. It must fit inside the ByteArray; a zero-length
-slice may start one past the end. The explicit `memcmp` count must fit in
+A byte slice is an exact three-element Array `{aByteArray. oneBasedOffset. length}`
+with an exact `ByteArray` and `SmallInteger` offset and length. The offset is at
+least 1 and the length is nonnegative. The range must fit in the logical byte
+size (not allocation padding); a zero-length slice may start one past the end.
+Nil is not a slice, even at length zero. The explicit `memcmp` count must fit in
 both slices. Only the sign of its result is significant.
+
+A `writableBytesWithLength` slice additionally rejects a read-only ByteArray,
+even at length zero. It supplies a writable pointer and a `uint64_t` length
+(two of the six available native slots). All arguments are checked before the
+VM enters the target. The target may write only within the validated range
+and only on the calling VM thread before returning. It must not retain or
+handoff the pointer, reenter the VM, or trigger a callback or GC. It must not
+dereference an empty slice. Slices may overlap, so a target with several
+slices must handle or reject overlap before using a non-overlap operation.
+The image never sees the pointer; it sees writes
+in the original ByteArray, including writes made by a target returning an
+error status. The VM does not roll back those writes or retry the call.
+
+Only exact, declared built-in signatures can grant writable access.
+`SAMALTAK_NATIVE_GRANTS` does not accept this type, and the legacy
+`ffiBind`/`ffiInvoke` primitives (250/251) reject it. Both the Array and
+positional prepared call paths use the same checked wrapper.
 
 ```smalltalk
 | compare |
@@ -78,6 +99,51 @@ window and PTY APIs for their argument and error handling.
 | `platform_windows_show` | `(i64 i32) i32` |
 | `platform_windows_set_text_input_area` | `(i64 i64 i64 i64 i64 i64) i32` |
 | `pty_resize` | `(i64 i64 i64) i32` |
+
+### Declaring a built-in export
+
+Mark a typed Lowtalk function on `FFIPrimitives` (`vm:core`) or
+`SDLPlatform` (`platform`):
+
+```smalltalk
+nativeFractionPart: value
+    <function>
+    <approvedFFI: 52 symbol: 'core_float_fraction_part' arguments: #(6) result: 6>
+    <var: #value type: 'double'>
+    <returns: 'double'>
+    "Typed implementation here."
+```
+
+The stable registry ID is 1024 plus the declaration key. Use the original
+primitive ID as the key and a separate key for additional variants. The
+translator rejects duplicate keys, duplicate logical names within a library,
+legacy platform names, incompatible C prototypes, and signatures exceeding
+six C slots. These are prepared calls only: an exact library, symbol,
+argument signature and result tag must match. No lookup falls through from
+these libraries to launcher grants. `vm:core` is not a valid launcher alias;
+the existing alias `core` retains its meaning. `NO_PLATFORM` and UEFI do not
+expose SDL targets. `<approvedFFITest>` requires a VM built with
+`SAMALTAK_FFI_TEST_EXPORTS`.
+
+A facade can avoid a separate cache by compiling a literal binding at its
+call site:
+
+```smalltalk
+ffiCandidateFractionPart
+    <ffiSite>
+    | result |
+    result := (self ffiSite: #(call 'vm:core' 'core_float_fraction_part' (f64) f64))
+        tryInvoke1: self.
+    result == false ifTrue: [^self fractionPart].
+    ^result
+```
+
+In an annotated method, `self ffiSite: <literal descriptor>` embeds an
+immutable, initially unprepared `FFIBinding` in the method. Invocation uses
+the existing prepared wrapper and process-local token; restoring an image
+does not restore a native target. The declaration itself does not change
+production routing. Fall back only when invocation answers `false`, never
+on a completed native status.
 
 ## Launcher grants
 
@@ -215,6 +281,12 @@ deoptimization without replay. Set `SITEFFI_TEST_LOG_DIR` to keep the site
 test's disassembly and counters. To skip the PTY portion, pass `--no-pty`
 after the VM path to the wrapper and site tests. Both scripts use `--load`,
 which needs file support.
+
+On x64 and arm64 builds compiled with `-DSAMALTAK_FFI_TEST_EXPORTS`,
+`tests/vm/writable_ffi_test.sh IMAGE VM` checks guarded native writes,
+pre-entry rejection, both invoke forms, optimized site hits, and full GC
+during result boxing. On a release build, pass `--expect-no-fixture` to
+verify that the test export cannot be bound.
 
 The [wrapper benchmark](../vm/tests/bench/wrapped-ffi.md) binds before
 timing: it measures warm invocation and allocation, not binding or code

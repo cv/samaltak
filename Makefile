@@ -65,6 +65,7 @@ test-jit-cache: image
 # Everything, in stages (CI runs them as separate jobs); any failure, skipped test or headless-only VM fails it. The UI
 # scripts use a hidden window.
 test: test-core
+	$(MAKE) test-ffi-candidates-headless
 	$(MAKE) test-jit
 	$(MAKE) test-tools
 	$(MAKE) test-uefi
@@ -83,6 +84,33 @@ test-core: image test-vm
 	tests/st_suite.sh $(OUT)/runtime.image -- Weather --load apps/Weather
 	tests/st_suite.sh $(OUT)/runtime.image -- Agents --load apps/Agents
 	tests/st_suite.sh $(OUT)/runtime.image -- Wodify --load apps/Wodify
+# Native-entry and semantic smoke, not the performance gate (shared CI CPUs are noisy).
+test-ffi-candidates-headless: image
+	tests/vm/ffi_migration_manifest_test.sh $(OUT)/samaltak.image $(VM)
+	tests/vm/ffi_migration_gate_test.sh $(OUT)/samaltak.image $(VM) sdl release
+	tests/vm/ffi_migration_owned_test.sh $(OUT)/samaltak.image $(VM) sdl release
+	tests/st_suite.sh $(OUT)/samaltak.image -- FileFFITest ApprovedFFIRegistryTest FFISeededSiteTest
+	tests/vm/ffi_trial_test.sh $(OUT)/samaltak.image $(VM)
+	tests/vm/window_ffi_test.sh $(OUT)/samaltak.image $(VM)
+	python3 tests/vm/core_ffi_test.py $(OUT)/samaltak.image $(VM) --trace
+	@for mode in none baseline opt; do \
+		python3 tests/vm/socket_ffi_test.py $(VM) $(OUT)/samaltak.image --jit "$$mode" --trace || exit; \
+	done
+	@logs=$$(mktemp -d); trap 'rm -rf "$$logs"' EXIT; \
+		python3 vm/tests/bench/ffi-paired.py --vm $(VM) --image $(OUT)/samaltak.image --logs "$$logs" --proof-only
+
+# Run only in display CI (real SDL window + software Vulkan through the test runner's X server).
+# Keep one illustrative timing session; it is not a performance gate.
+FFI_DISPLAY_LOGS ?= $(OUT)/ffi-display-logs
+test-ffi-candidates-display: image
+	@test "$$GITHUB_ACTIONS" = true && test -n "$$DISPLAY"
+	tests/vm/window_ffi_test.sh $(OUT)/samaltak.image $(VM) --display-ci
+	@for mode in none baseline opt; do \
+		tests/st_suite.sh $(OUT)/samaltak.image --jit "$$mode" --jit-threshold 0 -- GPUFFIRegressionTest || exit; \
+	done
+	python3 vm/tests/bench/ffi-paired.py --vm $(VM) --image $(OUT)/samaltak.image \
+		--logs "$(FFI_DISPLAY_LOGS)" --display-ci --sessions 1 --pairs 2 --calls 4096 --warmup 4096
+
 test-tools: image
 	$(PLATFORM_CHECK)
 	$(MAKE) -C vm/platform test st-test
@@ -238,3 +266,5 @@ clean:
 	rm -rf build
 
 .PHONY: all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-nic test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test video mindblown-video jit-video clean
+
+.PHONY: test-ffi-candidates-headless test-ffi-candidates-display
