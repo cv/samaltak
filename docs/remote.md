@@ -157,12 +157,13 @@ input path (QEMU's: its USB keyboard and virtio tablet). Each interaction lasts 
 runs (image) and 3 (QEMU). CPU is QEMU's process (user + system) in % of one core: the guest's vCPUs, so the image's
 own server, and QEMU's VNC server. "Before" is the server that sent each damaged rectangle whole; "image" sends only the
 16x16 blocks that changed (RfbDiffSource, below). The image's columns were measured again without the NIC's spin
-(below), on 913de31 with it gone, interleaved with runs of 913de31 itself.
+(below), on 913de31 with it gone, interleaved with runs of 913de31 itself; the idle rows again on fd1a733, where an idle
+World presents almost nothing (below).
 
 | interaction | before: B/s | image: B/s | updates/s | B an update (median) | CPU | QEMU: B/s | updates/s | B an update (median) | CPU |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| idle, the World as it opens | 107 K | 5.7 K | 2.3 | 2.1 K (424) | 7 % | 3.7 K | 4.9 | 763 (700) | 7 % |
-| idle, Mandelbrot and Process Browser closed | 0 | 126 | 0.1 | 1.3 K | 2 % | 60 | 0.2 | 298 | 2 % |
+| idle, the World as it opens | 107 K | 0.6 K | 0.6 | 900 (682) | 4 % | 3.7 K | 4.9 | 763 (700) | 7 % |
+| idle, Mandelbrot and Process Browser closed | 0 | 146 | 0.1 | 1.5 K | 2 % | 60 | 0.2 | 298 | 2 % |
 | typing, 16 keys/s into the Workspace | 36 K | 34 K | 18.4 | 1.9 K (214) | 20 % | 48 K | 17.0 | 2.8 K (182) | 12 % |
 | scrolling the class list, 10 notches/s | 56 K | 54 K | 12.8 | 4.2 K (4.4 K) | 18 % | 51 K | 11.9 | 4.3 K (4.7 K) | 10 % |
 | dragging the Inspector, 60 moves/s | 452 K | 575 K | 43.3 | 13.3 K (13.1 K) | 43 % | 298 K | 22.0 | 13.4 K (14.9 K) | 18 % |
@@ -175,7 +176,7 @@ own server, and QEMU's VNC server. "Before" is the server that sent each damaged
 | first connect (TCP connect → the first full update) | 0.34 s, 206 KB | 0.32 s, 200 KB |
 
 **Only the blocks that changed.** The compositor's damage is in quads' bounds: text laid out again damages a whole
-paragraph, of which few pixels change, and the Process Browser redraws its list every second with the same pixels.
+paragraph, of which few pixels change, and the Process Browser redrew its list every second with the same pixels.
 RfbDiffSource (System-Remote), between the frame tap and the connections, keeps one copy of the screen for all viewers
 (BGRA8 whatever their pixel formats, 8 MB at 1920x1080, made when the first viewer comes and dropped when the last goes).
 When a connection's writer is about to send, it reads what was damaged since anyone last did (once for all viewers),
@@ -198,6 +199,34 @@ typing, scrolling, dragging and streaming, and a key took 30 ms (29-41) to its p
 60 Hz refresh clock punctual: so the lower latency and the updates dragging and streaming gain. 1 ms ticks cost
 about 2 points of a core while they last. TCP throughput is the same: 8 MB over HTTPS from the host in 65-170 ms
 either way, 1 MB each way through the control service in about 110 ms.
+
+**An idle World presents (almost) nothing.** The World as it opens presented about 5 frames a second with nothing
+happening: the Process Browser drew its table again at its 4 Hz refreshes for readings that jitter and for rows out of
+view, and its stack list for new contexts of the same methods; the sleeping compositor and the UEFI refresh clock
+started and ended Processes (a timed wait's watchdog, the clock's own) that came and went in its list; and the top bar's
+ms/fps readout changed with every frame it rode along with, including the frames an RFB viewer's reads of the frame tap
+made (a request marked the World changed), each of which brought the next read. Now the browser reads the CPU once a
+second and shows a new reading only when it moved by a visible step (a point, or a fifth of it), draws a row again only
+when what it shows changed and is in view, and LoadMeters a meter only when it looks different; the readout refreshes
+only with frames presented for something else, and once, 3 s after the last, for the settled numbers; a request is no
+change, the compositor sleeps on a Delay and the refresh clock parks its Process. Medians of 5 runs of fd1a733 and of
+the same tree without these changes (f604588 with the NIC's and the JIT's commits after it), the same method; hosted:
+the World as it opens on a private Xvfb at 1920x1080 (lavapipe), the frames the compositor presented and the VM's CPU
+over 10 s, 15 s after opening:
+
+| the World as it opens, idle | before | after |
+| --- | --- | --- |
+| RFB: bytes/s | 3.7 K | 0.6 K |
+| RFB: updates/s | 5.3 | 0.6 |
+| the guest's CPU (QEMU's process) | 10 % | 4 % |
+| hosted: frames presented/s | 5.4 | 0.3 |
+| hosted: the VM's CPU | 9.2 % | 6.2 % |
+
+What remains is what moves: the Process Browser's readings that change visibly (mostly the cpu meter and the RFB
+server's own CPU), about once a second, with the top bar riding along. With Mandelbrot and the Process Browser closed,
+one update in 10 s: the readout settling after they closed. Mandelbrot draws nothing once it is done, the Transcript
+and the Workspace only when written to, toasts fade and go; the System Monitor's charts scroll at 10 Hz while it is
+open (it is not in the World as it opens).
 
 **The server's own time.** RfbConnection's and RfbDiffSource's statistics (`totalMs` and `diffMs`: finding what
 changed, making and sending updates), in ms an update, medians of 5 runs (with the NIC's spin, before 913de31's
@@ -236,8 +265,8 @@ its CPU samples are taken when the timer Process wakes, which allocating 256 KB 
   line scrolling.
 - typing, encode ≤ 0.5 ms a frame: 0.6 ms an update, finding what changed, making and sending. Close, but not met.
 - typing latency, ≤ 1 frame + RTT + 10 ms: met. 18 ms on loopback (QEMU's: 82 ms).
-- idle with a client, no CPU: met for a still World (no updates, 2 %, as with QEMU's). A World that redraws costs
-  6 KB/s and 7 % (QEMU's server sends 3.7 KB/s).
+- idle with a client, no CPU: met for a still World (no updates, 2 %, as with QEMU's). The World as it opens costs
+  0.6 KB/s and 4 %, about one update a second for readings that move (QEMU's server sends 3.7 KB/s).
 - dragging, ≥ 15 updates/s of 20-60 KB: met. 43.3 updates/s of 13 KB (QEMU's: 22).
 - full-screen update, ≤ 150 ms (≤ 50 ms with primitives): 43 ms for 128 KB.
 - first connect, the whole screen within 0.5 s: 0.34 s.
