@@ -9,7 +9,7 @@ has come, as Screen Sharing and TigerVNC do).
 
 Per scripted interaction, for its seconds: bytes a second on the wire (the server's RFB bytes), updates a second,
 bytes an update (mean and median), frames the World presented a second, the image's server's own time making and
-sending updates (RfbConnection statistics' totalMs: ms an update, % of a core), and with --qemu-pid QEMU's CPU (user +
+sending updates (RfbConnection statistics' totalMs and RfbDiffSource's diffMs: ms an update, % of a core), and with --qemu-pid QEMU's CPU (user +
 system, % of one core; it includes the guest's vCPUs, so the image's own server, and QEMU's VNC server). --silent asks
 for no updates after the first: the same input and drawing with nothing encoded. The interactions: idle (the World as it opens), idle with the windows
 that change by themselves closed (Mandelbrot, Process Browser; they stay closed), typing 16 keys a second into the
@@ -71,9 +71,11 @@ def cpu_ticks(pid):
     return int(fields[11]) + int(fields[12])
 
 
-# frames presented, and the image's RFB server's time making and sending updates (all its connections; QEMU's: 0)
+# frames presented, and the image's RFB server's time making and sending updates (all its connections, and finding
+# what changed: RfbDiffSource's diffMs; QEMU's: 0)
 COUNTS = ("World current compositor presentedCount printString, ' ', (RfbServer current ifNil: [0] ifNotNil: [:s | "
-          "s connections inject: 0 into: [:a :c | a + (c statistics at: 'totalMs')]]) printString")
+          "(s connections inject: 0 into: [:a :c | a + (c statistics at: 'totalMs')]) + ((s source respondsTo: "
+          "#statistics) ifTrue: [s source statistics at: 'diffMs'] ifFalse: [0])]) printString")
 
 
 def counts(session):
