@@ -88,18 +88,36 @@ test: test-core
 	$(MAKE) test-uefi
 	@echo "make test: all passed"
 PLATFORM_CHECK = @[ -f vm/build/.variant-platform ] || { echo "make test: FAILED: the VM was built without the platform layer (SDL3), UI tests would not run"; exit 1; }
-test-core: $(TEST_IMAGE) test-vm
+# test-core's parts run at once (make -j -O: TEST_CORE_JOBS, all of them by default; 1: one after another), the main
+# suite first, each part's output shown when it ends; their test VMs share the machine's test slots (tests/st_suite.sh).
+# Every part runs to its end (-k).
+TEST_CORE_PARTS := suite vm gen layering cli-quit resume-rng verify-gc heap weather agents wodify
+TEST_CORE_JOBS ?= $(words $(TEST_CORE_PARTS))
+# make -j N -O, but one at a time on make 3.81 (macOS's), which has no -O
+TEST_PARTS_SYNC = $(if $(filter 3.%,$(MAKE_VERSION)),-j1,-j$(1) -O --no-print-directory)
+test-core: $(TEST_IMAGE)
 	$(PLATFORM_CHECK)
-	tests/vm/gen_test.sh $(OUT)/samaltak.image
-	tests/boot/layering_test.sh
-	tests/boot/cli_quit_test.sh $(OUT)/samaltak.image
-	tests/boot/resume_rng_test.sh $(OUT)/samaltak.image
+	$(MAKE) -k $(call TEST_PARTS_SYNC,$(TEST_CORE_JOBS)) $(addprefix test-core-part-,$(TEST_CORE_PARTS))
+test-core-part-suite:
 	tests/st_suite.sh $(OUT)/samaltak.image
+test-core-part-vm: test-vm
+test-core-part-gen:
+	tests/vm/gen_test.sh $(OUT)/samaltak.image
+test-core-part-layering:
+	tests/boot/layering_test.sh
+test-core-part-cli-quit:
+	tests/boot/cli_quit_test.sh $(OUT)/samaltak.image
+test-core-part-resume-rng:
+	tests/boot/resume_rng_test.sh $(OUT)/samaltak.image
+test-core-part-verify-gc:
 	SAMALTAK_VERIFY_GC=1 tests/st_suite.sh $(OUT)/samaltak.image --eden 1 -- Tests-Kernel Tests-Compiler
+test-core-part-heap:
 	tests/st_suite.sh $(OUT)/samaltak.image --max-heap 128 -- LowSpaceTest StackOverflowTest
-	$(MAKE) fresh-runtime
+test-core-part-weather: fresh-runtime
 	tests/st_suite.sh $(OUT)/runtime.image -- Weather --load apps/Weather
+test-core-part-agents: fresh-runtime
 	tests/st_suite.sh $(OUT)/runtime.image -- Agents --load apps/Agents
+test-core-part-wodify: fresh-runtime
 	tests/st_suite.sh $(OUT)/runtime.image -- Wodify --load apps/Wodify
 # System-NV on a real NVIDIA GPU (hosted Linux, /dev/nvidiactl; the GB10): not part of make test, which runs where
 # there is none. Fails, saying so, without a GPU. NvGspFirmwareFileTest reads the driver's installed gsp_ga10x.bin
@@ -311,7 +329,7 @@ UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot:
 UEFI_TEST_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2); echo $$(( n > 1 ? n / 2 : 1 )))
 UEFI_TEST_PARTS = tests lowspace mp cpu1 reset world world-gpu files fat rfb net $(if $(filter-out virtio-net-pci,$(UEFI_NIC)),nic) snapshot
 # make 3.81 (macOS's) has no -O: there the parts run one after another
-UEFI_TEST_SYNC := $(if $(filter 3.%,$(MAKE_VERSION)),-j1,-j$(UEFI_TEST_JOBS) -O --no-print-directory)
+UEFI_TEST_SYNC = $(call TEST_PARTS_SYNC,$(UEFI_TEST_JOBS))
 UEFI_PART_RUN = $(UEFI)/run-$(patsubst test-uefi-part-%,%,$@)
 UEFI_PART_BOOT = $(MAKE) uefi-boot UEFI_RUN=$(UEFI_PART_RUN) UEFI_SLOT=tests/with-slot
 UEFI_PART_LOG = $(UEFI_PART_RUN)/console.log
@@ -539,4 +557,4 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build
 
-.PHONY: $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS)) all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-fat test-uefi-nic usb-image usb-disk usb-run usb-boot test-usb-image test-install test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels test video mindblown-video jit-video clean
+.PHONY: $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS)) $(addprefix test-core-part-,$(TEST_CORE_PARTS)) all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-fat test-uefi-nic usb-image usb-disk usb-run usb-boot test-usb-image test-install test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels test video mindblown-video jit-video clean
