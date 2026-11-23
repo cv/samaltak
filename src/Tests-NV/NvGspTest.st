@@ -125,6 +125,40 @@ testRpcMessages
 	self assert: ((NvGsp rootParamsClient: 16rC1D00009) first: 4) equals: #[16r09 0 16rD0 16rC1].
 	self assert: (NvGsp rootParamsClient: 16rC1D00009) size equals: 120
 !
+testSystemInfo
+	| s m |
+	s := NvGsp systemInfoBar0: 16r24000000 domain: 16rF bus: 1 devfn: 0 deviceVendor: 16r2E1210DE subsystem: 16r000010DE revision: 16rA1.
+	self assert: s size equals: 936.
+	self assert: (s u64At: 0) equals: 16r24000000.
+	self assert: (s u64At: 32) equals: 16rF00000100.
+	self assert: (s u32At: 88) equals: 16r2E1210DE.
+	self assert: (s u32At: 92) equals: 16r10DE.
+	self assert: (s u32At: 96) equals: 16rA1.
+	self assert: (s u32At: 80) equals: 16r92000.
+	self assert: (s u32At: 84) equals: 16r1000.
+	self assert: (s u8At: 125) equals: 1.
+	self assert: (s u8At: 126) equals: 1.
+	self assert: (s u64At: 920) equals: 4096.
+	m := NvGsp setSystemInfo: s.
+	self assert: (m u32At: 12) equals: 72.
+	self assert: (m u32At: 8) equals: 32 + 936
+!
+testRegistry
+	| t m |
+	t := NvGsp registry: #(#('RmFoo' 7) #('RMBar' 16r10000)).
+	self assert: (t u32At: 0) equals: t size.
+	self assert: t size equals: 8 + 32 + 6 + 6.
+	self assert: (t u32At: 4) equals: 2.
+	self assert: ((8 to: 20 by: 4) collect: [:o | t u32At: o]) asArray equals: {40. 1. 7. 4}.
+	self assert: (t u32At: 24) equals: 46.
+	self assert: (t u32At: 32) equals: 16r10000.
+	self assert: (t stringAt: 40 size: 6) equals: 'RmFoo'.
+	self assert: (t stringAt: 46 size: 6) equals: 'RMBar'.
+	self assert: (NvGsp registry: #()) size equals: 8.
+	m := NvGsp setRegistry: t.
+	self assert: (m u32At: 12) equals: 73.
+	self assert: (m u32At: 8) equals: 32 + t size
+!
 testChecksum
 	| b |
 	b := ByteArray new: 16.

@@ -16,10 +16,16 @@ trap 'rm -rf "$T"' EXIT
 awk '/^typedef struct GSP_MSG_QUEUE_ELEMENT/{p=1} p{print} p&&/^} GSP_MSG_QUEUE_ELEMENT;/{p=0} /^#define GSP_MSG_QUEUE_ELEMENT_SIZE_M(IN|AX)/{print}' \
     "$OGK/src/nvidia/inc/kernel/gpu/gsp/message_queue_priv.h" > "$T/element.h"
 grep -q 'define GSP_MSG_QUEUE_ELEMENT_SIZE_MAX' "$T/element.h"
+# The registry table's structs sit in a generated header of RM's OS layer: their text too.
+awk '/^typedef struct PACKED_REGISTRY_ENTRY/{p=1} p{print} p&&/^} PACKED_REGISTRY_TABLE;/{exit}' \
+    "$OGK/src/nvidia/generated/g_os_nvoc.h" > "$T/registry.h"
+grep -q 'PACKED_REGISTRY_TABLE;' "$T/registry.h"
 grep -q 'GSP_MSG_QUEUE_ELEMENT;' "$T/element.h"
 cat > "$T/layouts.c" <<'EOF'
 #include <stdio.h>
 #include <stddef.h>
+#include "nvport/nvport.h"
+#include "gpu/gsp/gsp_static_config.h"
 #include "nvtypes.h"
 #include "nvmisc.h"
 #include "gpu/fsp/kern_fsp_cot_payload.h"
@@ -41,6 +47,8 @@ cat > "$T/layouts.c" <<'EOF'
 #include "g_rpc-structures.h"
 #include "g_rpc-message-header.h"
 #include "element.h"
+#include "registry.h"
+#include "rmgspseq.h"
 
 #define S(t) printf("\t\t#('%s' %zu #(\n", #t, sizeof(t));
 #define F(t, f) printf("\t\t\t#('%s' %zu %zu)\n", #f, offsetof(t, f), sizeof(((t *)0)->f));
@@ -116,6 +124,29 @@ int main(void)
         F(rpc_free_v03_00, params.hObjectOld) F(rpc_free_v03_00, params.status) E
     S(NV0000_ALLOC_PARAMETERS) F(NV0000_ALLOC_PARAMETERS, hClient) F(NV0000_ALLOC_PARAMETERS, processID)
         F(NV0000_ALLOC_PARAMETERS, processName) F(NV0000_ALLOC_PARAMETERS, pOsPidInfo) E
+    S(GspSystemInfo) F(GspSystemInfo, gpuPhysAddr) F(GspSystemInfo, gpuPhysFbAddr) F(GspSystemInfo, gpuPhysInstAddr)
+        F(GspSystemInfo, gpuPhysIoAddr) F(GspSystemInfo, nvDomainBusDeviceFunc) F(GspSystemInfo, simAccessBufPhysAddr)
+        F(GspSystemInfo, notifyOpSharedSurfacePhysAddr) F(GspSystemInfo, pcieAtomicsOpMask) F(GspSystemInfo, consoleMemSize)
+        F(GspSystemInfo, maxUserVa) F(GspSystemInfo, pciConfigMirrorBase) F(GspSystemInfo, pciConfigMirrorSize)
+        F(GspSystemInfo, PCIDeviceID) F(GspSystemInfo, PCISubDeviceID) F(GspSystemInfo, PCIRevisionID)
+        F(GspSystemInfo, pcieAtomicsCplDeviceCapMask) F(GspSystemInfo, oorArch) F(GspSystemInfo, clPdbProperties)
+        F(GspSystemInfo, Chipset) F(GspSystemInfo, bGpuBehindBridge) F(GspSystemInfo, bFlrSupported)
+        F(GspSystemInfo, b64bBar0Supported) F(GspSystemInfo, bMnocAvailable) F(GspSystemInfo, chipsetL1ssEnable)
+        F(GspSystemInfo, bUpstreamL0sUnsupported) F(GspSystemInfo, bUpstreamL1Unsupported) F(GspSystemInfo, bUpstreamL1PorSupported)
+        F(GspSystemInfo, bUpstreamL1PorMobileOnly) F(GspSystemInfo, bSystemHasMux) F(GspSystemInfo, upstreamAddressValid)
+        F(GspSystemInfo, FHBBusInfo) F(GspSystemInfo, chipsetIDInfo) F(GspSystemInfo, acpiMethodData)
+        F(GspSystemInfo, hypervisorType) F(GspSystemInfo, virtualConfigBits) F(GspSystemInfo, bIsPassthru)
+        F(GspSystemInfo, sysTimerOffsetNs) F(GspSystemInfo, gspVFInfo) F(GspSystemInfo, bIsPrimary)
+        F(GspSystemInfo, bIsUnixHdmiFrlComplianceEnabled) F(GspSystemInfo, isGridBuild) F(GspSystemInfo, pcieConfigReg)
+        F(GspSystemInfo, gridBuildCsp) F(GspSystemInfo, bPreserveVideoMemoryAllocations) F(GspSystemInfo, bTdrEventSupported)
+        F(GspSystemInfo, bFeatureStretchVblankCapable) F(GspSystemInfo, bEnableDynamicGranularityPageArrays)
+        F(GspSystemInfo, bClockBoostSupported) F(GspSystemInfo, hostPageSize) F(GspSystemInfo, bIsCmcBasedHws)
+        F(GspSystemInfo, bGspNocatEnabled) F(GspSystemInfo, bS0ixSupport) F(GspSystemInfo, bWindowChannelAlwaysMapped) E
+    S(PACKED_REGISTRY_ENTRY) F(PACKED_REGISTRY_ENTRY, nameOffset) F(PACKED_REGISTRY_ENTRY, type)
+        F(PACKED_REGISTRY_ENTRY, data) F(PACKED_REGISTRY_ENTRY, length) E
+    S(PACKED_REGISTRY_TABLE) F(PACKED_REGISTRY_TABLE, size) F(PACKED_REGISTRY_TABLE, numEntries) A(PACKED_REGISTRY_TABLE, entries) E
+    S(rpc_run_cpu_sequencer_v17_00) F(rpc_run_cpu_sequencer_v17_00, bufferSizeDWord) F(rpc_run_cpu_sequencer_v17_00, cmdIndex)
+        F(rpc_run_cpu_sequencer_v17_00, regSaveArea) A(rpc_run_cpu_sequencer_v17_00, commandBuffer) E
     printf("\t)\n!\nconstants\n\t\"{name. value}: the constants NvGsp uses, from the same headers.\"\n\t^#(\n");
     C(NV_VGPU_MSG_SIGNATURE_VALID) C(NV_VGPU_MSG_HEADER_VERSION_MAJOR_TOT) C(NV_VGPU_MSG_HEADER_VERSION_MINOR_TOT)
     C(NV_VGPU_MSG_RESULT_RPC_PENDING) C(NV_VGPU_MSG_UNION_INIT)
@@ -129,6 +160,9 @@ int main(void)
     C(MSGQ_VERSION) C(MSGQ_FLAGS_SWAP_RX) C(GSP_MSG_QUEUE_ELEMENT_SIZE_MIN) C(GSP_MSG_QUEUE_ELEMENT_SIZE_MAX)
     C(GSP_FW_WPR_META_MAGIC) C(GSP_FW_WPR_META_REVISION) C(GSP_DMA_TARGET_COHERENT_SYSTEM)
     C(LIBOS_MEMORY_REGION_CONTIGUOUS) C(LIBOS_MEMORY_REGION_RADIX3) C(LIBOS_MEMORY_REGION_LOC_SYSMEM)
+    C(GSP_SEQ_BUF_OPCODE_REG_WRITE) C(GSP_SEQ_BUF_OPCODE_REG_MODIFY) C(GSP_SEQ_BUF_OPCODE_REG_POLL) C(GSP_SEQ_BUF_OPCODE_DELAY_US)
+    C(GSP_SEQ_BUF_OPCODE_REG_STORE) C(GSP_SEQ_BUF_OPCODE_CORE_RESET) C(GSP_SEQ_BUF_OPCODE_CORE_START)
+    C(GSP_SEQ_BUF_OPCODE_CORE_WAIT_FOR_HALT) C(GSP_SEQ_BUF_OPCODE_CORE_RESUME) C(GSP_SEQ_BUF_REG_SAVE_SIZE)
     C(LIBOS_MEMORY_REGION_RADIX_PAGE_SIZE) C(NVDM_TYPE_COT) C(MCTP_MSG_HEADER_TYPE_VENDOR_PCI) C(MCTP_MSG_HEADER_VENDOR_ID_NV)
     printf("\t)\n! !\n");
     return 0;
@@ -137,11 +171,15 @@ EOF
 I=""
 for d in src/common/sdk/nvidia/inc src/nvidia/arch/nvalloc/common/inc src/common/uproc/os/common/include \
          src/common/shared/msgq/inc src/nvidia/inc/kernel src/nvidia/generated src/nvidia/inc src/common/inc \
-         src/nvidia/interface src/nvidia/inc/libraries src/nvidia/arch/nvalloc/unix/include; do
+         src/nvidia/interface src/nvidia/inc/libraries src/nvidia/arch/nvalloc/unix/include \
+         src/common/nvlink/inband/interface src/common/inc/swref; do
     I="$I -I$OGK/$d"
 done
 # GSP_MSG_QUEUE_ELEMENT_SIZE_MIN is RM_PAGE_SIZE (4 KB), which RM's own headers define.
-cc -std=gnu11 -DRM_PAGE_SIZE=4096 -I"$T" $I "$T/layouts.c" -o "$T/layouts"
+# GspSystemInfo's header (gsp_static_config.h) needs RM's port library configured as the kernel driver builds it.
+PORT="-DNVRM -DPORT_IS_KERNEL_BUILD=1 -DPORT_IS_CHECKED_BUILD=0 -DPORT_COVERAGE_PUSH_OFF()= -DPORT_COVERAGE_POP()="
+for m in memory util atomic sync string debug safe thread core; do PORT="$PORT -DPORT_MODULE_$m=1"; done
+cc -std=gnu11 -DRM_PAGE_SIZE=4096 $PORT -I"$T" $I "$T/layouts.c" -o "$T/layouts"
 {
     cat <<EOF
 Object subclass: #NvGspLayouts

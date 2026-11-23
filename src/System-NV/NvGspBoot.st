@@ -53,7 +53,10 @@ setRegisters: aRegisters memory: anNvDmaMemory firmware: anNvGspFirmware
 	rpcSequence := 0.
 	events := OrderedCollection new.
 	log := OrderedCollection new.
-	sequencer := [:anRpc | self error: 'GSP asked for the CPU sequencer (GSP_RUN_CPU_SEQUENCER), which is not here yet']
+	sequencer := [:anRpc | | s |
+		s := NvGspSequencer on: registers.
+		s run: anRpc.
+		self note: 'ran the CPU sequencer: ', s steps printString, ' commands']
 ! !
 
 !NvGspBoot methodsFor: 'accessing'!
@@ -84,11 +87,30 @@ events
 log
 	^log
 !
+logPutPointers
+	"name -> how many 8-byte words GSP-RM has written to each LIBOS log buffer (its put pointer at 0; the records from 8 decode only with the log ELF, gsp_log_ga10x.bin, which DGX OS does not ship)."
+	| d |
+	d := Dictionary new.
+	NvGsp logBuffers do: [:each | d at: each first put: ((buffers at: each first asSymbol) u64At: 0)].
+	^d
+!
+logWords: aName
+	"The raw words of a LIBOS log buffer GSP-RM wrote, oldest first (at most what fits)."
+	| b put |
+	b := buffers at: aName asSymbol.
+	put := (b u64At: 0) min: b size // 8 - 1.
+	^(1 to: put) collect: [:i | b u64At: 8 * i]
+!
 queue: anRpc
 	"An RPC to put in the command queue before the boot, as nvidia.ko does with GSP_SET_SYSTEM_INFO and SET_REGISTRY (kgspQueueAsyncInitRpcs, kernel_gsp.c 3792-3815); its header's sequence is set here."
 	anRpc u32At: 24 put: rpcSequence.
 	rpcSequence := rpcSequence + 1.
 	rpcs add: anRpc
+!
+queueSystemInfo: aGspSystemInfo registry: pairs
+	"Queue GSP_SET_SYSTEM_INFO and SET_REGISTRY (DWORD keys, {name. value} pairs) before the boot, as kgspQueueAsyncInitRpcs does (NvGsp systemInfoBar0:..., registry:)."
+	self queue: (NvGsp setSystemInfo: aGspSystemInfo).
+	self queue: (NvGsp setRegistry: (NvGsp registry: pairs))
 ! !
 
 !NvGspBoot methodsFor: 'booting'!

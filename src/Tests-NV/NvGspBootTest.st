@@ -80,6 +80,27 @@ testRpcsQueuedBeforeTheBoot
 	self assert: (gpu gsp received collect: [:m | m u32At: 12]) asArray equals: #(72 73 103).
 	self assert: (gpu gsp received collect: [:m | m u32At: 24]) asArray equals: #(0 1 2)
 !
+testCpuSequencerDuringTheBoot
+	gpu sequence: ((NvStruct new: 12) u32At: 0 put: 0; u32At: 4 put: 16r123400; u32At: 8 put: 7; bytes).
+	boot boot.
+	self assert: (gpu others at: 16r123400) equals: 7.
+	self assert: (boot log anySatisfy: [:l | l = 'ran the CPU sequencer: 1 commands'])
+!
+testInitRpcs
+	boot queueSystemInfo: (NvGsp systemInfoBar0: 16r24000000 domain: 16rF bus: 1 devfn: 0 deviceVendor: 16r2E1210DE subsystem: 16r10DE revision: 16rA1) registry: #(#('RmFoo' 1)).
+	boot boot.
+	self assert: (gpu gsp received collect: [:m | m u32At: 12]) asArray equals: #(72 73).
+	self assert: ((gpu gsp received first) u64At: 32) equals: 16r24000000
+!
+testLogs
+	| words |
+	boot boot.
+	self assert: (boot logPutPointers at: 'LOGRM') equals: 0.
+	(boot buffers at: #LOGRM) u64At: 0 put: 2; u64At: 8 put: 16rAA; u64At: 16 put: 16rBB.
+	words := boot logWords: 'LOGRM'.
+	self assert: words asArray equals: #(16rAA 16rBB).
+	self assert: boot logPutPointers size equals: 7
+!
 testRefusals
 	"Another chip, a GSP someone booted, a busy SEC2: refused before any write."
 	#(#otherChip #running #busySec2) do: [:fault |

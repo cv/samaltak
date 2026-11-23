@@ -1,5 +1,5 @@
 Object subclass: #NvFakeGb10
-	instanceVariableNames: 'memory firmware faults writes rejections emem ememOffset aincw head tail sec2Mailbox0 sec2Mailbox1 sec2Countdown gspState gspCountdown gspMailbox0 gspMailbox1 os fmcParamsAddress wprMeta queues gsp boot42'
+	instanceVariableNames: 'others sequence memory firmware faults writes rejections emem ememOffset aincw head tail sec2Mailbox0 sec2Mailbox1 sec2Countdown gspState gspCountdown gspMailbox0 gspMailbox1 os fmcParamsAddress wprMeta queues gsp boot42'
 	classVariableNames: ''
 	package: 'Tests-NV'!
 
@@ -29,7 +29,16 @@ setMemory: anNvFakeDmaMemory firmware: anNvGspFirmware
 	sec2Countdown := 0.
 	gspState := #held.
 	gspCountdown := 0.
-	boot42 := 16r1ABA1000
+	boot42 := 16r1ABA1000.
+	others := Dictionary new
+!
+sequence: aByteArrayOfDwords
+	"A CPU sequencer buffer GSP-RM sends (GSP_RUN_CPU_SEQUENCER) before GSP_INIT_DONE."
+	sequence := aByteArrayOfDwords
+!
+others
+	"offset -> value of registers outside the boot's (what the sequencer reads and writes)"
+	^others
 !
 fault: aSymbol
 	faults add: aSymbol.
@@ -81,7 +90,11 @@ read32: offset
 	offset = (self reg: #gspMailbox0) ifTrue: [^gspMailbox0].
 	offset = (self reg: #gspMailbox1) ifTrue: [^gspMailbox1].
 	offset = (self reg: #gspRiscvCpuctl) ifTrue: [^16r80].
-	^16rBADF5040
+	^others at: offset ifAbsent: [16rBADF5040]
+!
+sequencerWrite32: offset value: aValue
+	writes add: offset -> aValue.
+	others at: offset put: aValue
 !
 write32: offset value: aValue
 	writes add: offset -> aValue.
@@ -191,5 +204,9 @@ startGspRm
 	gspState := #running.
 	gsp := NvFakeGsp on: queues.
 	gsp ring.
+	sequence ifNotNil: [:words | | p |
+		p := NvStruct new: 40 + words size.
+		p u32At: 0 put: words size // 4 + 1; u32At: 4 put: words size // 4; bytesAt: 40 put: words.
+		gsp endpoint send: (NvGsp rpc: (NvGsp function: #GSP_RUN_CPU_SEQUENCER) payload: p counted: 0 params: nil sequence: 0)].
 	(faults includes: #noInitDone) ifFalse: [gsp sendEvent: #UCODE_LIBOS_PRINT result: 0; sendEvent: #GSP_INIT_DONE result: 0]
 ! !

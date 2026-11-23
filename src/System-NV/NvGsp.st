@@ -60,6 +60,23 @@ declarations
 		at: 'rpc_gsp_rm_control_v03_00' put: {false. #(('hClient' #handle) ('hObject' #handle) ('cmd' #u32) ('status' #u32) ('paramsSize' #u32) ('rmapiRpcFlags' #u32) ('rmctrlFlags' #u32) ('rmctrlAccessRight' #u32)
 			('reserved0' (#aligned 8 #u64)) ('params' (#array #u8 0)))};
 		at: 'rpc_free_v03_00' put: {false. #(('params' (#struct (('hRoot' #handle) ('hObjectParent' #handle) ('hObjectOld' #handle) ('status' #u32)))))};
+		"src/nvidia/inc/kernel/gpu/gsp/gsp_static_config.h 172-227; BUSINFO and ACPI_METHOD_DATA (chipset.h, gpu_acpi_data.h) are left zero, as opaque bytes"
+		at: 'GspSystemInfo' put: {false. #(('gpuPhysAddr' #u64) ('gpuPhysFbAddr' #u64) ('gpuPhysInstAddr' #u64) ('gpuPhysIoAddr' #u64) ('nvDomainBusDeviceFunc' #u64)
+			('simAccessBufPhysAddr' #u64) ('notifyOpSharedSurfacePhysAddr' #u64) ('pcieAtomicsOpMask' #u64) ('consoleMemSize' #u64) ('maxUserVa' #u64)
+			('pciConfigMirrorBase' #u32) ('pciConfigMirrorSize' #u32) ('PCIDeviceID' #u32) ('PCISubDeviceID' #u32) ('PCIRevisionID' #u32) ('pcieAtomicsCplDeviceCapMask' #u32)
+			('oorArch' #u8) ('clPdbProperties' #u64) ('Chipset' #u32) ('bGpuBehindBridge' #bool) ('bFlrSupported' #bool) ('b64bBar0Supported' #bool) ('bMnocAvailable' #bool)
+			('chipsetL1ssEnable' #u32) ('bUpstreamL0sUnsupported' #bool) ('bUpstreamL1Unsupported' #bool) ('bUpstreamL1PorSupported' #bool) ('bUpstreamL1PorMobileOnly' #bool)
+			('bSystemHasMux' #bool) ('upstreamAddressValid' #u8) ('FHBBusInfo' (#aligned 2 (#array #u8 10))) ('chipsetIDInfo' (#aligned 2 (#array #u8 10)))
+			('acpiMethodData' (#aligned 4 (#array #u8 676))) ('hypervisorType' #u32) ('virtualConfigBits' #u16) ('bIsPassthru' #bool) ('sysTimerOffsetNs' #u64)
+			('gspVFInfo' (#struct (('totalVFs' #u32) ('firstVFOffset' #u32) ('FirstVFBar0Address' #u64) ('FirstVFBar1Address' #u64) ('FirstVFBar2Address' #u64) ('b64bitBar0' #bool) ('b64bitBar1' #bool) ('b64bitBar2' #bool))))
+			('bIsPrimary' #bool) ('bIsUnixHdmiFrlComplianceEnabled' #bool) ('isGridBuild' #bool) ('pcieConfigReg' (#struct (('linkCap' #u32)))) ('gridBuildCsp' #u32)
+			('bPreserveVideoMemoryAllocations' #bool) ('bTdrEventSupported' #bool) ('bFeatureStretchVblankCapable' #bool) ('bEnableDynamicGranularityPageArrays' #bool)
+			('bClockBoostSupported' #bool) ('hostPageSize' #u64) ('bIsCmcBasedHws' #bool) ('bGspNocatEnabled' #bool) ('bS0ixSupport' #bool) ('bWindowChannelAlwaysMapped' #bool))};
+		"src/nvidia/generated/g_os_nvoc.h 225-239"
+		at: 'PACKED_REGISTRY_ENTRY' put: {false. #(('nameOffset' #u32) ('type' #u8) ('data' #u32) ('length' #u32))};
+		at: 'PACKED_REGISTRY_TABLE' put: {false. #(('size' #u32) ('numEntries' #u32) ('entries' (#array (#struct (('nameOffset' #u32) ('type' #u8) ('data' #u32) ('length' #u32))) 0)))};
+		"src/nvidia/generated/g_rpc-structures.h 1535-1541"
+		at: 'rpc_run_cpu_sequencer_v17_00' put: {false. #(('bufferSizeDWord' #u32) ('cmdIndex' #u32) ('regSaveArea' (#array #u32 8)) ('commandBuffer' (#array #u32 0)))};
 		"src/common/sdk/nvidia/inc/class/cl0000.h 47-52 (NV_PROC_NAME_MAX_LENGTH 100; NvP64 aligned 8)"
 		at: 'NV0000_ALLOC_PARAMETERS' put: {false. #(('hClient' #handle) ('processID' #u32) ('processName' (#array #u8 100)) ('pOsPidInfo' (#aligned 8 #u64)))};
 		yourself
@@ -120,6 +137,16 @@ constants
 		at: 'NVDM_TYPE_COT' put: 16r14;
 		at: 'MCTP_MSG_HEADER_TYPE_VENDOR_PCI' put: 16r7E;
 		at: 'MCTP_MSG_HEADER_VENDOR_ID_NV' put: 16r10DE;
+		at: 'GSP_SEQ_BUF_OPCODE_REG_WRITE' put: 0;
+		at: 'GSP_SEQ_BUF_OPCODE_REG_MODIFY' put: 1;
+		at: 'GSP_SEQ_BUF_OPCODE_REG_POLL' put: 2;
+		at: 'GSP_SEQ_BUF_OPCODE_DELAY_US' put: 3;
+		at: 'GSP_SEQ_BUF_OPCODE_REG_STORE' put: 4;
+		at: 'GSP_SEQ_BUF_OPCODE_CORE_RESET' put: 5;
+		at: 'GSP_SEQ_BUF_OPCODE_CORE_START' put: 6;
+		at: 'GSP_SEQ_BUF_OPCODE_CORE_WAIT_FOR_HALT' put: 7;
+		at: 'GSP_SEQ_BUF_OPCODE_CORE_RESUME' put: 8;
+		at: 'GSP_SEQ_BUF_REG_SAVE_SIZE' put: 8;
 		yourself
 !
 constant: aName
@@ -246,6 +273,46 @@ arguments: sharedMemory pageTableEntries: count commandQueue: cmdOffset statusQu
 sysmemHeapSize
 	"RmGspSysmemHeapSizeMB's default, 512 MB (nvrm_registry.h 2356)."
 	^512 * 1048576
+! !
+
+!NvGsp class methodsFor: 'init RPCs'!
+systemInfoBar0: bar0Address domain: domain bus: bus devfn: devfn deviceVendor: deviceVendor subsystem: subsystem revision: revision
+	"GspSystemInfo for GSP_SET_SYSTEM_INFO as rpcGspSetSystemInfo_v17_00 fills it (rpc.c 10493-10657) for a GB10 on bare metal: BAR0's address, the PCI location (gpuEncodeDomainBusDevice: domain 63:32, bus 15:8, device and function 7:0), the configuration space's id words as RM reads them (kern_gpu_gb100.c 950-967: device and vendor, subsystem, revision), the configuration space's mirror in BAR0 (NV_EP_PCFGM 16r92000-16r92FFF: kbifGetPciConfigSpacePriMirror_GH100, which GB10B uses; gh100 dev_xtl_ep_pri.h 26), FLR and a 64-bit BAR0, 4 KB host pages; no frame buffer, instance or I/O BAR, no hypervisor. Fields nvidia.ko takes from Linux (maxUserVa, the chipset's, ACPI's) are left zero here: see docs/nv-gsp.md 12."
+	^(self struct: 'GspSystemInfo')
+		at: 'gpuPhysAddr' put: bar0Address;
+		at: 'nvDomainBusDeviceFunc' put: ((domain bitShift: 32) bitOr: ((bus bitShift: 8) bitOr: devfn));
+		at: 'PCIDeviceID' put: deviceVendor;
+		at: 'PCISubDeviceID' put: subsystem;
+		at: 'PCIRevisionID' put: revision;
+		at: 'pciConfigMirrorBase' put: 16r92000;
+		at: 'pciConfigMirrorSize' put: 16r1000;
+		at: 'bFlrSupported' put: 1;
+		at: 'b64bBar0Supported' put: 1;
+		at: 'hostPageSize' put: 4096;
+		yourself
+!
+setSystemInfo: aGspSystemInfo
+	"GSP_SET_SYSTEM_INFO (72): the header and GspSystemInfo, its length counting it; sent before the boot, no reply (kgspQueueAsyncInitRpcs)."
+	^self rpc: (self function: #GSP_SET_SYSTEM_INFO) payload: aGspSystemInfo counted: 0 params: nil sequence: 0
+!
+registry: pairs
+	"A PACKED_REGISTRY_TABLE of DWORD keys, {name. value} pairs, laid out as RmPackageRegistry does (registry.c 628-700): the header, the entries, then each name (NUL-terminated) at its nameOffset from the table's start; DWORD entries have type 1, data the value, length 4."
+	| entrySize names table offset |
+	entrySize := (self layout: 'PACKED_REGISTRY_ENTRY') size.
+	names := pairs collect: [:p | p first asByteArray, #[0]].
+	offset := 8 + (entrySize * pairs size).
+	table := NvStruct new: offset + (names inject: 0 into: [:sum :n | sum + n size]).
+	table u32At: 0 put: table size; u32At: 4 put: pairs size.
+	pairs doWithIndex: [:p :i | | e |
+		e := 8 + (entrySize * (i - 1)).
+		table u32At: e put: offset; u8At: e + 4 put: 1; u32At: e + 8 put: p last; u32At: e + 12 put: 4.
+		table bytesAt: offset put: (names at: i).
+		offset := offset + (names at: i) size].
+	^table
+!
+setRegistry: aTable
+	"SET_REGISTRY (73): the header and the table, its length counting it (rpcSetRegistry: totalSize, rpc.c 10700-10730)."
+	^self rpc: (self function: #SET_REGISTRY) payload: aTable counted: 0 params: nil sequence: 0
 ! !
 
 !NvGsp class methodsFor: 'radix-3'!

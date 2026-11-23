@@ -597,3 +597,32 @@ what is wrong with it. Loaded from this Spark's files and booted against NvFakeG
 passes the fake SEC2's hash check and the real 75 MB GSP-RM image comes back whole through its radix-3 tables (17
 buffers, 74,692 KB with a token heap). `NvGspFirmwareTest` (everywhere) uses a synthetic gsp_ga10x.bin;
 `NvGspFirmwareFileTest` (`make test-nv`) the installed one.
+
+## 12. What GSP-RM asks of the CPU during the boot, and the init RPCs
+
+- **The CPU sequencer** (`NvGspSequencer`): GSP_RUN_CPU_SEQUENCER events carry `rpc_run_cpu_sequencer_v17_00`
+  (`bufferSizeDWord`, `cmdIndex`, an 8-word save area, the command words; g_rpc-structures.h 1535-1541), run as
+  `kgspExecuteSequencerBuffer_IMPL` does (kernel_gsp.c 5297-5438, rmgspseq.h): REG_WRITE, REG_MODIFY (clear mask, or
+  value), REG_POLL (timeout in µs, 0 the default; on timeout its error code), DELAY_US, REG_STORE; no reply goes back
+  **[src]**. The falcon operations (CORE_RESET, CORE_START, CORE_WAIT_FOR_HALT, CORE_RESUME: `kflcnReset`, `kflcnStartCpu`,
+  `kflcnWaitForHalt`) are not done yet and stop the boot with an error that names them; whether a cold boot on GB10 sends
+  any is for the dedicated Spark to show (they serve suspend and resume on Hopper) **[inf]**. NvGspBoot runs the sequencer
+  for every such event while it waits for GSP_INIT_DONE; its writes go through `NvBar0 sequencerWrite32:value:` (outside
+  the boot's write list, as nvidia.ko does them, recorded, not made in a dry run).
+- **LIBOS logs**: `logPutPointers` (how many words each of the seven buffers holds) and `logWords:` (the raw records)
+  read what GSP-RM wrote; decoding needs `gsp_log_ga10x.bin`'s `.fwlogging` sections, which DGX OS does not ship
+  (liblogdecode.c: records start with a metadata address into them) **[src]**.
+- **GSP_SET_SYSTEM_INFO** (`NvGsp systemInfoBar0:domain:bus:devfn:deviceVendor:subsystem:revision:`, `setSystemInfo:`):
+  `GspSystemInfo` (936 bytes) as `rpcGspSetSystemInfo_v17_00` fills it (rpc.c 10493-10657): BAR0's address,
+  `nvDomainBusDeviceFunc` (domain 63:32, bus 15:8, devfn 7:0: `gpuEncodeDomainBusDevice`), the id words as read from
+  configuration space (kern_gpu_gb100.c 950-967), the configuration mirror at BAR0 16r92000 + 16r1000
+  (`kbifGetPciConfigSpacePriMirror_GH100`, which GB10B uses; gh100 dev_xtl_ep_pri.h 26), FLR, a 64-bit BAR0 and 4 KB pages.
+  Left zero, to settle on the dedicated Spark: what nvidia.ko takes from Linux and the platform (`maxUserVa`, the
+  chipset's `clPdbProperties`/`Chipset` and bus infos, `acpiMethodData`, `bIsPrimary`, `sysTimerOffsetNs`,
+  `pcieConfigReg.linkCap`, `consoleMemSize`) **[inf]**.
+- **SET_REGISTRY** (`NvGsp registry:`, `setRegistry:`): a `PACKED_REGISTRY_TABLE` laid out as `RmPackageRegistry` does
+  (registry.c 628-700): header, 16-byte entries, then the names; DWORD keys only so far. With no keys `RmPackageRegistry`
+  answers NV_WARN_NOTHING_TO_DO; whether nvidia.ko then sends the RPC at all is open **[inf]**.
+- `NvGspBoot queueSystemInfo:registry:` queues both before the boot. All layouts (GspSystemInfo, the registry structs,
+  the sequencer RPC, the opcodes) are in `NvGspLayouts`, so `NvGspLayoutTest` checks them against the compiler too
+  (GspSystemInfo's header needs RM's port library configured: tools/nv-gsp-layouts.sh does it).

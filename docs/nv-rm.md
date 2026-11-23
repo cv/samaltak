@@ -24,7 +24,7 @@ NvDevice during: [:gpu | | compute vadd a b c |
 | `NvDevice` | `open`/`during:`/`close` (`open:over:` a transport): the RM object tree, `alloc:parent:params:`, `control:object:params:`, `free:parent:`, `mapToCpu:size:`/`mapToGpu:size:` and their unmaps, `allocate:` (NvMemory), `newChannel`, `newCompute`; GR info (`smVersion`, `smCount`), `classes` |
 | `NvTransport`, `NvIoctlTransport` | the seam to RM: every RM call and mapping NvDevice makes; the ioctl one is today's path (the kernel module), a GSP one is the UEFI driver's (docs/nv-gsp.md) |
 | `NvGsp`, `NvLayout`, `NvGspStruct`, `NvGspQueues`, `NvGspEndpoint`, `NvGspTransport` | GSP-RM's boot and RPC structures as driver 580.178.04 lays them out, its message queues, and RM calls as RPCs over them (docs/nv-gsp.md, sections 2, 3 and 9) |
-| `NvGspBoot`, `NvGspFirmware`, `NvElf`, `NvBar0`, `NvDmaMemory`, `NvPciDmaMemory`, `NvDmaBuffer` | the GSP boot of docs/nv-gsp.md section 2 in code, its firmware, the GPU's registers with a write list and dry run, DMA memory (section 10) |
+| `NvGspBoot`, `NvGspSequencer`, `NvGspFirmware`, `NvElf`, `NvBar0`, `NvDmaMemory`, `NvPciDmaMemory`, `NvDmaBuffer` | the GSP boot of docs/nv-gsp.md section 2 in code, its firmware, the GPU's registers with a write list and dry run, DMA memory (section 10) |
 | `NvMemory` | system memory mapped for both: `gpuAddress`, `cpuAddress`, `uint32At:(put:)`, `uint64At:(put:)`, `bytesAt:count:`, `bytesAt:put:`, `free` |
 | `NvChannel` | channel group + GPFIFO channel + compute object; `submit:` (an NvPushBuffer), `submitWithFence:`, `fence`, `wait:`, `sync`, `close` |
 | `NvCompute` | compute class setup; `launch:grid:block:arguments:` (answers a fence), `run:...` (waits), `close` |
