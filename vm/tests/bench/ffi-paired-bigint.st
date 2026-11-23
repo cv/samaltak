@@ -19,8 +19,7 @@ bigInteger8192b
 !
 bigInteger: label left: a right: b result: expected
 	self case: label repeat: nil
-		direct: [:n | | last | n timesRepeat: [last := a compareInteger: b]. last]
-		candidate: [:n | | last | n timesRepeat: [last := a ffiCandidateCompareInteger: b]. last]
+		run: [:n | | last | n timesRepeat: [last := a compareInteger: b]. last]
 		reset: []
 		expect: [:result | result == expected]
 ! !

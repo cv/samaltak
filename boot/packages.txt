@@ -1,0 +1,23 @@
+# Hosted image builder and VM translator. Use this profile to renew boot/seed.image.
+Kernel-Objects
+Kernel-Numbers
+Kernel-Collections
+Kernel-Classes
+Kernel-Methods
+Kernel-Streams
+Kernel-Exceptions
+Kernel-Processes
+System-Support
+System-Files
+System-Network
+System-Devices
+System-Profiling
+System-Debugging
+Compiler
+VM-Lowtalk
+VM-Translator
+VM-Core
+VM-Jit
+VM-Platform
+VM-UEFI
+VM-ImageBuilder

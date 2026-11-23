@@ -138,18 +138,6 @@ recvBorrowed: h into: buf count: n
 	r > 0 ifTrue: [libc memcpy: buf from: scratch size: r asUInt64].
 	^r
 !
-send: h bytes: buf count: n
-	"-1 would block, -2 error."
-	<var: #buf type: 'const void *'>
-	<export>
-	| ssl retry |
-	ssl := self sslOf: h.
-	ssl isNull ifTrue: [^-2].
-	"Honor an in-flight owned send even if the retry comes through the legacy path."
-	retry := self sendRetryOf: h.
-	retry notNull ifTrue: [^self retry: retry ssl: ssl bytes: buf count: n].
-	^self write: ssl handle: h bytes: buf count: n
-!
 sendOwned: h bytes: buf count: n
 	"Never pass a heap borrow to OpenSSL. Allocate ownership before the write: on WANT_READ/WRITE keep the same bytes and length until completion or close."
 	<function>

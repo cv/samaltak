@@ -1,5 +1,5 @@
 PlatformInterface subclass: #SDLPlatform
-	instanceVariableNames: 'common events windows gpu files sockets ptys tls vsync sdl posixIO posixThreads initDone wakeEvent inWait wPipe wMu wCv wState wFds wNfds wStarted wStop ownedFFI'
+	instanceVariableNames: 'common events windows gpu files sockets ptys tls vsync sdl posixIO posixThreads initDone wakeEvent inWait wPipe wMu wCv wState wFds wNfds wStarted wStop ownedFFI pagedOutput'
 	classVariableNames: 'POLL_FDS'
 	package: 'VM-Platform'!
 
@@ -13,7 +13,7 @@ declarations
 		(sockets PlatformSockets) (ptys PlatformPtys) (tls PlatformTLS) (vsync PlatformVsync) (sdl SDL) (posixIO PosixIO) (posixThreads PosixThreads)
 		(initDone bool) (wakeEvent atomic_int) (inWait atomic_bool) (wPipe 'int32_t[2]' #(-1 -1))
 		(wMu 'pthread_mutex_t[1]') (wCv 'pthread_cond_t[1]') (wState int32_t) (wFds 'struct pollfd[POLL_FDS]') (wNfds int32_t)
-		(wStarted bool) (wStop atomic_bool) (ownedFFI FFIPrimitives))
+		(wStarted bool) (wStop atomic_bool) (ownedFFI FFIPrimitives) (pagedOutput PlatformPagedOutput))
 !
 initialize
 	"the wake pipe and up to 128 sockets"
@@ -75,6 +75,7 @@ wait: timeoutUs
 !
 shutdown
 	<export>
+	pagedOutput discard.
 	gpu shutdown.
 	windows shutdown.
 	windows videoInited ifTrue: [sdl quit]

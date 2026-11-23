@@ -1,18 +1,18 @@
 !VirtualMachine methodsFor: '*System-Support-window'!
-ffiCandidatePrimDroppedEvents
+primDroppedEvents
 	| binding result |
 	binding := WindowPlatformFFI droppedCall.
-	binding isNil ifTrue: [^self primDroppedEvents].
+	binding isNil ifTrue: [^0].
 	result := binding tryInvoke0.
-	^result == false ifTrue: [self primDroppedEvents] ifFalse: [result]
+	^result == false ifTrue: [0] ifFalse: [result]
 !
-ffiCandidatePrimPlatformHandleCounts
+primPlatformHandleCounts
 	| binding bytes result |
 	binding := WindowPlatformFFI handleCountsCall.
-	binding isNil ifTrue: [^self primPlatformHandleCounts].
+	binding isNil ifTrue: [^nil].
 	bytes := ByteArray new: 88.
 	result := binding tryInvoke1: {bytes. 1. 88}.
-	result == false ifTrue: [^self primPlatformHandleCounts].
+	result == false ifTrue: [^nil].
 	result = 0 ifTrue: [^nil].
 	^(1 to: 11) collect: [:i | WindowPlatformFFI signed64At: (i - 1) * 8 + 1 in: bytes]
 ! !

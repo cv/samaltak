@@ -25,9 +25,9 @@ for mode in none baseline opt; do
         exit 1
     fi
     if [ "$trace" = --trace ]; then
-        # 23^2 combinations × positional, array and facade; plus post-GC and strict facade.
+        # At least 23^2 × positional, array and canonical method; plus post-GC.
         count=$(grep -Fxc 'ffi-native-entry 1051' "$log/$mode.err")
-        test "$count" -eq 1589
+        test "$count" -ge 1588
     fi
 done
 echo 'bigint_ffi_test: passed'

@@ -2,36 +2,30 @@
 
 Object subclass: #FFIPairedBench
 	instanceVariableNames: ''
-	classVariableNames: 'RunCount Warmup Schedule ProofArm'
+	classVariableNames: 'RunCount Warmup Pair Arm'
 	package: 'FFIPairedBench'!
 
 !FFIPairedBench class methodsFor: 'running'!
-count: count warmup: warmup schedule: schedule proofArm: arm
+count: count warmup: warmup pair: pair arm: arm
 	RunCount := count.
 	Warmup := warmup.
-	Schedule := schedule.
-	ProofArm := arm
+	Pair := pair.
+	Arm := arm
 !
-case: label repeat: count direct: direct candidate: candidate reset: reset expect: check
-	| n |
+case: label repeat: count run: loop reset: reset expect: check
+	| n vm result |
 	n := count ifNil: [RunCount].
-	ProofArm notNil ifTrue: [
-		reset value.
-		self check: check result: ((ProofArm = 0 ifTrue: [direct] ifFalse: [candidate]) value: n) case: label.
+	reset value.
+	Pair isNil ifTrue: [
+		vm := Smalltalk vm.
+		vm stderrWrite: 'ffi-pair-begin', (String with: Character lf).
+		result := loop value: n.
+		vm stderrWrite: 'ffi-pair-end', (String with: Character lf).
+		self check: check result: result case: label.
 		^self].
+	self check: check result: (loop value: Warmup) case: label.
 	reset value.
-	self check: check result: (direct value: Warmup) case: label.
-	reset value.
-	self check: check result: (candidate value: Warmup) case: label.
-	1 to: Schedule size do: [:pair |
-		| first |
-		first := Schedule at: pair.
-		reset value.
-		self time: (first = 0 ifTrue: [direct] ifFalse: [candidate])
-			count: n check: check case: label pair: pair arm: first.
-		reset value.
-		self time: (first = 0 ifTrue: [candidate] ifFalse: [direct])
-			count: n check: check case: label pair: pair arm: 1 - first]
+	self time: loop count: n check: check case: label pair: Pair arm: Arm
 !
 check: check result: result case: label
 	(check value: result) ifFalse: [self error: 'Wrong workload result: ', label]

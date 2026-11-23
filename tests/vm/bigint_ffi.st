@@ -1,6 +1,6 @@
 Object subclass: #BigIntegerFFIProof
 	instanceVariableNames: ''
-	classVariableNames: 'PoisonLeft PoisonRight'
+	classVariableNames: ''
 	package: 'BigIntegerFFIProof'!
 
 !BigIntegerFFIProof class methodsFor: 'testing'!
@@ -36,10 +36,10 @@ proof
 	self assert: binding notNil.
 	values do: [:a | values do: [:b |
 		| expected |
-		expected := a compareInteger: b.
+		expected := a portableCompareInteger: b.
 		self assert: (binding tryInvoke2: a with: b) == expected.
 		self assert: (binding tryInvoke: {a. b}) == expected.
-		self assert: (a ffiCandidateCompareInteger: b) == expected]].
+		self assert: (a compareInteger: b) == expected]].
 	{nil. 1.0. $a. #[1 2 3]. #(1 2 3)} do: [:bad |
 		self assert: (binding tryInvoke2: bad with: 1) == false.
 		self assert: (binding tryInvoke2: 1 with: bad) == false.
@@ -47,30 +47,5 @@ proof
 	self assert: (FFI tryBindCall: #(call 'vm:core' 'core_bigint_compare' (i64 i64) i32)) isNil.
 	Smalltalk vm garbageCollect.
 	self assert: (binding tryInvoke2: values last with: 0) == -1.
-	self strictFacade.
 	^true
-!
-strictFacade
-	| source saved |
-	PoisonLeft := (1 bitShift: 97) + 34.
-	PoisonRight := PoisonLeft + 1.
-	saved := Integer compiledMethodAt: #compareInteger:.
-	Integer addSelector: #bigIntegerCompareWitnessLegacy: withMethod: saved.
-	source := 'compareInteger: b
-		(BigIntegerFFIProof poisonLeft == self and: [BigIntegerFFIProof poisonRight == b])
-			ifTrue: [self error: ''bigint facade took legacy fallback''].
-		^self bigIntegerCompareWitnessLegacy: b'.
-	[
-		Compiler compile: source in: Integer.
-		self assert: (PoisonLeft ffiCandidateCompareInteger: PoisonRight) == -1
-	] ensure: [
-		Integer addSelector: #compareInteger: withMethod: saved.
-		Integer removeSelector: #bigIntegerCompareWitnessLegacy:.
-		PoisonLeft := PoisonRight := nil]
-!
-poisonLeft
-	^PoisonLeft
-!
-poisonRight
-	^PoisonRight
 ! !

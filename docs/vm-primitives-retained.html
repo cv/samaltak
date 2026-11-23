@@ -129,7 +129,7 @@
     <h2 id="reading-title">How to read this catalog</h2>
     <p><span class="badge">Necessity</span> The current contract needs VM state, image semantics or a target-specific service; an ordinary approved native call alone would not preserve it.</p>
     <p><span class="badge policy">Policy</span> A dedicated native interface could be designed, but migration is not justified or would change the authority boundary. The tags classify retention here, not what could ever be implemented.</p>
-    <p class="scope">Scope: the <a href="ffi-primitive-audit.md#dispositions">audit’s Keep dispositions</a>, joined by ID to the <a href="../vm/gen/primitive_entries.c">generated registry</a>. This is not the full registry or a removal list: numbered slots outside Keep can still serve as compatibility paths. Registration does not guarantee implementation on every target.</p>
+    <p class="scope">Scope: the <a href="ffi-primitive-audit.md#dispositions">audit’s Keep dispositions</a>, joined by ID to the <a href="../vm/gen/primitive_entries.c">generated registry</a>. Other audit dispositions and approved FFI export IDs are outside this catalog. Registration does not guarantee implementation on every target.</p>
   </aside>
   <form id="filters" class="filters" role="search" aria-label="Filter retained primitives" hidden>
     <div class="controls">
@@ -169,7 +169,7 @@
   <section class="group" id="smallinteger" aria-labelledby="smallinteger-title">
     <header>
       <h2 id="smallinteger-title">SmallInteger arithmetic <span class="group-count">· 19</span></h2>
-      <p>These entries use tagged SmallInteger operands. A failed tag or range check transfers control to the Smalltalk fallback.</p>
+      <p>These entries use tagged SmallInteger operands. The JIT can inline common operations; a failed tag or range check takes the Smalltalk fallback.</p>
     </header>
     <table aria-labelledby="smallinteger-title">
       <colgroup><col class="primitive-col"><col></colgroup>

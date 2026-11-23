@@ -290,46 +290,99 @@ primLocalPort: aHandle
 
 !RemoteSocket class methodsFor: 'primitives'!
 platformLastError
-	<primitive: 'platformLastError'>
-	^'unknown error'
+	^WindowPlatformFFI lastError ifNil: ['unknown error']
 !
-platformListen: host port: port backlog: backlog
-	<primitive: 'socketListen'>
-	^nil
+platformListen: name port: p backlog: backlog
+	| binding result text |
+	text := PlatformFFI osTextBytes: name.
+	text isNil ifTrue: [^nil].
+	binding := SocketListenCall ifNil: [
+		SocketListenCall := PlatformFFI bind: #(call 'platform' 'platform_sockets_listen' (bytesWithLength i64 i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke3: {text. 1. text size} with: p with: backlog].
+	result == false ifTrue: [^nil].
+	^result <= 0 ifTrue: [nil] ifFalse: [result]
 !
-platformConnect: address port: port
-	<primitive: 'socketConnect'>
-	^nil
+platformConnect: name port: p
+	| binding result text |
+	text := PlatformFFI osTextBytes: name.
+	text isNil ifTrue: [^nil].
+	binding := SocketConnectCall ifNil: [
+		SocketConnectCall := PlatformFFI bind: #(call 'platform' 'platform_sockets_connect' (bytesWithLength i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke2: {text. 1. text size} with: p].
+	result == false ifTrue: [^nil].
+	^result <= 0 ifTrue: [nil] ifFalse: [result]
 !
-platformConnected: aHandle
-	<primitive: 'socketConnected'>
-	^false
+platformConnected: h
+	| binding result |
+	binding := SocketConnectedCall ifNil: [
+		SocketConnectedCall := PlatformFFI bind: #(call 'platform' 'platform_sockets_connected' (i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: h].
+	result == false ifTrue: [^false].
+	^result = 0 ifTrue: [nil] ifFalse: [result > 0]
 !
-platformResolve: hostName
-	<primitive: 'socketResolve'>
-	^nil
+platformResolve: name
+	| binding result text |
+	text := PlatformFFI osTextBytes: name.
+	text isNil ifTrue: [^nil].
+	binding := SocketLookupCall ifNil: [
+		SocketLookupCall := PlatformFFI bind: #(call 'platform' 'platform_sockets_lookup' (bytesWithLength) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: {text. 1. text size}].
+	result == false ifTrue: [^nil].
+	^result <= 0 ifTrue: [nil] ifFalse: [result]
 !
-platformAccept: aHandle
-	<primitive: 'socketAccept'>
-	^false
+platformAccept: h
+	| binding result |
+	binding := SocketAcceptCall ifNil: [
+		SocketAcceptCall := PlatformFFI bind: #(call 'platform' 'platform_sockets_accept' (i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: h].
+	result == false ifTrue: [^false].
+	^result < 0 ifTrue: [false] ifFalse: [result = 0 ifTrue: [nil] ifFalse: [result]]
 !
-platformRecv: aHandle into: bytes start: start count: count
-	<primitive: 'socketRecv'>
-	^-1
+platformRecv: h into: bytes start: start count: count
+	| binding result |
+	bytes class == ByteArray ifFalse: [
+		^PlatformIOBuffer readInto: bytes start: start count: count failure: -1
+			using: [:slice | self platformRecv: h into: slice start: 1 count: count]].
+	binding := SocketRecvCall ifNil: [
+		SocketRecvCall := PlatformFFI bind: #(call 'platform' 'platform_sockets_recv' (i64 writableBytesWithLength) i64)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke2: h with: {bytes. start. count}].
+	result == false ifTrue: [^-1].
+	^result = -1 ifTrue: [nil] ifFalse: [result < 0 ifTrue: [-1] ifFalse: [result]]
 !
-platformSend: aHandle from: bytes start: start count: count
-	<primitive: 'socketSend'>
-	^-1
+platformSend: h from: bytes start: start count: count
+	| binding result |
+	bytes class == ByteArray ifFalse: [
+		| slice |
+		slice := PlatformIOBuffer writeSliceFrom: bytes start: start count: count.
+		slice isNil ifTrue: [^-1].
+		^self platformSend: h from: slice start: 1 count: count].
+	binding := SocketSendCall ifNil: [
+		SocketSendCall := PlatformFFI bind: #(call 'platform' 'platform_sockets_send' (i64 bytesWithLength) i64)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke2: h with: {bytes. start. count}].
+	result == false ifTrue: [^-1].
+	^result = -1 ifTrue: [nil] ifFalse: [result < 0 ifTrue: [-1] ifFalse: [result]]
 !
-platformClose: aHandle
-	<primitive: 'socketClose'>
-	^nil
+platformClose: h
+	| binding result |
+	binding := SocketCloseCall ifNil: [
+		SocketCloseCall := PlatformFFI bind: #(call 'platform' 'platform_sockets_close' (i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: h].
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
-platformSemaphore: aHandle read: readIndex write: writeIndex
-	<primitive: 'socketSemaphore'>
-	^RemoteError signal: 'socketSemaphore failed: ', self lastError
+platformSemaphore: h read: r write: w
+	| binding result |
+	binding := SocketSemaphoreCall ifNil: [
+		SocketSemaphoreCall := PlatformFFI bind: #(call 'platform' 'platform_sockets_semaphore' (i64 i64 i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke3: h with: r with: w].
+	result == false ifTrue: [^RemoteError signal: 'socketSemaphore failed: ', self lastError].
+	^result = 0 ifTrue: [RemoteError signal: 'socketSemaphore failed: ', self lastError] ifFalse: [self]
 !
-platformLocalPort: aHandle
-	<primitive: 'socketLocalPort'>
-	^nil
+platformLocalPort: h
+	| binding result |
+	binding := SocketLocalPortCall ifNil: [
+		SocketLocalPortCall := PlatformFFI bind: #(call 'platform' 'platform_sockets_local_port' (i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: h].
+	result == false ifTrue: [^nil].
+	^result <= 0 ifTrue: [nil] ifFalse: [result]
 ! !

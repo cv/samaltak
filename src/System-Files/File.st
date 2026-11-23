@@ -119,74 +119,156 @@ signalErrorFor: aPath
 ! !
 
 !File class methodsFor: 'primitives'!
-primOpen: aPath mode: mode
+primOpen: path mode: mode
 	"mode: 0 read, 1 read/write (created if missing), 2 append, 3 create/truncate, 4 create/truncate, created with mode 600. Answer a handle or nil."
-	<primitive: 'fileOpen'>
-	^nil
+	| binding bytes result |
+	binding := OpenCall ifNil: [OpenCall := PlatformFFI bind: #(call 'platform' 'platform_files_open' (bytesWithLength i64) i32)].
+	binding isNil ifTrue: [^nil].
+	bytes := PlatformFFI osTextBytes: path.
+	bytes isNil ifTrue: [^nil].
+	result := binding tryInvoke2: {bytes. 1. bytes size} with: mode.
+	result == false ifTrue: [^nil].
+	^result <= 0 ifTrue: [nil] ifFalse: [result]
 !
-primClose: handle
-	<primitive: 'fileClose'>
-	^nil
+primClose: h
+	| binding result |
+	binding := CloseCall ifNil: [CloseCall := PlatformFFI bind: #(call 'platform' 'platform_files_close' (i64) i32)].
+	binding isNil ifTrue: [^nil].
+	result := binding tryInvoke1: h.
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
-primRead: handle into: aByteArray startingAt: start count: count
+primRead: h into: bytes startingAt: start count: count
 	"Answer the number of bytes read (0 at the end of the file), or nil."
-	<primitive: 'fileRead'>
-	^nil
+	| binding result |
+	bytes class == ByteArray ifFalse: [
+		^PlatformIOBuffer readInto: bytes start: start count: count failure: nil
+			using: [:slice | self primRead: h into: slice startingAt: 1 count: count]].
+	binding := ReadCall ifNil: [ReadCall := PlatformFFI bind: #(call 'platform' 'platform_files_read' (i64 writableBytesWithLength) i64)].
+	binding isNil ifTrue: [^nil].
+	result := binding tryInvoke2: h with: {bytes. start. count}.
+	result == false ifTrue: [^nil].
+	^result < 0 ifTrue: [nil] ifFalse: [result]
 !
-primWrite: handle from: aByteArray startingAt: start count: count
-	<primitive: 'fileWrite'>
-	^nil
+primWrite: h from: bytes startingAt: start count: count
+	| binding result |
+	bytes class == ByteArray ifFalse: [
+		| slice |
+		slice := PlatformIOBuffer writeSliceFrom: bytes start: start count: count.
+		slice isNil ifTrue: [^nil].
+		^self primWrite: h from: slice startingAt: 1 count: count].
+	binding := WriteCall ifNil: [WriteCall := PlatformFFI bind: #(call 'platform' 'platform_files_write' (i64 bytesWithLength) i64)].
+	binding isNil ifTrue: [^nil].
+	result := binding tryInvoke2: h with: {bytes. start. count}.
+	result == false ifTrue: [^nil].
+	^result < 0 ifTrue: [nil] ifFalse: [result]
 !
-primSize: handle
-	<primitive: 'fileSize'>
-	^nil
+primSize: h
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'platform' 'platform_files_size' (i64) nonNegativeI64)) tryInvoke1: h.
+	result == false ifTrue: [^nil].
+	^result
 !
-primPosition: handle
-	<primitive: 'filePosition'>
-	^nil
+primPosition: h
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'platform' 'platform_files_position' (i64) nonNegativeI64)) tryInvoke1: h.
+	result == false ifTrue: [^nil].
+	^result
 !
-primSeek: handle to: position
-	<primitive: 'fileSeek'>
-	^nil
+primSeek: h to: position
+	| binding result |
+	binding := SeekCall ifNil: [SeekCall := PlatformFFI bind: #(call 'platform' 'platform_files_seek' (i64 i64) i32)].
+	binding isNil ifTrue: [^nil].
+	result := binding tryInvoke2: h with: position.
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
-primFlush: handle
-	<primitive: 'fileFlush'>
-	^nil
+primFlush: h
+	| binding result |
+	binding := FlushCall ifNil: [FlushCall := PlatformFFI bind: #(call 'platform' 'platform_files_flush' (i64) i32)].
+	binding isNil ifTrue: [^nil].
+	result := binding tryInvoke1: h.
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
-primDelete: aPath
-	<primitive: 'fileDelete'>
-	^nil
+primDelete: path
+	| binding bytes result |
+	binding := DeleteCall ifNil: [DeleteCall := PlatformFFI bind: #(call 'platform' 'platform_files_delete' (bytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	bytes := PlatformFFI osTextBytes: path.
+	bytes isNil ifTrue: [^nil].
+	result := binding tryInvoke1: {bytes. 1. bytes size}.
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
 primRename: oldPath to: newPath
-	<primitive: 'fileRename'>
-	^nil
+	| binding a b result |
+	binding := RenameCall ifNil: [RenameCall := PlatformFFI bind: #(call 'platform' 'platform_files_rename' (bytesWithLength bytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	a := PlatformFFI osTextBytes: oldPath.
+	b := PlatformFFI osTextBytes: newPath.
+	(a isNil or: [b isNil]) ifTrue: [^nil].
+	result := binding tryInvoke2: {a. 1. a size} with: {b. 1. b size}.
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
-primStat: aPath
-	<primitive: 'fileStat'>
-	^self missingStat
+primStat: path
+	| binding bytes out result |
+	binding := StatCall ifNil: [StatCall := PlatformFFI bind: #(call 'platform' 'platform_files_stat' (bytesWithLength writableBytesWithLength) i32)].
+	binding isNil ifTrue: [^self missingStat].
+	bytes := PlatformFFI osTextBytes: path.
+	bytes isNil ifTrue: [^self missingStat].
+	out := ByteArray new: 18.
+	result := binding tryInvoke2: {bytes. 1. bytes size} with: {out. 1. out size}.
+	result == false ifTrue: [^self missingStat].
+	result = 0 ifTrue: [^self missingStat].
+	^{out first ~= 0. out second ~= 0. FFIWire int64At: 3 in: out. FFIWire int64At: 11 in: out}
 !
 missingStat
 	^Array with: false with: false with: 0 with: 0
 !
-primDirEntries: aPath
-	<primitive: 'dirEntries'>
-	^nil
+primDirEntries: path
+	| binding bytes result |
+	binding := DirEntriesCall ifNil: [DirEntriesCall := PlatformFFI bind: #(call 'platform' 'platform_files_dir_entries' (bytesWithLength writableBytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	bytes := PlatformFFI osTextBytes: path.
+	bytes isNil ifTrue: [^nil].
+	result := self captureNames: [:receipt | binding tryInvoke2: {bytes. 1. bytes size} with: receipt].
+	result == false ifTrue: [^nil].
+	^result
 !
-primDirCreate: aPath
-	<primitive: 'dirCreate'>
-	^nil
+primDirCreate: path
+	| binding bytes result |
+	binding := DirCreateCall ifNil: [DirCreateCall := PlatformFFI bind: #(call 'platform' 'platform_files_dir_create' (bytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	bytes := PlatformFFI osTextBytes: path.
+	bytes isNil ifTrue: [^nil].
+	result := binding tryInvoke1: {bytes. 1. bytes size}.
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
-primMkfifo: aPath
-	<primitive: 'mkfifo'>
-	^nil
+primMkfifo: path
+	| binding bytes result |
+	binding := MkfifoCall ifNil: [MkfifoCall := PlatformFFI bind: #(call 'platform' 'platform_files_mkfifo' (bytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	bytes := PlatformFFI osTextBytes: path.
+	bytes isNil ifTrue: [^nil].
+	result := binding tryInvoke1: {bytes. 1. bytes size}.
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
 primCwd
-	<primitive: 'cwd'>
-	^nil
+	| binding result |
+	binding := CwdCall ifNil: [CwdCall := PlatformFFI bind: #(call 'platform' 'platform_files_cwd' (writableBytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	result := self captureNames: [:receipt | binding tryInvoke1: receipt].
+	result == false ifTrue: [^nil].
+	^result ifNotNil: [result first]
 !
 primLastError
-	<primitive: 'platformLastError'>
-	^nil
+	^WindowPlatformFFI lastError
 !
 primSpawn: argv
 	"Start argv first (looked up in PATH) with the other Strings as arguments, sharing the VM's standard streams. Answer its pid or nil."
@@ -202,143 +284,6 @@ primExec: argv
 	"Replace the VM's process by argv first (looked up in PATH) with the other Strings as arguments: same pid and standard streams, all other descriptors closed. Answers nil only if that failed."
 	<primitive: 'execProcess'>
 	^nil
-! !
-
-!File class methodsFor: 'FFI candidates'!
-ffiCandidatePrimPosition: h
-	<ffiSite>
-	| result |
-	result := (self ffiSite: #(call 'platform' 'platform_files_position' (i64) nonNegativeI64)) tryInvoke1: h.
-	result == false ifTrue: [^self primPosition: h].
-	^result
-!
-ffiCandidatePrimSize: h
-	<ffiSite>
-	| result |
-	result := (self ffiSite: #(call 'platform' 'platform_files_size' (i64) nonNegativeI64)) tryInvoke1: h.
-	result == false ifTrue: [^self primSize: h].
-	^result
-!
-ffiCandidatePrimRead: h into: bytes startingAt: start count: count
-	| binding result |
-	binding := ReadCall ifNil: [ReadCall := PlatformFFI bind: #(call 'platform' 'platform_files_read' (i64 writableBytesWithLength) i64)].
-	binding isNil ifTrue: [^self primRead: h into: bytes startingAt: start count: count].
-	result := binding tryInvoke2: h with: {bytes. start. count}.
-	result == false ifTrue: [^self primRead: h into: bytes startingAt: start count: count].
-	^result < 0 ifTrue: [nil] ifFalse: [result]
-!
-ffiCandidatePrimWrite: h from: bytes startingAt: start count: count
-	| binding result |
-	binding := WriteCall ifNil: [WriteCall := PlatformFFI bind: #(call 'platform' 'platform_files_write' (i64 bytesWithLength) i64)].
-	binding isNil ifTrue: [^self primWrite: h from: bytes startingAt: start count: count].
-	result := binding tryInvoke2: h with: {bytes. start. count}.
-	result == false ifTrue: [^self primWrite: h from: bytes startingAt: start count: count].
-	^result < 0 ifTrue: [nil] ifFalse: [result]
-!
-ffiCandidatePrimClose: h
-	| binding result |
-	binding := CloseCall ifNil: [CloseCall := PlatformFFI bind: #(call 'platform' 'platform_files_close' (i64) i32)].
-	binding isNil ifTrue: [^self primClose: h].
-	result := binding tryInvoke1: h.
-	result == false ifTrue: [^self primClose: h].
-	^result = 0 ifTrue: [nil] ifFalse: [self]
-!
-ffiCandidatePrimSeek: h to: position
-	| binding result |
-	binding := SeekCall ifNil: [SeekCall := PlatformFFI bind: #(call 'platform' 'platform_files_seek' (i64 i64) i32)].
-	binding isNil ifTrue: [^self primSeek: h to: position].
-	result := binding tryInvoke2: h with: position.
-	result == false ifTrue: [^self primSeek: h to: position].
-	^result = 0 ifTrue: [nil] ifFalse: [self]
-!
-ffiCandidatePrimFlush: h
-	| binding result |
-	binding := FlushCall ifNil: [FlushCall := PlatformFFI bind: #(call 'platform' 'platform_files_flush' (i64) i32)].
-	binding isNil ifTrue: [^self primFlush: h].
-	result := binding tryInvoke1: h.
-	result == false ifTrue: [^self primFlush: h].
-	^result = 0 ifTrue: [nil] ifFalse: [self]
-!
-ffiCandidatePrimOpen: path mode: mode
-	| binding bytes result |
-	binding := OpenCall ifNil: [OpenCall := PlatformFFI bind: #(call 'platform' 'platform_files_open' (bytesWithLength i64) i32)].
-	binding isNil ifTrue: [^self primOpen: path mode: mode].
-	bytes := PlatformFFI cTextBytes: path.
-	bytes isNil ifTrue: [^self primOpen: path mode: mode].
-	result := binding tryInvoke2: {bytes. 1. bytes size} with: mode.
-	result == false ifTrue: [^self primOpen: path mode: mode].
-	^result <= 0 ifTrue: [nil] ifFalse: [result]
-!
-ffiCandidatePrimDelete: path
-	| binding bytes result |
-	binding := DeleteCall ifNil: [DeleteCall := PlatformFFI bind: #(call 'platform' 'platform_files_delete' (bytesWithLength) i32)].
-	binding isNil ifTrue: [^self primDelete: path].
-	bytes := PlatformFFI cTextBytes: path.
-	bytes isNil ifTrue: [^self primDelete: path].
-	result := binding tryInvoke1: {bytes. 1. bytes size}.
-	result == false ifTrue: [^self primDelete: path].
-	^result = 0 ifTrue: [nil] ifFalse: [self]
-!
-ffiCandidatePrimDirCreate: path
-	| binding bytes result |
-	binding := DirCreateCall ifNil: [DirCreateCall := PlatformFFI bind: #(call 'platform' 'platform_files_dir_create' (bytesWithLength) i32)].
-	binding isNil ifTrue: [^self primDirCreate: path].
-	bytes := PlatformFFI cTextBytes: path.
-	bytes isNil ifTrue: [^self primDirCreate: path].
-	result := binding tryInvoke1: {bytes. 1. bytes size}.
-	result == false ifTrue: [^self primDirCreate: path].
-	^result = 0 ifTrue: [nil] ifFalse: [self]
-!
-ffiCandidatePrimMkfifo: path
-	| binding bytes result |
-	binding := MkfifoCall ifNil: [MkfifoCall := PlatformFFI bind: #(call 'platform' 'platform_files_mkfifo' (bytesWithLength) i32)].
-	binding isNil ifTrue: [^self primMkfifo: path].
-	bytes := PlatformFFI cTextBytes: path.
-	bytes isNil ifTrue: [^self primMkfifo: path].
-	result := binding tryInvoke1: {bytes. 1. bytes size}.
-	result == false ifTrue: [^self primMkfifo: path].
-	^result = 0 ifTrue: [nil] ifFalse: [self]
-!
-ffiCandidatePrimRename: oldPath to: newPath
-	| binding a b result |
-	binding := RenameCall ifNil: [RenameCall := PlatformFFI bind: #(call 'platform' 'platform_files_rename' (bytesWithLength bytesWithLength) i32)].
-	binding isNil ifTrue: [^self primRename: oldPath to: newPath].
-	a := PlatformFFI cTextBytes: oldPath.
-	b := PlatformFFI cTextBytes: newPath.
-	(a isNil or: [b isNil]) ifTrue: [^self primRename: oldPath to: newPath].
-	result := binding tryInvoke2: {a. 1. a size} with: {b. 1. b size}.
-	result == false ifTrue: [^self primRename: oldPath to: newPath].
-	^result = 0 ifTrue: [nil] ifFalse: [self]
-!
-ffiCandidatePrimStat: path
-	| binding bytes out result |
-	binding := StatCall ifNil: [StatCall := PlatformFFI bind: #(call 'platform' 'platform_files_stat' (bytesWithLength writableBytesWithLength) i32)].
-	binding isNil ifTrue: [^self primStat: path].
-	bytes := PlatformFFI cTextBytes: path.
-	bytes isNil ifTrue: [^self primStat: path].
-	out := ByteArray new: 18.
-	result := binding tryInvoke2: {bytes. 1. bytes size} with: {out. 1. out size}.
-	result == false ifTrue: [^self primStat: path].
-	result = 0 ifTrue: [^self missingStat].
-	^{out first ~= 0. out second ~= 0. FFIWire int64At: 3 in: out. FFIWire int64At: 11 in: out}
-!
-ffiCandidatePrimDirEntries: path
-	| binding bytes result |
-	binding := DirEntriesCall ifNil: [DirEntriesCall := PlatformFFI bind: #(call 'platform' 'platform_files_dir_entries' (bytesWithLength writableBytesWithLength) i32)].
-	binding isNil ifTrue: [^self primDirEntries: path].
-	bytes := PlatformFFI cTextBytes: path.
-	bytes isNil ifTrue: [^self primDirEntries: path].
-	result := self captureNames: [:receipt | binding tryInvoke2: {bytes. 1. bytes size} with: receipt].
-	result == false ifTrue: [^self primDirEntries: path].
-	^result
-!
-ffiCandidatePrimCwd
-	| binding result |
-	binding := CwdCall ifNil: [CwdCall := PlatformFFI bind: #(call 'platform' 'platform_files_cwd' (writableBytesWithLength) i32)].
-	binding isNil ifTrue: [^self primCwd].
-	result := self captureNames: [:receipt | binding tryInvoke1: receipt].
-	result == false ifTrue: [^self primCwd].
-	^result ifNotNil: [result first]
 ! !
 
 !File class methodsFor: 'FFI name results'!

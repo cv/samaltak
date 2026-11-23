@@ -32,7 +32,7 @@ ascii: bytes size: n
 	| i word |
 	word := self local: 'uint64_t'.
 	i := 0 asUInt64.
-	[i + 8 <= n] whileTrue: [
+	[n - i >= 8] whileTrue: [
 		libc memcpy: word from: bytes + i size: 8.
 		(word value bitAnd: 16r8080808080808080 asUInt64) ~= 0 ifTrue: [^false].
 		i := i + 8].
@@ -126,14 +126,14 @@ ffiBoxOwnedText: out
 	<returns: 'oop'>
 	| answer n data bytes slots padding |
 	data := out data.
-	data isNull ifTrue: [^memory nilOop].
+	data isNull ifTrue: [^self ffiReleaseCountedText: out].
 	"Never allocate while an input still points into the Smalltalk heap."
 	jit syncPendingBoundFrame.
 	n := out count.
 	(self ascii: data size: n)
 		ifTrue: [
 			padding := (8 - (n bitAnd: 7)) bitAnd: 7.
-			slots := (n + padding) quo: 8.
+			slots := (n quo: 8) + (padding ~= 0 ifTrue: [1] ifFalse: [0]).
 			answer := memory allocUnfilledTry: memory clsBytestring format: F_BYTES + padding asInt32 slots: slots.
 			answer = 0
 				ifTrue: [answer := memory nilOop]
@@ -141,9 +141,9 @@ ffiBoxOwnedText: out
 					bytes := self bytesOf: answer.
 					libc memcpy: bytes from: data size: n.
 					padding > 0 ifTrue: [libc memset: bytes + n value: 0 size: padding]]]
-		ifFalse: [answer := memory stringFromUtf8: (self cCoerce: data to: 'const char *') size: n].
-	out allocation notNull ifTrue: [libc free: out allocation].
-	^answer
+		ifFalse: [answer := memory stringFromUtf8Try: (self cCoerce: data to: 'const char *') size: n].
+	self ffiReleaseCountedText: out.
+	^answer = 0 ifTrue: [memory nilOop] ifFalse: [answer]
 !
 ffiBoxOwnedTextWithGC: out
 	<function>

@@ -55,5 +55,6 @@ append: aString
 	self show: line to: line
 !
 stdout: aString
-	<primitive: 'stdoutWrite'>
+	<ffiSite>
+	(self ffiSite: #(call 'vm:core' 'core_stdout_text' (countedText) void)) tryInvoke1: aString
 ! !

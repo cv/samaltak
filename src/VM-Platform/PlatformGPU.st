@@ -1,6 +1,6 @@
 VMPlatformModule subclass: #PlatformGPU
-	instanceVariableNames: 'objs logAdapter watches nwatches npending watchLock watchCond watcherStarted drawBindingEpoch shaderOutputs shaderOutputSession shaderOutputSerial'
-	classVariableNames: 'K_BUF K_CMD K_DEV K_FENCE K_PASS K_PIPE K_SAMPLER K_SHADER K_SWAP K_TEX LOG_ERROR_SIZE MAX_CLAIMS MAX_SHADER_OUTPUTS'
+	instanceVariableNames: 'objs logAdapter watches nwatches npending watchLock watchCond watcherStarted drawBindingEpoch'
+	classVariableNames: 'K_BUF K_CMD K_DEV K_FENCE K_PASS K_PIPE K_SAMPLER K_SHADER K_SWAP K_TEX LOG_ERROR_SIZE MAX_CLAIMS'
 	package: 'VM-Platform'!
 
 PlatformGPU comment: 'A thin SDL_GPU wrapper with handles (one table for all kinds; dev = the handle of the object''s device).
@@ -13,8 +13,7 @@ Fence timing: a watcher thread polls the pending fences every 200 µs while any 
 declarations
 	^#((objs 'pf_table[1]') (logAdapter FFISDLLogAdapter)
 		(watches 'fence_watch *') (nwatches int32_t) (npending int32_t) (watchLock 'pthread_mutex_t[1]') (watchCond 'pthread_cond_t[1]')
-		(watcherStarted bool) (drawBindingEpoch int32_t 1) (shaderOutputs 'gpu_shader_output[MAX_SHADER_OUTPUTS]')
-		(shaderOutputSession uint64_t) (shaderOutputSerial uint64_t))
+		(watcherStarted bool) (drawBindingEpoch int32_t 1))
 !
 initialize
 	K_DEV := 1.
@@ -28,8 +27,7 @@ initialize
 	K_FENCE := 9.
 	K_SWAP := 10.
 	MAX_CLAIMS := 16.
-	LOG_ERROR_SIZE := 2048.
-	MAX_SHADER_OUTPUTS := 16
+	LOG_ERROR_SIZE := 2048
 ! !
 
 !PlatformGPU methodsFor: 'private'!
@@ -995,7 +993,6 @@ releaseHandle: h
 !
 shutdown
 	<export>
-	self discardShaderOutputs.
 	1 to: objs n - 1 do: [:h | (objs v + h) kind = K_DEV ifTrue: [self releaseDevice: h]]
 !
 handleCounts: out

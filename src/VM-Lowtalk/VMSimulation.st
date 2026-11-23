@@ -48,7 +48,7 @@ setModules: aCollectionOfClasses
 	aCollectionOfClasses do: [:c |
 		| m |
 		(c class includesSelector: #resetSimulationCaches) ifTrue: [c resetSimulationCaches].
-		m := c basicNew.
+		m := c simulationClass basicNew.
 		m setSimulation: self.
 		modules at: c put: m].
 	modules do: [:m | m initializeVariables]

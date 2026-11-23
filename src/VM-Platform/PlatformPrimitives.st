@@ -39,82 +39,22 @@ adapterGroups
 	^#(
 		('window and input' (
 			(401 windowClose windows close: ok ((w int32)))
-			(402 windowSize windows size:width:height: pair ((win int32) (w outInt) (h outInt)) 'win -> {w. h} in points')
-			(403 windowPixelSize windows pixelSize:width:height: pair ((win int32) (w outInt) (h outInt)) 'win -> {w. h} in pixels')
 			(404 windowDisplayScale windows displayScale: nonNegative ((w int32)) 'win -> Float')
-			(405 windowSetTitle windows setTitle:title: ok ((w int32) (t string)) 'win title')
 			(419 windowSetTextInputArea windows setTextInputArea:x:y:width:height:cursor: ok ((w int32) (x int32) (y int32) (wd int32) (h int32) (c int32)) 'win x y w h cursor (points; cursor: x of the caret within the rectangle)')
 			(406 windowShow windows show:visible: ok ((w int32) (true literal)))
 			(407 windowHide windows show:visible: ok ((w int32) (false literal)))
 			(408 windowRefreshRate windows refreshRate: nonNegative ((w int32)) 'win -> Float Hz (0 unknown)')
 			(409 setCursor windows setCursor: ok ((k int32)) 'kind (see PlatformWindows>>setCursor:)')
-			(410 clipboardGet windows clipboardGet string () '-> String')
-			(411 clipboardSet windows clipboardSet: ok ((s string)) 'string')
 			(414 inputSemaphore events setSemaphore: receiver ((i int32)) 'external semaphore index (0 = none)')
 			(416 vsyncSemaphore vsync semaphore: ok ((i int32)) 'external semaphore index signaled per display refresh (0 = stop)')
-			(418 droppedEvents events dropped int64 () '-> events dropped because the event queue was full (since startup)')
-		))
-		('GPU' (
-			(430 gpuCreateDevice gpu createDevice: handle ((d bool)) 'debug (Boolean) -> dev')
-			(431 gpuClaimWindow gpu claimWindow:window: ok ((d int32) (w int32)) 'dev win')
-			(432 gpuSwapchainFormat gpu swapchainFormat:window: handle ((d int32) (w int32)) 'dev win -> format')
-			(435 gpuCreateTexture gpu createTexture:width:height:format:usage: handle ((d int32) (w int32) (h int32) (f int32) (u int32)) 'dev w h format usage -> tex')
-			(436 gpuCreateSampler gpu createSampler:linear:repeat: handle ((d int32) (linear bool) (repeat bool)) 'dev linear (Boolean) repeat (Boolean) -> sampler')
-			(438 gpuRelease gpu releaseHandle: ok ((h int32)) 'handle')
-			(441 gpuAcquireCommandBuffer gpu acquireCommandBuffer: handle ((d int32)) 'dev -> cmd')
-			(444 gpuSetViewport gpu setViewport:x:y:width:height: ok ((p int32) (x float) (y float) (w float) (h float)) 'pass x y w h')
-			(445 gpuSetScissor gpu setScissor:x:y:width:height: ok ((p int32) (x int32) (y int32) (w int32) (h int32)) 'pass x y w h')
-			(446 gpuBindPipeline gpu bindPipeline:pipeline: ok ((p int32) (q int32)) 'pass pipeline')
-			(447 gpuBindVertexBuffer gpu bindVertexBuffer:slot:buffer:offset: ok ((p int32) (s int32) (b int32) (off uint32)) 'pass slot buf offset')
-			(448 gpuBindTexture gpu bindTexture:slot:texture:sampler: ok ((p int32) (s int32) (t int32) (sm int32)) 'pass slot tex sampler')
-			(450 gpuDraw gpu draw:vertices:first: ok ((p int32) (n int32) (f int32)) 'pass vertexCount firstVertex')
-			(451 gpuEndPass gpu endPass: ok ((p int32)) 'pass')
-			(454 gpuWaitFence gpu waitFence: ok ((f int32)) 'fence')
-			(455 gpuFenceDone gpu fenceDone: bool ((f int32)) 'fence -> Boolean')
-			(458 gpuWaitIdle gpu waitIdle: ok ((d int32)) 'dev')
 		))
 		('files and processes' (
-			(500 fileOpen files open:mode: handle ((p string) (m int32)) 'path mode (0 read 1 readWrite 2 append 3 createTruncate) -> file')
-			(501 fileClose files close: ok ((f int32)) 'file')
-			(502 fileRead files read:into:count: readSize () 'file bytes start count -> count (0 = EOF)')
-			(503 fileWrite files write:bytes:count: writeSize () 'file bytes start count -> count')
-			(504 fileSize files size: nonNegativeInt64 ((f int32)) 'file -> Integer')
-			(505 filePosition files position: nonNegativeInt64 ((f int32)) 'file -> Integer (0-based)')
-			(507 fileFlush files flush: ok ((f int32)) 'file')
-			(508 fileDelete files delete: path () 'path')
-			(509 fileRename files rename:to: ok ((a string) (b string)) 'from to')
-			(512 dirCreate files dirCreate: path () 'path')
-			(513 cwd files cwd string () '-> String')
-			(514 mkfifo files mkfifo: path () 'path')
 			(516 processWait files processWait:block:status:done: wait ((pid int64) (block bool) (st outInt) (done outBool)) 'pid block (Boolean) -> exit status or nil (running)')
-		))
-		('sockets' (
-			(540 socketListen sockets listen:port:backlog: handle ((host string) (port int32) (backlog int32)) 'host port backlog -> socket')
-			(541 socketConnect sockets connect:port: handle ((host string) (port int32)) 'numeric address port -> socket (connecting: see socketConnected)')
-			(543 socketRecv sockets recv:into:count: readCount () 'socket bytes start count -> count, 0 at EOF, nil would block')
-			(544 socketSend sockets send:bytes:count: writeCount () 'socket bytes start count -> count or nil')
-			(545 socketClose sockets close: ok ((s int32)) 'socket')
-			(546 socketSemaphore sockets semaphores:read:write: ok ((s int32) (r int32) (w optionalInt32)) 'socket readIndex [writeIndex]')
-			(547 socketLocalPort sockets localPort: handle ((s int32)) 'socket -> port')
-			(548 socketResolve sockets lookup: handle ((name string)) 'host name -> socket reading as its numeric addresses, a line each, or one line of !! and the error')
-			(549 socketConnected sockets connected: ready ((s int32)) 'socket -> true once connected, nil while connecting (arms the write semaphore)')
 		))
 		('raw network interface' (
 			(583 nicSemaphore nic frameSemaphore: ok ((i int32)) 'index: signaled once when a frame is waiting, re-armed by a nicReceive that finds none; 0 = none')
 		))
-		('TLS' (
-			(550 tlsStart tls start:host: handle ((s int32) (host string)) 'connected socket, host name -> connection (the same handle, no longer a socket; see tlsHandshake)')
-			(551 tlsRecv tls recv:into:count: readCount () 'connection bytes start count -> count, 0 at EOF, nil would block')
-			(552 tlsSend tls send:bytes:count: writeCount () 'connection bytes start count -> count or nil')
-			(553 tlsClose tls close: ok ((h int32)) 'connection')
-			(554 tlsSemaphore tls semaphores:read:write: ok ((h int32) (r int32) (w optionalInt32)) 'connection readIndex [writeIndex]')
-			(555 tlsHandshake tls handshake: ready ((h int32)) 'connection -> true once the handshake is done (the certificate verified for the host), nil while it waits (arms the semaphore it waits for)')
-		))
 		('pseudo-terminals' (
-			(561 ptyRead sockets ptyRead:into:count: readCount () 'pty bytes start count -> count, 0 at EOF, nil would block')
-			(562 ptyWrite sockets ptyWrite:bytes:count: writeCount () 'pty bytes start count -> count or nil')
-			(564 ptySemaphore sockets ptySemaphores:read:write: ok ((h int32) (r int32) (w optionalInt32)) 'pty readIndex [writeIndex]')
-			(565 ptyWait ptys wait:block:status:done: wait ((h int32) (block bool) (st outInt) (done outBool)) 'pty block (Boolean) -> the child''s exit status or nil (running)')
 			(566 ptyClose ptys close: ok ((h int32)) 'pty (hangs up the child unless it ended)')
 		))
 		('machine' (
@@ -135,15 +75,6 @@ intArg: i
 	v := self local: 'int64_t'.
 	(memory int64Of: (self arg: i) into: v) ifFalse: [bad := true].
 	^v value
-!
-floatArg: i
-	<function>
-	| o |
-	o := self arg: i.
-	(self isInt: o) ifTrue: [^(self intVal: o) asFloat].
-	(memory isFloat: o) ifTrue: [^memory floatVal: o].
-	bad := true.
-	^0.0
 !
 boolArg: i
 	<function>
@@ -183,20 +114,6 @@ bytesOf: o size: n writable: writable
 		n value: (memory word32Size: o) * 4.
 		^self cCoerce: (self words32Of: o) to: 'uint8_t *'].
 	^self null
-!
-rangeArgs: writable handle: h count: count
-	"(handle, buffer, start, count) with 1-based start: the bytes of the range; NULL if the arguments are bad."
-	<function>
-	| start len p |
-	self argCount ~= 4 ifTrue: [^self null].
-	bad := false.
-	h value: (self intArg: 0).
-	start := self intArg: 2.
-	count value: (self intArg: 3).
-	len := self local: 'size_t'.
-	p := self bytesOf: (self arg: 1) size: len writable: writable.
-	(bad or: [p isNull or: [start < 1 or: [count value < 0 or: [(start - 1 + count value) asUInt64 > len value]]]]) ifTrue: [^self null].
-	^p + (start - 1)
 !
 numberOf: o into: d
 	<function>
@@ -271,15 +188,6 @@ answerSize: r
 answerNonNegative: d
 	d < 0.0 ifTrue: [self fail] ifFalse: [self answer: (memory floatOop: d)]
 !
-answerString: s
-	"s is malloc'd (NULL: fail); freed here."
-	<function>
-	| r |
-	s isNull ifTrue: [^self fail].
-	r := memory stringFromUtf8: s size: (libc strlen: s).
-	libc free: s.
-	self answer: r
-!
 arrayOf: v count: n
 	"An Array of n SmallIntegers."
 	<function>
@@ -287,45 +195,9 @@ arrayOf: v count: n
 	a := memory allocSlots: memory clsArray count: n asUInt32.
 	0 to: n - 1 do: [:i | self storeRef: a at: i put: (self intOop: (v at: i))].
 	^a
-!
-answerPair: ok first: a second: b
-	<function>
-	| v |
-	ok ifFalse: [^self fail].
-	v := self local: 'int64_t[2]'.
-	v at: 0 put: a.
-	v at: 1 put: b.
-	self answer: (self arrayOf: v count: 2)
 ! !
 
-!PlatformPrimitives methodsFor: 'window and input'!
-primWindowOpen
-	"w h (points) title flags (1 hidden 2 resizable 4 highDensity) -> win"
-	<vmPrimitive: 400 name: 'windowOpen'>
-	| w h flags t r |
-	(self args: 4) ifFalse: [^self fail].
-	w := self intArg: 0.
-	h := self intArg: 1.
-	flags := self intArg: 3.
-	t := self stringArg: 2.
-	bad ifTrue: [
-		libc free: t.
-		^self fail].
-	r := windows open: w asInt32 height: h asInt32 title: t flags: flags asInt32.
-	libc free: t.
-	self answerHandle: r
-!
-primWindowSetSize
-	"win width height (points)"
-	<vmPrimitive: 421 name: 'windowSetSize'>
-	| w wd h |
-	(self args: 3) ifFalse: [^self fail].
-	w := self intArg: 0.
-	wd := self intArg: 1.
-	h := self intArg: 2.
-	(bad or: [wd < 1 or: [h < 1]]) ifTrue: [^self fail].
-	self answerOk: (windows setSize: w asInt32 width: wd asInt32 height: h asInt32)
-!
+!PlatformPrimitives methodsFor: 'windows'!
 primWindowSetPosition
 	"win x y (points)"
 	<vmPrimitive: 422 name: 'windowSetPosition'>
@@ -336,349 +208,9 @@ primWindowSetPosition
 	y := self intArg: 2.
 	bad ifTrue: [^self fail].
 	self answerOk: (windows setPosition: w asInt32 x: x asInt32 y: y asInt32)
-!
-isEventArray: a
-	^(self isPtr: a) and: [(self formatOf: a) = F_VAR and: [(self numSlots: a) >= 8 and: [(self isImmutable: a) not]]]
-!
-primNextEvent
-	"8-slot Array -> it, filled, or nil"
-	<vmPrimitive: 412 name: 'nextEvent'>
-	| e a v p |
-	(self args: 1) ifFalse: [^self fail].
-	(self isEventArray: (self arg: 0)) ifFalse: [^self fail].
-	e := self local: 'pf_event'.
-	(events next: e) ifFalse: [^self answer: memory nilOop].
-	a := self local: 'oop'.
-	a value: (self arg: 0).
-	memory pushRoot: a.
-	self storeRef: a value at: 0 put: (self intOop: e type).
-	self storeRef: a value at: 1 put: (self intOop: e timeMs).
-	v := memory floatOop: e x.
-	self storeRef: a value at: 2 put: v.
-	v := memory floatOop: e y.
-	self storeRef: a value at: 3 put: v.
-	self storeRef: a value at: 4 put: (self intOop: e key).
-	self storeRef: a value at: 5 put: (self intOop: e mods).
-	v := memory nilOop.
-	e xkind = PF_X_INT ifTrue: [v := self intOop: e ival].
-	e xkind = PF_X_BOOL ifTrue: [v := self bool: e ival ~= 0].
-	e xkind = PF_X_TEXT ifTrue: [v := memory stringFromUtf8: e text size: (libc strlen: e text)].
-	e xkind = PF_X_POINT ifTrue: [
-		p := self local: 'oop'.
-		p value: (memory allocSlots: (memory special: SO_POINT) count: 0).
-		memory pushRoot: p.
-		v := memory floatOop: e dx.
-		self storeRef: p value at: 0 put: v.
-		v := memory floatOop: e dy.
-		self storeRef: p value at: 1 put: v.
-		memory popRoot.
-		v := p value].
-	self storeRef: a value at: 6 put: v.
-	self storeRef: a value at: 7 put: (e window ~= 0 ifTrue: [self intOop: e window] ifFalse: [memory nilOop]).
-	memory popRoot.
-	libc free: e text.
-	self answer: a value
-!
-primInjectEvent
-	"8-slot Array"
-	<vmPrimitive: 413 name: 'injectEvent'>
-	| a e o ok |
-	(self args: 1) ifFalse: [^self fail].
-	a := self arg: 0.
-	((self isPtr: a) and: [(self formatOf: a) = F_VAR and: [(self numSlots: a) >= 8]]) ifFalse: [^self fail].
-	e := self local: 'pf_event'.
-	o := self loadRef: a at: 0.
-	ok := (self isInt: o) and: [(self intVal: o) > 0].
-	ok ifTrue: [e type: (self intVal: o) asInt32].
-	o := self loadRef: a at: 1.
-	e timeMs: ((self isInt: o) ifTrue: [self intVal: o] ifFalse: [common nowMs]).
-	ok := ok and: [(self numberOf: (self loadRef: a at: 2) into: (e fieldAddress: #x))
-		and: [self numberOf: (self loadRef: a at: 3) into: (e fieldAddress: #y)]].
-	o := self loadRef: a at: 4.
-	e key: ((self isInt: o) ifTrue: [self intVal: o] ifFalse: [0]).
-	o := self loadRef: a at: 5.
-	e mods: ((self isInt: o) ifTrue: [(self intVal: o) asInt32] ifFalse: [0]).
-	o := self loadRef: a at: 7.
-	e window: ((self isInt: o) ifTrue: [(self intVal: o) asInt32] ifFalse: [0]).
-	ok := ok and: [self textOrDelta: (self loadRef: a at: 6) into: e].
-	ok ifTrue: [events push: e].
-	libc free: e text.
-	ok ifFalse: [^self fail].
-	scheduler requestInterruptCheck.
-	self answerSelf
-!
-textOrDelta: o into: e
-	"Set the textOrDelta of e from o: nil, a SmallInteger, a Boolean, a Point (or a pair) of numbers, or a String (malloc'd UTF-8); answer whether o is one."
-	<function>
-	o = memory nilOop ifTrue: [
-		e xkind: PF_X_NIL.
-		^true].
-	(self isInt: o) ifTrue: [
-		e xkind: PF_X_INT.
-		e ival: (self intVal: o).
-		^true].
-	(o = memory trueOop or: [o = memory falseOop]) ifTrue: [
-		e xkind: PF_X_BOOL.
-		e ival: (o = memory trueOop ifTrue: [1] ifFalse: [0]).
-		^true].
-	((self isPtr: o) and: [((memory classOf: o) = (memory special: SO_POINT) and: [(self numSlots: o) >= 2])
-			or: [(self formatOf: o) = F_VAR and: [(self numSlots: o) = 2]]]) ifTrue: [
-		e xkind: PF_X_POINT.
-		^(self numberOf: (self loadRef: o at: 0) into: (e fieldAddress: #dx))
-			and: [self numberOf: (self loadRef: o at: 1) into: (e fieldAddress: #dy)]].
-	(self isText: o) ifTrue: [
-		e xkind: PF_X_TEXT.
-		^(e text: (memory utf8Of: o)) notNull].
-	^false
-!
-primPlatformLastError
-	"-> String"
-	<vmPrimitive: 415 name: 'platformLastError'>
-	| e |
-	(self args: 0) ifFalse: [^self fail].
-	e := common lastErrorString.
-	self answer: (memory stringFromUtf8: e size: (libc strlen: e))
-!
-primPlatformHandleCounts
-	"-> live handles {files. sockets. windows. gpuDevices. shaders. pipelines. textures. samplers. buffers. fences. ptys}"
-	<vmPrimitive: 417 name: 'platformHandleCounts'>
-	| v |
-	v := self local: 'int64_t[PF_HANDLE_COUNTS]'.
-	common handleCounts: v.
-	self answer: (self arrayOf: v count: PF_HANDLE_COUNTS)
 ! !
 
 !PlatformPrimitives methodsFor: 'GPU'!
-primGpuShaderLanguage
-	"dev -> 'msl' or 'glsl': what gpuCreateShader takes"
-	<vmPrimitive: 460 name: 'gpuShaderLanguage'>
-	| d l |
-	(self args: 1) ifFalse: [^self fail].
-	d := self intArg: 0.
-	bad ifTrue: [^self fail].
-	l := gpu shaderLanguage: d asInt32.
-	l isNull ifTrue: [^self fail].
-	self answer: (memory stringFromUtf8: l size: (libc strlen: l))
-!
-primGpuCreateShader
-	"dev source entry stage samplers uniformBuffers storageBuffers storageTextures -> shader. source is a String in the device's shaderLanguage, or a ByteArray of SPIR-V (gpuCompileShader) for a device that takes it."
-	<vmPrimitive: 433 name: 'gpuCreateShader'>
-	| d stage ns nu nsb nst o code len src entry h |
-	(self args: 8) ifFalse: [^self fail].
-	d := self intArg: 0.
-	stage := self intArg: 3.
-	ns := self intArg: 4.
-	nu := self intArg: 5.
-	nsb := self intArg: 6.
-	nst := self intArg: 7.
-	o := self arg: 1.
-	code := self null.
-	src := self null.
-	len := self local: 'size_t'.
-	((self isPtr: o) and: [(memory classOf: o) = memory clsBytearray])
-		ifTrue: [
-			code := self bytesOf: o size: len writable: false.
-			code isNull ifTrue: [bad := true]]
-		ifFalse: [src := self stringArg: 1].
-	entry := self stringArg: 2.
-	h := bad
-		ifTrue: [0]
-		ifFalse: [code isNull
-			ifTrue: [gpu createShader: d asInt32 source: src entry: entry stage: stage asInt32 samplers: ns asInt32
-				uniformBuffers: nu asInt32 storageBuffers: nsb asInt32 storageTextures: nst asInt32]
-			ifFalse: [gpu createShader: d asInt32 spirv: code size: len value entry: entry stage: stage asInt32 samplers: ns asInt32
-				uniformBuffers: nu asInt32 storageBuffers: nsb asInt32 storageTextures: nst asInt32]].
-	libc free: src.
-	libc free: entry.
-	bad ifTrue: [^self fail].
-	self answerHandle: h
-!
-primGpuCompileShader
-	"GLSL source, stage -> the SPIR-V it compiles to (a ByteArray), for gpuCreateShader: an image keeps it, so it compiles no shaders when it starts. Fails with the compiler's log, or where GLSL is not compiled (macOS)."
-	<vmPrimitive: 461 name: 'gpuCompileShader'>
-	| src stage size spirv result |
-	(self args: 2) ifFalse: [^self fail].
-	src := self stringArg: 0.
-	stage := self intArg: 1.
-	bad ifTrue: [
-		libc free: src.
-		^self fail].
-	size := self local: 'size_t'.
-	size value: 0.
-	spirv := gpu compileShader: src stage: stage asInt32 size: size.
-	libc free: src.
-	spirv isNull ifTrue: [^self fail].
-	result := memory allocBytes: memory clsBytearray count: size value.
-	libc memcpy: (self bytesOf: result) from: spirv size: size value.
-	libc free: spirv.
-	self answer: result
-!
-primGpuCreatePipeline
-	"dev vs fs stride attrs {fmt. off. ...} primitive blend targetFormat -> pipeline"
-	<vmPrimitive: 434 name: 'gpuCreatePipeline'>
-	| d vs fs stride prim blend fmt attrs va n f off |
-	(self args: 8) ifFalse: [^self fail].
-	d := self intArg: 0.
-	vs := self intArg: 1.
-	fs := self intArg: 2.
-	stride := self intArg: 3.
-	prim := self intArg: 5.
-	blend := self intArg: 6.
-	fmt := self intArg: 7.
-	attrs := self arg: 4.
-	bad ifTrue: [^self fail].
-	((self isPtr: attrs) and: [(self formatOf: attrs) = F_VAR and: [((self numSlots: attrs) bitAnd: 1) = 0 and: [(self numSlots: attrs) <= 32]]]) ifFalse: [^self fail].
-	va := self local: 'pf_vattr[16]'.
-	n := ((self numSlots: attrs) quo: 2) asInt32.
-	0 to: n - 1 do: [:i |
-		f := self loadRef: attrs at: 2 * i.
-		off := self loadRef: attrs at: (2 * i) + 1.
-		((self isInt: f) and: [self isInt: off]) ifFalse: [^self fail].
-		(va at: i) format: (self intVal: f) asInt32.
-		(va at: i) offset: (self intVal: off) asInt32].
-	self answerHandle: (gpu createPipeline: d asInt32 vertexShader: vs asInt32 fragmentShader: fs asInt32 stride: stride asInt32
-		attributes: va count: n primitive: prim asInt32 blend: blend asInt32 targetFormat: fmt asInt32)
-!
-primGpuCreateBuffer
-	"dev usage (1 vertex) size -> buf"
-	<vmPrimitive: 437 name: 'gpuCreateBuffer'>
-	| d u n |
-	(self args: 3) ifFalse: [^self fail].
-	d := self intArg: 0.
-	u := self intArg: 1.
-	n := self intArg: 2.
-	bad ifTrue: [^self fail].
-	(n <= 0 or: [n > 16rFFFFFFFF]) ifTrue: [^self fail].
-	self answerHandle: (gpu createBuffer: d asInt32 usage: u asInt32 size: n asUInt32)
-!
-primGpuUploadBuffer
-	"buf bytes byteCount dstOffset"
-	<vmPrimitive: 439 name: 'gpuUploadBuffer'>
-	| b n off len p |
-	(self args: 4) ifFalse: [^self fail].
-	b := self intArg: 0.
-	n := self intArg: 2.
-	off := self intArg: 3.
-	bad ifTrue: [^self fail].
-	len := self local: 'size_t'.
-	p := self bytesOf: (self arg: 1) size: len writable: false.
-	(p isNull or: [n < 0 or: [n asUInt64 > len value or: [off < 0 or: [off > 16rFFFFFFFF]]]]) ifTrue: [^self fail].
-	self answerOk: (gpu uploadBuffer: b asInt32 data: p count: n asUInt32 offset: off asUInt32)
-!
-primGpuUploadTexture
-	"tex bytes x y w h bytesPerRow"
-	<vmPrimitive: 440 name: 'gpuUploadTexture'>
-	| t x y w h bpr len p |
-	(self args: 7) ifFalse: [^self fail].
-	t := self intArg: 0.
-	x := self intArg: 2.
-	y := self intArg: 3.
-	w := self intArg: 4.
-	h := self intArg: 5.
-	bpr := self intArg: 6.
-	bad ifTrue: [^self fail].
-	len := self local: 'size_t'.
-	p := self bytesOf: (self arg: 1) size: len writable: false.
-	p isNull ifTrue: [^self fail].
-	self answerOk: (gpu uploadTexture: t asInt32 data: p length: len value x: x asInt32 y: y asInt32 width: w asInt32 height: h asInt32 bytesPerRow: bpr asInt32)
-!
-primGpuAcquireSwapchain
-	"cmd win -> {tex. w. h} or nil"
-	<vmPrimitive: 442 name: 'gpuAcquireSwapchain'>
-	| c win w h t v |
-	(self args: 2) ifFalse: [^self fail].
-	c := self intArg: 0.
-	win := self intArg: 1.
-	bad ifTrue: [^self fail].
-	w := self local: 'int'.
-	h := self local: 'int'.
-	t := gpu acquireSwapchain: c asInt32 window: win asInt32 width: w height: h.
-	t = 0 ifTrue: [
-		^(common lastErrorString at: 0) ~= 0
-			ifTrue: [self fail]
-			ifFalse: [self answer: memory nilOop]].
-	v := self local: 'int64_t[3]'.
-	v at: 0 put: t.
-	v at: 1 put: w value.
-	v at: 2 put: h value.
-	self answer: (self arrayOf: v count: 3)
-!
-primGpuBeginPass
-	"cmd tex clear ({r. g. b. a} or nil = load) -> pass"
-	<vmPrimitive: 443 name: 'gpuBeginPass'>
-	| c t cl rgba d |
-	(self args: 3) ifFalse: [^self fail].
-	c := self intArg: 0.
-	t := self intArg: 1.
-	cl := self arg: 2.
-	bad ifTrue: [^self fail].
-	rgba := self local: 'float[4]'.
-	d := self local: 'double'.
-	cl ~= memory nilOop ifTrue: [
-		((self isPtr: cl) and: [(self formatOf: cl) = F_VAR and: [(self numSlots: cl) = 4]]) ifFalse: [^self fail].
-		0 to: 3 do: [:i |
-			(self numberOf: (self loadRef: cl at: i) into: d) ifFalse: [^self fail].
-			rgba at: i put: d value]].
-	self answerHandle: (gpu beginPass: c asInt32 target: t asInt32 clear: (cl = memory nilOop ifTrue: [self null] ifFalse: [rgba]))
-!
-primGpuPushUniforms
-	"cmdOrPass stage slot bytes"
-	<vmPrimitive: 449 name: 'gpuPushUniforms'>
-	| c st sl len p |
-	(self args: 4) ifFalse: [^self fail].
-	c := self intArg: 0.
-	st := self intArg: 1.
-	sl := self intArg: 2.
-	bad ifTrue: [^self fail].
-	len := self local: 'size_t'.
-	p := self bytesOf: (self arg: 3) size: len writable: false.
-	p isNull ifTrue: [^self fail].
-	self answerOk: (gpu pushUniforms: c asInt32 stage: st asInt32 slot: sl asInt32 data: p count: len value asUInt32)
-!
-primGpuBlit
-	"cmd src {x. y. w. h} dst {x. y. w. h} linear"
-	<vmPrimitive: 452 name: 'gpuBlit'>
-	| c s d linear sr dr |
-	(self args: 6) ifFalse: [^self fail].
-	c := self intArg: 0.
-	s := self intArg: 1.
-	d := self intArg: 3.
-	linear := self boolArg: 5.
-	sr := self local: 'int[4]'.
-	dr := self local: 'int[4]'.
-	(bad or: [(self rect: (self arg: 2) into: sr) not or: [(self rect: (self arg: 4) into: dr) not]]) ifTrue: [^self fail].
-	self answerOk: (gpu blit: c asInt32 source: s asInt32 rect: sr destination: d asInt32 rect: dr linear: linear)
-!
-primGpuSubmit
-	"cmd wantFence -> fence or nil"
-	<vmPrimitive: 453 name: 'gpuSubmit'>
-	| c want ok f |
-	(self args: 2) ifFalse: [^self fail].
-	c := self intArg: 0.
-	want := self boolArg: 1.
-	bad ifTrue: [^self fail].
-	ok := self local: 'bool'.
-	f := gpu submit: c asInt32 fence: want ok: ok.
-	ok value ifFalse: [^self fail].
-	self answer: (f ~= 0 ifTrue: [self intOop: f] ifFalse: [memory nilOop])
-!
-primGpuDownload
-	"tex x y w h bytes -> bytes"
-	<vmPrimitive: 456 name: 'gpuDownload'>
-	| t x y w h buf len p |
-	(self args: 6) ifFalse: [^self fail].
-	t := self intArg: 0.
-	x := self intArg: 1.
-	y := self intArg: 2.
-	w := self intArg: 3.
-	h := self intArg: 4.
-	bad ifTrue: [^self fail].
-	buf := self arg: 5.
-	len := self local: 'size_t'.
-	p := self bytesOf: buf size: len writable: true.
-	(p isNull or: [(gpu download: t asInt32 x: x asInt32 y: y asInt32 width: w asInt32 height: h asInt32 into: p length: len value) not]) ifTrue: [^self fail].
-	self answer: buf
-!
 primGpuTextureSize
 	"tex -> {w. h. format}"
 	<vmPrimitive: 457 name: 'gpuTextureSize'>
@@ -695,17 +227,6 @@ primGpuTextureSize
 	v at: 1 put: h value.
 	v at: 2 put: f value.
 	self answer: (self arrayOf: v count: 3)
-!
-primGpuFenceElapsed
-	"fence -> µs from submit to completion, or nil while pending"
-	<vmPrimitive: 459 name: 'gpuFenceElapsed'>
-	| f r |
-	(self args: 1) ifFalse: [^self fail].
-	f := self intArg: 0.
-	bad ifTrue: [^self fail].
-	r := gpu fenceElapsed: f asInt32.
-	r = -2 ifTrue: [^self fail].
-	self answer: (r < 0 ifTrue: [memory nilOop] ifFalse: [self intOop: r])
 ! !
 
 !PlatformPrimitives methodsFor: 'files and processes'!
@@ -717,59 +238,6 @@ pathOp: aBlock
 	ok := bad not and: [aBlock value: p].
 	libc free: p.
 	self answerOk: ok
-!
-primFileSeek
-	"file position (0-based)"
-	<vmPrimitive: 506 name: 'fileSeek'>
-	| f pos |
-	(self args: 2) ifFalse: [^self fail].
-	f := self intArg: 0.
-	pos := self intArg: 1.
-	bad ifTrue: [^self fail].
-	self answerOk: (pos >= 0 and: [files seek: f asInt32 to: pos])
-!
-primFileStat
-	"path -> {exists. isDirectory. size. mtimeMicroseconds}"
-	<vmPrimitive: 510 name: 'fileStat'>
-	| p st ok a v |
-	(self args: 1) ifFalse: [^self fail].
-	p := self stringArg: 0.
-	st := self local: 'pf_stat'.
-	ok := bad not and: [files stat: p into: st].
-	libc free: p.
-	ok ifFalse: [^self fail].
-	a := self local: 'oop'.
-	a value: (memory allocSlots: memory clsArray count: 4).
-	memory pushRoot: a.
-	self storeRef: a value at: 0 put: (self bool: st exists).
-	self storeRef: a value at: 1 put: (self bool: st isDir).
-	v := memory int64Oop: st fileSize.
-	self storeRef: a value at: 2 put: v.
-	v := memory int64Oop: st mtimeUs.
-	self storeRef: a value at: 3 put: v.
-	memory popRoot.
-	self answer: a value
-!
-primDirEntries
-	"path -> Array of Strings"
-	<vmPrimitive: 511 name: 'dirEntries'>
-	| p n v a s |
-	(self args: 1) ifFalse: [^self fail].
-	p := self stringArg: 0.
-	n := self local: 'int'.
-	v := bad ifTrue: [self cCoerce: self null to: 'char **'] ifFalse: [files dirEntries: p count: n].
-	libc free: p.
-	v isNull ifTrue: [^self fail].
-	a := self local: 'oop'.
-	a value: (memory allocSlots: memory clsArray count: n value asUInt32).
-	memory pushRoot: a.
-	0 to: n value - 1 do: [:i |
-		s := memory stringFromUtf8: (v at: i) size: (libc strlen: (v at: i)).
-		self storeRef: a value at: i put: s.
-		libc free: (v at: i)].
-	memory popRoot.
-	libc free: v.
-	self answer: a value
 !
 primSpawnProcess
 	"argv (Array of Strings, PATH lookup) -> pid"
@@ -793,21 +261,6 @@ primExecProcess
 	argv isNull ifTrue: [^self fail].
 	files exec: argv.
 	self freeVector: argv.
-	self fail
-! !
-
-!PlatformPrimitives methodsFor: 'sockets'!
-primSocketAccept
-	"socket -> socket or nil"
-	<vmPrimitive: 542 name: 'socketAccept'>
-	| s wb h |
-	(self args: 1) ifFalse: [^self fail].
-	s := self intArg: 0.
-	bad ifTrue: [^self fail].
-	wb := self local: 'bool'.
-	h := sockets accept: s asInt32 wouldBlock: wb.
-	h ~= 0 ifTrue: [^self answer: (self intOop: h)].
-	wb value ifTrue: [^self answer: memory nilOop].
 	self fail
 ! !
 
@@ -908,28 +361,6 @@ primPtyForeground
 	group := ptys foreground: h asInt32.
 	group < 0 ifTrue: [^self fail].
 	self answer: (self intOop: group asInt64)
-! !
-
-!PlatformPrimitives methodsFor: 'clipboard'!
-primClipboardData
-	"MIME type -> bytes, or nil when unavailable."
-	<vmPrimitive: 420 name: 'clipboardData'>
-	| mime size data result |
-	(self args: 1) ifFalse: [^self fail].
-	mime := self stringArg: 0.
-	bad ifTrue: [^self fail].
-	size := self local: 'size_t'.
-	size value: 0.
-	data := windows clipboardData: mime size: size.
-	libc free: mime.
-	data isNull ifTrue: [^self answer: memory nilOop].
-	(size value = 0 or: [size value > 20971520]) ifTrue: [
-		windows freeClipboardData: data.
-		^self answer: memory nilOop].
-	result := memory allocBytes: memory clsBytearray count: size value.
-	libc memcpy: (self bytesOf: result) from: data size: size value.
-	windows freeClipboardData: data.
-	self answer: result
 ! !
 
 !PlatformPrimitives methodsFor: 'machine'!

@@ -288,10 +288,8 @@ These are whole-call measurements on one host, not the price of an
 individual guard, miss, or syscall. The tiny scalar target makes dispatch
 a larger fraction of the loop than in the PTY cases.
 
-For the earlier generated-wrapper and legacy facade measurements, see
-[wrapped FFI](../vm/tests/bench/wrapped-ffi.md) and
-[PTY facade attribution](../vm/tests/bench/pty-facade.md). Neither is an
-`ffi-site` on/off comparison.
+See [wrapped FFI](../vm/tests/bench/wrapped-ffi.md) for generated-wrapper measurements
+and [paired FFI benchmarks](../vm/tests/bench/ffi-paired.md) for matched-revision comparisons.
 
 ## The Benchmarks Game's Pharo programs
 

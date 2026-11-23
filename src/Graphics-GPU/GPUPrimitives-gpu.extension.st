@@ -1,13 +1,13 @@
-!GPUPrimitives class methodsFor: 'FFI candidates - commands'!
-ffiCandidateSetViewport: pass x: x y: y width: w height: h
+!GPUPrimitives class methodsFor: 'platform - commands'!
+setViewport: pass x: x y: y width: w height: h
 	| binding result |
 	binding := GPUPlatformFFI viewportCall.
 	"Legacy accepts Float or SmallInteger, not arbitrary Number coercions."
 	(binding isNil or: [(self ffiViewportNumber: x) not or: [(self ffiViewportNumber: y) not
 		or: [(self ffiViewportNumber: w) not or: [(self ffiViewportNumber: h) not]]]]) ifTrue: [
-		^self setViewport: pass x: x y: y width: w height: h].
+		^self ffiRejected: 'gpuSetViewport'].
 	result := binding tryInvoke5: pass with: x asFloat with: y asFloat with: w asFloat with: h asFloat.
-	result == false ifTrue: [^self setViewport: pass x: x y: y width: w height: h].
+	result == false ifTrue: [^self ffiRejected: 'gpuSetViewport'].
 	result = 0 ifTrue: [^self fail: 'gpuSetViewport'].
 	^self
 !
@@ -16,293 +16,300 @@ ffiViewportNumber: aNumber
 	cls := aNumber class.
 	^cls == SmallFloat64 or: [cls == BoxedFloat64 or: [cls == SmallInteger]]
 !
-ffiCandidateSetScissor: pass x: x y: y width: w height: h
+setScissor: pass x: x y: y width: w height: h
 	| binding result |
 	binding := GPUPlatformFFI scissorCall.
 	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke5: pass with: x with: y with: w with: h].
-	result == false ifTrue: [^self setScissor: pass x: x y: y width: w height: h].
+	result == false ifTrue: [^self ffiRejected: 'gpuSetScissor'].
 	result = 0 ifTrue: [^self fail: 'gpuSetScissor'].
 	^self
 !
-ffiCandidateEndPass: pass
+endPass: pass
 	| binding result |
 	binding := GPUPlatformFFI endPassCall.
 	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: pass].
-	result == false ifTrue: [^self endPass: pass].
+	result == false ifTrue: [^self ffiRejected: 'gpuEndPass'].
 	result = 0 ifTrue: [^self fail: 'gpuEndPass'].
 	^self
 ! !
 
-!GPUPrimitives class methodsFor: 'FFI candidates - submission'!
-ffiCandidateSubmit: commandBuffer fence: wantFence
+!GPUPrimitives class methodsFor: 'platform - submission'!
+submit: commandBuffer fence: wantFence
 	| binding result |
 	binding := GPUPlatformFFI submitCall.
 	(binding isNil or: [wantFence ~~ true and: [wantFence ~~ false]]) ifTrue: [
-		^self submit: commandBuffer fence: wantFence].
+		^self ffiRejected: 'gpuSubmit'].
 	result := binding tryInvoke2: commandBuffer with: (wantFence ifTrue: [1] ifFalse: [0]).
-	result == false ifTrue: [^self submit: commandBuffer fence: wantFence].
+	result == false ifTrue: [^self ffiRejected: 'gpuSubmit'].
 	result < 0 ifTrue: [^self fail: 'gpuSubmit'].
 	^result = 0 ifTrue: [nil] ifFalse: [result]
 !
-ffiCandidateFenceDone: fence
+fenceDone: fence
 	| binding result |
 	binding := GPUPlatformFFI fenceDoneCall.
 	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: fence].
-	result == false ifTrue: [^self fenceDone: fence].
+	result == false ifTrue: [^self ffiRejected: 'gpuFenceDone'].
 	result < 0 ifTrue: [^self fail: 'gpuFenceDone'].
 	^result = 1
 !
-ffiCandidateFenceElapsed: fence
+fenceElapsed: fence
 	| binding result |
 	binding := GPUPlatformFFI fenceElapsedCall.
 	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: fence].
-	result == false ifTrue: [^self fenceElapsed: fence].
+	result == false ifTrue: [^self ffiRejected: 'gpuFenceElapsed'].
 	result = -2 ifTrue: [^self fail: 'gpuFenceElapsed'].
 	^result < 0 ifTrue: [nil] ifFalse: [result]
 !
-ffiCandidateWaitFence: fence
+waitFence: fence
 	| binding result |
 	binding := GPUPlatformFFI waitFenceCall.
 	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: fence].
-	result == false ifTrue: [^self waitFence: fence].
+	result == false ifTrue: [^self ffiRejected: 'gpuWaitFence'].
 	result = 0 ifTrue: [^self fail: 'gpuWaitFence'].
 	^self
 ! !
 
-!GPUPrimitives class methodsFor: 'FFI candidates - pass creation'!
-ffiCandidateAcquireSwapchain: commandBuffer window: window
+!GPUPrimitives class methodsFor: 'platform - pass creation'!
+acquireSwapchain: commandBuffer window: window
 	| binding bytes result |
 	binding := GPUPlatformFFI swapchainCall.
-	binding isNil ifTrue: [^self acquireSwapchain: commandBuffer window: window].
+	binding isNil ifTrue: [^self ffiRejected: 'gpuAcquireSwapchain'].
 	bytes := ByteArray new: 12.
 	result := binding tryInvoke3: commandBuffer with: window with: {bytes. 1. 12}.
-	result == false ifTrue: [^self acquireSwapchain: commandBuffer window: window].
+	result == false ifTrue: [^self ffiRejected: 'gpuAcquireSwapchain'].
 	result < 0 ifTrue: [^self fail: 'gpuAcquireSwapchain'].
 	result = 0 ifTrue: [^nil].
 	^{bytes uint32At: 1. bytes uint32At: 5. bytes uint32At: 9}
 !
-ffiCandidateBeginPass: commandBuffer target: texture clear: rgbaOrNil
+beginPass: commandBuffer target: texture clear: rgbaOrNil
 	| binding result |
 	rgbaOrNil isNil
 		ifTrue: [
 			binding := GPUPlatformFFI beginLoadCall.
 			result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke2: commandBuffer with: texture]]
 		ifFalse: [
-			(rgbaOrNil class == Array and: [rgbaOrNil size = 4 and: [
-				rgbaOrNil allSatisfy: [:v | self ffiViewportNumber: v]]]) ifFalse: [
-					^self beginPass: commandBuffer target: texture clear: rgbaOrNil].
+			(rgbaOrNil class instSpec = VMConstants fVar and: [rgbaOrNil basicSize = 4 and: [
+				(1 to: 4) allSatisfy: [:i | self ffiViewportNumber: (rgbaOrNil basicAt: i)]]]) ifFalse: [
+					^self ffiRejected: 'gpuBeginPass'].
 			binding := GPUPlatformFFI beginClearCall.
 			result := binding isNil ifTrue: [false] ifFalse: [
 				binding tryInvoke6: commandBuffer with: texture
-					with: (rgbaOrNil at: 1) asFloat with: (rgbaOrNil at: 2) asFloat
-					with: (rgbaOrNil at: 3) asFloat with: (rgbaOrNil at: 4) asFloat]].
-	result == false ifTrue: [^self beginPass: commandBuffer target: texture clear: rgbaOrNil].
+					with: (rgbaOrNil basicAt: 1) asFloat with: (rgbaOrNil basicAt: 2) asFloat
+					with: (rgbaOrNil basicAt: 3) asFloat with: (rgbaOrNil basicAt: 4) asFloat]].
+	result == false ifTrue: [^self ffiRejected: 'gpuBeginPass'].
 	result = 0 ifTrue: [^self fail: 'gpuBeginPass'].
 	^result
 ! !
 
-!GPUPrimitives class methodsFor: 'FFI candidates - transfers'!
-ffiCandidateUploadBuffer: buffer bytes: bytes count: byteCount offset: dstOffset
-	| binding result |
+!GPUPrimitives class methodsFor: 'platform - transfers'!
+uploadBuffer: buffer bytes: bytes count: byteCount offset: dstOffset
+	| binding data result |
 	binding := GPUPlatformFFI uploadBufferCall.
-	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke3: buffer with: {bytes. 1. byteCount} with: dstOffset].
-	result == false ifTrue: [^self uploadBuffer: buffer bytes: bytes count: byteCount offset: dstOffset].
+	binding isNil ifTrue: [^self ffiRejected: 'gpuUploadBuffer'].
+	data := GPUPlatformFFI transferBytesFor: bytes.
+	data isNil ifTrue: [^self ffiRejected: 'gpuUploadBuffer'].
+	result := binding tryInvoke3: buffer with: {data. 1. byteCount} with: dstOffset.
+	result == false ifTrue: [^self ffiRejected: 'gpuUploadBuffer'].
 	result = 0 ifTrue: [^self fail: 'gpuUploadBuffer'].
 	^self
 !
-ffiCandidateUploadTexture: texture bytes: bytes x: x y: y width: w height: h bytesPerRow: bytesPerRow
-	| binding region result |
+uploadTexture: texture bytes: bytes x: x y: y width: w height: h bytesPerRow: bytesPerRow
+	| binding data region result |
 	binding := GPUPlatformFFI uploadTextureCall.
-	(binding isNil or: [bytes class ~~ ByteArray]) ifTrue: [
-		^self uploadTexture: texture bytes: bytes x: x y: y width: w height: h bytesPerRow: bytesPerRow].
+	binding isNil ifTrue: [^self ffiRejected: 'gpuUploadTexture'].
 	region := GPUPlatformFFI regionFrom: {x. y. w. h. bytesPerRow}.
-	region isNil ifTrue: [^self uploadTexture: texture bytes: bytes x: x y: y width: w height: h bytesPerRow: bytesPerRow].
-	result := binding tryInvoke3: texture with: {bytes. 1. bytes size} with: {region. 1. 20}.
-	result == false ifTrue: [^self uploadTexture: texture bytes: bytes x: x y: y width: w height: h bytesPerRow: bytesPerRow].
+	data := GPUPlatformFFI transferBytesFor: bytes.
+	(region isNil or: [data isNil]) ifTrue: [^self ffiRejected: 'gpuUploadTexture'].
+	result := binding tryInvoke3: texture with: {data. 1. data size} with: {region. 1. 20}.
+	result == false ifTrue: [^self ffiRejected: 'gpuUploadTexture'].
 	result = 0 ifTrue: [^self fail: 'gpuUploadTexture'].
 	^self
 !
-ffiCandidateDownload: texture x: x y: y width: w height: h into: bytes
-	| binding region result |
+download: texture x: x y: y width: w height: h into: bytes
+	| binding data region result |
 	binding := GPUPlatformFFI downloadCall.
-	(binding isNil or: [bytes class ~~ ByteArray]) ifTrue: [^self download: texture x: x y: y width: w height: h into: bytes].
+	(binding isNil or: [bytes isReadOnlyObject]) ifTrue: [^self ffiRejected: 'gpuDownload'].
 	region := GPUPlatformFFI regionFrom: {x. y. w. h}.
-	region isNil ifTrue: [^self download: texture x: x y: y width: w height: h into: bytes].
-	result := binding tryInvoke3: texture with: {region. 1. 16} with: {bytes. 1. bytes size}.
-	result == false ifTrue: [^self download: texture x: x y: y width: w height: h into: bytes].
+	data := GPUPlatformFFI transferBytesFor: bytes.
+	(region isNil or: [data isNil]) ifTrue: [^self ffiRejected: 'gpuDownload'].
+	result := binding tryInvoke3: texture with: {region. 1. 16} with: {data. 1. data size}.
+	result == false ifTrue: [^self ffiRejected: 'gpuDownload'].
 	result = 0 ifTrue: [^self fail: 'gpuDownload'].
+	data == bytes ifFalse: [GPUPlatformFFI copyTransferBytes: data into: bytes].
 	^bytes
 ! !
 
-!GPUPrimitives class methodsFor: 'FFI candidates - devices and resources'!
-ffiCandidateCreateDevice: debug
+!GPUPrimitives class methodsFor: 'platform - devices and resources'!
+createDevice: debug
 	<ffiSite>
 	| result |
-	(debug ~~ true and: [debug ~~ false]) ifTrue: [^self createDevice: debug].
+	(debug ~~ true and: [debug ~~ false]) ifTrue: [^self ffiRejected: 'gpuCreateDevice'].
 	result := (self ffiSite: #(call 'platform' 'platform_gpu_create_device' (i32) i32))
 		tryInvoke1: (debug ifTrue: [1] ifFalse: [0]).
-	result == false ifTrue: [^self createDevice: debug].
+	result == false ifTrue: [^self ffiRejected: 'gpuCreateDevice'].
 	result = 0 ifTrue: [^self fail: 'gpuCreateDevice'].
 	^result
 !
-ffiCandidateClaim: dev window: window
+claim: dev window: window
 	<ffiSite>
 	| result |
 	result := (self ffiSite: #(call 'platform' 'platform_gpu_claim_window' (i32 i32) i32))
 		tryInvoke2: dev with: window.
-	result == false ifTrue: [^self claim: dev window: window].
+	result == false ifTrue: [^self ffiRejected: 'gpuClaimWindow'].
 	result = 0 ifTrue: [^self fail: 'gpuClaimWindow'].
 	^self
 !
-ffiCandidateSwapchainFormat: dev window: window
+swapchainFormat: dev window: window
 	<ffiSite>
 	| result |
 	result := (self ffiSite: #(call 'platform' 'platform_gpu_swapchain_format' (i32 i32) i32))
 		tryInvoke2: dev with: window.
-	result == false ifTrue: [^self swapchainFormat: dev window: window].
+	result == false ifTrue: [^self ffiRejected: 'gpuSwapchainFormat'].
 	result = 0 ifTrue: [^self fail: 'gpuSwapchainFormat'].
 	^result
 !
-ffiCandidateCreateTexture: dev width: w height: h format: format usage: usage
+createTexture: dev width: w height: h format: format usage: usage
 	<ffiSite>
 	| result |
 	result := (self ffiSite: #(call 'platform' 'platform_gpu_create_texture' (i32 i32 i32 i32 i32) i32))
 		tryInvoke5: dev with: w with: h with: format with: usage.
-	result == false ifTrue: [^self createTexture: dev width: w height: h format: format usage: usage].
+	result == false ifTrue: [^self ffiRejected: 'gpuCreateTexture'].
 	result = 0 ifTrue: [^self fail: 'gpuCreateTexture'].
 	^result
 !
-ffiCandidateCreateSampler: dev linear: linear repeat: repeat
+createSampler: dev linear: linear repeat: repeat
 	<ffiSite>
 	| result |
 	((linear ~~ true and: [linear ~~ false]) or: [repeat ~~ true and: [repeat ~~ false]]) ifTrue: [
-		^self createSampler: dev linear: linear repeat: repeat].
+		^self ffiRejected: 'gpuCreateSampler'].
 	result := (self ffiSite: #(call 'platform' 'platform_gpu_create_sampler' (i32 i32 i32) i32))
 		tryInvoke3: dev with: (linear ifTrue: [1] ifFalse: [0]) with: (repeat ifTrue: [1] ifFalse: [0]).
-	result == false ifTrue: [^self createSampler: dev linear: linear repeat: repeat].
+	result == false ifTrue: [^self ffiRejected: 'gpuCreateSampler'].
 	result = 0 ifTrue: [^self fail: 'gpuCreateSampler'].
 	^result
 !
-ffiCandidateCreateBuffer: dev usage: usage size: size
+createBuffer: dev usage: usage size: size
 	<ffiSite>
 	| result |
 	result := (self ffiSite: #(call 'platform' 'platform_gpu_create_buffer' (i32 i32 u32) i32))
 		tryInvoke3: dev with: usage with: size.
-	result == false ifTrue: [^self createBuffer: dev usage: usage size: size].
+	result == false ifTrue: [^self ffiRejected: 'gpuCreateBuffer'].
 	result = 0 ifTrue: [^self fail: 'gpuCreateBuffer'].
 	^result
 !
-ffiCandidateRelease: handle
+release: handle
 	<ffiSite>
 	| result |
 	result := (self ffiSite: #(call 'platform' 'platform_gpu_release' (i32) i32)) tryInvoke1: handle.
-	result == false ifTrue: [^self release: handle].
+	result == false ifTrue: [^self ffiRejected: 'gpuRelease'].
 	result = 0 ifTrue: [^self fail: 'gpuRelease'].
 	^self
 !
-ffiCandidateAcquireCommandBuffer: dev
+acquireCommandBuffer: dev
 	<ffiSite>
 	| result |
 	result := (self ffiSite: #(call 'platform' 'platform_gpu_acquire_command_buffer' (i32) i32)) tryInvoke1: dev.
-	result == false ifTrue: [^self acquireCommandBuffer: dev].
+	result == false ifTrue: [^self ffiRejected: 'gpuAcquireCommandBuffer'].
 	result = 0 ifTrue: [^self fail: 'gpuAcquireCommandBuffer'].
 	^result
 !
-ffiCandidateWaitIdle: dev
+waitIdle: dev
 	<ffiSite>
 	| result |
 	result := (self ffiSite: #(call 'platform' 'platform_gpu_wait_idle' (i32) i32)) tryInvoke1: dev.
-	result == false ifTrue: [^self waitIdle: dev].
+	result == false ifTrue: [^self ffiRejected: 'gpuWaitIdle'].
 	result = 0 ifTrue: [^self fail: 'gpuWaitIdle'].
 	^self
 !
-ffiCandidateShaderLanguage: dev
+shaderLanguage: dev
 	<ffiSite>
 	| result |
 	result := (self ffiSite: #(call 'platform' 'platform_gpu_shader_language' (i32) i32)) tryInvoke1: dev.
-	result == false ifTrue: [^self shaderLanguage: dev].
+	result == false ifTrue: [^self ffiRejected: 'gpuShaderLanguage'].
 	result = 1 ifTrue: [^'msl' copy].
 	result = 2 ifTrue: [^'glsl' copy].
 	^self fail: 'gpuShaderLanguage'
 ! !
 
-!GPUPrimitives class methodsFor: 'FFI candidates - render bindings'!
-ffiCandidateBindPipeline: pass pipeline: pipeline
+!GPUPrimitives class methodsFor: 'platform - render bindings'!
+bindPipeline: pass pipeline: pipeline
 	<ffiSite>
 	| result |
 	result := (self ffiSite: #(call 'platform' 'platform_gpu_bind_pipeline' (i32 i32) i32))
 		tryInvoke2: pass with: pipeline.
-	result == false ifTrue: [^self bindPipeline: pass pipeline: pipeline].
+	result == false ifTrue: [^self ffiRejected: 'gpuBindPipeline'].
 	result = 0 ifTrue: [^self fail: 'gpuBindPipeline'].
 	^self
 !
-ffiCandidateBindVertexBuffer: pass slot: slot buffer: buffer offset: offset
+bindVertexBuffer: pass slot: slot buffer: buffer offset: offset
 	<ffiSite>
 	| result |
 	result := (self ffiSite: #(call 'platform' 'platform_gpu_bind_vertex_buffer' (i32 i32 i32 u32) i32))
 		tryInvoke4: pass with: slot with: buffer with: offset.
-	result == false ifTrue: [^self bindVertexBuffer: pass slot: slot buffer: buffer offset: offset].
+	result == false ifTrue: [^self ffiRejected: 'gpuBindVertexBuffer'].
 	result = 0 ifTrue: [^self fail: 'gpuBindVertexBuffer'].
 	^self
 !
-ffiCandidateBindTexture: pass slot: slot texture: texture sampler: sampler
+bindTexture: pass slot: slot texture: texture sampler: sampler
 	<ffiSite>
 	| result |
 	result := (self ffiSite: #(call 'platform' 'platform_gpu_bind_texture' (i32 i32 i32 i32) i32))
 		tryInvoke4: pass with: slot with: texture with: sampler.
-	result == false ifTrue: [^self bindTexture: pass slot: slot texture: texture sampler: sampler].
+	result == false ifTrue: [^self ffiRejected: 'gpuBindTexture'].
 	result = 0 ifTrue: [^self fail: 'gpuBindTexture'].
 	^self
 !
-ffiCandidatePushUniforms: commandOrPass stage: stage slot: slot bytes: bytes
+pushUniforms: commandOrPass stage: stage slot: slot bytes: bytes
 	<ffiSite>
-	| result |
-	(bytes class ~~ ByteArray or: [bytes size > 4096]) ifTrue: [
-		^self pushUniforms: commandOrPass stage: stage slot: slot bytes: bytes].
+	| data result |
+	data := GPUPlatformFFI transferBytesFor: bytes.
+	data isNil ifTrue: [^self ffiRejected: 'gpuPushUniforms'].
 	result := (self ffiSite: #(call 'platform' 'platform_gpu_push_uniforms' (i32 i32 i32 bytesWithLength) i32))
-		tryInvoke4: commandOrPass with: stage with: slot with: {bytes. 1. bytes size}.
-	result == false ifTrue: [^self pushUniforms: commandOrPass stage: stage slot: slot bytes: bytes].
+		tryInvoke4: commandOrPass with: stage with: slot with: {data. 1. data size}.
+	result == false ifTrue: [^self ffiRejected: 'gpuPushUniforms'].
 	result = 0 ifTrue: [^self fail: 'gpuPushUniforms'].
 	^self
 ! !
 
-!GPUPrimitives class methodsFor: 'FFI candidates - shaders'!
-ffiCandidateCompileShader: glsl stage: stage
+!GPUPrimitives class methodsFor: 'platform - shaders'!
+compileShader: glsl stage: stage
 	<ffiSite>
 	| source result |
-	source := PlatformFFI cTextBytes: glsl.
-	source isNil ifTrue: [^self compileShader: glsl stage: stage].
-	result := GPUPlatformFFI shaderOutputFrom: [:receipt |
+	source := WindowPlatformFFI cTextBytes: glsl.
+	source isNil ifTrue: [^self ffiRejected: 'gpuCompileShader'].
+	result := FFIPagedPlatformOutput capture: [:receipt |
 		(self ffiSite: #(call 'platform' 'platform_gpu_compile_shader' (bytesWithLength i32 writableBytesWithLength) i32))
 			tryInvoke3: {source. 1. source size} with: stage with: {receipt. 1. 16}].
-	result == false ifTrue: [^self compileShader: glsl stage: stage].
+	result == false ifTrue: [^self ffiRejected: 'gpuCompileShader'].
+	result class == ByteArray ifFalse: [^self fail: 'gpuCompileShader'].
 	^result
 ! !
 
-!GPUPrimitives class methodsFor: 'FFI candidates - blit'!
-ffiCandidateBlit: cmd source: src rect: srcRect destination: dst rect: dstRect linear: linear
+!GPUPrimitives class methodsFor: 'platform - blit'!
+blit: cmd source: src rect: srcRect destination: dst rect: dstRect linear: linear
 	<ffiSite>
 	| rects result |
-	(srcRect class == Array and: [dstRect class == Array and: [srcRect size = 4 and: [
-		dstRect size = 4 and: [linear == true or: [linear == false]]]]]) ifFalse: [
-		^self blit: cmd source: src rect: srcRect destination: dst rect: dstRect linear: linear].
-	rects := GPUPlatformFFI regionFrom: srcRect , dstRect.
-	rects isNil ifTrue: [^self blit: cmd source: src rect: srcRect destination: dst rect: dstRect linear: linear].
+	((GPUPlatformFFI isVector: srcRect size: 4) and: [
+		(GPUPlatformFFI isVector: dstRect size: 4) and: [linear == true or: [linear == false]]]) ifFalse: [
+		^self ffiRejected: 'gpuBlit'].
+	rects := GPUPlatformFFI regionFrom: ((1 to: 8) collect: [:i |
+		i <= 4 ifTrue: [srcRect basicAt: i] ifFalse: [dstRect basicAt: i - 4]]).
+	rects isNil ifTrue: [^self ffiRejected: 'gpuBlit'].
 	result := (self ffiSite: #(call 'platform' 'platform_gpu_blit' (i32 i32 i32 i32 bytesWithLength) i32))
 		tryInvoke5: cmd with: src with: dst with: (linear ifTrue: [1] ifFalse: [0]) with: {rects. 1. 32}.
-	result == false ifTrue: [^self blit: cmd source: src rect: srcRect destination: dst rect: dstRect linear: linear].
+	result == false ifTrue: [^self ffiRejected: 'gpuBlit'].
 	result = 0 ifTrue: [^self fail: 'gpuBlit'].
 	^self
 ! !
 
-!GPUPrimitives class methodsFor: 'FFI candidates - shader resources'!
-ffiCandidateCreateShader: dev source: source entry: entry stage: stage samplers: samplers uniformBuffers: uniforms storageBuffers: storageBuffers storageTextures: storageTextures
+!GPUPrimitives class methodsFor: 'platform - shader resources'!
+createShader: dev source: source entry: entry stage: stage samplers: samplers uniformBuffers: uniforms storageBuffers: storageBuffers storageTextures: storageTextures
 	<ffiSite>
 	| kind code entryBytes config result |
 	kind := source class == ByteArray ifTrue: [1] ifFalse: [0].
-	code := kind = 1 ifTrue: [source] ifFalse: [PlatformFFI cTextBytes: source].
-	entryBytes := PlatformFFI cTextBytes: entry.
-	(code isNil or: [entryBytes isNil or: [code size > 67108864 or: [entryBytes size > 4096]]])
+	code := kind = 1 ifTrue: [source] ifFalse: [WindowPlatformFFI cTextBytes: source].
+	entryBytes := WindowPlatformFFI cTextBytes: entry.
+	(code isNil or: [entryBytes isNil])
 		ifTrue: [result := false]
 		ifFalse: [
 			config := GPUPlatformFFI regionFrom: {kind. stage. samplers. uniforms. storageBuffers. storageTextures}.
@@ -311,39 +318,33 @@ ffiCandidateCreateShader: dev source: source entry: entry stage: stage samplers:
 				(self ffiSite: #(call 'platform' 'platform_gpu_create_shader' (i32 bytesWithLength bytesWithLength) i32))
 					tryInvoke3: dev with: {code. 1. code size} with: {config. 1. config size}]].
 	result == false ifTrue: [
-		^self createShader: dev source: source entry: entry stage: stage samplers: samplers uniformBuffers: uniforms
-			storageBuffers: storageBuffers storageTextures: storageTextures].
+		^self ffiRejected: 'gpuCreateShader'].
 	result = 0 ifTrue: [^self fail: 'gpuCreateShader'].
 	^result
 !
-ffiCandidateCreatePipeline: dev vertex: vs fragment: fs stride: stride attributes: attributes primitive: prim blend: blend format: format
+createPipeline: dev vertex: vs fragment: fs stride: stride attributes: attributes primitive: prim blend: blend format: format
 	<ffiSite>
 	| config result |
-	config := (attributes class == Array and: [attributes size <= 32 and: [attributes size even]])
-		ifTrue: [GPUPlatformFFI regionFrom: {stride. prim. blend. format} , attributes]
+	config := (attributes class instSpec = VMConstants fVar and: [attributes basicSize <= 32 and: [attributes basicSize even]])
+		ifTrue: [GPUPlatformFFI regionFrom: {stride. prim. blend. format} ,
+			((1 to: attributes basicSize) collect: [:i | attributes basicAt: i])]
 		ifFalse: [nil].
 	result := config isNil ifTrue: [false] ifFalse: [
 		(self ffiSite: #(call 'platform' 'platform_gpu_create_pipeline' (i32 i32 i32 bytesWithLength) i32))
 			tryInvoke4: dev with: vs with: fs with: {config. 1. config size}].
 	result == false ifTrue: [
-		^self createPipeline: dev vertex: vs fragment: fs stride: stride attributes: attributes
-			primitive: prim blend: blend format: format].
+		^self ffiRejected: 'gpuCreatePipeline'].
 	result = 0 ifTrue: [^self fail: 'gpuCreatePipeline'].
 	^result
 ! !
 
-!GPUPrimitives class methodsFor: 'FFI candidates - draw'!
-ffiCandidateDraw: pass count: count first: first
+!GPUPrimitives class methodsFor: 'platform - draw'!
+draw: pass count: count first: first
 	<ffiSite>
-	| eligibility result |
-	"The non-drawing query may decline before entry to the drawing operation."
-	eligibility := (self ffiSite: #(call 'platform' 'platform_gpu_draw_eligibility' (i32 i32 i32) i32))
+	| result |
+	result := (self ffiSite: #(call 'platform' 'platform_gpu_draw' (i32 u32 u32) i32))
 		tryInvoke3: pass with: count with: first.
-	(eligibility == false or: [eligibility = 0]) ifTrue: [^self draw: pass count: count first: first].
-	eligibility < 0 ifTrue: [^self fail: 'gpuDraw'].
-	result := (self ffiSite: #(call 'platform' 'platform_gpu_draw' (i32 i32 i32) i32))
-		tryInvoke3: pass with: count with: first.
-	result == false ifTrue: [^self draw: pass count: count first: first].
+	result == false ifTrue: [^self ffiRejected: 'gpuDraw'].
 	result = 1 ifFalse: [^self fail: 'gpuDraw'].
 	^self
 ! !

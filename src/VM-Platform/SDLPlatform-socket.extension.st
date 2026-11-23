@@ -43,23 +43,21 @@ ffiSocketAccept: h
 !
 ffiSocketRecv: h bytes: buf count: n
 	<function>
-	<approvedFFI: 543 symbol: 'platform_sockets_recv' arguments: #(3 9) result: 1>
+	<approvedFFI: 543 symbol: 'platform_sockets_recv' arguments: #(3 9) result: 3>
 	<var: #h type: 'int64_t'>
 	<var: #buf type: 'uint8_t *'>
 	<var: #n type: 'uint64_t'>
-	<returns: 'int32_t'>
-	n > 16r7FFFFFFF ifTrue: [^self ffiSocketCountOverflow].
-	^(sockets recv: h asInt32 into: buf count: n) asInt32
+	<returns: 'int64_t'>
+	^sockets recv: h asInt32 into: buf count: n
 !
 ffiSocketSend: h bytes: buf count: n
 	<function>
-	<approvedFFI: 544 symbol: 'platform_sockets_send' arguments: #(3 8) result: 1>
+	<approvedFFI: 544 symbol: 'platform_sockets_send' arguments: #(3 8) result: 3>
 	<var: #h type: 'int64_t'>
 	<var: #buf type: 'const uint8_t *'>
 	<var: #n type: 'uint64_t'>
-	<returns: 'int32_t'>
-	n > 16r7FFFFFFF ifTrue: [^self ffiSocketCountOverflow].
-	^(sockets send: h asInt32 bytes: buf count: n) asInt32
+	<returns: 'int64_t'>
+	^sockets send: h asInt32 bytes: buf count: n
 !
 ffiSocketClose: h
 	<function>
@@ -120,23 +118,21 @@ ffiTLSStart: h host: name count: n
 !
 ffiTLSRecv: h bytes: buf count: n
 	<function>
-	<approvedFFI: 551 symbol: 'platform_tls_recv' arguments: #(3 9) result: 1>
+	<approvedFFI: 551 symbol: 'platform_tls_recv' arguments: #(3 9) result: 3>
 	<var: #h type: 'int64_t'>
 	<var: #buf type: 'uint8_t *'>
 	<var: #n type: 'uint64_t'>
-	<returns: 'int32_t'>
-	n > 16r7FFFFFFF ifTrue: [^self ffiSocketCountOverflow].
-	^(tls recvBorrowed: h asInt32 into: buf count: n) asInt32
+	<returns: 'int64_t'>
+	^tls recvBorrowed: h asInt32 into: buf count: n
 !
 ffiTLSSend: h bytes: buf count: n
 	<function>
-	<approvedFFI: 552 symbol: 'platform_tls_send' arguments: #(3 8) result: 1>
+	<approvedFFI: 552 symbol: 'platform_tls_send' arguments: #(3 8) result: 3>
 	<var: #h type: 'int64_t'>
 	<var: #buf type: 'const uint8_t *'>
 	<var: #n type: 'uint64_t'>
-	<returns: 'int32_t'>
-	n > 16r7FFFFFFF ifTrue: [^self ffiSocketCountOverflow].
-	^(tls sendOwned: h asInt32 bytes: buf count: n) asInt32
+	<returns: 'int64_t'>
+	^tls sendOwned: h asInt32 bytes: buf count: n
 !
 ffiTLSClose: h
 	<function>
@@ -163,23 +159,21 @@ ffiTLSHandshake: h
 !
 ffiPtyRead: h bytes: buf count: n
 	<function>
-	<approvedFFI: 561 symbol: 'pty_read' arguments: #(3 9) result: 1>
+	<approvedFFI: 561 symbol: 'pty_read' arguments: #(3 9) result: 3>
 	<var: #h type: 'int64_t'>
 	<var: #buf type: 'uint8_t *'>
 	<var: #n type: 'uint64_t'>
-	<returns: 'int32_t'>
-	n > 16r7FFFFFFF ifTrue: [^self ffiSocketCountOverflow].
-	^(sockets ptyRead: h asInt32 into: buf count: n) asInt32
+	<returns: 'int64_t'>
+	^sockets ptyRead: h asInt32 into: buf count: n
 !
 ffiPtyWrite: h bytes: buf count: n
 	<function>
-	<approvedFFI: 562 symbol: 'pty_write' arguments: #(3 8) result: 1>
+	<approvedFFI: 562 symbol: 'pty_write' arguments: #(3 8) result: 3>
 	<var: #h type: 'int64_t'>
 	<var: #buf type: 'const uint8_t *'>
 	<var: #n type: 'uint64_t'>
-	<returns: 'int32_t'>
-	n > 16r7FFFFFFF ifTrue: [^self ffiSocketCountOverflow].
-	^(sockets ptyWrite: h asInt32 bytes: buf count: n) asInt32
+	<returns: 'int64_t'>
+	^sockets ptyWrite: h asInt32 bytes: buf count: n
 !
 ffiPtySemaphore: h read: r write: w
 	<function>
@@ -203,12 +197,6 @@ ffiPtyWait: h blocking: block
 	done := self local: 'bool'.
 	(ptys wait: h asInt32 block: block ~= 0 status: status done: done) ifFalse: [^-2].
 	^done value ifTrue: [status value] ifFalse: [-1]
-!
-ffiSocketCountOverflow
-	<function>
-	<returns: 'int32_t'>
-	common setError: 'socket or pty byte count exceeds INT32_MAX'.
-	^-2
 !
 ffiSocketInvalidBlock
 	<function>

@@ -7,8 +7,7 @@ socketLocalPort
 	[
 		port := socket platformLocalPort: listener.
 		self case: 'socket-local-port' repeat: nil
-			direct: [:n | | sum | sum := 0. n timesRepeat: [sum := sum + (socket platformLocalPort: listener)]. {sum. n}]
-			candidate: [:n | | sum | sum := 0. n timesRepeat: [sum := sum + (socket ffiCandidatePlatformLocalPort: listener)]. {sum. n}]
+			run: [:n | | sum | sum := 0. n timesRepeat: [sum := sum + (socket platformLocalPort: listener)]. {sum. n}]
 			reset: []
 			expect: [:answer | answer first = (port * answer second)]
 	] ensure: [socket platformClose: listener]
@@ -20,8 +19,7 @@ socketAcceptPending
 	listener isNil ifTrue: [self error: 'loopback listen failed'].
 	[
 		self case: 'socket-accept-pending' repeat: nil
-			direct: [:n | | pending | pending := 0. n timesRepeat: [(socket platformAccept: listener) isNil ifTrue: [pending := pending + 1]]. {pending. n}]
-			candidate: [:n | | pending | pending := 0. n timesRepeat: [(socket ffiCandidatePlatformAccept: listener) isNil ifTrue: [pending := pending + 1]]. {pending. n}]
+			run: [:n | | pending | pending := 0. n timesRepeat: [(socket platformAccept: listener) isNil ifTrue: [pending := pending + 1]]. {pending. n}]
 			reset: []
 			expect: [:answer | answer first = answer second]
 	] ensure: [socket platformClose: listener]
@@ -37,20 +35,11 @@ socketSendSize: count label: label
 		payload atAllPut: 65.
 		received := ByteArray new: count.
 		self case: label repeat: nil
-			direct: [:n |
+			run: [:n |
 				| ok |
 				ok := 0.
 				n timesRepeat: [
 					(socket platformSend: client handle from: payload start: 2 count: count) = count
-						ifFalse: [self error: 'unexpected transmit backpressure'].
-					self socketDrain: accepted into: received.
-					ok := ok + (received at: count)].
-				{ok. n}]
-			candidate: [:n |
-				| ok |
-				ok := 0.
-				n timesRepeat: [
-					(socket ffiCandidatePlatformSend: client handle from: payload start: 2 count: count) = count
 						ifFalse: [self error: 'unexpected transmit backpressure'].
 					self socketDrain: accepted into: received.
 					ok := ok + (received at: count)].
@@ -87,8 +76,7 @@ ptyReadPending
 			whileFalse: [terminal semaphore waitTimeoutMSecs: 10].
 		ready first = $X asciiValue ifFalse: [self error: 'PTY child not ready'].
 		self case: 'pty-read-pending' repeat: nil
-			direct: [:n | | pending | pending := 0. n timesRepeat: [(term primRead: h into: ready start: 1 count: 1) isNil ifTrue: [pending := pending + 1]]. {pending. n}]
-			candidate: [:n | | pending | pending := 0. n timesRepeat: [(term ffiCandidatePrimRead: h into: ready start: 1 count: 1) isNil ifTrue: [pending := pending + 1]]. {pending. n}]
+			run: [:n | | pending | pending := 0. n timesRepeat: [(term primRead: h into: ready start: 1 count: 1) isNil ifTrue: [pending := pending + 1]]. {pending. n}]
 			reset: []
 			expect: [:answer | answer first = answer second]
 	] ensure: [terminal close]

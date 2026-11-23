@@ -777,7 +777,7 @@ intOop: v
 emitMethodEntry
 	"Checked entry, unchecked entry, the quick method or primitive, the stack check, the frame; then the bytecodes from pc 0. Resumption at pc 0 (a frame the interpreter pushed) checks for interrupts out of line."
 	<function>
-	| imm s uentry p |
+	| imm s uentry p fn |
 	asm comment: 'checked entry: x0 the receiver, x9 the class the inline cache expects, x20 our fp, x30 back to the send'.
 	imm := asm newLabel.
 	uentry := asm newLabel.
@@ -802,11 +802,14 @@ emitMethodEntry
 	asm comment: 'unchecked entry (polymorphic caches, the megamorphic stub, super sends)'.
 	p := asm pc.
 	(runtime quick and: [analysis primitive = 0]) ifTrue: [self emitQuickMethod].
-	analysis primitive ~= 0 ifTrue: [(self emitPrimitive) ifFalse: [^false]].
+	"A saved CompiledMethod may reference a missing primitive. Emit only its body;
+	the initialized first temp is already nil when the method expects an error code."
+	fn := analysis primitive = 0 ifTrue: [0 asUInt64] ifFalse: [brt primFunctionOf: analysis primitive].
+	fn ~= 0 ifTrue: [(self emitPrimitive: fn) ifFalse: [^false]].
 	plainEntry := asm pc = p.
 	(self emitStackCheck: 0) ifFalse: [^false].
 	self emitFrameFor: false args: curArgs temps: curTemps.
-	analysis primitiveHasErrorCode ifTrue: [
+	(fn ~= 0 and: [analysis primitiveHasErrorCode]) ifTrue: [
 		asm comment: 'the primitive''s error code (or nil) into the first temp'.
 		asm ldr: X16 base: X22 offset: self ecodeOffset.
 		asm str: X16 base: X20 offset: (self slot: curArgs)].
@@ -1005,9 +1008,10 @@ emitQuickBody
 ! !
 
 !JitBaselineCompiler methodsFor: 'primitives'!
-emitPrimitive
+emitPrimitive: fn
 	"The method's primitive before its frame: inline machine code for the common ones, then its C function. Success returns to the sender; failure falls through to the frame and the body."
 	<function>
+	<var: #fn type: 'uint64_t'>
 	| k fail info |
 	k := brt primKindOf: analysis primitive.
 	k = brt pkPerform ifTrue: [^self emitPerformPrimitive].
@@ -1035,7 +1039,7 @@ emitPrimitive
 	asm comment: 'the primitive''s C function: success returns to the sender, failure continues here'.
 	info := asm newLabel.
 	asm adr: X10 label: info.
-	asm mov: X2 imm64: (brt primFunctionOf: analysis primitive).
+	asm mov: X2 imm64: fn.
 	asm mov: X3 imm: ((curArgs bitOr: ((brt isLeafPrimitive: analysis primitive) ifTrue: [256] ifFalse: [0])) bitOr: (analysis primitiveHasErrorCode ifTrue: [512] ifFalse: [0])).
 	asm b: primLabel.
 	asm bind: info.

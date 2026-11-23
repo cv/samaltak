@@ -23,8 +23,9 @@ jobs:
           - test-jit-opt test-jit-cache
           - test-jit-deopt test-tools
           - test-uefi
-          - test-ffi-candidates-headless test-ffi-gpu-paged
-          - test-ffi-candidates-display
+          - test-ffi-headless test-ffi-gpu-paged
+          - test-ffi-no-platform
+          - test-ffi-display
     runs-on: ubuntu-24.04
     container: debian:bookworm-slim
     timeout-minutes: 60
@@ -46,24 +47,28 @@ jobs:
       - name: Install SDL3 and shaderc
         run: .agents/setup
       - name: Run hosted FFI checks without a display
-        if: ${{ matrix.targets == 'test-ffi-candidates-headless test-ffi-gpu-paged' }}
+        if: ${{ matrix.targets == 'test-ffi-headless test-ffi-gpu-paged' || matrix.targets == 'test-ffi-no-platform' }}
         run: make ${{ matrix.targets }}
       - name: Run ${{ matrix.targets }} with software Vulkan
-        if: ${{ matrix.targets != 'test-ffi-candidates-headless test-ffi-gpu-paged' }}
+        if: ${{ matrix.targets != 'test-ffi-headless test-ffi-gpu-paged' && matrix.targets != 'test-ffi-no-platform' }}
         run: |
           mkdir -p .context "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"
           xvfb-run -a -s '-screen 0 1280x1024x24' make ${{ matrix.targets }}
-      - name: Upload bigint owned-result failure logs
-        if: ${{ failure() && matrix.targets == 'test-ffi-candidates-headless test-ffi-gpu-paged' }}
+      - name: Upload headless FFI failure logs
+        if: ${{ failure() && (matrix.targets == 'test-ffi-headless test-ffi-gpu-paged' || matrix.targets == 'test-ffi-no-platform') }}
         uses: actions/upload-artifact@v4
         with:
-          name: ffi-bigint-owned-logs
-          path: build/ffi-bigint-owned-logs/
+          name: ${{ matrix.targets == 'test-ffi-no-platform' && 'ffi-no-platform' || 'ffi-headless' }}
+          path: |
+            build/ffi-headless-logs/
+            build/ffi-no-platform-logs/
+            build/ffi-bigint-owned-logs/
           if-no-files-found: ignore
-      - name: Upload display candidate proof and sample timings
-        if: ${{ always() && matrix.targets == 'test-ffi-candidates-display' }}
+      - name: Upload display FFI proofs
+        if: ${{ always() && matrix.targets == 'test-ffi-display' }}
         uses: actions/upload-artifact@v4
         with:
-          name: ffi-candidate-display
+          name: ffi-display
           path: build/ffi-display-logs/
+          if-no-files-found: ignore

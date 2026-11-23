@@ -3,7 +3,7 @@ Object subclass: #GPUPlatformFFI
 	classVariableNames: 'ViewportCall ScissorCall EndPassCall SubmitCall FenceDoneCall FenceElapsedCall WaitFenceCall SwapchainCall BeginLoadCall BeginClearCall UploadBufferCall UploadTextureCall DownloadCall'
 	package: 'Graphics-GPU'!
 
-GPUPlatformFFI comment: 'Private binding cache for the opt-in GPUPrimitives FFI methods. Bindings are symbolic and reprepare after a snapshot. Only false means the wrapper did not enter native code.'!
+GPUPlatformFFI comment: 'Private binding cache for the hosted GPU facade. Bindings are symbolic and reprepare after a snapshot. Only false means the wrapper did not enter native code.'!
 
 !GPUPlatformFFI class methodsFor: 'commands'!
 viewportCall
@@ -76,32 +76,28 @@ regionFrom: integers
 	^bytes
 ! !
 
-!GPUPlatformFFI class methodsFor: 'owned shader compiler output'!
-shaderOutputFrom: producer
-	"One receipt and at most one producer invocation. False alone means no entry."
-	<ffiSite>
-	| receipt copy release status token count result offset page |
-	receipt := ByteArray new: 16.
-	copy := self ffiSite: #(call 'platform' 'platform_gpu_shader_copy' (u64 u64 writableBytesWithLength) i32).
-	release := self ffiSite: #(call 'platform' 'platform_gpu_shader_release' (u64) i32).
-	[
-		status := producer value: receipt.
-		status == false ifTrue: [^false].
-		status = 1 ifFalse: [^GPUPrimitives fail: 'gpuCompileShader'].
-		token := FFIWire uint64At: 1 in: receipt.
-		count := FFIWire uint64At: 9 in: receipt.
-		(token > 0 and: [count <= 16r7FFFFFFF8]) ifFalse: [^GPUPrimitives fail: 'gpuCompileShader'].
-		result := ByteArray new: count.
-		offset := 0.
-		[offset < count] whileTrue: [
-			page := 1048576 min: count - offset.
-			(copy tryInvoke3: token with: offset with: {result. offset + 1. page}) = 1
-				ifFalse: [^GPUPrimitives fail: 'gpuCompileShader'].
-			offset := offset + page].
-		^result
-	] ensure: [
-		"Read the receipt even if an unwind interrupted delivery of native status."
-		token := FFIWire uint64At: 1 in: receipt.
-		token = 0 ifFalse: [
-			(release tryInvoke1: token) == false ifTrue: [FFIError signal: 'GPU shader output release refused']]]
+!GPUPlatformFFI class methodsFor: 'transfer buffers'!
+isVector: anObject size: size
+	^anObject class instSpec = VMConstants fVar and: [anObject basicSize = size]
+!
+transferBytesFor: anObject
+	"The FFI borrows exact ByteArrays. Other byte and 32-bit word objects use
+	a compatible little-endian staging copy on the hosted architectures."
+	| cls count copy step |
+	cls := anObject class.
+	cls == ByteArray ifTrue: [^anObject].
+	((cls isBytes or: [cls isWords]) and: [
+		cls ~~ CompiledMethod and: [(cls inheritsFrom: CompiledMethod) not]]) ifFalse: [^nil].
+	count := anObject basicSize.
+	step := cls isWords ifTrue: [4] ifFalse: [1].
+	copy := ByteArray new: count * step.
+	step = 4
+		ifTrue: [1 to: count do: [:i | copy uint32At: i * 4 - 3 put: (anObject basicAt: i)]]
+		ifFalse: [1 to: count do: [:i | copy at: i put: (anObject basicAt: i)]].
+	^copy
+!
+copyTransferBytes: bytes into: anObject
+	anObject class isWords
+		ifTrue: [1 to: anObject basicSize do: [:i | anObject basicAt: i put: (bytes uint32At: i * 4 - 3)]]
+		ifFalse: [1 to: anObject basicSize do: [:i | anObject basicAt: i put: (bytes at: i)]]
 ! !

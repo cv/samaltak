@@ -28,6 +28,16 @@ textBytes: anObject
 	^ByteArray new: anObject size streamContents: [:out |
 		anObject do: [:ch | self putTextCodePoint: ch value on: out]]
 !
+osTextBytes: anObject
+	"Encode the raw byte or word32 objects admitted as OS path and host strings. Exact ByteArray represents already encoded bytes."
+	| class bytes |
+	class := anObject class.
+	class == ByteArray ifTrue: [bytes := anObject] ifFalse: [
+		(PlatformIOBuffer sizeOf: anObject) < 0 ifTrue: [^nil].
+		bytes := ByteArray new: anObject basicSize streamContents: [:out |
+			1 to: anObject basicSize do: [:i | self putTextCodePoint: (anObject basicAt: i) on: out]]].
+	^(bytes includes: 0) ifTrue: [nil] ifFalse: [bytes]
+!
 textFromBytes: bytes
 	"Decode an exact ByteArray, including any NUL. Nil represents absence. Each ill-formed byte escapes independently (ObjectMemory>>utf8Decode:size:at:)."
 	| i end first n out |

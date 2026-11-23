@@ -22,8 +22,7 @@ bigIntegerAdd: label left: a right: b
 	| expected |
 	expected := a + b.
 	self case: label repeat: nil
-		direct: [:n | | last | n timesRepeat: [last := a + b]. last]
-		candidate: [:n | | last | n timesRepeat: [last := a ffiCandidateAdd: b]. last]
+		run: [:n | | last | n timesRepeat: [last := a + b]. last]
 		reset: []
 		expect: [:result | result = expected and: [result class == expected class]]
 ! !

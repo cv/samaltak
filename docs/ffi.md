@@ -5,8 +5,10 @@ registered native export and its exact C signature. `FFI bind:` resolves and
 checks the export and prepares a generated call wrapper. An `FFIBinding` can
 then invoke it synchronously many times.
 
-See the [primitive audit](ffi-primitive-audit.md) for ID-by-ID dispositions,
-and [bounded output](ffi-owned-output.md) for reviewed built-in protocols.
+See the [primitive audit](ffi-primitive-audit.md), the
+[retained-primitives report](vm-primitives-retained.html), and the
+[cutover contract](ffi-migrations.md) for scope and image compatibility.
+[Bounded and owned output](ffi-owned-output.md) describes built-in protocols.
 
 ```smalltalk
 (FFI bind: #(call 'libm' 'sqrt' (f64) f64)) invoke: #(9.0)
@@ -29,7 +31,12 @@ immutable copy of the names and signature.
 | `void` | Result only; answers `nil` |
 | `byteSlice` | Argument only for `memcmp`; a read-only byte slice |
 | `bytesWithLength` | Argument for a `syncBorrow` grant or registered built-in; a read-only byte slice with its length |
-| `writableBytesWithLength` | Argument only for an explicitly approved built-in; a mutable byte slice with its length |
+| `writableBytesWithLength` | Approved built-in argument: mutable byte slice with its length |
+| `countedText` | Approved built-in argument: UTF-8/surrogateescaped String, or raw bytes from an exact ByteArray; pointer and byte count |
+| `cText` | Approved built-in argument: String as above, but copied and NUL-terminated; embedded NUL rejected |
+| `ownedText` | Approved built-in result: String copied from owned native bytes, or `nil` |
+| `nonNegativeI64` | Approved built-in result: exact Integer, or `nil` for negative status |
+| `integerMagnitude`, `ownedIntegerMagnitude` | Approved variable-width Integer [argument and result](ffi-owned-output.md#owned-integer-result-tag-11) |
 
 An invalid descriptor, unavailable export or signature mismatch signals
 `FFIError` at bind time. Integers must fit the declared width; `f64` requires
@@ -41,6 +48,10 @@ least 1 and the length is nonnegative. The range must fit in the logical byte
 size (not allocation padding); a zero-length slice may start one past the end.
 Nil is not a slice, even at length zero. The explicit `memcmp` count must fit in
 both slices. Only the sign of its result is significant.
+
+Both text argument types occupy two native slots. The byte count excludes
+any added terminator. Treat text input as a synchronous read-only borrow
+and copy it before retaining it or passing it to a worker.
 
 A `writableBytesWithLength` slice additionally rejects a read-only ByteArray,
 even at length zero. It supplies a writable pointer and a `uint64_t` length
@@ -76,9 +87,9 @@ negative value, or `nil` for `void`, is a completed call, not a rejection.
 Platform facades use the private positional protocol: `tryInvoke0`,
 `tryInvoke1:`, `tryInvoke2:with:`, and so on up to six arguments. Like the
 private Array form `tryInvoke:`, these sends answer `false` only for
-pre-entry rejection. A facade may take an alternate path on `false`, but
-must not retry a completed call, even if it returned zero, an error status
-or `nil`.
+pre-entry rejection. A facade may use a supported nonnative path on `false`.
+It must not retry a completed call, even if it returned zero, an error
+status or `nil`.
 
 ## Built-in exports
 
@@ -89,8 +100,8 @@ or `nil`.
 | `libm` | `ilogb` | `(f64) i32` |
 | `libc` | `memcmp` | `(byteSlice byteSlice u64) i32` |
 
-The SDL build also registers these `platform` exports. Prefer the Smalltalk
-window and PTY APIs for their argument and error handling.
+Examples of built-in `platform` exports on SDL builds follow. Prefer the
+Smalltalk window and PTY APIs for argument and error handling.
 
 | Export | Signature |
 | --- | --- |
@@ -128,30 +139,26 @@ expose SDL targets. `<approvedFFITest>` requires a VM built with
 Return tag 12 (`nonNegativeI64`) is an approved, prepared result policy for
 `int64_t` exports. The launcher returns `nil` after a negative native result
 and boxes a nonnegative result exactly. Only pre-entry rejection returns
-the launcher's zero sentinel (`tryInvoke*` replies `false`). The same native
-prototype also accepts the signed `i64` result for older images. An older VM
-cannot prepare tag 12, so staged facades fall back to the legacy primitive;
-the explicit trial installer refuses to publish such a route.
+the zero sentinel (`tryInvoke*` replies `false`). The signed `i64` result
+policy preserves the negative status rather than mapping it to `nil`.
 
 A facade can avoid a separate cache by compiling a literal binding at its
 call site:
 
 ```smalltalk
-ffiCandidateFractionPart
+ffiSqrtOf: aFloat
     <ffiSite>
     | result |
-    result := (self ffiSite: #(call 'vm:core' 'core_float_fraction_part' (f64) f64))
-        tryInvoke1: self.
-    result == false ifTrue: [^self fractionPart].
+    result := (self ffiSite: #(call 'libm' 'sqrt' (f64) f64)) tryInvoke1: aFloat.
+    result == false ifTrue: [^FFIError signal: 'sqrt invocation rejected'].
     ^result
 ```
 
 In an annotated method, `self ffiSite: <literal descriptor>` embeds an
 immutable, initially unprepared `FFIBinding` in the method. Invocation uses
 the existing prepared wrapper and process-local token; restoring an image
-does not restore a native target. The declaration itself does not change
-production routing. Fall back only when invocation answers `false`, never
-on a completed native status.
+does not restore a native target. Fall back only when invocation answers
+`false`, never on a completed native status.
 
 ## Launcher grants
 
@@ -160,7 +167,8 @@ environment. The manifest has one `alias|symbol|result(arg1,arg2,...)|/absolute/
 row per export, with no spaces in the signature. Use `()` for no arguments.
 The manifest is limited to 32 rows and 4096 bytes. Aliases use ASCII letters,
 digits, `_`, `.` and `-`; symbols are C identifiers. The aliases `libm`,
-`libc` and `platform` are reserved; an alias/symbol pair may occur only once.
+`libc` and `platform` are reserved; `vm:core` is built-in only. An alias/symbol
+pair may occur only once.
 Scalar grants take scalar arguments and return a scalar or `void`. Invalid
 manifests or unresolved grants abort VM startup with exit status 64.
 
@@ -296,15 +304,8 @@ pre-entry rejection, both invoke forms, optimized site hits, and full GC
 during result boxing. On a release build, pass `--expect-no-fixture` to
 verify that the test export cannot be bound.
 
-The [wrapper benchmark](../vm/tests/bench/wrapped-ffi.md) binds before
-timing: it measures warm invocation and allocation, not binding or code
-generation. Its historical Linux x86-64 sample predates JIT call-site
-specialization (EPYC 7B13, 10 rounds of 50,000 calls per case after warmup).
-The scalar case using `invoke:` with a fresh Array allocated about 24 more
-bytes per call than the positional case. The median paired time ratio
-(Array / positional) was 1.94× with `--jit none` and 1.21× with `--jit opt`.
-Those ratios compare invocation forms, not the effect of `ffi-site`.
-For the paired on/off benchmark, see [bound FFI sites](benchmarks.md#bound-ffi-call-sites).
+See [bound FFI sites](benchmarks.md#bound-ffi-call-sites) for warm dispatch
+measurements. They do not measure the numbered-primitive cutover.
 
 ## Notifications
 

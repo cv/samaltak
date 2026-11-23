@@ -1,2 +1,0 @@
-# A unified diff uses a leading space on context lines.
-fused-v4.patch whitespace=-space-before-tab,-blank-at-eol

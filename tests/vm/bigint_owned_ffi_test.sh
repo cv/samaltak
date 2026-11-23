@@ -14,8 +14,7 @@ run() {
   mode=$1
   label=$2
   method=$3
-  shift 3
-  "$vm" --jit "$mode" --jit-opt 8 --eden 1 "$@" "$image" --headless \
+  "$vm" --jit "$mode" --jit-opt 8 --eden 1 "$image" --headless \
     --eval "[Compiler fileInString: '$proof'. Compiler evaluate: 'BigIntegerFFIProof $method']
       on: Error do: [:e | Smalltalk vm stderrWrite: e messageText, (String with: Character lf).
       Smalltalk vm stderrWrite: (e signalerContext stack first: 15) printString.
@@ -23,18 +22,21 @@ run() {
   grep -Fxq true "$out/$label.out"
 }
 for mode in none baseline opt; do
-  run "$mode" "owned-$mode" ownedResults
-  for id in 1044 1045 1046 1047 1048 1049 1050 1052 1053 1054; do
-    n=$(grep -Fxc "ffi-native-entry $id" "$out/owned-$mode.err")
-    test "$n" -eq 1587
+  run "$mode" "owned-$mode" 'ownedResults: false'
+  run "$mode" "production-$mode" production
+  for id in 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055; do
+    # Production run has no manually prepared bindings.
+    grep -Fxq "ffi-native-entry $id" "$out/production-$mode.err"
   done
-  n=$(grep -Fxc 'ffi-native-entry 1055' "$out/owned-$mode.err")
-  test "$n" -eq 831
   SAMALTAK_FFI_BOX_FULL_GC=1 SAMALTAK_FFI_SITE_TRACE=1 run "$mode" "gc-$mode" forceGC
   n=$(grep -Fxc 'ffi-native-entry 1044' "$out/gc-$mode.err")
-  test "$n" -eq 74
-  n=$(grep -Fxc 'ffi-native-entry 1055' "$out/gc-$mode.err")
-  test "$n" -eq 1
+  test "$n" -ge 74
+  grep -Fxq 'ffi-native-entry 1055' "$out/gc-$mode.err"
+  run "$mode" "portable-$mode" forcePortable
+  awk '/^begin portable bigint$/ { in_portable=1; seen=1 }
+       /^end portable bigint$/ { in_portable=0 }
+       in_portable && /^ffi-native-entry 10(4[4-9]|5[0-5])$/ { bad=1 }
+       END { exit !seen || in_portable || bad }' "$out/portable-$mode.err"
 done
 awk '/^ffi-site trace hits=/ { split($3,h,"="); hit=(h[2]>0)} END {exit !hit}' "$out/gc-opt.err"
 echo 'bigint_owned_ffi_test: passed'

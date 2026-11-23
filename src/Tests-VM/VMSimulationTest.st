@@ -11,6 +11,30 @@ timeLimitMilliseconds
 ! !
 
 !VMSimulationTest methodsFor: 'tests'!
+testRetiredPrimitivesAbsentInSimulation
+	| entries |
+	entries := (VMSimulation modules: VMModule vmModules) primitiveEntries.
+	(File readText: 'tests/vm/ffi_cutover_slots.tsv') lines do: [:line |
+		(line notEmpty and: [line first ~= $#]) ifTrue: [
+			| row id name |
+			row := line substrings.
+			id := row first asInteger.
+			name := row second.
+			self deny: (entries anySatisfy: [:entry | entry first = id or: [(entry at: 3) = name]])
+				description: ['Retired simulator primitive: ', line]]]
+!
+testStaticPreparedEntriesAreRestricted
+	| sim backend entry |
+	sim := VMSimulation modules: (VMModule vmModules select: [:c | c packageName ~= 'VM-Platform']).
+	backend := sim moduleOrLibrary: 'FFIStubMemory'.
+	self deny: backend canMapFFIStubs.
+	entry := backend staticCoreEntry: 'core_stdout_text' signature: 16rD7.
+	self deny: entry equals: 0.
+	self assert: ((sim memory objectAt: entry) isKindOf: FunctionPointer).
+	self assert: (backend staticCoreEntry: 'core_stdout_text' signature: 16rE7) equals: 0.
+	self assert: (backend staticCoreEntry: 'printf' signature: 16rD7) equals: 0.
+	self assert: (backend staticCoreEntry: 'platform_files_open' signature: 16r831) equals: 0
+!
 testMiniImageInSimulation
 	| image sim status |
 	image := self scratchDirectory , '/mini.image'.
@@ -19,6 +43,31 @@ testMiniImageInSimulation
 	status := sim runMain: VMMain arguments: {'samaltak'. '--eden'. '1'. '--max-heap'. '64'. image. '--headless'. 'Arith'}.
 	self assert: status equals: 0.
 	self assert: sim stdoutContents equals: (File readText: 'vm/tests/expected/Arith.txt')
+!
+testMiniImageServicesInSimulation
+	"Exercise UTC, float formatting and fractionPart in the same mini guest as the VM's Misc test."
+	| image sim status |
+	image := self scratchDirectory , '/mini.image'.
+	ImageBuilder buildFrom: 'vm/tests/mini' to: image.
+	sim := VMSimulation modules: (VMModule vmModules select: [:c | c packageName ~= 'VM-Platform']).
+	status := sim runMain: VMMain arguments: {'samaltak'. '--eden'. '1'. '--max-heap'. '64'. image. '--headless'. 'Misc'}.
+	self assert: status equals: 0.
+	self assert: sim stdoutContents , sim stderrContents equals: (File readText: 'vm/tests/expected/Misc.txt')
+!
+testMiniSnapshotInSimulation
+	"The guest reads a path from the simulated environment and persists state through the simulated C file API."
+	| image snapshot modules sim saved |
+	image := self scratchDirectory , '/mini.image'.
+	snapshot := self scratchDirectory , '/snapshot.image'.
+	ImageBuilder buildFrom: 'vm/tests/mini' to: image.
+	modules := VMModule vmModules select: [:c | c packageName ~= 'VM-Platform'].
+	sim := VMSimulation modules: modules.
+	sim environment at: 'MINI_SNAPSHOT' put: snapshot.
+	self assert: (sim runMain: VMMain arguments: {'samaltak'. '--eden'. '1'. '--max-heap'. '64'. image. '--headless'. 'Snapshot'}) equals: 0.
+	saved := sim stdoutContents.
+	sim := VMSimulation modules: modules.
+	self assert: (sim runMain: VMMain arguments: {'samaltak'. '--eden'. '1'. '--max-heap'. '64'. snapshot. '--headless'}) equals: 0.
+	self assert: saved , sim stdoutContents equals: (File readText: 'vm/tests/expected/Snapshot.txt')
 !
 testGuestShowsAnEditedVMMethodAtOnce
 	"The VM Simulator's guest prints VMMain>>banner every second; recompiling it changes the next line, no restart."

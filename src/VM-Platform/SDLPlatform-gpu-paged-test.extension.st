@@ -9,14 +9,14 @@ ffiGpuShaderOversizedFixture: receipt capacity: cap
 	<returns: 'int32_t'>
 	| row payload size |
 	self ffiGpuOnMainThread ifFalse: [^-1].
-	row := gpu shaderOutputRoom: receipt capacity: cap.
+	row := pagedOutput roomFor: receipt capacity: cap.
 	row isNull ifTrue: [^-1].
 	size := 67108868 asUInt64.
 	payload := self cCoerce: (libc calloc: size size: 1) to: 'uint8_t *'.
 	payload isNull ifTrue: [^-1].
 	payload at: 0 put: 17.
 	payload at: size - 1 put: 93.
-	(gpu adoptShaderOutput: row bytes: payload count: size receipt: receipt) ifTrue: [^1].
+	(pagedOutput adopt: row bytes: payload count: size receipt: receipt) ifTrue: [^1].
 	libc free: payload.
 	^-1
 ! !

@@ -65,7 +65,8 @@ test-jit-cache: image
 # Everything, in stages (CI runs them as separate jobs); any failure, skipped test or headless-only VM fails it. The UI
 # scripts use a hidden window.
 test: test-core
-	$(MAKE) test-ffi-candidates-headless
+	$(MAKE) test-ffi-headless
+	$(MAKE) test-ffi-no-platform
 	$(MAKE) test-jit
 	$(MAKE) test-tools
 	$(MAKE) test-uefi
@@ -78,6 +79,7 @@ test-core: image test-vm
 	tests/vm/wrapped_ffi_specialization_test.sh $(OUT)/samaltak.image $(VM)
 	tests/vm/ffi_external_notification_test.sh $(OUT)/samaltak.image $(VM)
 	tests/boot/layering_test.sh
+	tests/boot/fresh_seed_test.sh $(VM)
 	tests/st_suite.sh $(OUT)/samaltak.image
 	SAMALTAK_VERIFY_GC=1 tests/st_suite.sh $(OUT)/samaltak.image --eden 1 -- Tests-Kernel Tests-Compiler
 	$(MAKE) fresh-runtime
@@ -88,19 +90,48 @@ test-core: image test-vm
 test-ffi-bigint-owned: image
 	tests/vm/bigint_owned_ffi_test.sh "$(OUT)/samaltak.image" "$(VM)" "$(OUT)/ffi-bigint-owned-logs"
 
-test-ffi-candidates-headless: image test-ffi-bigint-owned
+FFI_HEADLESS_LOGS ?= $(OUT)/ffi-headless-logs
+FFI_NO_PLATFORM_LOGS ?= $(OUT)/ffi-no-platform-logs
+FFI_NO_PLATFORM_VM := vm/build/ffi-no-platform/samaltak
+FFI_NO_VIDEO = env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u SAMALTAK_NATIVE_GRANTS SDL_VIDEO_DRIVER=ffi_no_video SDL_VIDEODRIVER=ffi_no_video
+
+test-ffi-headless: image test-ffi-bigint-owned
+	$(PLATFORM_CHECK)
+	mkdir -p "$(FFI_HEADLESS_LOGS)"
+	python3 tests/vm/ffi_cutover.py check "$(OUT)/samaltak.image" "$(VM)" --backend sdl --logs "$(FFI_HEADLESS_LOGS)"
 	tests/vm/ffi_migration_manifest_test.sh $(OUT)/samaltak.image $(VM)
 	tests/vm/ffi_migration_gate_test.sh $(OUT)/samaltak.image $(VM) sdl release
 	tests/vm/ffi_migration_owned_test.sh $(OUT)/samaltak.image $(VM) sdl release
-	tests/st_suite.sh $(OUT)/samaltak.image -- FileFFITest ApprovedFFIRegistryTest FFISeededSiteTest
-	tests/vm/ffi_trial_test.sh $(OUT)/samaltak.image $(VM)
-	tests/vm/window_ffi_test.sh $(OUT)/samaltak.image $(VM)
-	python3 tests/vm/core_ffi_test.py $(OUT)/samaltak.image $(VM) --trace
-	@for mode in none baseline opt; do \
-		python3 tests/vm/socket_ffi_test.py $(VM) $(OUT)/samaltak.image --jit "$$mode" --trace || exit; \
+	tests/vm/file_ffi_snapshot_test.sh $(OUT)/samaltak.image $(VM)
+	tests/vm/core_getenv_large_test.sh $(OUT)/samaltak.image $(VM)
+	python3 tests/vm/core_ffi_test.py $(OUT)/samaltak.image $(VM) --trace --logs "$(FFI_HEADLESS_LOGS)/core"
+	tests/vm/window_ffi_test.sh $(OUT)/samaltak.image $(VM) --logs "$(FFI_HEADLESS_LOGS)"
+	@set -eu; for mode in none baseline opt; do \
+		flags=; [ "$$mode" != opt ] || flags='--jit-flags eager'; \
+		log="$(FFI_HEADLESS_LOGS)/file-$$mode.log"; \
+		$(FFI_NO_VIDEO) SAMALTAK_FFI_NATIVE_TRACE=1 tests/st_suite.sh "$(OUT)/samaltak.image" \
+			--jit "$$mode" --jit-threshold 0 $$flags -- FileFFITest ApprovedFFIRegistryTest FFISeededSiteTest >"$$log" 2>&1 \
+			|| { cat "$$log"; exit 1; }; \
+		python3 tests/vm/socket_ffi_test.py $(VM) $(OUT)/samaltak.image --jit "$$mode" --trace --logs "$(FFI_HEADLESS_LOGS)"; \
 	done
-	@logs=$$(mktemp -d); trap 'rm -rf "$$logs"' EXIT; \
+	python3 tests/vm/ffi_cutover.py coverage --profile hosted-headless \
+		--none "$(FFI_HEADLESS_LOGS)/core/none.stderr" "$(FFI_HEADLESS_LOGS)/file-none.log" "$(FFI_HEADLESS_LOGS)/window-none.stderr" "$(FFI_HEADLESS_LOGS)/socket-none.stderr" "$(OUT)/ffi-bigint-owned-logs/production-none.err" \
+		--baseline "$(FFI_HEADLESS_LOGS)/core/baseline.stderr" "$(FFI_HEADLESS_LOGS)/file-baseline.log" "$(FFI_HEADLESS_LOGS)/window-baseline.stderr" "$(FFI_HEADLESS_LOGS)/socket-baseline.stderr" "$(OUT)/ffi-bigint-owned-logs/production-baseline.err" \
+		--opt "$(FFI_HEADLESS_LOGS)/core/opt.stderr" "$(FFI_HEADLESS_LOGS)/file-opt.log" "$(FFI_HEADLESS_LOGS)/window-opt.stderr" "$(FFI_HEADLESS_LOGS)/socket-opt.stderr" "$(OUT)/ffi-bigint-owned-logs/production-opt.err"
+	@logs=$$(mktemp -d "$(FFI_HEADLESS_LOGS)/paired.XXXXXXXX"); \
 		python3 vm/tests/bench/ffi-paired.py --vm $(VM) --image $(OUT)/samaltak.image --logs "$$logs" --proof-only
+
+test-ffi-no-platform: image
+	$(MAKE) -C vm BUILD=build/ffi-no-platform NO_PLATFORM=1
+	mkdir -p "$(FFI_NO_PLATFORM_LOGS)"
+	python3 tests/vm/ffi_cutover.py check "$(OUT)/samaltak.image" "$(FFI_NO_PLATFORM_VM)" --backend no-platform --logs "$(FFI_NO_PLATFORM_LOGS)"
+	tests/vm/ffi_migration_gate_test.sh $(OUT)/samaltak.image $(FFI_NO_PLATFORM_VM) no-platform release
+	python3 tests/vm/core_ffi_test.py $(OUT)/samaltak.image $(FFI_NO_PLATFORM_VM) --trace --logs "$(FFI_NO_PLATFORM_LOGS)/core"
+	tests/vm/bigint_owned_ffi_test.sh "$(OUT)/samaltak.image" "$(FFI_NO_PLATFORM_VM)" "$(FFI_NO_PLATFORM_LOGS)"
+	python3 tests/vm/ffi_cutover.py coverage --profile no-platform \
+		--none "$(FFI_NO_PLATFORM_LOGS)/core/none.stderr" "$(FFI_NO_PLATFORM_LOGS)/production-none.err" \
+		--baseline "$(FFI_NO_PLATFORM_LOGS)/core/baseline.stderr" "$(FFI_NO_PLATFORM_LOGS)/production-baseline.err" \
+		--opt "$(FFI_NO_PLATFORM_LOGS)/core/opt.stderr" "$(FFI_NO_PLATFORM_LOGS)/production-opt.err"
 
 # Only this target builds a VM with test exports; use a separate object tree and binary.
 test-ffi-gpu-paged: image
@@ -120,16 +151,24 @@ test-ffi-gpu-paged: image
 		done
 
 # Run only in display CI (real SDL window + software Vulkan through the test runner's X server).
-# Keep one illustrative timing session; it is not a performance gate.
 FFI_DISPLAY_LOGS ?= $(OUT)/ffi-display-logs
-test-ffi-candidates-display: image
+test-ffi-display: image
 	@test "$$GITHUB_ACTIONS" = true && test -n "$$DISPLAY"
-	tests/vm/window_ffi_test.sh $(OUT)/samaltak.image $(VM) --display-ci
-	@for mode in none baseline opt; do \
-		tests/st_suite.sh $(OUT)/samaltak.image --jit "$$mode" --jit-threshold 0 -- GPUFFIRegressionTest || exit; \
+	mkdir -p "$(FFI_DISPLAY_LOGS)"
+	tests/vm/window_ffi_test.sh $(OUT)/samaltak.image $(VM) --display-ci --logs "$(FFI_DISPLAY_LOGS)"
+	@set -eu; for mode in none baseline opt; do \
+		flags=; [ "$$mode" != opt ] || flags='--jit-flags eager'; \
+		log="$(FFI_DISPLAY_LOGS)/gpu-$$mode.log"; \
+		SAMALTAK_FFI_NATIVE_TRACE=1 tests/st_suite.sh "$(OUT)/samaltak.image" --jit "$$mode" --jit-threshold 0 \
+			$$flags -- GPUFFIRegressionTest >"$$log" 2>&1 || { cat "$$log"; exit 1; }; \
 	done
-	python3 vm/tests/bench/ffi-paired.py --vm $(VM) --image $(OUT)/samaltak.image \
-		--logs "$(FFI_DISPLAY_LOGS)" --display-ci --sessions 1 --pairs 2 --calls 4096 --warmup 4096
+	python3 tests/vm/ffi_cutover.py coverage --profile display \
+		--none "$(FFI_DISPLAY_LOGS)/gpu-none.log" "$(FFI_DISPLAY_LOGS)/window-none.stderr" \
+		--baseline "$(FFI_DISPLAY_LOGS)/gpu-baseline.log" "$(FFI_DISPLAY_LOGS)/window-baseline.stderr" \
+		--opt "$(FFI_DISPLAY_LOGS)/gpu-opt.log" "$(FFI_DISPLAY_LOGS)/window-opt.stderr"
+	@logs=$$(mktemp -d "$(FFI_DISPLAY_LOGS)/paired.XXXXXXXX"); \
+		python3 vm/tests/bench/ffi-paired.py --vm $(VM) --image $(OUT)/samaltak.image \
+			--logs "$$logs" --display-ci --proof-only
 
 test-tools: image
 	$(PLATFORM_CHECK)
@@ -225,6 +264,10 @@ UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot:
 test-uefi:
 	rm -f $(UEFI)/image.disk
 	$(MAKE) uefi-run UEFI_ARGS='--headless --test $(UEFI_TESTS)'
+	$(MAKE) uefi-boot UEFI_ARGS="--headless --eval \"$$(tr '\n' ' ' < tests/boot/uefi_cutover.st)\""
+	grep -Fq 'UEFI cutover OK' $(UEFI)/console.log
+	grep -Fq 'UEFI-stdout-π' $(UEFI)/console.log
+	grep -Fq 'UEFI-stderr-é' $(UEFI)/console.log
 	$(MAKE) uefi-boot UEFI_ARGS="--eval \"$(UEFI_WORLD)\""
 	grep -qE "^world [0-9]+@[0-9]+ true 123@45" $(UEFI)/console.log
 	OUT=$(OUT) tools/samaltak-ctl --session uefi-test open --uefi --headless
@@ -283,8 +326,8 @@ jit-video: vm image
 
 clean:
 	$(MAKE) -C vm clean
-	rm -rf build vm/build/ffi-test-exports
+	rm -rf build vm/build/ffi-test-exports vm/build/ffi-no-platform
 
 .PHONY: all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-nic test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test video mindblown-video jit-video clean
 
-.PHONY: test-ffi-bigint-owned test-ffi-gpu-paged test-ffi-candidates-headless test-ffi-candidates-display
+.PHONY: test-ffi-bigint-owned test-ffi-gpu-paged test-ffi-headless test-ffi-no-platform test-ffi-display

@@ -129,6 +129,7 @@ table: t count: kind
 handleCounts: out
 	"Live handles: files sockets windows gpuDevices shaders pipelines textures samplers buffers fences ptys."
 	<export>
+	<var: #out type: 'int64_t *'>
 	out at: 0 put: files handleCount.
 	out at: 1 put: sockets handleCount.
 	out at: 2 put: windows handleCount.

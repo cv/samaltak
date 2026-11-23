@@ -125,7 +125,8 @@ nativeTextGetenv: key size: n into: out
 	<returns: 'void'>
 	| val size copy |
 	"key[size] is NUL and the input has no embedded NUL. libc's result is
-	 not owned; copy it before the wrapper can safepoint or return."
+	 not owned; copy that one observation before boxing. The boxer checks
+	 the decoded string's capacity, not the UTF-8 byte count."
 	val := libc getenv: key.
 	out allocation notNull ifTrue: [libc free: out allocation].
 	out data: self null.
@@ -133,7 +134,6 @@ nativeTextGetenv: key size: n into: out
 	out allocation: self null.
 	val isNull ifTrue: [^self].
 	size := libc strlen: val.
-	size > 67108864 ifTrue: [^self].
 	size <= 512
 		ifTrue: [copy := out small]
 		ifFalse: [

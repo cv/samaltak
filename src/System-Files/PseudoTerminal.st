@@ -192,15 +192,31 @@ primSpawn: argv environment: env directory: cwd rows: rows columns: columns
 	<primitive: 'ptySpawn'>
 	^nil
 !
-primRead: aHandle into: bytes start: start count: count
+primRead: h into: bytes start: start count: count
 	"Answer the byte count, 0 at end, nil if it would block, false on failure."
-	<primitive: 'ptyRead'>
-	^false
+	| binding result |
+	bytes class == ByteArray ifFalse: [
+		^PlatformIOBuffer readInto: bytes start: start count: count failure: false
+			using: [:slice | self primRead: h into: slice start: 1 count: count]].
+	binding := PtyReadCall ifNil: [
+		PtyReadCall := PlatformFFI bind: #(call 'platform' 'pty_read' (i64 writableBytesWithLength) i64)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke2: h with: {bytes. start. count}].
+	result == false ifTrue: [^false].
+	^result = -1 ifTrue: [nil] ifFalse: [result < 0 ifTrue: [false] ifFalse: [result]]
 !
-primWrite: aHandle from: bytes start: start count: count
+primWrite: h from: bytes start: start count: count
 	"Answer the byte count written, nil if it would block, false on failure."
-	<primitive: 'ptyWrite'>
-	^false
+	| binding result |
+	bytes class == ByteArray ifFalse: [
+		| slice |
+		slice := PlatformIOBuffer writeSliceFrom: bytes start: start count: count.
+		slice isNil ifTrue: [^false].
+		^self primWrite: h from: slice start: 1 count: count].
+	binding := PtyWriteCall ifNil: [
+		PtyWriteCall := PlatformFFI bind: #(call 'platform' 'pty_write' (i64 bytesWithLength) i64)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke2: h with: {bytes. start. count}].
+	result == false ifTrue: [^false].
+	^result = -1 ifTrue: [nil] ifFalse: [result < 0 ifTrue: [false] ifFalse: [result]]
 !
 primResize: aHandle rows: rows columns: columns
 	| binding result |
@@ -210,14 +226,23 @@ primResize: aHandle rows: rows columns: columns
 	result == false ifTrue: [^self legacyResize: aHandle rows: rows columns: columns].
 	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
-primSemaphore: aHandle read: readIndex write: writeIndex
-	<primitive: 'ptySemaphore'>
-	^FileError signal: 'ptySemaphore: ', File lastError path: nil
+primSemaphore: h read: r write: w
+	| binding result |
+	binding := PtySemaphoreCall ifNil: [
+		PtySemaphoreCall := PlatformFFI bind: #(call 'platform' 'pty_semaphore' (i64 i64 i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke3: h with: r with: w].
+	result == false ifTrue: [^FileError signal: 'ptySemaphore: ', File lastError path: nil].
+	^result = 0 ifTrue: [FileError signal: 'ptySemaphore: ', File lastError path: nil] ifFalse: [self]
 !
-primWait: aHandle blocking: aBoolean
+primWait: h blocking: block
 	"Answer the exit status, nil while running, false on failure."
-	<primitive: 'ptyWait'>
-	^false
+	| binding result |
+	(block == true or: [block == false]) ifFalse: [^false].
+	binding := PtyWaitCall ifNil: [
+		PtyWaitCall := PlatformFFI bind: #(call 'platform' 'pty_wait' (i64 i32) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke2: h with: (block ifTrue: [1] ifFalse: [0])].
+	result == false ifTrue: [^false].
+	^result = -1 ifTrue: [nil] ifFalse: [result < 0 ifTrue: [false] ifFalse: [result]]
 !
 primClose: aHandle
 	| binding result |

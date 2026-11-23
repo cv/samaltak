@@ -79,8 +79,12 @@ microsecondClockValue
 !
 utcMicroseconds
 	"Answer the microseconds since 1970-01-01 00:00 UTC."
-	<primitive: 'utcMicroseconds'>
-	^self primitiveFailed
+	<ffiSite>
+	| answer |
+	answer := (self ffiSite: #(call 'vm:core' 'core_utc_microseconds' () i64)) tryInvoke0.
+	answer == false ifTrue: [^self primitiveFailed].
+	answer = -4611686018427387904 ifTrue: [^self primitiveFailed].
+	^answer
 !
 millisecondsToRun: aBlock
 	"Answer how many milliseconds aBlock takes to evaluate."

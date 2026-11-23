@@ -259,7 +259,10 @@ vmBanner
 	<primitive: 'vmBanner'>
 !
 getenv: name
-	<primitive: 'getenv'>
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'vm:core' 'core_getenv_text' (cText) ownedText)) tryInvoke1: name.
+	^result == false ifTrue: [nil] ifFalse: [result]
 !
 gc
 	<primitive: 'gc'>
@@ -283,7 +286,8 @@ microsecondClock
 	<primitive: 'microsecondClock'>
 !
 utcMicroseconds
-	<primitive: 'utcMicroseconds'>
+	<ffiSite>
+	^(self ffiSite: #(call 'vm:core' 'core_utc_microseconds' () i64)) tryInvoke0
 !
 primitiveNames
 	<primitive: 'primitiveNames'>

@@ -3,7 +3,7 @@ Object subclass: #WindowPlatformFFI
 	classVariableNames: 'OpenCall SizeCall PixelSizeCall TitleCall SetSizeCall ClipboardGetCall ClipboardSetCall ClipboardDataCall NextEventCall InjectEventCall LastErrorCall HandleCountsCall DroppedCall'
 	package: 'System-Support'!
 
-WindowPlatformFFI comment: 'Prepared private window/input bindings and their little-endian event codec. Candidates are explicit; old images and firmware still use the original primitive when a call cannot enter.'!
+WindowPlatformFFI comment: 'Prepared private window/input bindings and their little-endian event codec. Only the hosted platform uses these bindings.'!
 
 !WindowPlatformFFI class methodsFor: 'bindings'!
 openCall
@@ -22,7 +22,7 @@ setSizeCall
 	^SetSizeCall ifNil: [SetSizeCall := PlatformFFI bind: #(call 'platform' 'platform_windows_set_size' (i64 i64 i64) i32)]
 !
 clipboardGetCall
-	^ClipboardGetCall ifNil: [ClipboardGetCall := PlatformFFI bind: #(call 'platform' 'platform_windows_clipboard_get' (u64) i32)]
+	^ClipboardGetCall ifNil: [ClipboardGetCall := PlatformFFI bind: #(call 'platform' 'platform_windows_clipboard_get' (writableBytesWithLength) i32)]
 !
 clipboardSetCall
 	^ClipboardSetCall ifNil: [ClipboardSetCall := PlatformFFI bind: #(call 'platform' 'platform_windows_clipboard_set' (bytesWithLength) i32)]
@@ -31,7 +31,7 @@ clipboardDataCall
 	^ClipboardDataCall ifNil: [ClipboardDataCall := PlatformFFI bind: #(call 'platform' 'platform_windows_clipboard_data' (bytesWithLength u64) i32)]
 !
 nextEventCall
-	^NextEventCall ifNil: [NextEventCall := PlatformFFI bind: #(call 'platform' 'platform_events_next' (u64) i32)]
+	^NextEventCall ifNil: [NextEventCall := PlatformFFI bind: #(call 'platform' 'platform_events_next' (writableBytesWithLength writableBytesWithLength) i32)]
 !
 injectEventCall
 	^InjectEventCall ifNil: [InjectEventCall := PlatformFFI bind: #(call 'platform' 'platform_events_inject' (bytesWithLength) i32)]
@@ -44,6 +44,45 @@ handleCountsCall
 !
 droppedCall
 	^DroppedCall ifNil: [DroppedCall := PlatformFFI bind: #(call 'platform' 'platform_events_dropped' () i64)]
+! !
+
+!WindowPlatformFFI class methodsFor: 'diagnostics'!
+lastError
+	| binding bytes count |
+	binding := self lastErrorCall.
+	binding isNil ifTrue: [^nil].
+	bytes := ByteArray new: 1024.
+	count := binding tryInvoke1: {bytes. 1. bytes size}.
+	(count == false or: [count < 0]) ifTrue: [^nil].
+	count = 0 ifTrue: [^''].
+	^PlatformFFI textFromBytes: (bytes copyFrom: 1 to: count)
+! !
+
+!WindowPlatformFFI class methodsFor: 'counted text'!
+cTextBytes: anObject
+	"Accept String/Symbol, exact UTF-8 ByteArray, and stored byte or word code points."
+	| class bytes |
+	class := anObject class.
+	(class == ByteArray or: [class == ByteString or: [
+		class == WideString or: [class == ByteSymbol or: [class == WideSymbol]]]])
+		ifTrue: [^PlatformFFI cTextBytes: anObject].
+	((class isBytes or: [class isWords]) and: [
+		class ~~ CompiledMethod and: [(class inheritsFrom: CompiledMethod) not]]) ifFalse: [^nil].
+	bytes := ByteArray new: anObject basicSize streamContents: [:out |
+		1 to: anObject basicSize do: [:i | PlatformFFI putTextCodePoint: (anObject basicAt: i) on: out]].
+	^(bytes includes: 0) ifTrue: [nil] ifFalse: [bytes]
+! !
+
+!WindowPlatformFFI class methodsFor: 'event injection'!
+tryInjectEvent: event
+	"True after one successful native enqueue (the FIFO may drop a full queue).
+	False for unsupported or invalid input. No retry after native entry."
+	| binding bytes |
+	binding := self injectEventCall.
+	binding isNil ifTrue: [^false].
+	bytes := self encodeEvent: event.
+	bytes isNil ifTrue: [^false].
+	^(binding tryInvoke1: {bytes. 1. bytes size}) = 1
 ! !
 
 !WindowPlatformFFI class methodsFor: 'wire codec'!
@@ -68,16 +107,16 @@ eventSmallInteger: n
 	^n class == SmallInteger ifTrue: [n] ifFalse: [0]
 !
 encodeEvent: a
-	"An 80-byte header plus optional counted text. Exact ordinary Array and Point are the fast-path shapes; unusual F_VAR objects stay with the primitive."
+	"An 80-byte header plus optional counted text."
 	| type time x y extra kind val dx dy text b |
-	(a class == Array and: [a size >= 8]) ifFalse: [^nil].
-	type := a first.
+	(a class instSpec = VMConstants fVar and: [a basicSize >= 8]) ifFalse: [^nil].
+	type := a basicAt: 1.
 	(type class == SmallInteger and: [type > 0]) ifFalse: [^nil].
-	time := a at: 2.
-	x := self eventNumber: (a at: 3).
-	y := self eventNumber: (a at: 4).
+	time := a basicAt: 2.
+	x := self eventNumber: (a basicAt: 3).
+	y := self eventNumber: (a basicAt: 4).
 	(x isNil or: [y isNil]) ifTrue: [^nil].
-	extra := a at: 7.
+	extra := a basicAt: 7.
 	kind := 0.
 	val := 0.
 	extra isNil ifFalse: [
@@ -87,18 +126,18 @@ encodeEvent: a
 				(extra == true or: [extra == false])
 					ifTrue: [kind := 2. val := extra ifTrue: [1] ifFalse: [0]]
 					ifFalse: [
-						(extra class == Point or: [extra class == Array and: [extra size = 2]])
+						(extra class == Point or: [extra class instSpec = VMConstants fVar and: [extra basicSize = 2]])
 							ifTrue: [
 								kind := 4.
 								extra class == Point
 									ifTrue: [dx := extra x. dy := extra y]
-									ifFalse: [dx := extra first. dy := extra second].
+									ifFalse: [dx := extra basicAt: 1. dy := extra basicAt: 2].
 								dx := self eventNumber: dx.
 								dy := self eventNumber: dy.
 								(dx isNil or: [dy isNil]) ifTrue: [^nil]]
 							ifFalse: [
 								kind := 3.
-								text := PlatformFFI cTextBytes: extra.
+								text := self cTextBytes: extra.
 								text isNil ifTrue: [^nil]]]]].
 	b := ByteArray new: 80 + (text isNil ifTrue: [0] ifFalse: [text size]).
 	self signed64: type at: 1 in: b.
@@ -107,32 +146,32 @@ encodeEvent: a
 		b uint32At: 77 put: 1].
 	b float64At: 17 put: x.
 	b float64At: 25 put: y.
-	self signed64: (self eventSmallInteger: (a at: 5)) at: 33 in: b.
-	b uint32At: 41 put: ((self eventSmallInteger: (a at: 6)) bitAnd: 16rFFFFFFFF).
+	self signed64: (self eventSmallInteger: (a basicAt: 5)) at: 33 in: b.
+	b uint32At: 41 put: ((self eventSmallInteger: (a basicAt: 6)) bitAnd: 16rFFFFFFFF).
 	b uint32At: 45 put: kind.
 	self signed64: val at: 49 in: b.
 	kind = 4 ifTrue: [b float64At: 57 put: dx; float64At: 65 put: dy].
-	b uint32At: 73 put: ((self eventSmallInteger: (a at: 8)) bitAnd: 16rFFFFFFFF).
+	b uint32At: 73 put: ((self eventSmallInteger: (a basicAt: 8)) bitAnd: 16rFFFFFFFF).
 	(text notNil and: [text notEmpty]) ifTrue: [b replaceFrom: 81 to: b size with: text startingAt: 1].
 	^b
 !
-decodeEvent: b into: a
+decodeEvent: b text: text into: a
 	| kind extra window |
 	kind := b uint32At: 45.
 	extra := kind caseOf: {
 		[0] -> [nil].
 		[1] -> [self signed64At: 49 in: b].
 		[2] -> [(self signed64At: 49 in: b) ~= 0].
-		[3] -> [PlatformFFI textFromBytes: (b size = 80 ifTrue: [ByteArray new: 0] ifFalse: [b copyFrom: 81 to: b size])].
+		[3] -> [PlatformFFI textFromBytes: text].
 		[4] -> [(b float64At: 57) @ (b float64At: 65)]}.
 	window := self signed32At: 73 in: b.
-	a at: 1 put: (self signed64At: 1 in: b);
-		at: 2 put: (self signed64At: 9 in: b);
-		at: 3 put: (b float64At: 17);
-		at: 4 put: (b float64At: 25);
-		at: 5 put: (self signed64At: 33 in: b);
-		at: 6 put: (self signed32At: 41 in: b);
-		at: 7 put: extra;
-		at: 8 put: (window = 0 ifTrue: [nil] ifFalse: [window]).
+	a basicAt: 1 put: (self signed64At: 1 in: b);
+		basicAt: 2 put: (self signed64At: 9 in: b);
+		basicAt: 3 put: (b float64At: 17);
+		basicAt: 4 put: (b float64At: 25);
+		basicAt: 5 put: (self signed64At: 33 in: b);
+		basicAt: 6 put: (self signed32At: 41 in: b);
+		basicAt: 7 put: extra;
+		basicAt: 8 put: (window = 0 ifTrue: [nil] ifFalse: [window]).
 	^a
 ! !

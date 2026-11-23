@@ -364,7 +364,7 @@ ffiGpuPushUniforms: commandOrPass stage: stage slot: slot data: data count: n
 	<var: #n type: 'uint64_t'>
 	<returns: 'int32_t'>
 	self ffiGpuOnMainThread ifFalse: [^0].
-	"SDL uniform slots are fixed and application payloads are capped at 4 KiB."
+	"SDL fixes the slot count; the Vulkan backend binds uniform sections of 4 KiB."
 	(slot < 0 or: [slot >= 4 or: [n > 4096]]) ifTrue: [
 		common setError: 'bad GPU uniform slot or byte count'.
 		^0].
@@ -384,7 +384,7 @@ ffiGpuCompileShader: data count: n stage: stage receipt: receipt capacity: cap
 	<returns: 'int32_t'>
 	| source size code row |
 	self ffiGpuOnMainThread ifFalse: [^-1].
-	row := gpu shaderOutputRoom: receipt capacity: cap.
+	row := pagedOutput roomFor: receipt capacity: cap.
 	row isNull ifTrue: [^-1].
 	source := nativeCountedText copyTerminated: data size: n.
 	source isNull ifTrue: [
@@ -394,28 +394,26 @@ ffiGpuCompileShader: data count: n stage: stage receipt: receipt capacity: cap
 	code := self cCoerce: (gpu compileShader: source stage: stage size: size) to: 'uint8_t *'.
 	libc free: source.
 	code isNull ifTrue: [^-1].
-	(gpu adoptShaderOutput: row bytes: code count: size value receipt: receipt) ifTrue: [^1].
+	(pagedOutput adopt: row bytes: code count: size value receipt: receipt) ifTrue: [^1].
 	libc free: code.
 	^-1
 !
-ffiGpuCopyShader: ticket offset: offset into: out capacity: cap
+ffiPlatformCopyOutput: ticket offset: offset into: out capacity: cap
 	<function>
-	<approvedFFI: 1461 symbol: 'platform_gpu_shader_copy' arguments: #(4 4 9) result: 1>
+	<approvedFFI: 1461 symbol: 'platform_output_copy' arguments: #(4 4 9) result: 1>
 	<var: #ticket type: 'uint64_t'>
 	<var: #offset type: 'uint64_t'>
 	<var: #out type: 'uint8_t *'>
 	<var: #cap type: 'uint64_t'>
 	<returns: 'int32_t'>
-	self ffiGpuOnMainThread ifFalse: [^0].
-	^(gpu copyShaderOutput: ticket offset: offset into: out capacity: cap) ifTrue: [1] ifFalse: [0]
+	^(pagedOutput copy: ticket offset: offset into: out capacity: cap) ifTrue: [1] ifFalse: [0]
 !
-ffiGpuReleaseShader: ticket
+ffiPlatformReleaseOutput: ticket
 	<function>
-	<approvedFFI: 1462 symbol: 'platform_gpu_shader_release' arguments: #(4) result: 1>
+	<approvedFFI: 1462 symbol: 'platform_output_release' arguments: #(4) result: 1>
 	<var: #ticket type: 'uint64_t'>
 	<returns: 'int32_t'>
-	self ffiGpuOnMainThread ifFalse: [^0].
-	^(gpu releaseShaderOutput: ticket) ifTrue: [1] ifFalse: [0]
+	^(pagedOutput release: ticket) ifTrue: [1] ifFalse: [0]
 ! !
 
 !SDLPlatform methodsFor: 'GPU FFI - blit'!
@@ -458,7 +456,7 @@ ffiGpuCreateShader: dev source: data size: n config: config size: cap
 	<returns: 'int32_t'>
 	| kind stage ns nu nb nt source entry result |
 	self ffiGpuOnMainThread ifFalse: [^0].
-	(cap < 24 or: [cap > 4120 or: [n > 67108864]]) ifTrue: [
+	cap < 24 ifTrue: [
 		common setError: 'wrong GPU shader record size'.
 		^0].
 	kind := self ffiGpuReadI32: config.
@@ -530,7 +528,7 @@ ffiGpuCreatePipeline: dev vertex: vs fragment: fs config: config size: n
 
 !SDLPlatform methodsFor: 'GPU FFI - drawing'!
 ffiGpuDrawEligibility: pass count: n first: first
-	"Read-only preflight (only diagnostic error on invalid state). The draw rechecks it."
+	"Diagnostic procedural certification; not a requirement for drawing."
 	<function>
 	<approvedFFI: 1450 symbol: 'platform_gpu_draw_eligibility' arguments: #(1 1 1) result: 1>
 	<var: #pass type: 'int32_t'>
@@ -541,15 +539,17 @@ ffiGpuDrawEligibility: pass count: n first: first
 	^gpu ffiDrawEligibility: pass count: n first: first
 !
 ffiGpuDraw: pass count: n first: first
+	"Draw in a compatible active pass, including swapchains and resource-bound pipelines."
 	<function>
-	<approvedFFI: 450 symbol: 'platform_gpu_draw' arguments: #(1 1 1) result: 1>
+	<approvedFFI: 450 symbol: 'platform_gpu_draw' arguments: #(1 2 2) result: 1>
 	<var: #pass type: 'int32_t'>
-	<var: #n type: 'int32_t'>
-	<var: #first type: 'int32_t'>
+	<var: #n type: 'uint32_t'>
+	<var: #first type: 'uint32_t'>
 	<returns: 'int32_t'>
 	self ffiGpuOnMainThread ifFalse: [^0].
-	(gpu ffiDrawEligibility: pass count: n first: first) = 1 ifFalse: [
-		common setError: 'GPU draw is not eligible for the procedural path'.
+	(gpu ffiBoundDrawPass: pass) isNull ifTrue: [^0].
+	(n ~= 0 and: [first asUInt64 + (n - 1) asUInt64 > 16rFFFFFFFF asUInt64]) ifTrue: [
+		common setError: 'GPU draw vertex range overflows uint32'.
 		^0].
-	^(gpu draw: pass vertices: n first: first) ifTrue: [1] ifFalse: [0]
+	^(gpu draw: pass vertices: n asInt32 first: first asInt32) ifTrue: [1] ifFalse: [0]
 ! !

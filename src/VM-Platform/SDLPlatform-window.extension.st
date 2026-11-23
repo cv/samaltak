@@ -61,18 +61,21 @@ ffiWindow: win title: bytes size: n
 	libc free: title.
 	^ok ifTrue: [1] ifFalse: [0]
 !
-ffiClipboardGet: ticket
+ffiClipboardGet: receipt capacity: cap
 	<function>
-	<approvedFFI: 410 symbol: 'platform_windows_clipboard_get' arguments: #(4) result: 1>
-	<var: #ticket type: 'uint64_t'>
+	<approvedFFI: 410 symbol: 'platform_windows_clipboard_get' arguments: #(9) result: 1>
+	<var: #receipt type: 'uint8_t *'>
+	<var: #cap type: 'uint64_t'>
 	<returns: 'int32_t'>
-	| s ok |
-	(ownedFFI ownedCanProduce: ticket) ifFalse: [^-1].
+	| row s |
+	row := pagedOutput roomFor: receipt capacity: cap.
+	row isNull ifTrue: [^-1].
 	s := windows clipboardGet.
 	s isNull ifTrue: [^-1].
-	ok := ownedFFI ownedPublish: ticket from: (self cCoerce: s to: 'const uint8_t *') size: (libc strlen: s).
+	(pagedOutput adopt: row bytes: (self cCoerce: s to: 'uint8_t *')
+		count: (libc strlen: s) receipt: receipt) ifTrue: [^1].
 	libc free: s.
-	^ok ifTrue: [1] ifFalse: [-1]
+	^-1
 !
 ffiClipboardSet: bytes size: n
 	<function>
@@ -149,27 +152,41 @@ ffiWindow: win width: w height: h
 	<var: #w type: 'int64_t'>
 	<var: #h type: 'int64_t'>
 	<returns: 'int32_t'>
-	(w < 1 or: [h < 1]) ifTrue: [^0].
+	(w < 1 or: [w > 16r7FFFFFFF or: [h < 1 or: [h > 16r7FFFFFFF]]]) ifTrue: [^0].
 	^(windows setSize: win asInt32 width: w asInt32 height: h asInt32) ifTrue: [1] ifFalse: [0]
 ! !
 
 !SDLPlatform methodsFor: '*VM-Platform-window-events'!
-ffiEventsNext: ticket
+ffiEventsNext: bytes capacity: headerCap receipt: receipt capacity: cap
 	<function>
-	<approvedFFI: 412 symbol: 'platform_events_next' arguments: #(4) result: 1>
-	<var: #ticket type: 'uint64_t'>
+	<approvedFFI: 412 symbol: 'platform_events_next' arguments: #(9 9) result: 1>
+	<var: #bytes type: 'uint8_t *'>
+	<var: #headerCap type: 'uint64_t'>
+	<var: #receipt type: 'uint8_t *'>
+	<var: #cap type: 'uint64_t'>
 	<returns: 'int32_t'>
-	| e bytes n ok |
-	(ownedFFI ownedCanProduce: ticket) ifFalse: [^-1].
+	| e row headerStart receiptStart |
+	(headerCap ~= 80 or: [cap ~= 16]) ifTrue: [
+		common setError: 'wrong event output buffer size'.
+		^-1].
+	headerStart := self cCoerce: bytes to: 'uintptr_t'.
+	receiptStart := self cCoerce: receipt to: 'uintptr_t'.
+	(headerStart < (receiptStart + cap) and: [receiptStart < (headerStart + headerCap)]) ifTrue: [
+		common setError: 'event header and receipt overlap'.
+		^-1].
+	0 to: 15 do: [:i | (receipt at: i) ~= 0 ifTrue: [
+		common setError: 'event output requires a fresh receipt'.
+		^-1]].
 	e := self local: 'pf_event'.
 	(events peekForFFI: e) ifFalse: [
 		"Even an empty read rearms the input semaphore."
 		events next: e.
 		^0].
-	n := e text isNull ifTrue: [0 asUInt64] ifFalse: [libc strlen: e text].
-	n > (67108864 - 80) ifTrue: [^-1].
-	bytes := self cCoerce: (libc calloc: n + 80 size: 1) to: 'uint8_t *'.
-	bytes isNull ifTrue: [^-1].
+	e text notNull ifTrue: [
+		row := pagedOutput roomFor: receipt capacity: cap.
+		row isNull ifTrue: [^-1].
+		(pagedOutput adopt: row bytes: (self cCoerce: e text to: 'uint8_t *')
+			count: (libc strlen: e text) receipt: receipt) ifFalse: [^-1]].
 	self windowWire: bytes at: 0 put: e type asInt64 asUInt64 count: 8.
 	self windowWire: bytes at: 8 put: e timeMs asUInt64 count: 8.
 	self windowWire: bytes at: 16 put: (self bitsOfDouble: e x) count: 8.
@@ -181,12 +198,9 @@ ffiEventsNext: ticket
 	self windowWire: bytes at: 56 put: (self bitsOfDouble: e dx) count: 8.
 	self windowWire: bytes at: 64 put: (self bitsOfDouble: e dy) count: 8.
 	self windowWire: bytes at: 72 put: e window asUInt32 count: 4.
-	n ~= 0 ifTrue: [libc memcpy: bytes + 80 from: e text size: n].
-	ok := ownedFFI ownedAdopt: ticket from: bytes size: n + 80 capacity: n + 80.
-	ok ifFalse: [libc free: bytes. ^-1].
-	"The producer runs on the VM thread without reentry; the peeked event is still first."
+	self windowWire: bytes at: 76 put: 0 count: 4.
+	"Only the VM thread touches the FIFO. Transfer its text ownership to the lease."
 	events next: e.
-	libc free: e text.
 	^1
 !
 ffiEventsInject: bytes size: n

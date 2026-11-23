@@ -26,6 +26,13 @@ canPublishCode
 	<returns: 'bool'>
 	^memory canMapFFIStubs
 !
+staticCoreEntry: name signature: signature
+	<function>
+	<var: #name type: 'const char *'>
+	<var: #signature type: 'uint32_t'>
+	<returns: 'uint64_t'>
+	^memory staticCoreEntry: name signature: signature
+!
 publishCode: bytes size: size
 	"Copy a complete packet, return its entry (at least 16-byte aligned), or 0. PC-relative references must stay within the packet."
 	<export>
@@ -296,6 +303,13 @@ publishFFIStub: bytes size: size
 	<var: #size type: 'uint32_t'>
 	<returns: 'uint64_t'>
 	self subclassResponsibility
+!
+staticCoreEntry: name signature: signature
+	"An exact, precompiled vm:core launcher or 0; never resolves a grant."
+	<var: #name type: 'const char *'>
+	<var: #signature type: 'uint32_t'>
+	<returns: 'uint64_t'>
+	self subclassResponsibility
 ! !
 
 FFIStubMemory subclass: #DarwinFFIStubMemory
@@ -335,6 +349,10 @@ publishFFIStub: bytes size: size
 	ffiStubNext := ffiStubNext + reserved.
 	ffiStubRemaining := ffiStubRemaining - reserved.
 	^self cCoerce: entry to: 'uint64_t'
+!
+staticCoreEntry: name signature: signature
+	<export>
+	^0
 ! !
 
 FFIStubMemory subclass: #LinuxFFIStubMemory
@@ -371,6 +389,10 @@ publishFFIStub: bytes size: size
 		^0].
 	jit invalidate: entry size: size.
 	^self cCoerce: entry to: 'uint64_t'
+!
+staticCoreEntry: name signature: signature
+	<export>
+	^0
 ! !
 
 CLibrary subclass: #FFIStubPosix

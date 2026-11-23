@@ -159,28 +159,39 @@ ffiCanCreatePipeline: dev vertex: vs fragment: fs stride: stride attributes: att
 
 !PlatformGPU methodsFor: 'FFI draw validation'!
 invalidateDrawBindings
-	"Any pipeline/texture release makes prior passes legacy-only. No handle scan
+	"Any pipeline/texture release invalidates procedural certification. No handle scan
 	and no stale positives when the underlying table recycles an integer."
 	<function>
 	drawBindingEpoch = 0 ifTrue: [^self].
 	drawBindingEpoch := (drawBindingEpoch = 16r7FFFFFFF ifTrue: [0] ifFalse: [drawBindingEpoch + 1]) asInt32
 !
+ffiBoundDrawPass: pass
+	"Require a compatible recorded pipeline on the command buffer's active pass.
+	Do not use the live pipeline table to reject an SDL-encoded retained pipeline."
+	<function>
+	<var: #pass type: 'int32_t'>
+	<returns: 'pf_obj *'>
+	| p c |
+	p := self get: pass kind: K_PASS what: 'render pass'.
+	p isNull ifTrue: [^self null].
+	c := common table: objs at: p i asInt32 kind: K_CMD.
+	(c isNull or: [c w ~= pass or: [p w <= 0]]) ifTrue: [
+		common setError: 'no compatible graphics pipeline bound to the active pass'.
+		^self null].
+	^p
+!
 ffiDrawEligibility: pass count: n first: first
-	"1 certified procedural draw, 0 legacy-only draw, -1 invalid required state."
+	"1 certified procedural draw, 0 valid pass but uncertified, -1 invalid required state."
 	<function>
 	<var: #pass type: 'int32_t'>
 	<var: #n type: 'int32_t'>
 	<var: #first type: 'int32_t'>
 	<returns: 'int32_t'>
-	| p c pipeline |
-	p := self get: pass kind: K_PASS what: 'render pass'.
+	| p pipeline |
+	p := self ffiBoundDrawPass: pass.
 	p isNull ifTrue: [^-1].
-	c := common table: objs at: p i asInt32 kind: K_CMD.
-	(c isNull or: [c w ~= pass or: [p w = 0 or: [p w = -1]]]) ifTrue: [
-		common setError: 'no compatible graphics pipeline bound to the active pass'.
-		^-1].
 	"SDL may retain already-encoded resources even after the image releases its handle.
-	That state, swapchains and pipelines with resource bindings remain legacy-only."
+	Do not certify that state, swapchains or pipelines with resource bindings."
 	(p h = 0 or: [p h ~= drawBindingEpoch or: [n < 0 or: [first < 0 or: [
 		n asInt64 + first > 16r7FFFFFFF]]]]) ifTrue: [^0].
 	pipeline := common table: objs at: p w kind: K_PIPE.

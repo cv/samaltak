@@ -38,17 +38,18 @@ initialize
 !FFIPrimitives methodsFor: 'bound primitives'!
 primFFIPrepare
 	<vmPrimitive: 263 name: 'ffiPrepare'>
-	| owner arity entry slot result |
+	| owner arity entry slot result stateless |
 	self argCount = 0 ifFalse: [^self fail].
 	owner := self receiver.
 	arity := self local: 'int32_t'.
 	entry := self boundEntry: owner into: arity.
 	entry = FFI_BOUND_REJECTED ifTrue: [^self fail].
 	entry ~= 0 ifTrue: [^self answerBool: true].
-	ffiStubs canPublishCode ifFalse: [^self fail].
+	stateless := ffiStubs canPublishCode not.
 	result := self local: 'int32_t'.
-	entry := self prepareEntry: (self loadRef: owner at: 0) into: arity result: result.
+	entry := self prepareEntry: (self loadRef: owner at: 0) into: arity result: result staticOnly: stateless.
 	entry = 0 ifTrue: [^self fail].
+	stateless ifTrue: [^self answerBool: true].
 	self ensureBindingSession ifFalse: [^self fail].
 	slot := self bindingSlotFor: owner.
 	slot < 0 ifTrue: [
@@ -71,7 +72,7 @@ primFFIBoundInvoke
 	<vmPrimitive: 264 name: 'ffiBoundInvoke'>
 	| arity entry |
 	arity := self local: 'int32_t'.
-	entry := self boundEntry: self receiver into: arity.
+	entry := self invocationEntry: self receiver into: arity.
 	entry = 0 ifTrue: [^self fail].
 	entry = FFI_BOUND_REJECTED ifTrue: [^self answerBool: false].
 	self argCount = arity value ifFalse: [^self answerBool: false].
@@ -87,7 +88,7 @@ invokeBoundArray: args
 	<var: #args type: 'oop'>
 	| arity entry |
 	arity := self local: 'int32_t'.
-	entry := self boundEntry: self receiver into: arity.
+	entry := self invocationEntry: self receiver into: arity.
 	entry = 0 ifTrue: [^self fail].
 	entry = FFI_BOUND_REJECTED ifTrue: [^self answerBool: false].
 	(self isArray: args count: arity value asUInt32) ifFalse: [^self answerBool: false].
@@ -172,6 +173,19 @@ fillBoundSite: site owner: owner method: expected selector: selector arity: n
 ! !
 
 !FFIPrimitives methodsFor: 'binding slots'!
+invocationEntry: owner into: arity
+	"On a platform with only static wrappers, reauthorize every call. No token,
+	 entropy, or JIT bound-site entry is needed; never retry after entry."
+	<function>
+	<var: #owner type: 'oop'>
+	<var: #arity type: 'int32_t *'>
+	<returns: 'uint64_t'>
+	| entry result |
+	entry := self boundEntry: owner into: arity.
+	(entry ~= 0 or: [ffiStubs canPublishCode]) ifTrue: [^entry].
+	result := self local: 'int32_t'.
+	^self prepareEntry: (self loadRef: owner at: 0) into: arity result: result staticOnly: true
+!
 isBindingShape: owner
 	<var: #owner type: 'oop'>
 	^(owner ~= 0 and: [self isPtr: owner]) and: [
@@ -265,16 +279,17 @@ invalidateBindings
 	bindingCount := 0.
 	bindingSession := 0
 !
-prepareEntry: descriptor into: arity result: resultOut
+prepareEntry: descriptor into: arity result: resultOut staticOnly: staticOnly
 	<function>
 	<var: #descriptor type: 'oop'>
 	<var: #arity type: 'int32_t *'>
 	<var: #resultOut type: 'int32_t *'>
+	<var: #staticOnly type: 'bool'>
 	<var: #n type: 'int32_t'>
 	<var: #result type: 'int32_t'>
 	<var: #slots type: 'int32_t'>
 	<returns: 'uint64_t'>
-	| library symbol libraryOop symbolOop libLen symLen tags tagOop count n slots resultOop result target id operation |
+	| library symbol libraryOop symbolOop libLen symLen tags tagOop count n slots resultOop result target id operation signature tag |
 	((self isArray: descriptor count: 4) and: [self isImmutable: descriptor]) ifFalse: [^0].
 	libraryOop := self loadRef: descriptor at: 0.
 	symbolOop := self loadRef: descriptor at: 1.
@@ -301,6 +316,17 @@ prepareEntry: descriptor into: arity result: resultOut
 	0 to: n - 1 do: [:i |
 		((tags at: i) >= 8) ifTrue: [slots := slots + 1]].
 	slots > 6 ifTrue: [^0].
+	staticOnly ifTrue: [
+		(libc strcmp: (self cCoerce: library to: 'const char *') with: 'vm:core') ~= 0 ifTrue: [^0].
+		signature := 0 asUInt32.
+		0 to: n - 1 do: [:i |
+			tag := tags at: i.
+			(tag < 1 or: [tag > 15]) ifTrue: [^0].
+			signature := ((signature asUInt64 << 4) bitOr: tag asUInt64) asUInt32].
+		arity value: n.
+		resultOut value: result.
+		^ffiStubs staticCoreEntry: (self cCoerce: symbol to: 'const char *')
+			signature: ((signature asUInt64 << 4) bitOr: result asUInt64) asUInt32].
 	target := self local: 'uint64_t'.
 	id := self resolve: library length: libLen symbol: symbol length: symLen types: tags count: n result: result prepared: true into: target.
 	id = 0 ifTrue: [^0].

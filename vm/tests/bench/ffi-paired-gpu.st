@@ -18,15 +18,10 @@ gpuPass
 		gpu bindPipeline: pass pipeline: pipeline handle].
 	[
 		self case: 'gpu-pass' repeat: nil
-			direct: [:n | | result |
+			run: [:n | | result |
 				n timesRepeat: [
 					gpu setViewport: pass x: 1.0 y: 2.0 width: 60.0 height: 61.0.
 					result := gpu setScissor: pass x: 1 y: 2 width: 60 height: 61].
-				result]
-			candidate: [:n | | result |
-				n timesRepeat: [
-					gpu ffiCandidateSetViewport: pass x: 1.0 y: 2.0 width: 60.0 height: 61.0.
-					result := gpu ffiCandidateSetScissor: pass x: 1 y: 2 width: 60 height: 61].
 				result]
 			reset: reset
 			expect: [:result | result == gpu]

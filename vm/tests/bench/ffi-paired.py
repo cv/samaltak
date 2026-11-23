@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare literal direct primitive sends with the complete candidate facade."""
+"""Prove canonical FFI entry, or compare the same API on two matched VM/image pairs."""
 import argparse
 from collections import Counter
 import csv
@@ -88,39 +88,40 @@ def stream_fixture(label):
     return None, None
 
 
-def run(args, work, case, mode, repetition, schedule, proof_arm):
+def run(args, work, case, mode, arm, session=None, pair=None):
+    proof = session is None
+    vm, image = (args.vm, args.image) if arm else (args.old_vm, args.old_image)
     label, key, suite, selector = case
-    n = args.proof_calls if proof_arm is not None else args.calls
+    n = args.proof_calls if proof else args.calls
     warmup = args.warmup
     stream, payload = stream_fixture(label)
-    if proof_arm is None and payload:
+    if not proof and payload:
         # Keep each stream arm's regular-file sink bounded without skipping marshalling.
         limit = (2 * 1024 * 1024) // len(payload)
         n, warmup = min(n, limit), min(warmup, limit)
-    suffix = f"proof-{proof_arm}" if proof_arm is not None else f"run-{repetition:02}"
+    suffix = f"proof-{arm}" if proof else f"run-{session:02}-{pair:02}-{arm}"
     log = args.logs / f"{label}-{mode}-{suffix}"
     env = {k: v for k, v in os.environ.items() if k not in {
         "SAMALTAK_NATIVE_GRANTS", "SAMALTAK_VERIFY_GC",
-        "SAMALTAK_FFI_TRIAL", "SAMALTAK_OPT_TRACE", "SAMALTAK_FFI_SITE_TRACE",
+        "SAMALTAK_OPT_TRACE", "SAMALTAK_FFI_SITE_TRACE",
         "SAMALTAK_FFI_BOX_FULL_GC", "SAMALTAK_FFI_NATIVE_TRACE"}}
     env.update(LC_ALL="C", SAMALTAK_PARITY_VALUE="parity value")
     if not args.display_ci:
-        env.pop("DISPLAY", None)
-        env.pop("WAYLAND_DISPLAY", None)
+        for variable in ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY"):
+            env.pop(variable, None)
         env.update(SDL_VIDEO_DRIVER="ffi_no_video", SDL_VIDEODRIVER="ffi_no_video")
-    if proof_arm is not None:
+    if proof:
         env["SAMALTAK_FFI_NATIVE_TRACE"] = "1"
-    arm = "nil" if proof_arm is None else str(proof_arm)
-    plan = "#(" + " ".join(map(str, schedule)) + ")"
-    expr = (f"[FFIPairedBench count: {n} warmup: {warmup} schedule: {plan} proofArm: {arm}. "
+    pair_or_nil = "nil" if proof else str(pair)
+    expr = (f"[FFIPairedBench count: {n} warmup: {warmup} pair: {pair_or_nil} arm: {arm}. "
             f"FFIPairedBench {selector}. Smalltalk vm stdoutWrite: "
             "((String with: Character lf), 'ffi-paired-ok', (String with: Character lf))] "
             "on: Error do: [:e | Smalltalk vm stderrWrite: e messageText, "
             "(String with: Character lf). Smalltalk quit: 1]")
-    command = [args.vm, "--jit", mode, "--jit-threshold", "0", "--eden", str(args.eden)]
+    command = [vm, "--jit", mode, "--jit-threshold", "0", "--eden", str(args.eden)]
     if mode == "opt":
         command += ["--jit-opt", "256"]
-    command += [args.image, "--headless", "--load", HERE / "ffi-paired.st",
+    command += [image, "--headless", "--load", HERE / "ffi-paired.st",
                 "--load", HERE / f"ffi-paired-{suite}.st", "--eval", expr]
     paths = {channel: work / "stream-capture" if stream == channel else log.with_suffix("." + channel)
              for channel in ("stdout", "stderr")}
@@ -135,20 +136,30 @@ def run(args, work, case, mode, repetition, schedule, proof_arm):
                 else:
                     log_file.write(line)
             log_file.write(f"ffi-stream-capture {count} lines x {len(payload)} bytes\n".encode())
-        expected = n if proof_arm is not None else 2 * (warmup + n * len(schedule))
+        expected = n if proof else warmup + n
         if count != expected:
             raise RuntimeError(f"{log}: captured {count} matching stream writes, expected {expected}")
     stdout = log.with_suffix(".stdout").read_bytes()
     stderr = log.with_suffix(".stderr").read_bytes()
     if result.returncode or stdout.splitlines().count(b"ffi-paired-ok") != 1:
         raise RuntimeError(f"{log}: workload failed ({result.returncode}): {stderr[-800:]!r}")
-    trace = Counter(map(int, TRACE.findall(stderr)))
-    if proof_arm is not None:
+    if proof:
+        # Setup, cleanup and the evaluator can also use migrated calls. Count
+        # only the timed operation(s) between the two stderr delimiters.
+        marked = re.search(rb"^ffi-pair-begin\n(.*?)^ffi-pair-end$", stderr, re.M | re.S)
+        if not marked:
+            raise RuntimeError(f"{log}: missing trace delimiters")
+        trace = Counter(map(int, TRACE.findall(marked[1])))
         keys = key if isinstance(key, tuple) else (key,)
-        want = Counter({1024 + item: n for item in keys}) if proof_arm else Counter()
-        if trace != want:
-            raise RuntimeError(f"{log}: native entry counts {dict(trace)}, expected {dict(want)}")
-        return []
+        typed = arm == 1 or args.old_route == "typed"
+        want = {1024 + item: n if typed else 0 for item in keys}
+        if typed and stream == "stderr":
+            want[2194] += 1  # the end delimiter is itself a canonical stderr write
+        actual = {item: trace[item] for item in want}
+        if actual != want:
+            raise RuntimeError(f"{log}: native entry counts {actual}, expected {want}")
+        return None
+    trace = TRACE.findall(stderr)
     if trace:
         raise RuntimeError(f"{log}: tracing contaminated timing")
     rows = []
@@ -162,10 +173,9 @@ def run(args, work, case, mode, repetition, schedule, proof_arm):
         if min(stats[:2]) <= 0:
             raise RuntimeError(f"{log}: timer resolution; increase --calls")
         rows.append((pair, measure_arm, count, *stats))
-    expected = [(pair, arm) for pair, first in enumerate(schedule, 1) for arm in (first, 1 - first)]
-    if [row[:2] for row in rows] != expected:
-        raise RuntimeError(f"{log}: missing or out-of-order pairs")
-    return rows
+    if [row[:2] for row in rows] != [(pair, arm)]:
+        raise RuntimeError(f"{log}: expected one matching timing row")
+    return rows[0]
 
 
 def summarize(samples, selected):
@@ -192,13 +202,13 @@ def summarize(samples, selected):
             lo, _ = median_interval(lows, alpha)
             _, hi = median_interval(highs, alpha)
             status = ("at-par" if hi <= 1.0 else "slower" if lo > 1.0 else "inconclusive")
-            print(f"{case:23} {mode:8} wall C/D={statistics.median(mids):.4f} "
+            print(f"{case:23} {mode:8} wall new/old={statistics.median(mids):.4f} "
                   f"simultaneous 95% [{lo:.4f}, {hi:.4f}] {status}; "
                   f"AB/BA medians={statistics.median(by_order[0]):.4f}/{statistics.median(by_order[1]):.4f}; "
-                  f"CPU C/D={statistics.median(b[2]/a[2] for _, _, a, b in pairs):.4f}; "
-                  f"D/C B/call={statistics.median(a[3]/a[0] for _, _, a, _ in pairs):.2f}/"
+                  f"CPU new/old={statistics.median(b[2]/a[2] for _, _, a, b in pairs):.4f}; "
+                  f"old/new B/call={statistics.median(a[3]/a[0] for _, _, a, _ in pairs):.2f}/"
                   f"{statistics.median(b[3]/b[0] for _, _, _, b in pairs):.2f}; "
-                  f"D/C GC us/arm={statistics.median(a[6] for _, _, a, _ in pairs):.0f}/"
+                  f"old/new GC us/arm={statistics.median(a[6] for _, _, a, _ in pairs):.0f}/"
                   f"{statistics.median(b[6] for _, _, _, b in pairs):.0f}")
             yield status
 
@@ -207,9 +217,13 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     for option in ("vm", "image", "logs"):
         ap.add_argument(f"--{option}", type=Path, required=True)
+    ap.add_argument("--old-vm", type=Path, help="previous revision's executable")
+    ap.add_argument("--old-image", type=Path, help="image built by that previous executable/revision")
+    ap.add_argument("--old-route", choices=("dedicated", "typed"), default="dedicated",
+                    help="expected entry route in the previous pair (default: dedicated)")
     ap.add_argument("--case", choices=[case[0] for case in (*cases(), *cases(display=True))], action="append")
     ap.add_argument("--display-ci", action="store_true", help="display suites, GitHub Actions X11 only")
-    ap.add_argument("--sessions", type=int, default=15, help="fresh VM sessions per case/mode")
+    ap.add_argument("--sessions", type=int, default=15, help="independent blocks of AB/BA pairs per case/mode")
     ap.add_argument("--pairs", type=int, default=6, help="even count, half each AB/BA order")
     ap.add_argument("--calls", type=int, default=12000)
     ap.add_argument("--warmup", type=int, default=12000)
@@ -225,6 +239,12 @@ def main():
             or args.pairs < 2 or args.pairs % 2):
         ap.error("positive sample counts/eden and an even number of pairs are required")
     args.vm, args.image = (p.resolve(strict=True) for p in (args.vm, args.image))
+    if bool(args.old_vm) != bool(args.old_image) or (not args.proof_only and not args.old_vm):
+        ap.error("timing requires a matched previous --old-vm/--old-image pair")
+    if args.old_vm:
+        args.old_vm, args.old_image = (p.resolve(strict=True) for p in (args.old_vm, args.old_image))
+        if args.old_vm.samefile(args.vm) or args.old_image.samefile(args.image):
+            ap.error("build separate executable and image artifacts for each revision")
     args.logs = args.logs.resolve()
     args.logs.mkdir(parents=True, exist_ok=True)
     if any(args.logs.iterdir()):
@@ -242,6 +262,8 @@ def main():
         ap.error("--case does not belong to the selected headless/display suite")
     selected = [case for case in available if not args.case or case[0] in args.case]
     files = [args.vm, args.image, Path(__file__), HERE / "ffi-paired.st"]
+    if args.old_vm:
+        files += [args.old_vm, args.old_image]
     files += [HERE / f"ffi-paired-{suite}.st" for suite in sorted({c[2] for c in selected})]
     (args.logs / "plan.json").write_text(json.dumps({
         **{k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
@@ -257,9 +279,10 @@ def main():
         for size in FILE_SIZES:
             (work / f"payload-{size}").write_bytes(bytes(size))
         for case, mode in strata:
-            for arm in range(2):
-                run(args, work, case, mode, None, [], arm)
-        print(f"Native entry checks passed: {len(strata)} cases/modes, exact target counts; direct controls zero.")
+            if args.old_vm:
+                run(args, work, case, mode, 0)
+            run(args, work, case, mode, 1)
+        print(f"Native entry checks passed: {len(strata)} cases/modes, exact canonical counts.")
         if args.proof_only:
             return 0
         with (args.logs / "pairs.csv").open("w", newline="") as f:
@@ -270,18 +293,17 @@ def main():
                 for case, mode in strata:
                     schedule = [0, 1] * (args.pairs // 2)
                     rng.shuffle(schedule)
-                    rows = run(args, work, case, mode, rep, schedule, None)
-                    for i, first in enumerate(schedule):
-                        a, b = map(lambda row: row[2:], rows[i * 2:i * 2 + 2])
-                        if first == 1:
-                            a, b = b, a
+                    for pair, first in enumerate(schedule, 1):
+                        rows = [run(args, work, case, mode, arm, rep, pair)
+                                for arm in (first, 1 - first)]
+                        a, b = (row[2:] for row in sorted(rows))
                         samples.setdefault((case[0], mode), []).append((rep, first, a, b))
-                    for pair, arm, n, *stats in rows:
-                        csv_out.writerow((case[0], mode, rep, pair, schedule[pair - 1], arm, n, *stats))
+                        for _, arm, count, *stats in rows:
+                            csv_out.writerow((case[0], mode, rep, pair, first, arm, count, *stats))
     with (args.logs / "ratios.csv").open("w", newline="") as f:
         out = csv.writer(f)
-        out.writerow(("case", "mode", "session", "pair", "first_arm", "wall_candidate/direct",
-                      "cpu_candidate/direct"))
+        out.writerow(("case", "mode", "session", "pair", "first_arm", "wall_new/old",
+                      "cpu_new/old"))
         for (label, mode), pairs in sorted(samples.items()):
             for index, (session, first, a, b) in enumerate(pairs):
                 out.writerow((label, mode, session, index % args.pairs + 1, first,

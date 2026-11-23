@@ -1,8 +1,8 @@
 "Evaluate on an SDL-hosted SAMALTAK_FFI_TEST_EXPORTS build with display denied."
 [ | producer copy release receipt ticket length bytes result invocations |
 	producer := PlatformFFI bind: #(call 'platform' 'platform_gpu_test_shader_pages' (writableBytesWithLength) i32).
-	copy := PlatformFFI bind: #(call 'platform' 'platform_gpu_shader_copy' (u64 u64 writableBytesWithLength) i32).
-	release := PlatformFFI bind: #(call 'platform' 'platform_gpu_shader_release' (u64) i32).
+	copy := PlatformFFI bind: #(call 'platform' 'platform_output_copy' (u64 u64 writableBytesWithLength) i32).
+	release := PlatformFFI bind: #(call 'platform' 'platform_output_release' (u64) i32).
 	(producer isNil or: [copy isNil or: [release isNil]]) ifTrue: [self error: 'Missing paged shader exports'].
 	receipt := ByteArray new: 16.
 	bytes := ByteArray new: 6.
@@ -24,7 +24,7 @@
 	(release tryInvoke1: ticket) = 0 ifFalse: [self error: 'Double release accepted'].
 	(copy tryInvoke3: ticket with: 0 with: {bytes. 1. 6}) = 0 ifFalse: [self error: 'Stale read accepted'].
 	invocations := 0.
-	result := GPUPlatformFFI shaderOutputFrom: [:out |
+	result := FFIPagedPlatformOutput capture: [:out |
 		invocations := invocations + 1.
 		producer tryInvoke1: {out. 1. 16}].
 	(invocations = 1 and: [result class == ByteArray and: [result size = length]])

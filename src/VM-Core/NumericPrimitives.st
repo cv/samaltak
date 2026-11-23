@@ -210,12 +210,6 @@ primFloatTruncated
 		(t >= -4611686018427387904.0 and: [t < 4611686018427387904.0]) ifFalse: [^self fail].
 		self answer: (self intOop: t truncated)]
 !
-primFloatFractionPart
-	<vmPrimitive: 52 name: 'floatFractionPart'>
-	| ip |
-	ip := self local: 'double'.
-	self floatReceiverDo: [:a | self answerFloat: (libm modf: a integralPart: ip)]
-!
 primFloatExponent
 	<vmPrimitive: 53 name: 'floatExponent'>
 	self floatReceiverDo: [:a |
@@ -256,21 +250,6 @@ primFloatLn
 primFloatExp
 	<vmPrimitive: 60 name: 'floatExp'>
 	self floatReceiverDo: [:a | self answerFloat: (libm exp: a)]
-!
-primFloatPrintString
-	"Shortest round-trip decimal: 123.0, 0.1, 1.0e-10, -2.5e100, inf, -inf, nan."
-	<vmPrimitive: 61 name: 'floatPrintString'>
-	self floatReceiverDo: [:a | self answer: (self printStringOf: a)]
-!
-printStringOf: a
-	<function>
-	| out |
-	out := self local: 'char[64]'.
-	a ~= a ifTrue: [^memory stringFromUtf8: 'nan' size: 3].
-	(self isFinite: a) ifFalse: [^a < 0.0 ifTrue: [memory stringFromUtf8: '-inf' size: 4] ifFalse: [memory stringFromUtf8: 'inf' size: 3]].
-	a = 0.0 ifTrue: [^((self bitsOfDouble: a) >> 63) ~= 0 ifTrue: [memory stringFromUtf8: '-0.0' size: 4] ifFalse: [memory stringFromUtf8: '0.0' size: 3]].
-	self finiteFloatDecimal: a in: out.
-	^memory stringFromUtf8: out size: (libc strlen: out)
 !
 primFloatAsIEEEBits
 	<vmPrimitive: 62 name: 'floatAsIEEEBits'>

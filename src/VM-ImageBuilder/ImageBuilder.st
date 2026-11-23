@@ -7,7 +7,7 @@ ImageBuilder comment: 'I build a seed image from a source tree (src/, or the min
 
 	ImageBuilder buildFrom: ''src'' to: ''build/seed.image''
 
-The image starts in SystemDictionary>>bootstrapStartUp, in a Process at priority 40, as stage 2 expects. make seed runs me in the checked-in boot/seed.image, after filing in my current sources (boot/build-seed.st).'!
+The image starts in SystemDictionary>>bootstrapStartUp, in a Process at priority 40, as stage 2 expects. make seed runs me in the checked-in boot/seed.image, after filing in my current sources (boot/build-image.st).'!
 
 !ImageBuilder class methodsFor: 'building'!
 buildFrom: aSourceDirectory to: anImagePath
@@ -57,6 +57,7 @@ buildFrom: aSourceDirectory packages: aListPath to: anImagePath
 			reject: [:each | each isEmpty or: [each first = $#]])].
 	source read.
 	classes := source classes.
+	primitiveNumbers := nil.
 	classes do: [:c | c builder: self].
 	globals := Dictionary new.
 	undeclared := Dictionary new.
@@ -296,14 +297,21 @@ oopFor: aLiteral
 			at: 'selector' put: (self symbol: aLiteral selector);
 			at: 'arguments' put: (self oopFor: aLiteral arguments asArray);
 			yourself)].
-	aLiteral class == FFIBinding ifTrue: [
-		o := self instanceOf: 'FFIBinding' values: (Dictionary new
-			at: 'descriptor' put: (self oopFor: aLiteral descriptor);
-			at: 'bindingToken' put: nilOop;
-			yourself).
-		self beImmutable: o.
-		^o].
+	aLiteral class == FFIBinding ifTrue: [^self oopForFFISite: aLiteral].
 	^self fail: 'cannot put a ' , aLiteral class name , ' into the image'
+!
+oopForFFISite: aBinding
+	"Copy only the symbolic descriptor. A host binding token is never usable in the seed."
+	| layout oop |
+	layout := classes at: 'FFIBinding' ifAbsent: [nil].
+	(layout notNil and: [layout allInstVarNames asArray = #('descriptor' 'bindingToken')]) ifFalse: [
+		^self fail: currentFile , ':' , currentLine printString , ': an FFI site requires the FFIBinding layout'].
+	oop := self instanceOf: 'FFIBinding' values: (Dictionary new
+		at: 'descriptor' put: (self oopFor: aBinding descriptor);
+		at: 'bindingToken' put: nilOop;
+		yourself).
+	self beImmutable: oop.
+	^oop
 !
 isPointer: anOop
 	^(anOop bitAnd: 7) = 0

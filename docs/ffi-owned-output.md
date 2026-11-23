@@ -1,10 +1,9 @@
 # Bounded FFI output
 
-These protocols are for declared, reviewed built-ins using the prepared FFI
-wrappers. They add neither C pointer values to the image nor native calls
-into Smalltalk. Production still uses the original primitives. An opt-in
-facade may fall back only before entry to the operation; it never replays
-a completed operation.
+These result protocols are for approved built-ins using prepared FFI.
+They expose neither native pointers nor callbacks to the image. A facade
+may take an alternate path only on rejection before native entry; it never
+replays a completed operation.
 
 ## Known capacity
 
@@ -43,17 +42,16 @@ The image helper interprets its result as follows:
 
 | Producer result | Image result |
 | --- | --- |
-| `false` (wrapper rejected all arguments before entry) | `false`, may use legacy |
+| `false` (wrapper rejected the call before native entry) | `false` |
 | `0` | `nil`, completed and absent |
 | `1` | exact-length ByteArray; empty is present |
 | Negative integer | the same completed operation status |
 
 An unavailable reservation can also return `false` before producer entry.
 A post-entry missing payload, malformed status or copy failure raises
-`FFIError`, with no fallback. An operation with exact semantics beyond the
-owned limit needs a different reviewed ownership representation or stays
-on its existing primitive. Reject oversize; don't clamp it or run the
-operation again.
+`FFIError`. Use this owner only where its bounds cover the operation's
+contract. Otherwise use a different result protocol; don't truncate a
+result or rerun the operation.
 
 The producer claims its ticket with `ownedCanProduce:` before doing the
 operation. A second claim always fails, even if the first found no result.
@@ -91,28 +89,39 @@ with an empty native table and a new random mask: reopening an image can
 rebind descriptors but does not resurrect any payload. Release of an
 invalid ticket is harmless.
 
-The shared cap still applies to clipboard text (410) and event records
-(412). A clipboard result above 64 MiB can fail after entry. An event
-with text exceeding 64 MiB minus its 80-byte wire header fails without
-dequeue. Neither failure replays the primitive. Clipboard MIME data
-(420) keeps its existing 20 MiB limit.
+The shared budget is not a general downcall limit. Clipboard MIME data
+uses this owner within its own 20 MiB limit.
 
-## Paged shader compiler output (461)
+## Paged platform output
 
-The SDL-hosted shader producer takes a fresh, zeroed 16-byte writable
-receipt. It compiles once and adopts the exclusive native buffer. On
-success the receipt holds a nonzero process-local ticket and exact size,
-as two little-endian u64 words. The image allocates the exact ByteArray
-and copies it into checked writable slices of at most 1 MiB per call.
-Each copy validates the ticket, offset and length; no page reruns the
-compiler. The image releases the ticket in `ensure:`, reading the receipt
-even if unwound before the wrapper delivered its status. Invalid or
-released tickets do not grant access.
+Clipboard text (410), event text (412) and compiled shader bytes (461)
+use [`FFIPagedPlatformOutput capture:`](../src/System-Support/FFIPagedPlatformOutput.st).
+The producer captures the operation once. It takes a fresh, zeroed
+16-byte writable receipt for two little-endian u64 words: the ticket and
+the payload byte length. An all-zero receipt with success denotes empty
+output without a ticket. Event metadata is written separately into a
+fixed 80-byte header; the producer takes ownership of the queued text
+when it dequeues the event.
 
-This owner allows 16 live results, not a shared 64 MiB byte budget. The
-ByteArray representation, heap and native allocation still limit size.
-Tickets are process-local, not snapshot state. A failed compiler call,
-allocation or page copy never triggers legacy replay.
+The helper copies into an exact ByteArray in checked slices of at most
+1 MiB, using the ticket to access the same native result throughout.
+It reads the receipt in `ensure:` to release any ticket, even if the
+producer unwinds before returning status. Stale or released tickets are
+rejected.
+
+This owner allows 16 live results without a shared byte budget. Native
+allocation, heap space and the ByteArray representation still limit
+sizes. Tickets are process-local, not snapshot state. A failure copying
+or decoding a result does not rerun the producer.
+
+## Owned text (tag 15)
+
+An approved `ownedText` target receives a hidden native text-buffer
+record. The result bytes are owned by that record, never a pointer into
+the Smalltalk heap or an environment table. After input borrows end, the
+wrapper boxes a String with the VM's UTF-8/surrogateescape codec and
+releases any native allocation. A null result denotes absence; a present
+zero-byte result is an empty String. Neither is pre-entry rejection.
 
 ## Owned integer result (tag 11)
 
@@ -131,7 +140,7 @@ LargeInteger, copies the owned limbs once, and frees any native allocation.
 The VM heap and object representation bound the result; there is no byte
 serialization cap. `false` means pre-entry rejection, `nil` a completed
 allocation/size failure, and `true` a completed division-by-zero status.
-The facade translates completed failures without invoking the old primitive.
+The facade translates completed failures without another downcall.
 
 ## Verification
 
@@ -153,5 +162,4 @@ GC. The [paged shader fixture](../tests/vm/gpu_shader_paged_test.st) uses
 a synthetic result above 64 MiB on a display-denied, SDL-hosted test-export
 build. It checks bounds, stale/released tickets and exact paged copy; it
 does not run a real shader compilation. See the
-[migration ledger](ffi-migrations.md#status-ledger) for revision-specific
-results and outstanding checks.
+[cutover contract](ffi-migrations.md) for operation-level verification.
