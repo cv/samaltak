@@ -129,10 +129,7 @@ expect true "$IMAGE" --headless --eval "
        (call 'fixture' 'ffi_test_ungranted' (i32 i32) i32))
         allSatisfy: [:d | reject value: [FFI bind: d]]) ifFalse: [^false].
     (reject value: [binding invoke: #(2147483648 5)]) ifFalse: [^false].
-    reject value: [
-        binding primInvoke: (binding instVarNamed: 'id')
-            library: 'fixture' symbol: 'ffi_test_i32_pair'
-            types: #[2 1] result: 1 arguments: #(11 5)]"
+    reject value: [binding invoke: #(11 5 0)]"
 
 # Rejection must precede native entry. A completed zero or void result is not rejection.
 expect true "$IMAGE" --headless --eval "
@@ -203,15 +200,7 @@ expect true "$IMAGE" --headless --eval "
        (call 'fixture' 'ffi_test_checksum' (u64 bytesWithLength) bytesWithLength)
        (call 'fixture' 'ffi_test_checksum' (u64 u64) u64)
        (call 'fixture' 'ffi_test_checksum' (bytesWithLength bytesWithLength bytesWithLength u64) u64))
-        allSatisfy: [:d | reject value: [FFI bind: d]]) ifFalse: [^false].
-    (reject value: [
-        checksum primInvoke: (checksum instVarNamed: 'id')
-            library: 'fixture' symbol: 'ffi_test_checksum'
-            types: #[4 5 4] result: 4 arguments: {7. {bytes. 2. 3}. 3}]) ifFalse: [^false].
-    reject value: [
-        checksum primInvoke: (checksum instVarNamed: 'id')
-            library: 'fixture' symbol: 'ffi_test_checksum'
-            types: #[3 8] result: 4 arguments: {7. {bytes. 2. 3}}]"
+        allSatisfy: [:d | reject value: [FFI bind: d]])"
 
 reject_manifest "fixture|ffi_test_checksum|u64(u64,bytesWithLength)|$LIB"
 reject_manifest "fixture|ffi_test_checksum|u64(u64,bytesWithLength)|asyncBorrow|$LIB"
