@@ -23,6 +23,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <limits.h>
+#include <dlfcn.h>
 #if defined(__x86_64__)
 #include <emmintrin.h>
 #endif
@@ -150,8 +151,10 @@ typedef void (*prim_fn)(void);
 #define BL_PIC_JMP_X64 10
 #define BL_SITE_MEGA 1073741824
 #define BL_UENTRY 20
+#define CACHE_BYTES 134217728
+#define CACHE_FFI_BYTES 262144
 #define CACHE_SIZE 4096
-#define CACHE_SPACE 134234112
+#define CACHE_SPACE 134496256
 #define CD_INSTVARS 3
 #define CD_ORGANIZATION 4
 #define CG_MAX_HELD 32
@@ -264,6 +267,12 @@ typedef void (*prim_fn)(void);
 #define FB_MEGA 1
 #define FB_NONINT 4
 #define FB_OVERFLOW 8
+#define FFI_DYNAMIC 65536
+#define FFI_MEMCMP 11
+#define FFI_PLATFORM_BASE 32
+#define FFI_STUB_BYTES 256
+#define FFI_STUB_LIMIT 1024
+#define FFI_STUB_TABLE_SIZE 2048
 #define F_BYTES 16
 #define F_EMPTY 0
 #define F_FIXED 1
@@ -354,12 +363,17 @@ typedef void (*prim_fn)(void);
 #define LOC_SMI 3
 #define LOC_SUNK 6
 #define LOG_ERROR_SIZE 2048
+#define MAX_BYTES 240
 #define MAX_CLAIMS 16
+#define MAX_DROPS 2147483647
 #define MAX_FDS 1024
 #define MAX_FRAMES 65536
 #define MAX_POLLED 256
 #define MAX_PRIM 1024
+#define MAX_RECORDS 64
 #define MAX_ROOTS 1024
+#define MAX_STORAGE 15360
+#define MAX_VSYNC_BINDINGS 16
 #define MD_KEYS 1
 #define MD_TALLY 0
 #define MD_VALUES 2
@@ -367,6 +381,14 @@ typedef void (*prim_fn)(void);
 #define MIN_BUDGET 67108864
 #define MSG_ARGS 1
 #define MSG_SELECTOR 0
+#define NATIVE_GRANT_ARITY_MAX 6
+#define NATIVE_GRANT_BUFFER_SIZE 4097
+#define NATIVE_GRANT_BYTES 4096
+#define NATIVE_GRANT_LIMIT 32
+#define NATIVE_GRANT_NAME_MAX 127
+#define NATIVE_NOTIFY_CONTEXT 250
+#define NATIVE_NOTIFY_I32 250
+#define NATIVE_NOTIFY_VOID 251
 #define NF_ALLOC 8
 #define NF_BLOCKCALL 16
 #define NF_DEAD 2
@@ -622,6 +644,7 @@ typedef void (*prim_fn)(void);
 #define SCHED_ACTIVE 1
 #define SCHED_LISTS 0
 #define SEM_EXCESS 2
+#define SHADER_ERROR_SIZE 2048
 #define SHIFT_ASR 2
 #define SHIFT_LSL 0
 #define SHIFT_LSR 1
@@ -842,7 +865,9 @@ typedef struct opt_node opt_node;
 typedef struct opt_out opt_out;
 typedef struct opt_state opt_state;
 typedef struct primitive_entry primitive_entry;
+typedef struct runtime_native_grant runtime_native_grant;
 #ifndef SAMALTAK_NO_PLATFORM
+typedef struct ffi_vsync_subscription ffi_vsync_subscription;
 typedef struct fence_watch fence_watch;
 typedef struct gpu_dev gpu_dev;
 typedef struct lookup_request lookup_request;
@@ -1138,7 +1163,30 @@ struct primitive_entry {
 };
 _Static_assert(sizeof(primitive_entry) == 24, "the simulator lays out PrimitiveEntry as C does");
 
+struct runtime_native_grant {
+    const char *library;
+    const char *symbol;
+    const char *path;
+    size_t library_size;
+    size_t symbol_size;
+    uint8_t types[6];
+    int32_t arity;
+    int32_t result_type;
+    void *target;
+    const char *unregister_name;
+};
+_Static_assert(sizeof(runtime_native_grant) == 72, "the simulator lays out RuntimeNativeGrant as C does");
+
 #ifndef SAMALTAK_NO_PLATFORM
+struct ffi_vsync_subscription {
+    uint64_t entry;
+    uint64_t generation;
+    uint32_t pending;
+    int32_t semaphore_index;
+    bool needs_signal;
+};
+_Static_assert(sizeof(ffi_vsync_subscription) == 32, "the simulator lays out FFIVsyncSubscription as C does");
+
 struct fence_watch {
     SDL_GPUFence *f;
     SDL_GPUDevice *d;
@@ -1647,6 +1695,7 @@ bool analyze(oop m);
 void analyze_liveness(void);
 uint64_t code_cache_allocate(uint64_t size);
 void code_cache_flush(void);
+void *mapping_hint(void);
 bool open_with_size(uint64_t size);
 void prim_allocation_sample_info(void);
 void prim_allocation_sample_take(void);
@@ -1682,6 +1731,12 @@ void prim_display_flush(void);
 void prim_display_next_event(void);
 void prim_display_open(void);
 void prim_display_text(void);
+size_t copy_name(oop name, uint8_t *buf);
+void prim_ffi_bind(void);
+void prim_ffi_invoke(void);
+bool can_publish_code(void);
+uint64_t downcall(uint64_t target, uint8_t *types, int32_t n, int32_t result);
+uint64_t publish_code(const uint8_t *bytes, uint32_t size);
 void become_forward(oop from, oop to);
 void collect_garbage(uint64_t need);
 void full_gc(void);
@@ -1693,6 +1748,7 @@ void remember(oop o);
 void scavenge(void);
 void walk_old_space(void (*fn)(uint64_t, void *), void *data);
 void walk_young_space(void (*fn)(uint64_t, void *), void *data);
+uint64_t ffi_target(int32_t id);
 void platform_interface_init(void);
 void platform_interface_poll(void);
 void platform_interface_shutdown(void);
@@ -1712,7 +1768,7 @@ bool interpreter_context(oop c, int64_t k, oop v);
 oop interpreter_context_field(int64_t i, oop c);
 oop context_slot(int64_t k, oop c);
 int64_t ctx_stackp(oop ctx);
-cache_entry *entry_for(oop a_class, oop a_selector);
+cache_entry *interpreter_entry_for(oop a_class, oop a_selector);
 void entry_safepoint(void);
 void fatal_begin(void);
 _Noreturn void fatal_end(void);
@@ -1747,7 +1803,7 @@ uint64_t write_tables(jit_method *h, uint64_t p);
 void jit_baseline_runtime_after_gc(void);
 void jit_baseline_runtime_all_roots(void (*fn)(oop *));
 uint64_t jit_baseline_runtime_block(frame *f, oop c, uint64_t ret);
-oop box(frame *f, uint64_t b);
+oop jit_baseline_runtime_box(frame *f, uint64_t b);
 void canonicalize_below(frame *f);
 uint64_t entry_slow(frame *f, uint64_t ret, uint64_t c);
 int64_t feedback_cases_of(oop m, int64_t i);
@@ -2016,6 +2072,9 @@ bool is_leaf(int64_t n);
 bool is_tryable(int64_t n);
 prim_fn primitive_table_lookup(int64_t n);
 oop names_array(void);
+bool configure(void);
+void *lookup_library(const uint8_t *library, size_t lib_length, const uint8_t *symbol, size_t sym_length, const uint8_t *types, int32_t n, int32_t result);
+void *notification_unregister(void);
 uint64_t active_process(void);
 void alloc_sample_hit(oop a_class, uint64_t bytes);
 void handle_interrupts(void);
@@ -2083,26 +2142,49 @@ void prim_work_clock_stop(void);
 char *banner(void);
 int main(int n, char **v);
 #ifdef __APPLE__
+bool can_map_ffi_stubs(void);
+uint64_t publish_ffi_stub(const uint8_t *bytes, uint32_t size);
 void begin_writing(void);
 bool can_run_code(void);
 void end_writing(void);
-void invalidate(void *start, uint64_t size);
+void *ffi_arena_base(void);
+void invalidate(uint8_t *start, uint64_t size);
 void *map(void *near, uint64_t size);
 void arm(int ident, int64_t us, bool periodic);
 void ticker_start(void);
 int64_t thread_cycles(void);
 #endif
 #ifdef __linux__
+bool can_map_ffi_stubs(void);
+uint64_t publish_ffi_stub(const uint8_t *bytes, uint32_t size);
 void begin_writing(void);
 bool can_run_code(void);
 void end_writing(void);
-void invalidate(void *start, uint64_t size);
+void invalidate(uint8_t *start, uint64_t size);
 void *map(void *near, uint64_t size);
 void arm(int ident, int64_t us, bool periodic);
 void ticker_start(void);
 int64_t thread_cycles(void);
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
+void ffi_external_notification_adapter_prim_bind(void);
+void ffi_external_notification_adapter_prim_close(void);
+void ffi_external_notification_adapter_prim_poll(void);
+void clear_shader_error(void);
+void copy_shader_error(char *dst, size_t size);
+bool enable_shader_capture(void);
+void ffisdl_log_adapter_prim_bind(void);
+void ffisdl_log_adapter_prim_close(void);
+void prim_dropped(void);
+void ffisdl_log_adapter_prim_poll(void);
+void prim_probe(void);
+bool ffi_vsync_notification_pending_signals(void);
+bool ffi_vsync_notification_prepare(void);
+void ffi_vsync_notification_prim_bind(void);
+void ffi_vsync_notification_prim_close(void);
+void ffi_vsync_notification_prim_poll(void);
+void ffi_vsync_notification_refreshed(void);
+void ffi_vsync_notification_signal_ready(void);
 void platform_common_fail_os_code(char *what, int code);
 void platform_common_fail_os_path_code(char *what, char *path, int code);
 void platform_common_handle_counts(int64_t *out);
@@ -2118,7 +2200,7 @@ bool platform_events_next(pf_event *out);
 void pump(void);
 void platform_events_push(pf_event *e);
 void set_semaphore(int32_t index);
-void signal_ready(void);
+void platform_events_signal_ready(void);
 void update_poll_interval(void);
 bool platform_files_close(int32_t f);
 char *platform_files_cwd(void);
@@ -2306,7 +2388,7 @@ bool resize(int32_t p, int32_t rows, int32_t cols);
 int32_t platform_ptys_spawn(char **argv, char **envp, char *cwd, int32_t rows, int32_t cols, int64_t *pid_out);
 bool platform_ptys_wait(int32_t p, bool block, int *status, bool *done);
 void blit_pixels(uint8_t *src, int64_t src_w, int64_t src_h, int32_t src_fmt, int64_t *sr, uint8_t *dst, int64_t dst_w, int64_t dst_h, int32_t dst_fmt, int64_t *dr, bool linear);
-void copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode);
+void platform_raster_copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode);
 void platform_raster_fill(uint8_t *pixels, int64_t n, int bpp, uint32_t v);
 void rasterize(raster_state *st, uint8_t *base, int64_t first, int64_t count);
 int32_t platform_sockets_accept(int32_t s, bool *would_block);
@@ -2339,10 +2421,12 @@ int64_t platform_tls_recv(int32_t h, void *buf, uint64_t n);
 bool platform_tls_semaphores(int32_t h, int32_t read_index, int32_t write_index);
 int64_t platform_tls_send(int32_t h, const void *buf, uint64_t n);
 int32_t platform_tls_start(int32_t s, char *host_name);
+bool notifications(bool enabled);
 bool platform_vsync_pending(void);
 void platform_vsync_poll(void);
-void refreshed(void);
+void platform_vsync_refreshed(void);
 bool semaphore(int32_t index);
+void signal_notifications(void);
 void *clipboard_data(char *mime, size_t *size);
 char *clipboard_get(void);
 bool clipboard_set(char *s);
@@ -2366,11 +2450,12 @@ void platform_windows_shutdown(void);
 bool platform_windows_size(int32_t win, int *w, int *h);
 bool video_init(void);
 bool video_inited(void);
+uint64_t ffi_target(int32_t id);
 void platform_interface_init(void);
 void platform_interface_poll(void);
 void platform_interface_shutdown(void);
 void platform_interface_wait(int64_t timeout_us);
-void wake(void);
+void sdl_platform_wake(void);
 #ifdef __APPLE__
 SDL_Keymod alt_keymod(void);
 void closing_desktop_window(SDL_Window *sw);

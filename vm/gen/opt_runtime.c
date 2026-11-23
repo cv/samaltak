@@ -2121,7 +2121,7 @@ static oop opt_runtime_send(frame *f, int64_t k, uint64_t key)
         if (e == NULL) {
             return ({
     base_2 = f->fp + (f->sp - n - 1);
-    g = entry_for(cls, object_memory_special(SO_SEL_DNU));
+    g = interpreter_entry_for(cls, object_memory_special(SO_SEL_DNU));
     if ((g == NULL) || ((((g->kind & K_PRIM) != 0) && ((g->prim == perform_fn) || (g->prim == perform_args_fn))) || ((uint64_t)(base_2 + (1 + g->fsize)) > (uint64_t)(cstack + 65534)))) {
         r_does_not_understand = ({
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
@@ -2176,7 +2176,7 @@ static oop opt_runtime_send(frame *f, int64_t k, uint64_t key)
     }
     base_2[1] = msg;
     active_set_stackp(f->sp - n + 1);
-    g_2 = entry_for(roots[1], object_memory_special(SO_SEL_DNU));
+    g_2 = interpreter_entry_for(roots[1], object_memory_special(SO_SEL_DNU));
     r_does_not_understand = ({
     send_pushed = 0;
     r_2 = dispatch(g_2, f, 1);
@@ -2289,7 +2289,7 @@ exit_sent_5:;
     g_3 = ({
     if ((m_2 >= 0) && (selector_argc(sel_2) == m_2)) {
         r_3 = base_3[0];
-        v_5 = entry_for((r_3 & 7) != 0 ? tag_class[r_3 & 7] : *(uint64_t *)(r_3 + 8), sel_2);
+        v_5 = interpreter_entry_for((r_3 & 7) != 0 ? tag_class[r_3 & 7] : *(uint64_t *)(r_3 + 8), sel_2);
     } else {
         v_5 = (cache_entry *)NULL;
     }

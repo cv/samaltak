@@ -2,6 +2,12 @@
 /* HeadlessPlatform (VM-Core) */
 #include "samaltak.h"
 
+/* HeadlessPlatform>>ffiTarget: */
+uint64_t ffi_target(int32_t id)
+{
+    return 0;
+}
+
 /* HeadlessPlatform>>init */
 void platform_interface_init(void)
 {

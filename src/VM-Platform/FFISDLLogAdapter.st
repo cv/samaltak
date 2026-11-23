@@ -7,7 +7,7 @@ FFISDLLogAdapter comment: 'One process-lifetime SDL log router, shared with GPU 
 
 !FFISDLLogAdapter class methodsFor: 'declaring'!
 declarations
-	^#((ffiStubs FFIStubCompiler) (logLock 'pthread_mutex_t[1]' #(PTHREAD_MUTEX_INITIALIZER)) (installed bool)
+	^#((ffiStubs FFIStubCompiler) (logLock 'pthread_mutex_t[1]') (installed bool)
 		(previousLog 'SDL_LogOutputFunction[1]') (previousData 'void *[1]')
 		(shaderCapture bool) (shaderError 'char[SHADER_ERROR_SIZE]')
 		(entry SDL_LogOutputFunction) (entries 'uint64_t[MAX_BYTES]') (session int64_t) (generation int64_t)
@@ -30,10 +30,13 @@ isSimulated
 ensureHook
 	"VM thread only. Do not hold logLock across any SDL logging API, which can take SDL's log mutex."
 	<function>
-	installed ifTrue: [^self].
+	<returns: 'bool'>
+	installed ifTrue: [^true].
+	(posixThreads mutexInit: logLock attributes: self null) ~= 0 ifTrue: [^false].
 	sdl getLogOutputFunction: previousLog userdata: previousData.
 	sdl setLogOutputFunction: (self functionPointer: #route:category:priority:message:) userdata: self null.
-	installed := true
+	installed := true.
+	^true
 !
 route: userdata category: category priority: priority message: message
 	<function>
@@ -75,27 +78,27 @@ entryForByteLimit: limit
 	<function>
 	<var: #limit type: 'int32_t'>
 	<returns: 'uint64_t'>
-	| index address code addr target |
+	| index address code target |
 	index := limit - 1.
 	address := entries at: index.
 	address ~= 0 ifTrue: [^address].
-	code := self local: 'uint64_t[3]'.
-	addr := self cCoerce: code to: 'uint64_t'.
+	code := self local: 'uint32_t[6]'.
 	target := self cCoerce: (self functionPointer: #enqueue:category:priority:message:limit:) to: 'uint64_t'.
 	jit isX64
 		ifTrue: [
 			"endbr64; mov r8d, limit; jmp [rip]; target at +16"
-			self uint32At: addr put: 16rFA1E0FF3.
-			self uint32At: addr + 4 put: ((16rB841 bitOr: (limit asUInt64 << 16)) asUInt32).
-			self uint32At: addr + 8 put: 16r25FF0000.
-			self uint32At: addr + 12 put: 0]
+			code at: 0 put: 16rFA1E0FF3.
+			code at: 1 put: ((16rB841 bitOr: (limit asUInt64 << 16)) asUInt32).
+			code at: 2 put: 16r25FF0000.
+			code at: 3 put: 0]
 		ifFalse: [
 			"bti c; movz w4, limit; ldr x16, pc+8; br x16; target at +16"
-			self uint32At: addr put: 16rD503245F.
-			self uint32At: addr + 4 put: ((16r52800004 bitOr: (limit asUInt64 << 5)) asUInt32).
-			self uint32At: addr + 8 put: 16r58000050.
-			self uint32At: addr + 12 put: 16rD61F0200].
-	self uint64At: addr + 16 put: target.
+			code at: 0 put: 16rD503245F.
+			code at: 1 put: ((16r52800004 bitOr: (limit asUInt64 << 5)) asUInt32).
+			code at: 2 put: 16r58000050.
+			code at: 3 put: 16rD61F0200].
+	code at: 4 put: target asUInt32.
+	code at: 5 put: (target >> 32) asUInt32.
 	address := ffiStubs publishCode: (self cCoerce: code to: 'const uint8_t *') size: 24.
 	entries at: index put: address.
 	^address
@@ -104,10 +107,12 @@ entryForByteLimit: limit
 !FFISDLLogAdapter methodsFor: 'GPU error capture'!
 enableShaderCapture
 	<export>
-	self ensureHook.
+	<returns: 'bool'>
+	self ensureHook ifFalse: [^false].
 	posixThreads mutexLock: logLock.
 	shaderCapture := true.
-	posixThreads mutexUnlock: logLock
+	posixThreads mutexUnlock: logLock.
+	^true
 !
 clearShaderError
 	<export>
@@ -153,7 +158,7 @@ primBind
 		session := ((nonce value bitAnd: 16r1FFFFFFFFFFFFFFF) + 1) asInt64].
 	address := self entryForByteLimit: limit asInt32.
 	address = 0 ifTrue: [^self fail].
-	self ensureHook.
+	self ensureHook ifFalse: [^self fail].
 	result := memory allocObj: memory clsArray format: F_VAR slots: 2.
 	posixThreads mutexLock: logLock.
 	generation := generation + 1.
@@ -204,7 +209,7 @@ primDropped
 	posixThreads mutexLock: logLock.
 	count := drops.
 	posixThreads mutexUnlock: logLock.
-	self answerInt: count
+	self answer: (self intOop: count)
 !
 primClose
 	<vmPrimitive: 258 name: 'ffiSDLLogClose'>

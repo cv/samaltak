@@ -109,6 +109,10 @@ int main(int n, char **v)
             headless = true;
         }
     }
+    if (!configure()) {
+        fputs("samaltak: invalid or unresolved SAMALTAK_NATIVE_GRANTS manifest\n", stderr);
+        exit(64);
+    }
     memory_init(eden, max_heap);
     load_image(image);
     scheduler_init();

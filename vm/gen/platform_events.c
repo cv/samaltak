@@ -108,7 +108,7 @@ void set_semaphore(int32_t index)
 }
 
 /* PlatformEvents>>signalReady */
-void signal_ready(void)
+void platform_events_signal_ready(void)
 {
     platform_vsync_poll();
     if ((q_len != 0) && ((input_sem != 0) && input_armed)) {

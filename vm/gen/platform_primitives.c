@@ -3445,7 +3445,7 @@ void prim_raster_copy(void)
         prim_error_code = -1;
         return;
     }
-    copy(d, ds, s, ss, w, h, bpp, mode);
+    platform_raster_copy(d, ds, s, ss, w, h, bpp, mode);
     v_2 = prim_base[0];
     prim_result = v_2;
     prim_status = PS_OK;

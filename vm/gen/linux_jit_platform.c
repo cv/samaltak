@@ -21,7 +21,7 @@ void end_writing(void)
 }
 
 /* LinuxJitPlatform>>invalidate:size: */
-void invalidate(void *start, uint64_t size)
+void invalidate(uint8_t *start, uint64_t size)
 {
     __builtin___clear_cache(start, (char *)start + size);
 }

@@ -154,6 +154,41 @@ primitive_entry vm_primitive_table[] = {
     {204, 3, "displayBits", prim_display_bits},
     {205, 3, "displayNextEvent", prim_display_next_event},
     {206, 3, "displayFlush", prim_display_flush},
+    {250, 2, "ffiBind", prim_ffi_bind},
+    {251, 2, "ffiInvoke", prim_ffi_invoke},
+#ifndef SAMALTAK_NO_PLATFORM
+    {252, 2, "ffiVsyncBind", ffi_vsync_notification_prim_bind},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {253, 2, "ffiVsyncPoll", ffi_vsync_notification_prim_poll},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {254, 2, "ffiVsyncClose", ffi_vsync_notification_prim_close},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {255, 2, "ffiSDLLogBind", ffisdl_log_adapter_prim_bind},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {256, 2, "ffiSDLLogPoll", ffisdl_log_adapter_prim_poll},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {257, 2, "ffiSDLLogDropped", prim_dropped},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {258, 2, "ffiSDLLogClose", ffisdl_log_adapter_prim_close},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {259, 2, "ffiSDLLogProbe", prim_probe},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {260, 2, "ffiExternalNotificationBind", ffi_external_notification_adapter_prim_bind},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {261, 2, "ffiExternalNotificationPoll", ffi_external_notification_adapter_prim_poll},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {262, 2, "ffiExternalNotificationClose", ffi_external_notification_adapter_prim_close},
+#endif
 #ifndef SAMALTAK_NO_PLATFORM
     {400, 2, "windowOpen", prim_window_open},
 #endif

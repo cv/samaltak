@@ -28,7 +28,7 @@ testNativeRefreshCadence
 				slow poll ifTrue: [slowCount := slowCount + 1].
 				(Delay forMilliseconds: 2) wait].
 			self assert: slowCount equals: 3.
-			self assert: fastCount > slowCount * 2
+			self assert: fastCount > (slowCount * 2)
 		] ensure: [slow close].
 		"Closing a second subscriber must not stop the host source."
 		self assertNextRefresh: fast

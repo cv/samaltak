@@ -4,7 +4,7 @@
 
 uint64_t cache_base;
 uint64_t cache_limit;
-static uint8_t cache_space[134234112];
+static uint8_t cache_space[134496256];
 static uint64_t cache_start;
 uint64_t cache_top;
 
@@ -26,13 +26,17 @@ void code_cache_flush(void)
     cache_top = cache_base;
 }
 
+/* CodeCache>>mappingHint */
+void *mapping_hint(void)
+{
+    return (void *)(((uint64_t)cache_space + 16383) & 18446744073709535232ULL);
+}
+
 /* CodeCache>>openWithSize: */
 bool open_with_size(uint64_t size)
 {
-    uint64_t near;
     void *p;
-    near = ((uint64_t)cache_space + 16383) & 18446744073709535232ULL;
-    p = map((void *)near, size);
+    p = map(mapping_hint(), size);
     if (p == MAP_FAILED) {
         return false;
     }

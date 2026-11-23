@@ -2,8 +2,6 @@
 /* PlatformGPU (VM-Platform) */
 #include "samaltak.h"
 
-static SDL_LogOutputFunction default_log;
-static char log_error[2048];
 static int32_t npending;
 static int32_t nwatches;
 static pf_table objs[1];
@@ -12,7 +10,6 @@ static pthread_mutex_t watch_lock[1];
 static bool watcher_started;
 static fence_watch *watches;
 
-static void capture_log(void *userdata, int category, SDL_LogPriority priority, const char *message);
 static gpu_dev *device(int32_t h);
 static gpu_dev *device_of(pf_obj *o);
 static void *fence_watcher(void *unused);
@@ -249,15 +246,6 @@ int bytes_per_pixel(int32_t format)
     return format == PF_TEX_R8 ? 1 : 4;
 }
 
-/* PlatformGPU>>captureLog:category:priority:message: */
-static void capture_log(void *userdata, int category, SDL_LogPriority priority, const char *message)
-{
-    if (priority >= SDL_LOG_PRIORITY_ERROR) {
-        SDL_strlcpy(log_error, message, LOG_ERROR_SIZE);
-    }
-    default_log(userdata, category, priority, message);
-}
-
 /* PlatformGPU>>claimWindow:window: */
 bool claim_window(int32_t dev, int32_t win)
 {
@@ -352,9 +340,9 @@ int32_t create_device(bool debug)
     if (!video_init()) {
         return 0;
     }
-    if (default_log == NULL) {
-        default_log = SDL_GetDefaultLogOutputFunction();
-        SDL_SetLogOutputFunction(capture_log, NULL);
+    if (!enable_shader_capture()) {
+        set_error("out of memory installing SDL log capture");
+        return 0;
     }
     d = (gpu_dev *)calloc(1, sizeof(gpu_dev));
     if (d == NULL) {
@@ -564,7 +552,7 @@ int32_t platform_gpu_create_shader_source_entry_stage_samplers_uniform_buffers_s
     ci->num_storage_buffers = storage_buffers;
     ci->num_uniform_buffers = uniform_buffers;
     SDL_ClearError();
-    log_error[0] = 0;
+    clear_shader_error();
     s = SDL_CreateGPUShader(d->dev, ci);
     if (s == NULL) {
         r_create_shader = sdl_fail("SDL_CreateGPUShader");
@@ -599,7 +587,7 @@ exit_create_shader:;
     ci_2->num_storage_buffers = storage_buffers;
     ci_2->num_uniform_buffers = uniform_buffers;
     SDL_ClearError();
-    log_error[0] = 0;
+    clear_shader_error();
     s_2 = SDL_CreateGPUShader(d->dev, ci_2);
     if (s_2 == NULL) {
         r_create_shader_2 = sdl_fail("SDL_CreateGPUShader");
@@ -651,7 +639,7 @@ int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffe
     ci->num_storage_buffers = storage_buffers;
     ci->num_uniform_buffers = uniform_buffers;
     SDL_ClearError();
-    log_error[0] = 0;
+    clear_shader_error();
     s = SDL_CreateGPUShader(d->dev, ci);
     if (s == NULL) {
         r_create_shader = sdl_fail("SDL_CreateGPUShader");
@@ -1075,10 +1063,16 @@ bool release_handle(int32_t h)
 static int sdl_fail(char *what)
 {
     const char *e;
-    const char *b;
+    char local[2048];
+    char *captured;
     e = SDL_GetError();
-    b = e[0] != 0 ? e : log_error;
-    snprintf(last_error, LAST_ERROR_SIZE, "%s: %s", what, b);
+    if (e[0] == 0) {
+        memset(&local, 0, sizeof local);
+        captured = local;
+        copy_shader_error(captured, LOG_ERROR_SIZE);
+        e = captured;
+    }
+    snprintf(last_error, LAST_ERROR_SIZE, "%s: %s", what, e);
     return 0;
 }
 

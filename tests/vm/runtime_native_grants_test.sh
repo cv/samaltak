@@ -91,23 +91,22 @@ expect true "$IMAGE" --headless --eval "
     | binding reject |
     binding := FFI bind: #(call 'fixture' 'ffi_test_i32_pair' (i32 i32) i32).
     reject := [:block | [block value. false] on: FFIError do: [:e | true]].
-    ((binding invoke: #(-11 5)) = -105
-        and: [((FFI bind: #(call 'fixture' 'ffi_test_mix' (i32 f64 u64 i64 u32 f64) f64))
-            invoke: #(-5 1.25 20 -7 13 0.25)) = 22.5
-        and: [((FFI bind: #(call 'fixture' 'ffi_test_void' () void)) invoke: #()) isNil
-        and: [
-            (#((call 'fixturE' 'ffi_test_i32_pair' (i32 i32) i32)
-               (call 'fixture' 'ffi_test_i32_pair' (u32 i32) i32)
-               (call 'fixture' 'ffi_test_i32_pair' (i32 i32) u32)
-               (call 'fixture' 'ffi_test_i32_pair' (i32) i32)
-               (call 'fixture' 'ffi_test_i32_pair' (byteSlice i32) i32)
-               (call 'fixture' 'ffi_test_ungranted' (i32 i32) i32))
-                allSatisfy: [:d | reject value: [FFI bind: d]]
-            and: [(reject value: [binding invoke: #(2147483648 5)])
-                and: [reject value: [
-                    binding primInvoke: (binding instVarNamed: 'id')
-                        library: 'fixture' symbol: 'ffi_test_i32_pair'
-                        types: #[2 1] result: 1 arguments: #(11 5)]]]]]])"
+    (binding invoke: #(-11 5)) = -105 ifFalse: [^false].
+    ((FFI bind: #(call 'fixture' 'ffi_test_mix' (i32 f64 u64 i64 u32 f64) f64))
+        invoke: #(-5 1.25 20 -7 13 0.25)) = 22.5 ifFalse: [^false].
+    ((FFI bind: #(call 'fixture' 'ffi_test_void' () void)) invoke: #()) isNil ifFalse: [^false].
+    (#((call 'fixturE' 'ffi_test_i32_pair' (i32 i32) i32)
+       (call 'fixture' 'ffi_test_i32_pair' (u32 i32) i32)
+       (call 'fixture' 'ffi_test_i32_pair' (i32 i32) u32)
+       (call 'fixture' 'ffi_test_i32_pair' (i32) i32)
+       (call 'fixture' 'ffi_test_i32_pair' (byteSlice i32) i32)
+       (call 'fixture' 'ffi_test_ungranted' (i32 i32) i32))
+        allSatisfy: [:d | reject value: [FFI bind: d]]) ifFalse: [^false].
+    (reject value: [binding invoke: #(2147483648 5)]) ifFalse: [^false].
+    reject value: [
+        binding primInvoke: (binding instVarNamed: 'id')
+            library: 'fixture' symbol: 'ffi_test_i32_pair'
+            types: #[2 1] result: 1 arguments: #(11 5)]"
 
 expect true "$IMAGE" --headless --eval "
     | checksum two bytes reject |

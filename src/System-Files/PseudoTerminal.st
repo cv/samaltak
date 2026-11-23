@@ -181,10 +181,8 @@ anyRunsAJob
 !PseudoTerminal class methodsFor: 'primitives'!
 primForeground: aHandle
 	"Answer the foreground process group of aHandle's terminal, nil on failure."
-	| result |
-	result := PlatformFFI call: #(call 'platform' 'pty_foreground' (i64) i32)
-		with: {aHandle} ifUnavailable: [^self legacyForeground: aHandle].
-	^result < 0 ifTrue: [nil] ifFalse: [result]
+	<primitive: 'ptyForeground'>
+	^nil
 !
 primSpawn: argv environment: env directory: cwd rows: rows columns: columns
 	<primitive: 'ptySpawn'>
@@ -201,10 +199,8 @@ primWrite: aHandle from: bytes start: start count: count
 	^false
 !
 primResize: aHandle rows: rows columns: columns
-	| result |
-	result := PlatformFFI call: #(call 'platform' 'pty_resize' (i64 i64 i64) i32)
-		with: {aHandle. rows. columns} ifUnavailable: [^self legacyResize: aHandle rows: rows columns: columns].
-	^result = 0 ifTrue: [nil] ifFalse: [self]
+	<primitive: 'ptyResize'>
+	^nil
 !
 primSemaphore: aHandle read: readIndex write: writeIndex
 	<primitive: 'ptySemaphore'>
@@ -223,14 +219,6 @@ primClose: aHandle
 ! !
 
 !PseudoTerminal class methodsFor: 'fallback primitives'!
-legacyForeground: aHandle
-	<primitive: 'ptyForeground'>
-	^nil
-!
-legacyResize: aHandle rows: rows columns: columns
-	<primitive: 'ptyResize'>
-	^nil
-!
 legacyClose: aHandle
 	<primitive: 'ptyClose'>
 	^nil

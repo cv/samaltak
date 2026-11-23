@@ -17,13 +17,57 @@ static int64_t increment(uint64_t *x, int64_t n);
 static uint64_t large_integer_primitives_limb_of_lowest(int64_t i, large_operand *x, int64_t z);
 static uint64_t large_integer_primitives_limb_of_shifted_by(int64_t i, uint64_t *x, int64_t s);
 static int64_t lowest(uint64_t *x, int64_t n);
+#if defined(__x86_64__)
+static bool large_integer_primitives_operand(oop o, large_operand *x);
+#else
 static bool operand(oop o, large_operand *x);
+#endif
 static void product(uint64_t *a, int64_t na, uint64_t *b, int64_t nb, uint64_t *r);
 static uint64_t *large_integer_primitives_scratch(int64_t n);
 static void large_integer_primitives_shift_count_left_into(uint64_t *x, int64_t n, int64_t k, uint64_t *r);
 static bool large_integer_primitives_shift_count_right_into(uint64_t *x, int64_t n, int64_t k, uint64_t *r);
 static int64_t sum(uint64_t *a, int64_t na, uint64_t *b, int64_t nb, uint64_t *r);
 
+#if defined(__x86_64__)
+/* LargeIntegerPrimitives>>add: */
+static void large_integer_primitives_add(bool subtract)
+{
+    large_operand local;
+    large_operand *a;
+    large_operand local_2;
+    large_operand *b;
+    bool bneg;
+    uint64_t *r;
+    int64_t n;
+    memset(&local, 0, sizeof local);
+    a = &local;
+    memset(&local_2, 0, sizeof local_2);
+    b = &local_2;
+    if (!(large_integer_primitives_operand(prim_base[0], a) && large_integer_primitives_operand(prim_nargs > 0 ? prim_base[1] : nil_oop, b))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    bneg = b->neg != subtract;
+    r = large_integer_primitives_scratch((a->count > b->count ? a->count : b->count) + 1);
+    if (r == NULL) {
+        prim_status = PS_FAIL;
+        prim_error_code = PRIM_ERR_NO_MEMORY;
+        return;
+    }
+    if (a->neg == bneg) {
+        n = a->count >= b->count ? sum(a->limbs, a->count, b->limbs, b->count, r) : sum(b->limbs, b->count, a->limbs, a->count, r);
+        answer(r, n, a->neg);
+        return;
+    }
+    if (large_integer_primitives_compare(a->limbs, a->count, b->limbs, b->count) >= 0) {
+        answer(r, difference(a->limbs, a->count, b->limbs, b->count, r), a->neg);
+    } else {
+        answer(r, difference(b->limbs, b->count, a->limbs, a->count, r), bneg);
+    }
+}
+
+#else
 /* LargeIntegerPrimitives>>add: */
 static void large_integer_primitives_add(bool subtract)
 {
@@ -62,6 +106,7 @@ static void large_integer_primitives_add(bool subtract)
     }
 }
 
+#endif
 /* LargeIntegerPrimitives>>answer:count:negative: */
 static void answer(uint64_t *r, int64_t n, bool neg)
 {
@@ -102,6 +147,58 @@ static void answer(uint64_t *r, int64_t n, bool neg)
     prim_status = PS_OK;
 }
 
+#if defined(__x86_64__)
+/* LargeIntegerPrimitives>>bitOp: */
+static void bit_op(int op)
+{
+    large_operand local;
+    large_operand *a;
+    large_operand local_2;
+    large_operand *b;
+    int64_t n;
+    uint64_t *r;
+    int64_t za;
+    int64_t zb;
+    int64_t i;
+    uint64_t x;
+    uint64_t y;
+    int64_t i_2;
+    memset(&local, 0, sizeof local);
+    a = &local;
+    memset(&local_2, 0, sizeof local_2);
+    b = &local_2;
+    if (!(large_integer_primitives_operand(prim_base[0], a) && large_integer_primitives_operand(prim_nargs > 0 ? prim_base[1] : nil_oop, b))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    n = (a->count > b->count ? a->count : b->count) + 1;
+    r = large_integer_primitives_scratch(n);
+    if (r == NULL) {
+        prim_status = PS_FAIL;
+        prim_error_code = PRIM_ERR_NO_MEMORY;
+        return;
+    }
+    za = lowest(a->limbs, a->count);
+    zb = lowest(b->limbs, b->count);
+    for (i = 0; i <= n - 1; i++) {
+        x = large_integer_primitives_limb_of_lowest(i, a, za);
+        y = large_integer_primitives_limb_of_lowest(i, b, zb);
+        r[i] = op == 1 ? x & y : op == 2 ? x | y : x ^ y;
+    }
+    if ((r[n - 1] >> 63) == 0) {
+        answer(r, n, false);
+        return;
+    }
+    za = lowest(r, n);
+    r[za] = 0 - r[za];
+    for (i_2 = za + 1; i_2 <= n - 1; i_2++) {
+        r[i_2] = ~r[i_2];
+    }
+    answer(r, n, true);
+}
+
+#else
 /* LargeIntegerPrimitives>>bitOp: */
 static void bit_op(int op)
 {
@@ -152,6 +249,7 @@ static void bit_op(int op)
     answer(r, n, true);
 }
 
+#endif
 /* LargeIntegerPrimitives>>compare:count:with:count: */
 static int large_integer_primitives_compare(uint64_t *a, int64_t na, uint64_t *b, int64_t nb)
 {
@@ -194,6 +292,82 @@ static int64_t difference(uint64_t *a, int64_t na, uint64_t *b, int64_t nb, uint
     return na;
 }
 
+#if defined(__x86_64__)
+/* LargeIntegerPrimitives>>divide: */
+static void large_integer_primitives_divide(int mode)
+{
+    large_operand local;
+    large_operand *a;
+    large_operand local_2;
+    large_operand *b;
+    int64_t na;
+    int64_t nb;
+    uint64_t *w;
+    uint64_t *q;
+    uint64_t *rem;
+    int64_t qn;
+    int64_t i;
+    int64_t rn;
+    bool neg;
+    bool floored;
+    memset(&local, 0, sizeof local);
+    a = &local;
+    memset(&local_2, 0, sizeof local_2);
+    b = &local_2;
+    if (!(large_integer_primitives_operand(prim_base[0], a) && large_integer_primitives_operand(prim_nargs > 0 ? prim_base[1] : nil_oop, b))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    na = a->count;
+    nb = b->count;
+    if (nb == 0) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    w = large_integer_primitives_scratch(2 * (na + nb) + 4);
+    if (w == NULL) {
+        prim_status = PS_FAIL;
+        prim_error_code = PRIM_ERR_NO_MEMORY;
+        return;
+    }
+    q = w;
+    rem = w + (na + 2);
+    if (large_integer_primitives_compare(a->limbs, na, b->limbs, nb) < 0) {
+        q[0] = 0;
+        qn = 1;
+        for (i = 0; i <= na - 1; i++) {
+            rem[i] = a->limbs[i];
+        }
+        rn = na;
+    } else {
+        large_integer_primitives_divide_count_by_count_quotient_remainder_work(a->limbs, na, b->limbs, nb, q, rem, rem + nb);
+        qn = na - nb + 1;
+        rn = nb;
+    }
+    neg = a->neg != b->neg;
+    if (mode == 0) {
+        answer(q, qn, neg);
+        return;
+    }
+    if (mode == 1) {
+        answer(rem, rn, a->neg);
+        return;
+    }
+    floored = neg && (lowest(rem, rn) < rn);
+    if (mode == 2) {
+        answer(q, floored ? increment(q, qn) : qn, neg);
+        return;
+    }
+    if (floored) {
+        answer(rem + nb, difference(b->limbs, nb, rem, rn, rem + nb), b->neg);
+        return;
+    }
+    answer(rem, rn, a->neg);
+}
+
+#else
 /* LargeIntegerPrimitives>>divide: */
 static void large_integer_primitives_divide(int mode)
 {
@@ -268,6 +442,7 @@ static void large_integer_primitives_divide(int mode)
     answer(rem, rn, a->neg);
 }
 
+#endif
 /* LargeIntegerPrimitives>>divide:count:by:count:quotient:remainder:work: */
 static void large_integer_primitives_divide_count_by_count_quotient_remainder_work(uint64_t *a, int64_t na, uint64_t *b, int64_t nb, uint64_t *q, uint64_t *r, uint64_t *w)
 {
@@ -442,6 +617,41 @@ static int64_t lowest(uint64_t *x, int64_t n)
     return i;
 }
 
+#if defined(__x86_64__)
+/* LargeIntegerPrimitives>>operand:into: */
+static bool large_integer_primitives_operand(oop o, large_operand *x)
+{
+    int64_t v;
+    uint64_t c;
+    uint64_t *p;
+    int64_t n;
+    if ((o & 1) != 0) {
+        v = ((int64_t)o) >> 1;
+        x->small[0] = v < 0 ? (uint64_t)(0 - v) : (uint64_t)v;
+        x->limbs = x->small;
+        x->count = v == 0 ? 0 : 1;
+        x->neg = v < 0;
+        return true;
+    }
+    if (!(((o & 7) == 0) && ((int32_t)(((*(uint64_t *)o) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES))) {
+        return false;
+    }
+    c = *(uint64_t *)(o + 8);
+    if (!((c == object_memory_special(SO_LARGEPOS)) || (c == object_memory_special(SO_LARGENEG)))) {
+        return false;
+    }
+    p = (uint64_t *)(o + 16);
+    n = (int64_t)((byte_size(o) + 7) / 8);
+    while ((n > 0) && (p[n - 1] == 0)) {
+        n = n - 1;
+    }
+    x->limbs = p;
+    x->count = n;
+    x->neg = (n > 0) && (c == object_memory_special(SO_LARGENEG));
+    return true;
+}
+
+#else
 /* LargeIntegerPrimitives>>operand:into: */
 static bool operand(oop o, large_operand *x)
 {
@@ -475,6 +685,7 @@ static bool operand(oop o, large_operand *x)
     return true;
 }
 
+#endif
 /* LargeIntegerPrimitives>>primLargeAdd */
 void prim_large_add(void)
 {
@@ -493,6 +704,77 @@ void prim_large_bit_or(void)
     bit_op(2);
 }
 
+#if defined(__x86_64__)
+/* LargeIntegerPrimitives>>primLargeBitShift */
+void prim_large_bit_shift(void)
+{
+    large_operand local;
+    large_operand *a;
+    large_operand local_2;
+    large_operand *s;
+    uint64_t m;
+    int64_t k;
+    int64_t n;
+    uint64_t *r;
+    int v;
+    uint64_t v_2;
+    memset(&local, 0, sizeof local);
+    a = &local;
+    memset(&local_2, 0, sizeof local_2);
+    s = &local_2;
+    if (!(large_integer_primitives_operand(prim_base[0], a) && large_integer_primitives_operand(prim_nargs > 0 ? prim_base[1] : nil_oop, s))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    m = s->count == 0 ? 0ULL : s->limbs[0];
+    if ((s->count > 1) || (m > 0x10000000000LL)) {
+        m = 1099511627776ULL;
+    }
+    k = (int64_t)m;
+    if (a->count == 0) {
+        prim_result = 1ULL;
+        prim_status = PS_OK;
+        return;
+    }
+    if (!s->neg) {
+        n = a->count + k / 64 + 1;
+        if (!(n * 8 <= (int64_t)max_heap_bytes)) {
+            prim_status = PS_FAIL;
+            prim_error_code = PRIM_ERR_NO_MEMORY;
+            return;
+        }
+        r = large_integer_primitives_scratch(n);
+        if (r == NULL) {
+            prim_status = PS_FAIL;
+            prim_error_code = PRIM_ERR_NO_MEMORY;
+            return;
+        }
+        large_integer_primitives_shift_count_left_into(a->limbs, a->count, k, r);
+        answer(r, n, a->neg);
+        return;
+    }
+    if (k / 64 >= a->count) {
+        v = a->neg ? -1 : 0;
+        v_2 = (uint64_t)((((int64_t)v) << 1) | 1);
+        prim_result = v_2;
+        prim_status = PS_OK;
+        return;
+    }
+    n = a->count - k / 64;
+    r = large_integer_primitives_scratch(n + 1);
+    if (r == NULL) {
+        prim_status = PS_FAIL;
+        prim_error_code = PRIM_ERR_NO_MEMORY;
+        return;
+    }
+    if (large_integer_primitives_shift_count_right_into(a->limbs, a->count, k, r) && a->neg) {
+        n = increment(r, n);
+    }
+    answer(r, n, a->neg);
+}
+
+#else
 /* LargeIntegerPrimitives>>primLargeBitShift */
 void prim_large_bit_shift(void)
 {
@@ -562,12 +844,50 @@ void prim_large_bit_shift(void)
     answer(r, n, a->neg);
 }
 
+#endif
 /* LargeIntegerPrimitives>>primLargeBitXor */
 void prim_large_bit_xor(void)
 {
     bit_op(3);
 }
 
+#if defined(__x86_64__)
+/* LargeIntegerPrimitives>>primLargeCompare */
+void prim_large_compare(void)
+{
+    large_operand local;
+    large_operand *a;
+    large_operand local_2;
+    large_operand *b;
+    int v;
+    uint64_t v_2;
+    int c;
+    int v_3;
+    uint64_t v_4;
+    memset(&local, 0, sizeof local);
+    a = &local;
+    memset(&local_2, 0, sizeof local_2);
+    b = &local_2;
+    if (!(large_integer_primitives_operand(prim_base[0], a) && large_integer_primitives_operand(prim_nargs > 0 ? prim_base[1] : nil_oop, b))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (a->neg != b->neg) {
+        v = a->neg ? -1 : 1;
+        v_2 = (uint64_t)((((int64_t)v) << 1) | 1);
+        prim_result = v_2;
+        prim_status = PS_OK;
+        return;
+    }
+    c = large_integer_primitives_compare(a->limbs, a->count, b->limbs, b->count);
+    v_3 = a->neg ? 0 - c : c;
+    v_4 = (uint64_t)((((int64_t)v_3) << 1) | 1);
+    prim_result = v_4;
+    prim_status = PS_OK;
+}
+
+#else
 /* LargeIntegerPrimitives>>primLargeCompare */
 void prim_large_compare(void)
 {
@@ -603,6 +923,7 @@ void prim_large_compare(void)
     prim_status = PS_OK;
 }
 
+#endif
 /* LargeIntegerPrimitives>>primLargeFloorDiv */
 void prim_large_floor_div(void)
 {
@@ -615,6 +936,51 @@ void prim_large_mod(void)
     large_integer_primitives_divide(3);
 }
 
+#if defined(__x86_64__)
+/* LargeIntegerPrimitives>>primLargeMul */
+void prim_large_mul(void)
+{
+    large_operand local;
+    large_operand *a;
+    large_operand local_2;
+    large_operand *b;
+    int64_t n;
+    uint64_t *r;
+    memset(&local, 0, sizeof local);
+    a = &local;
+    memset(&local_2, 0, sizeof local_2);
+    b = &local_2;
+    if (!(large_integer_primitives_operand(prim_base[0], a) && large_integer_primitives_operand(prim_nargs > 0 ? prim_base[1] : nil_oop, b))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if ((a->count == 0) || (b->count == 0)) {
+        prim_result = 1ULL;
+        prim_status = PS_OK;
+        return;
+    }
+    n = a->count + b->count;
+    if (!(n * 8 <= (int64_t)max_heap_bytes)) {
+        prim_status = PS_FAIL;
+        prim_error_code = PRIM_ERR_NO_MEMORY;
+        return;
+    }
+    r = large_integer_primitives_scratch(n);
+    if (r == NULL) {
+        prim_status = PS_FAIL;
+        prim_error_code = PRIM_ERR_NO_MEMORY;
+        return;
+    }
+    if (a->count <= b->count) {
+        product(a->limbs, a->count, b->limbs, b->count, r);
+    } else {
+        product(b->limbs, b->count, a->limbs, a->count, r);
+    }
+    answer(r, n, a->neg != b->neg);
+}
+
+#else
 /* LargeIntegerPrimitives>>primLargeMul */
 void prim_large_mul(void)
 {
@@ -658,6 +1024,7 @@ void prim_large_mul(void)
     answer(r, n, a->neg != b->neg);
 }
 
+#endif
 /* LargeIntegerPrimitives>>primLargeQuo */
 void prim_large_quo(void)
 {

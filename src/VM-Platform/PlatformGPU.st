@@ -136,7 +136,9 @@ createDevice: debug
 	platform init.
 	"SDL_CreateGPUDevice needs the video subsystem"
 	windows videoInit ifFalse: [^0].
-	logAdapter enableShaderCapture.
+	logAdapter enableShaderCapture ifFalse: [
+		common setError: 'out of memory installing SDL log capture'.
+		^0].
 	d := self cCoerce: (libc calloc: 1 size: (self sizeof: 'gpu_dev')) to: 'gpu_dev *'.
 	d isNull ifTrue: [
 		common setError: 'out of memory'.

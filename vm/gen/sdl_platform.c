@@ -15,6 +15,15 @@ static atomic_bool w_stop;
 static atomic_int wake_event;
 
 static void drain_pipe(void);
+static int32_t ffi_pty(int64_t h, int64_t rows, int64_t cols);
+static int32_t ffi_pty_close(int64_t h);
+static int32_t ffi_pty_foreground(int64_t h);
+static int32_t ffi_set_cursor(int64_t kind);
+static int32_t sdl_platform_ffi_window_show(int64_t w, int32_t flag);
+static int32_t sdl_platform_ffi_window_x_y_width_height_cursor(int64_t win, int64_t x, int64_t y, int64_t w, int64_t h, int64_t cursor);
+static int32_t ffi_window_close(int64_t w);
+static double ffi_window_display_scale(int64_t w);
+static double ffi_window_refresh_rate(int64_t w);
 static void *watch_main(void *arg);
 static bool watcher_start(void);
 static void watcher_stop(void);
@@ -31,6 +40,102 @@ static void drain_pipe(void)
             break;
         }
     }
+}
+
+/* SDLPlatform>>ffiPty:rows:columns: */
+static int32_t ffi_pty(int64_t h, int64_t rows, int64_t cols)
+{
+    if (!((rows > 0) && ((cols > 0) && ((rows < 65536) && (cols < 65536))))) {
+        return 0;
+    }
+    return (int32_t)(resize((int32_t)h, (int32_t)rows, (int32_t)cols) ? 1 : 0);
+}
+
+/* SDLPlatform>>ffiPtyClose: */
+static int32_t ffi_pty_close(int64_t h)
+{
+    return (int32_t)(platform_ptys_close((int32_t)h) ? 1 : 0);
+}
+
+/* SDLPlatform>>ffiPtyForeground: */
+static int32_t ffi_pty_foreground(int64_t h)
+{
+    return (int32_t)foreground((int32_t)h);
+}
+
+/* SDLPlatform>>ffiSetCursor: */
+static int32_t ffi_set_cursor(int64_t kind)
+{
+    return (int32_t)(set_cursor((int32_t)kind) ? 1 : 0);
+}
+
+/* SDLPlatform>>ffiTarget: */
+uint64_t ffi_target(int32_t stable_id)
+{
+    uint64_t v;
+    switch (stable_id) {
+    case 32:
+        v = (uint64_t)ffi_window_close;
+        break;
+    case 33:
+        v = (uint64_t)ffi_window_display_scale;
+        break;
+    case 34:
+        v = (uint64_t)ffi_window_refresh_rate;
+        break;
+    case 35:
+        v = (uint64_t)sdl_platform_ffi_window_show;
+        break;
+    case 36:
+        v = (uint64_t)ffi_set_cursor;
+        break;
+    case 37:
+        v = (uint64_t)sdl_platform_ffi_window_x_y_width_height_cursor;
+        break;
+    case 38:
+        v = (uint64_t)ffi_pty;
+        break;
+    case 39:
+        v = (uint64_t)ffi_pty_close;
+        break;
+    case 40:
+        v = (uint64_t)ffi_pty_foreground;
+        break;
+    default:
+        v = 0;
+        break;
+    }
+    return v;
+}
+
+/* SDLPlatform>>ffiWindow:show: */
+static int32_t sdl_platform_ffi_window_show(int64_t w, int32_t flag)
+{
+    return (int32_t)(platform_windows_show((int32_t)w, flag != 0) ? 1 : 0);
+}
+
+/* SDLPlatform>>ffiWindow:x:y:width:height:cursor: */
+static int32_t sdl_platform_ffi_window_x_y_width_height_cursor(int64_t win, int64_t x, int64_t y, int64_t w, int64_t h, int64_t cursor)
+{
+    return (int32_t)(set_text_input_area((int32_t)win, (int32_t)x, (int32_t)y, (int32_t)w, (int32_t)h, (int32_t)cursor) ? 1 : 0);
+}
+
+/* SDLPlatform>>ffiWindowClose: */
+static int32_t ffi_window_close(int64_t w)
+{
+    return (int32_t)(platform_windows_close((int32_t)w) ? 1 : 0);
+}
+
+/* SDLPlatform>>ffiWindowDisplayScale: */
+static double ffi_window_display_scale(int64_t w)
+{
+    return display_scale((int32_t)w);
+}
+
+/* SDLPlatform>>ffiWindowRefreshRate: */
+static double ffi_window_refresh_rate(int64_t w)
+{
+    return refresh_rate((int32_t)w);
 }
 
 /* SDLPlatform>>init */
@@ -60,7 +165,8 @@ void platform_interface_poll(void)
     if (any_armed()) {
         platform_sockets_poll(0);
     }
-    signal_ready();
+    platform_events_signal_ready();
+    signal_notifications();
 }
 
 /* SDLPlatform>>shutdown */
@@ -114,11 +220,11 @@ void platform_interface_wait(int64_t timeout_us)
     if (socks) {
         platform_sockets_poll(0);
     }
-    signal_ready();
+    platform_events_signal_ready();
 }
 
 /* SDLPlatform>>wake */
-void wake(void)
+void sdl_platform_wake(void)
 {
     atomic_int t;
     SDL_Event local;

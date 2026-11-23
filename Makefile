@@ -73,6 +73,7 @@ test-core: image test-vm
 	$(PLATFORM_CHECK)
 	tests/vm/gen_test.sh $(OUT)/samaltak.image
 	tests/vm/runtime_native_grants_test.sh $(OUT)/samaltak.image $(VM)
+	tests/vm/ffi_external_notification_test.sh $(OUT)/samaltak.image $(VM)
 	tests/boot/layering_test.sh
 	tests/st_suite.sh $(OUT)/samaltak.image
 	SAMALTAK_VERIFY_GC=1 tests/st_suite.sh $(OUT)/samaltak.image --eden 1 -- Tests-Kernel Tests-Compiler

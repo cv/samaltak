@@ -3,7 +3,22 @@ TestCase subclass: #FFIBindingTest
 	classVariableNames: ''
 	package: 'Tests-Kernel'!
 
+!FFIBindingTest class methodsFor: 'accessing'!
+testSelectors
+	Machine hasFirmware ifTrue: [
+		^#(testInvalidDescriptors testUnregisteredExportsAndMismatchedSignatures testFreestandingBindingsAreDenied)].
+	^super testSelectors reject: [:selector | selector == #testFreestandingBindingsAreDenied]
+! !
+
 !FFIBindingTest methodsFor: 'tests'!
+testFreestandingBindingsAreDenied
+	#((call 'libm' 'sqrt' (f64) f64)
+	  (call 'libc' 'memcmp' (byteSlice byteSlice u64) i32)
+	  (notification vsync coalesce 2 1)
+	  (notification sdlLog queued dropNewestAndCount 1 (category priority messageBytes) 1)
+	  (notification external 'fixture' 'subscribe' (u32 context u64) i32)) do: [:descriptor |
+		self should: [FFI bind: descriptor] raise: FFIError]
+!
 testLiteralAndComputedDescriptors
 	| literal computed descriptor |
 	literal := FFI bind: #(call 'libm' 'sqrt' (f64) f64).
