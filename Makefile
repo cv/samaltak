@@ -151,18 +151,20 @@ UEFI_MEM = $(or $(UEFI_RAM_MB),2048)
 uefi-ui uefi-control: UEFI_HEAP = $(or $(UEFI_HEAP_MB),$(UEFI_WORLD_HEAP_MB))
 uefi-ui uefi-control: UEFI_MEM = $(or $(UEFI_RAM_MB),$(UEFI_WORLD_RAM_MB))
 UEFI_SCREEN ?= 1024x768
-# UEFI_VNC=N: uefi-ui and uefi-control show the screen on a VNC server on 127.0.0.1:590N instead of a window (from another
-# machine: ssh -L 590N:127.0.0.1:590N, then vnc://localhost:590N), its password the file UEFI_VNC_PASSWORD (at most 8 characters).
+# UEFI_VNC=N: uefi-ui and uefi-control show the screen on QEMU's VNC server on 127.0.0.1:590N instead of a window (from
+# another machine: ssh -L 590N:127.0.0.1:590N, then vnc://localhost:590N), its password the file UEFI_VNC_PASSWORD (at most
+# 8 characters). The fallback to UEFI_DISPLAY below, the image's own server (samaltak-ctl open --uefi --vnc N's default).
 UEFI_VNC ?=
 UEFI_VNC_PASSWORD ?= $(HOME)/.samaltak-vnc
 UEFI_VNC_DISPLAY = -object secret,id=vncpw,file=$(UEFI_VNC_PASSWORD) -display vnc=127.0.0.1:$(UEFI_VNC),password-secret=vncpw
 # UEFI_DISPLAY=N: uefi-ui and uefi-control show the screen through the image's own remote display server (RFB, --display
 # on port 5900 in the guest) forwarded from 127.0.0.1:5900+N, and QEMU has no display (-display none; UEFI_DISPLAY wins
-# over UEFI_VNC). Its VNC password: the file UEFI_DISPLAY_PASSWORD_FILE (at most 8 characters; e.g. ~/.samaltak-vnc, so a
-# viewer's saved password works with both servers), copied to the ESP (0600) for --display-password-file, never on a
-# command line, else one the image makes and shows at start (display: password ...). docs/remote.md, Remote display.
+# over UEFI_VNC). Its VNC password: the file UEFI_DISPLAY_PASSWORD_FILE (at most 8 characters; by default ~/.samaltak-vnc
+# where present, UEFI_VNC's, so a viewer's saved password works with both servers), copied to the ESP (0600) for
+# --display-password-file, never on a command line, else one the image makes and shows at start (display: password ...).
+# docs/remote.md, Remote display.
 UEFI_DISPLAY ?=
-UEFI_DISPLAY_PASSWORD_FILE ?=
+UEFI_DISPLAY_PASSWORD_FILE ?= $(wildcard $(HOME)/.samaltak-vnc)
 UEFI_DISPLAY_PORT = $(shell expr 5900 + $(UEFI_DISPLAY))
 UEFI_DISPLAY_FWD = $(if $(UEFI_DISPLAY),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_DISPLAY_PORT)-:5900)
 UEFI_DISPLAY_ARGS = $(if $(UEFI_DISPLAY),--display --display-host 0.0.0.0 --display-port 5900 --display-vnc-auth)

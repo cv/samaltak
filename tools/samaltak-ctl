@@ -16,7 +16,7 @@ const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
   open [--headless] [--hidden] [--work-clock] [--image path] [--port n] [--window-size WxH] [--source-dir d]   start an image with --control (--work-clock: on the recording clock from the start)
        [--display-port n [--display-password-file f]]   and its remote display (RFB, --display) on 127.0.0.1:n (0: a free port, in <session>.display-port), VNC authentication with f's password
   open --uefi [--headless] [--port n] [--window-size WxH] [--affinity big|LIST|none] [--cpus n]   the VM on UEFI in QEMU (make uefi-control), its control port forwarded to n; its host CPUs (UEFI_AFFINITY, default big) and vCPUs (UEFI_CPUS)
-       [--vnc n [--vnc-server qemu|image] [--vnc-password-file f]]   its screen on VNC at 127.0.0.1:5900+n: QEMU's server (default; UEFI_VNC, password file ~/.samaltak-vnc) or the image's own (RFB; UEFI_DISPLAY: QEMU without a display), its password f's or, for the image's, one made for the session in <session>.vnc-password (0600)
+       [--vnc n [--vnc-server qemu|image] [--vnc-password-file f]]   its screen on VNC at 127.0.0.1:5900+n: the image's own RFB server (default; UEFI_DISPLAY: QEMU without a display) or QEMU's (qemu: UEFI_VNC), its password f's, else ~/.samaltak-vnc's where present, else one made for the session in <session>.vnc-password (0600)
   connect [--host h] --port n --token-file f   a session for an image someone else started (a bare-metal machine: the token it showed at boot, in f; - reads stdin); default host 127.0.0.1 (an SSH tunnel)
   snapshot [ref] [--depth n] [--bounds]    widget tree with stable @refs
   find <text>                              refs whose label/ref contains text
@@ -259,19 +259,20 @@ async function openUefi() {
   }
 }
 
-// --vnc n: the screen on 127.0.0.1:5900+n, from QEMU's VNC server (UEFI_VNC) or the image's own RFB server (UEFI_DISPLAY,
-// docs/remote.md, Remote display); --vnc-server, else $SAMALTAK_VNC_SERVER, else qemu. The password reaches make as a
-// file name, never on a command line: --vnc-password-file f, else QEMU's ~/.samaltak-vnc (UEFI_VNC_PASSWORD) or, for the
-// image's server, 8 random characters made here into <session>.vnc-password (0600; close removes it). Never printed.
+// --vnc n: the screen on 127.0.0.1:5900+n, from the image's own RFB server (UEFI_DISPLAY, docs/remote.md, Remote display)
+// or QEMU's VNC server (UEFI_VNC, the fallback); --vnc-server, else $SAMALTAK_VNC_SERVER, else image. The password
+// reaches make as a file name, never on a command line: --vnc-password-file f, else $UEFI_VNC_PASSWORD, else
+// ~/.samaltak-vnc where present (so a viewer's saved password works with either server), else 8 random characters made
+// here into <session>.vnc-password (0600; close removes it). Never printed.
 function vncOptions() {
   if (flags.vnc === undefined) return null;
   const n = Number(flags.vnc);
   if (!Number.isInteger(n) || n < 0 || n > 99) die('open --uefi --vnc n: n is 0-99 (port 5900+n)');
-  const server = flags['vnc-server'] || process.env.SAMALTAK_VNC_SERVER || 'qemu';
+  const server = flags['vnc-server'] || process.env.SAMALTAK_VNC_SERVER || 'image';
   if (server !== 'qemu' && server !== 'image') die('--vnc-server is qemu or image');
   let passwordFile = flags['vnc-password-file'] && path.resolve(flags['vnc-password-file']);
   let made = false;
-  if (!passwordFile && server === 'qemu') passwordFile = process.env.UEFI_VNC_PASSWORD || path.join(os.homedir(), '.samaltak-vnc');
+  if (!passwordFile) passwordFile = process.env.UEFI_VNC_PASSWORD || [path.join(os.homedir(), '.samaltak-vnc')].find(f => fs.existsSync(f));
   if (!passwordFile) {
     // VNC authentication takes 8 characters: about 47 bits from this alphabet (no look-alikes).
     const abc = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';

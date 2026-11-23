@@ -4,7 +4,7 @@ Drives a running Samaltak image through its control service (`ControlServer`, `s
 
     open [--headless] [--hidden] [--image path] [--port n] [--window-size WxH] [--source-dir d]
     open --uefi [--headless] [--port n] [--window-size WxH]   # the VM on UEFI in QEMU (make uefi-control, docs/uefi.md)
-    open --uefi --vnc n [--vnc-server qemu|image]   # its screen on VNC at 127.0.0.1:5900+n: QEMU's server or the image's own (docs/remote.md, Remote display)
+    open --uefi --vnc n [--vnc-server image|qemu]   # its screen on VNC at 127.0.0.1:5900+n: the image's own server (default) or QEMU's (docs/remote.md, Remote display)
     connect [--host h] --port n --token-file f   # an image started elsewhere (a bare-metal Spark: docs/remote.md); close forgets it, close --quit quits it
     snapshot [ref] [--depth n] [--bounds]       find <text>
     click|dblclick|rightclick <ref|x,y> [--mods Shift+Meta]      hover <ref|x,y> [--at spec]   (--at: e.g. a PixelView pixel 4,7)

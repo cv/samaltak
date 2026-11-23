@@ -83,16 +83,17 @@ screen). That password is 8 random characters of its own, never derived from the
 
 **Starting it.**
 
-- UEFI in QEMU: `make uefi-ui UEFI_DISPLAY=1 UEFI_GPU=virtio-gpu-pci UEFI_SCREEN=1920x1080
-  UEFI_DISPLAY_PASSWORD_FILE=~/.samaltak-vnc` (or `uefi-control`) boots with `--display --display-host 0.0.0.0
-  --display-vnc-auth` and the password copied to the ESP (0600), and QEMU without a display (`-display none`) forwarding
-  the host's `127.0.0.1:5900+N` to the guest's port 5900. It replaces `UEFI_VNC=N` (QEMU's VNC server, which still
-  works) for these targets. The same file `~/.samaltak-vnc` as `UEFI_VNC`'s means a viewer's saved password works with
-  either server.
-- `samaltak-ctl open --uefi --vnc N --vnc-server image` does that (`--vnc-server qemu`, the default, is QEMU's server);
-  without `--vnc-password-file f` it makes a password for the session in `<session>.vnc-password` (0600) and prints
-  that file's name, never the password. `samaltak.vncWorld({ action: "restart", server: "image" })` opens the operator's
-  World that way (the default stays `"qemu"`).
+- UEFI in QEMU: `make uefi-ui UEFI_DISPLAY=1 UEFI_GPU=virtio-gpu-pci UEFI_SCREEN=1920x1080` (or `uefi-control`)
+  boots with `--display --display-host 0.0.0.0 --display-vnc-auth` and the password file `UEFI_DISPLAY_PASSWORD_FILE`
+  (by default `~/.samaltak-vnc` where present) copied to the ESP (0600), and QEMU without a display (`-display none`)
+  forwarding the host's `127.0.0.1:5900+N` to the guest's port 5900. `UEFI_VNC=N` still means QEMU's own VNC server
+  (the fallback, its password `UEFI_VNC_PASSWORD`, also `~/.samaltak-vnc`); `UEFI_DISPLAY` wins when both are given.
+  The same file for both means a viewer's saved password works with either server.
+- `samaltak-ctl open --uefi --vnc N` does that: the image's server is the default (`--vnc-server image`, or
+  `$SAMALTAK_VNC_SERVER`), `--vnc-server qemu` QEMU's. The password: `--vnc-password-file f`, else `$UEFI_VNC_PASSWORD`,
+  else `~/.samaltak-vnc` where present, else one made for the session in `<session>.vnc-password` (0600); it prints
+  the file's name, never the password. `samaltak.vncWorld({ action: "restart" })` opens the operator's World on the
+  image's server (`server: "qemu"` for QEMU's).
 - A bare-metal machine: `make usb-image USB_DISPLAY=1 USB_DISPLAY_PASSWORD_FILE=f` listens on every address, port
   5900, with VNC authentication (never without: without `f` the image makes a password at each boot and shows it on the
   screen). Anyone who can read the stick can read `f`'s copy on its ESP.

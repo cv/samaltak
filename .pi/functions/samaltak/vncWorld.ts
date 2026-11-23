@@ -1,4 +1,4 @@
-/** The UEFI World on a VNC server for the operator's screen sharing (a samaltak-ctl --uefi session with --vnc: QEMU's VNC server, or with server "image" the image's own RFB server): status (VM alive, VNC port, why it died), restart (keep the old log, close, build, open at 1920x1080 on virtio-gpu with 4 vCPUs pinned to the big cores, send the agent and GitHub configs, optionally open Screen Sharing on the viewer's Mac), or close; dryRun shows the plan. */
+/** The UEFI World on a VNC server for the operator's screen sharing (a samaltak-ctl --uefi session with --vnc: the image's own RFB server, or with server "qemu" QEMU's VNC server): status (VM alive, VNC port, why it died), restart (keep the old log, close, build, open at 1920x1080 on virtio-gpu with 4 vCPUs pinned to the big cores, send the agent and GitHub configs, optionally open Screen Sharing on the viewer's Mac), or close; dryRun shows the plan. */
 async function vncWorld(
   { shell: { exec }, samaltak: { build, ctlSession, crashLog } },
   input: {
@@ -18,9 +18,9 @@ async function vncWorld(
 ) {
   // The World the operator watches over VNC: tools/samaltak-ctl --session <session> open --uefi --window-size WxH --vnc
   // <display> --vnc-server <server> (on 127.0.0.1:5900+display; password file ~/.samaltak-vnc, UEFI_VNC_PASSWORD). server:
-  // "qemu" (default) QEMU's VNC server (UEFI_VNC); "image" the image's own RFB server (UEFI_DISPLAY: QEMU without a
-  // display, the guest's port 5900 forwarded; docs/remote.md, Remote display), with the same password file, so the
-  // viewer's saved password works for both. Ready: the port answers an RFB greeting. And UEFI_GPU=<gpu> (virtio-gpu-pci: 1920x1080; ramfb stops at 1024x768); docs/uefi.md. It runs from the current
+  // "image" (default) the image's own RFB server (UEFI_DISPLAY: QEMU without a display, the guest's port 5900
+  // forwarded; docs/remote.md, Remote display); "qemu" QEMU's VNC server (UEFI_VNC), the fallback, with the same
+  // password file, so the viewer's saved password works for both. Ready: the port answers an RFB greeting. And UEFI_GPU=<gpu> (virtio-gpu-pci: 1920x1080; ramfb stops at 1024x768); docs/uefi.md. It runs from the current
   // directory's build (the operator's is the main checkout, session "vnc", display 1). Defaults: session "vnc", display 1,
   // gpu virtio-gpu-pci, windowSize 1920x1080, affinity "big", cpus 4, configs ["agent", "github"], build true.
   // affinity: QEMU's host CPUs (UEFI_AFFINITY, tools/qemu-pin.sh): "big" the cores of the highest maximum frequency (on
@@ -41,7 +41,7 @@ async function vncWorld(
   if (!Number.isInteger(display) || display < 0 || display > 99)
     throw new Error("vncWorld: display is 0-99");
   const port = 5900 + display;
-  const server = input.server ?? "qemu";
+  const server = input.server ?? "image";
   if (server !== "qemu" && server !== "image") throw new Error('vncWorld: server is "qemu" or "image"');
   const gpu = input.gpu ?? "virtio-gpu-pci";
   const windowSize = input.windowSize ?? "1920x1080";
