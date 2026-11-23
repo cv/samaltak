@@ -1,7 +1,7 @@
 !ByteArray methodsFor: 'network byte order'!
 netUint16At: index
-	"The big-endian 16-bit integer at index (1-based)."
-	^((self at: index) bitShift: 8) + (self at: index + 1)
+	"The big-endian 16-bit integer at index (1-based): uint16BigEndianAt:, one load in optimized code."
+	^self uint16BigEndianAt: index
 !
 netUint16At: index put: anInteger
 	self at: index put: ((anInteger bitShift: -8) bitAnd: 255).
@@ -9,7 +9,8 @@ netUint16At: index put: anInteger
 	^anInteger
 !
 netUint32At: index
-	^((self netUint16At: index) bitShift: 16) + (self netUint16At: index + 2)
+	"The big-endian 32-bit integer at index (1-based)."
+	^self uint32BigEndianAt: index
 !
 netUint32At: index put: anInteger
 	self netUint16At: index put: ((anInteger bitShift: -16) bitAnd: 16rFFFF).
