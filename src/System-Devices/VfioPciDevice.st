@@ -14,7 +14,7 @@ open: makes a container (/dev/vfio/vfio: VFIO_GET_API_VERSION, VFIO_CHECK_EXTENS
 - DMA memory: allocate: maps anonymous memory of the process (mmap, zeroed) and gives it to the IOMMU at an I/O virtual address I choose (VFIO_IOMMU_MAP_DMA, read and write), from iovaBase (4 GB) up, past the group''s reserved regions (sysfs reserved_regions: the MSI window, RMR ranges); deviceAddress: is that address, the one the device must be given; free: and release unmap it (VFIO_IOMMU_UNMAP_DMA);
 - reset: VFIO_DEVICE_RESET (an FLR here), only when asked;
 - release: every DMA mapping, BAR mapping and descriptor, in reverse order.
-No interrupts: drivers poll. Nothing here binds or unbinds a kernel driver: the function must already be vfio-pci''s (docs/nv-gsp.md 13).
+No interrupts: drivers poll. Nothing here binds or unbinds a kernel driver: the function must already be vfio-pci''s (tools/nv-vfio.sh bind; docs/nv-dayone.md).
 
 os is what makes the calls: PosixDevice (its class side), or a fake VFIO in tests (VfioFake), which answers the same protocol and records every call. structs and constants are the kernel''s layouts and numbers from linux/vfio.h; VfioLayoutTest checks them against the C compiler (tools/vfio-layouts.sh). availability answers what the host offers (the container''s API version and IOMMU types) without opening any group.'!
 

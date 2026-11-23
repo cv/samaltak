@@ -382,7 +382,7 @@ tinygrad (`f0b8003`, `tinygrad/runtime/support/nv/ip.py`) boots discrete GPUs: S
    GSP lockdown is to be found out; rebinding nvidia.ko is the check); VFIO's IOMMU mapping gives the same "DMA address"
    abstraction `PciDevice` gives on UEFI, so the driver above it is the same code; no console or USB stick per attempt.
    `VfioPciDevice` is that `PciDevice` (section 13); the GPU's firmware RMR ranges may make the kernel refuse VFIO
-   (section 13).
+   (section 13; the day-one runbook is docs/nv-dayone.md).
 3. **Each milestone then bare metal by USB** (`make usb-image`), with the serial console (the Spark has a UART at
    0x16A00000, `earlycon`, SPCR/DBG2) for logs. Differences VFIO hides: the SMMU (bypass or RMR identity on UEFI, 4.3), the
    GPU's state after the GOP, interrupts.
@@ -668,7 +668,8 @@ not relaxable). **Risk** **[inf, strong]**: Linux refuses to switch a device wit
 blocking domain ("Firmware has requested this device have a 1:1 IOMMU mapping, rejecting configuring the device without
 a 1:1 mapping", iommu.c, since 6.x), and taking a group's DMA ownership for VFIO (`VFIO_GROUP_SET_CONTAINER`, or binding
 the cdev to iommufd) does exactly that. So `open:` will most likely fail on the GB10 with EINVAL at
-`VFIO_GROUP_SET_CONTAINER`; its error says so, and the kernel log (`dmesg`) has the line above. Checking that is the first thing to do on the dedicated Spark.
+`VFIO_GROUP_SET_CONTAINER`; its error says so, and the kernel log (`dmesg`) has the line above. Checking that is the first thing to do on the dedicated Spark
+(docs/nv-dayone.md 2, with `tools/nv-vfio.sh`).
 
 ## 14. Steps 4-6 against the fake GSP: the client side of RM
 
@@ -733,3 +734,5 @@ Open for the dedicated Spark (the 580 source names them; none is done):
   and TLB invalidation after unmapping.
 - The work submit token: CPU-RM makes it from the channel id and runlist (`kfifoGenerateWorkSubmitTokenHal`). The fake
   answers `16r40000000 + n`.
+
+The order of the day-one experiments, with what to expect from each, is docs/nv-dayone.md 5-6.

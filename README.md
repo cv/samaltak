@@ -55,4 +55,5 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - `docs/files.md` — files on UEFI: the firmware's block devices, ext4 volumes mounted read-only under `/` and `/mnt`
 - `docs/nv.md` — the NVIDIA GB10 through the open kernel module's RM ioctls, without NVIDIA's libraries: objects, structs, memory, channels, QMDs, cubins (`tools/nv-probe.py` runs it)
 - `docs/nv-gsp.md` — how the open kernel module boots GB10's GSP through SEC2 and talks to GSP-RM: firmware, register sequence, RPC queues, the plan for driving it from UEFI
+- `docs/nv-dayone.md` — the runbook for the dedicated DGX Spark: safety, handing the GPU to VFIO (`tools/nv-vfio.sh`), recovery, logs, and the first GSP experiments hosted and bare metal
 - `prototypes/` — the HTML prototypes the UI started from
