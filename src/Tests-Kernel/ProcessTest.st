@@ -307,6 +307,19 @@ testRegistryAnswersNoCollectedProcess
 	self assert: (weak allSatisfy: [:p | p isNil]).
 	self assert: (Processor allProcesses allSatisfy: [:p | p notNil and: [p isTerminated not]])
 !
+testHighestReadyRunsFirst
+	"A switch scans the run lists from a hint (Scheduler>>transferToHighest): after a scan that ended low, at 12, Processes made ready at 23, 47 and 31 still run highest first, before the one at 12."
+	| order done high low |
+	order := OrderedCollection new.
+	done := Semaphore new.
+	high := [#(23 47 31) do: [:p | [order add: p. done signal] newProcess priority: p; resume]] newProcess.
+	high priority: 60.
+	low := [high resume. order add: 12. done signal] newProcess.
+	low priority: 12.
+	low resume.
+	4 timesRepeat: [done wait].
+	self assert: order asArray = #(47 31 23 12)
+!
 testCpuTimeAddsUp
 	"While two processes switch 100,000 times, the Processes are charged the VM thread's CPU time, but for the JIT's compiling: all of them, as others run meanwhile (the timer Process sampling for the profiler, finalization). The thread clock is read inside the Processes' readings, the JIT's time inside the thread clock's."
 	| a b c0 t0 j0 j1 t1 c t |
