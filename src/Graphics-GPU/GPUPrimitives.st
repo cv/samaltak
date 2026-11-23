@@ -3,7 +3,7 @@ Object subclass: #GPUPrimitives
 	classVariableNames: ''
 	package: 'Graphics-GPU'!
 
-GPUPrimitives comment: 'I am the VM''s GPU and window primitives (SDL3, SDL_GPU; docs/platform.md): GPUPlatform''s backend where the VM has them. Every method is a primitive; on failure I signal a GPUError carrying the platform''s last error message.'!
+GPUPrimitives comment: 'I am the VM''s GPU and window primitives (SDL3, SDL_GPU; docs/platform.md): GPUPlatform''s backend where the VM has them. On failure I signal a GPUError carrying the platform''s last error message.'!
 
 !GPUPrimitives class methodsFor: 'errors'!
 lastError
@@ -158,8 +158,11 @@ openWindow: w height: h title: title flags: flags
 	^self fail: 'windowOpen'
 !
 closeWindow: window
-	<primitive: 'windowClose'>
-	^self fail: 'windowClose'
+	| result |
+	result := PlatformFFI call: #(call 'platform' 'platform_windows_close' (i64) i32)
+		with: {window} ifUnavailable: [^self legacyCloseWindow: window].
+	result = 0 ifTrue: [^self fail: 'windowClose'].
+	^self
 !
 windowSize: window
 	<primitive: 'windowSize'>
@@ -170,12 +173,18 @@ windowPixelSize: window
 	^self fail: 'windowPixelSize'
 !
 windowDisplayScale: window
-	<primitive: 'windowDisplayScale'>
-	^self fail: 'windowDisplayScale'
+	| result |
+	result := PlatformFFI call: #(call 'platform' 'platform_windows_display_scale' (i64) f64)
+		with: {window} ifUnavailable: [^self legacyWindowDisplayScale: window].
+	result < 0 ifTrue: [^self fail: 'windowDisplayScale'].
+	^result
 !
 windowRefreshRate: window
-	<primitive: 'windowRefreshRate'>
-	^self fail: 'windowRefreshRate'
+	| result |
+	result := PlatformFFI call: #(call 'platform' 'platform_windows_refresh_rate' (i64) f64)
+		with: {window} ifUnavailable: [^self legacyWindowRefreshRate: window].
+	result < 0 ifTrue: [^self fail: 'windowRefreshRate'].
+	^result
 !
 window: window title: aString
 	<primitive: 'windowSetTitle'>
@@ -192,16 +201,25 @@ window: window x: x y: y
 	^false
 !
 window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
-	<primitive: 'windowSetTextInputArea'>
-	^self fail: 'windowSetTextInputArea'
+	| result |
+	result := PlatformFFI call: #(call 'platform' 'platform_windows_set_text_input_area' (i64 i64 i64 i64 i64 i64) i32)
+		with: {window. x. y. w. h. cursorX} ifUnavailable: [^self legacyWindow: window textInputAreaX: x y: y width: w height: h cursor: cursorX].
+	result = 0 ifTrue: [^self fail: 'windowSetTextInputArea'].
+	^self
 !
 showWindow: window
-	<primitive: 'windowShow'>
-	^self fail: 'windowShow'
+	| result |
+	result := PlatformFFI call: #(call 'platform' 'platform_windows_show' (i64 i32) i32)
+		with: {window. 1} ifUnavailable: [^self legacyShowWindow: window].
+	result = 0 ifTrue: [^self fail: 'windowShow'].
+	^self
 !
 hideWindow: window
-	<primitive: 'windowHide'>
-	^self fail: 'windowHide'
+	| result |
+	result := PlatformFFI call: #(call 'platform' 'platform_windows_show' (i64 i32) i32)
+		with: {window. 0} ifUnavailable: [^self legacyHideWindow: window].
+	result = 0 ifTrue: [^self fail: 'windowHide'].
+	^self
 !
 nextEvent: anArray
 	"Fill anArray (8 slots) with the next platform event and answer it, or answer nil."
@@ -221,8 +239,11 @@ vsyncSemaphore: externalIndex
 	^self fail: 'vsyncSemaphore'
 !
 setCursor: kind
-	<primitive: 'setCursor'>
-	^self fail: 'setCursor'
+	| result |
+	result := PlatformFFI call: #(call 'platform' 'platform_windows_set_cursor' (i64) i32)
+		with: {kind} ifUnavailable: [^self legacySetCursor: kind].
+	result = 0 ifTrue: [^self fail: 'setCursor'].
+	^self
 !
 clipboardGet
 	<primitive: 'clipboardGet'>
@@ -242,4 +263,34 @@ clipboardData: mime
 !GPUPrimitives class methodsFor: 'windows'!
 windowClosed: window
 	"The VM releases the window's swapchain itself."
+! !
+
+!GPUPrimitives class methodsFor: 'fallback primitives'!
+legacyCloseWindow: window
+	<primitive: 'windowClose'>
+	^self fail: 'windowClose'
+!
+legacyWindowDisplayScale: window
+	<primitive: 'windowDisplayScale'>
+	^self fail: 'windowDisplayScale'
+!
+legacyWindowRefreshRate: window
+	<primitive: 'windowRefreshRate'>
+	^self fail: 'windowRefreshRate'
+!
+legacyWindow: window textInputAreaX: x y: y width: w height: h cursor: cursorX
+	<primitive: 'windowSetTextInputArea'>
+	^self fail: 'windowSetTextInputArea'
+!
+legacyShowWindow: window
+	<primitive: 'windowShow'>
+	^self fail: 'windowShow'
+!
+legacyHideWindow: window
+	<primitive: 'windowHide'>
+	^self fail: 'windowHide'
+!
+legacySetCursor: kind
+	<primitive: 'setCursor'>
+	^self fail: 'setCursor'
 ! !
