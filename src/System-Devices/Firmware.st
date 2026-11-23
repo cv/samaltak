@@ -1,9 +1,9 @@
 Object subclass: #Firmware
-	instanceVariableNames: 'systemTable bootServices guids out lock'
+	instanceVariableNames: 'systemTable bootServices guids out lock timer period fine'
 	classVariableNames: 'Current'
 	package: 'System-Devices'!
 
-Firmware comment: 'I am the UEFI firmware''s boot services (UEFI 2.10, 7) for drivers in Smalltalk, over Machine: protocols by GUID, handles and the firmware''s drivers that manage them, events, pool memory; and of its runtime services ResetSystem (Firmware powerOff, restart, warmRestart: the World menu''s Power off, Restart, Warm restart). Firmware current is nil on an operating system. A status is an error if its high bit is set (isError:). Structures are read at their offsets (LP64, natural alignment, the same on x86-64 and AArch64).'!
+Firmware comment: 'I am the UEFI firmware''s boot services (UEFI 2.10, 7) for drivers in Smalltalk, over Machine: protocols by GUID, handles and the firmware''s drivers that manage them, events, pool memory, the timer interrupt''s period (fineTicks:); and of its runtime services ResetSystem (Firmware powerOff, restart, warmRestart: the World menu''s Power off, Restart, Warm restart). Firmware current is nil on an operating system. A status is an error if its high bit is set (isError:). Structures are read at their offsets (LP64, natural alignment, the same on x86-64 and AArch64).'!
 
 !Firmware methodsFor: 'initialization'!
 setSystemTable: anAddress
@@ -134,6 +134,50 @@ disconnect: aHandle
 checkEvent: anEvent
 	"Was anEvent signaled (it is not any more)?"
 	^(self isError: (self boot: 120 with: anEvent)) not
+!
+timerEvent
+	"A new timer event (CreateEvent, EVT_TIMER) that notifies nobody: watch it (Machine watch:semaphoreIndex:). Nil if the firmware has none."
+	^self outWord: [:p | self boot: 80 with: 16r80000000 with: 0 with: 0 with: 0 with: p]
+!
+setTimer: anEvent every: microseconds
+	"Signal anEvent every microseconds from now on (SetTimer, TimerPeriodic: at the firmware's ticks); nil: no more (TimerCancel)."
+	microseconds isNil
+		ifTrue: [self boot: 88 with: anEvent with: 0 with: 0]
+		ifFalse: [self boot: 88 with: anEvent with: 1 with: (microseconds max: 1) * 10]
+!
+closeEvent: anEvent
+	self boot: 112 with: anEvent
+! !
+
+!Firmware methodsFor: 'timer'!
+timerProtocol
+	"EFI_TIMER_ARCH_PROTOCOL (PI 1.8, volume 2, 12.10: RegisterHandler, SetTimerPeriod, GetTimerPeriod), the timer interrupt that drives the firmware's timer events; nil if the firmware publishes none."
+	timer isNil ifTrue: [timer := (self locateProtocol: '26baccb3-6f42-11d4-bce7-0080c73c8881') ifNil: [0]].
+	^timer = 0 ifTrue: [nil] ifFalse: [timer]
+!
+tickPeriod
+	"The timer interrupt's period, in 100 ns (OVMF's and ArmVirtQemu's: 100000, 10 ms); nil if unknown."
+	| t |
+	t := self timerProtocol.
+	t isNil ifTrue: [^nil].
+	^self outWord: [:p | Machine call: (self function: t at: 16) with: t with: p]
+!
+tickPeriod: hundredNs
+	"Set the timer interrupt's period (SetTimerPeriod); answer whether the firmware did."
+	| t |
+	t := self timerProtocol.
+	t isNil ifTrue: [^false].
+	^(self isError: (Machine call: (self function: t at: 8) with: t with: hundredNs)) not
+!
+fineTicks: aBoolean
+	"The timer interrupt every millisecond (true), or at the firmware's own period again (false): for a driver that looks at a device at every tick while it is busy (PciNetworkInterface). Timer events then fire within a millisecond of their time instead of the firmware's 10 ms, and the CPU halts between ticks. The VM's UefiSnp does the same for itself (UefiMachine>>fineTicks:): only one of the two drives a NIC."
+	aBoolean = (fine == true) ifTrue: [^self].
+	fine := aBoolean.
+	aBoolean
+		ifTrue: [
+			period isNil ifTrue: [period := self tickPeriod ifNil: [0]].
+			period > 10000 ifTrue: [self tickPeriod: 10000]]
+		ifFalse: [period > 10000 ifTrue: [self tickPeriod: period]]
 ! !
 
 !Firmware class methodsFor: 'accessing'!
