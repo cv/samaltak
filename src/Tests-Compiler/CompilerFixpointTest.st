@@ -20,6 +20,8 @@ literal: a matches: b
 		1 to: a size do: [:i | (self literal: (a at: i) matches: (b at: i)) ifFalse: [^false]].
 		^true].
 	(a isKindOf: LookupKey) ifTrue: [^false].
+	"Recompiling creates a fresh binding owner. Only its symbolic descriptor is part of the fixpoint."
+	a class == FFIBinding ifTrue: [^self literal: a descriptor matches: b descriptor].
 	^a = b
 !
 method: old matches: new
@@ -32,6 +34,18 @@ method: old matches: new
 ! !
 
 !CompilerFixpointTest methodsFor: 'tests'!
+testSeededBindingLiteralComparison
+	| binding equivalent |
+	binding := FFI newCallBinding: #(call 'libm' 'sqrt' (f64) f64).
+	equivalent := FFI newCallBinding: #(call 'libm' 'sqrt' (f64) f64).
+	self deny: binding = equivalent.
+	self assert: (self literal: binding matches: equivalent).
+	#((call 'libc' 'sqrt' (f64) f64)
+	  (call 'libm' 'cos' (f64) f64)
+	  (call 'libm' 'sqrt' (i64) f64)
+	  (call 'libm' 'sqrt' (f64) i64)) do: [:descriptor |
+		self deny: (self literal: binding matches: (FFI newCallBinding: descriptor))]
+!
 testEveryStopIsMapped
 	"After stage 2, every send, store, return and closure push in the image has a sourceMap entry."
 	| unmapped |

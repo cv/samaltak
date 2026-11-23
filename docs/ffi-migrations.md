@@ -125,8 +125,8 @@ in the audit or benchmarks do not count.
 | --- | --- |
 | Files (500–514) | Start with 505/504 on valid buffered files, then 503/502 with offset/canary and EOF checks. Stage path and handle operations; 510 needs one compound stat, 511/513 need owned surrogateescape text. For 511, preserve large directories with a separately bounded streaming copy of one native result or keep legacy; no truncation or re-enumeration. |
 | Core (20–31, 52, 61, 152–153, 169–170, 172) | Prove scalar fraction part, real clocks and VM stream writes (including binary text). Use bounded text copyout for 61 and owned text for 172, preserving absent versus empty. Pilot 27 with a vetted signed-magnitude input and scalar result; cover 20–26/28–31 only after a bounded result and exact oversized behavior are specified. Do not replace VM arithmetic by fixed-width scalars. |
-| Window/input (400, 402–403, 405, 410–413, 415, 417–418, 420–421) | Prove the window and text scalars in graphics CI; prove a single queue dequeue and full record roundtrip for 412/413. Cover owned text/error/counts and MIME bytes with cap and lifetime checks for 410/415/417/420. |
-| GPU (430–456, 458–461) | Pair a real render workload with typed handle lifecycle and fence outcomes. Specify bounded shader/pipeline and blit records (433/434/452), upload region/stride (440), atomic acquire (442), bounded download (456) and owned shader bytes (461) before switching senders. |
+| Window/input (400, 402–403, 405, 410–413, 415, 417–418, 420–421) | Close the owned-size gaps for 410/412; validate restore, lifetime and live-workload parity before switching senders. |
+| GPU (430–456, 458–461) | Validate mixed-route state and output for 450, close the 461 owned-size gap, and pair a full render workload before switching senders. |
 | Socket/TLS/PTY (540–555, 561–562, 564–565) | Loopback and verified TLS plus a real child PTY; prove would-block vs EOF vs error, partial sends, wakeups and close/ownership. Verify TLS retry storage never retains a borrowed pointer and PTY wait reports status/consumes as before. |
 
 ## API and route boundaries
@@ -157,17 +157,19 @@ Explicit publication in a disposable trial is not a production default.
 | Shared counted text | Hosted x86-64 `cbe6326` VM with staged image source: `PlatformFFITextTest NativeCountedTextTest FileTest`, 17/17 each in none/baseline/opt. Includes Lowtalk helper simulation, not a simulator migration run. Native helper guard-page test passed; helper compiled for UEFI x86-64, not a firmware boot. |
 | Registry and seeded bindings | Live source file-in on hosted release controls: exact registry prototype and duplicate-key rejection; literal binding validation and actual existing `libm` downcall. Warmed literal rebind after restore passed none/baseline/opt on `cbe6326` with source file-in. This does not prove restore for any new export. |
 | Launcher/legacy gates | [Manifest](../tests/vm/ffi_migration_manifest_test.sh) and legacy controls passed on hosted controls. Isolated Linux x86-64 `NO_PLATFORM=1` [writable](../tests/vm/writable_ffi_test.sh) fixture: 80 native entries per mode (none/baseline/opt/opt without site), including completed error and boxing/GC; release denied the test export. AArch64 Linux `NO_PLATFORM=1` cross-build/QEMU also produced 80 entries per mode; QEMU is not native-host performance evidence. Focused resolver check rejects mismatched result/slice modes, unavailable platform IDs and wrong names. These are infrastructure checks, not 98-ID credit. |
-| New core routes | `migration98-integ5-155237-2` Linux x86-64 SDL-hosted `-O0` VM with canonical seed: `python3 tests/vm/core_ffi_test.py IMAGE VM --trace`. 52/61/152/153/169/170/172 passed in none/baseline/opt, with exact native entry counts (11/24/1/1/2/2/4) per mode and no legacy fallback. Matched stage2 image also passed all seven; proof-only workload ran 30 case/mode combinations with 64 candidate entries and zero direct entries. The new seed on the `cbe6326` hosted VM passed the missing-export controls in all three modes. This is not LTO timing, `NO_PLATFORM` candidate or firmware evidence. |
+| New core routes | `migration98-integ5-155237-2` Linux x86-64 SDL-hosted `-O0` VM with canonical seed: `python3 tests/vm/core_ffi_test.py IMAGE VM --trace`. 52/61/152/153/169/170/172 passed in none/baseline/opt, with exact native entry counts (11/24/1/1/2/2/4) per mode and no legacy fallback. Matched stage2 image also passed all seven; proof-only workload ran 30 case/mode combinations with 64 candidate entries and zero direct entries. The new seed on the `cbe6326` hosted VM passed the missing-export controls in all three modes. This diagnostic run is distinct from the freeze2 checks below. |
 | ID 27 (bigint compare) | Same hosted diagnostic VM/seed, `tests/vm/bigint_ffi_test.sh IMAGE VM --trace`: 1,589 native entries per mode, including prepared Array, positional, candidate facade and post-GC; missing-export fallback separately passed on hosted control. This does not implement the eleven result-producing bigint primitives. |
 | Files 500–514 | Same diagnostic VM/seed, `--headless --test FileFFITest FileTest`: 18/18 per mode, all 15 typed export IDs traced. On full stage2 image, six paired workload shapes verified exact 300 candidate entries and zero direct entries in each mode (18 combinations, proof-only). New VM + old image: 12/12 legacy `FileTest`, no new entries. |
 | Socket/TLS/PTY | Same diagnostic VM/seed, `tests/vm/socket_ffi_test.py VM IMAGE --jit MODE --trace`: all 20 routes traced in none/baseline/opt including trusted TLS, mixed retry, real I/O and readiness. New seed + old VM fallback passed all modes. Five workload shapes passed the route-only controls (15 combinations); no timing inferred. |
 | Window/input | Same diagnostic VM/seed, `tests/vm/window_ffi_test.sh IMAGE VM`: headless none/baseline/opt passed with 412/413/415/417/418 entry counts 11/4,106/1/1/3 in each mode. No display-dependent operation entered. Clipboard text and event text still have the owned-output cap gap. |
-| Graphics | Freeze2 generated and linked all 30 staged GPU alternatives with image facades, including 433/434/452/461. 450 remains without a shared-tree alternative. No local display or graphics measurements. Require the valid-input display CI witness before advancing any of these rows. |
-| Display CI (`07aa290`) | Stage2 built. Interpreter window smoke stopped at ID 420: an unavailable MIME request returned a value instead of nil. GPU regression and display timings did not run. Re-check legacy/native status mapping for unavailable, empty and present MIME data, then rerun the display job. |
+| [Display CI](https://github.com/schani/samaltak/actions/runs/45215914479/job/137836879418) | `f70c88c` stage2, `make test-ffi-candidates-display` on X11/Xvfb with lavapipe: window fixture and GPU 8/8 passed in each of none/baseline/opt with legacy calls poisoned on the exercised paths. Window: 400, 402–403, 405, 410–411, 415, 417, 420–421. GPU: 430–449, 451–456, 458–461 (both 443 lanes). |
+| Display paired subset | Exact trace counts only for 402/403/405/421 and the joint 444+445 case: 1,024 entries per target in each mode, zero direct entries. All 15 case/mode timing samples were inconclusive (one session); no rollout credit. |
 | Restored image | `tests/vm/ffi_trial_test.sh` passed on the same hosted diagnostic build: FileStream reaches 504 during explicit trial, then uninstalls; restored normal snapshot uses legacy. Shared ticket restore/unwind passed with an owned fixture, not with every family's live result. |
 | Owned-copy authority | Integ5 x64 hosted diagnostic and test-export relink, [owned fixture](../tests/vm/owned_ffi_test.sh): 135 producer entries per mode (none/baseline/opt); separate gate verifies reserve/copy, unwind/termination and denies old ticket after restore. No operation ID credit. |
-| Freeze2 release | `migration98-freeze2-160012-1`, default LTO full stage2 image: generated C regenerated byte-for-byte; rebased checked-in generated bytes match the release build. Strict core smoke rerun with GC verification passed all seven IDs in none/baseline/opt. Hosted grants, wrapper, bound-site, notification, manifest and owned gates passed. |
-| Simulator and firmware | Freeze2 `VMSimulationTest` rerun in canonical VM path passed 5/5; initial alternate executable layout produced subprocess exit 127. That check is not a per-family VM simulator migration run. No PR-wide UEFI firmware boot result recorded here. |
+| Freeze2 hosted release | `migration98-freeze2-160012-1`, default LTO: byte-for-byte stage2 C regeneration, seven strict core routes with GC verification, and grants, notification, wrapper, bound-site, manifest, registry and owned-output gates passed. |
+| Freeze2 Linux `NO_PLATFORM=1` | x86-64: 41/41 focused tests per mode, grants/manifest/registry/owned gates and release denial of the writable fixture passed. Wrapper and bound-site harnesses passed via the `fileInString` launcher adapter (`--load` unavailable). Full matching image passed exact traced routes 52/61/152/153/169/170/172 with GC verification in all three modes. AArch64 cross-build and QEMU architecture smoke passed; neither that smoke nor the isolated writable fixture establishes AArch64 per-ID parity. SDL routes are unavailable on these builds. |
+| Rebased hosted checks | `07aa290` default LTO: clean seed, stage2 and `tests/vm/gen_test.sh` passed; checked-in C matched the freeze2 release. Focused suites passed 119/119 in each mode. These are suite/build results, not a per-ID native witness. |
+| Simulator and firmware | Freeze2 `VMSimulationTest` passed 5/5 in the canonical layout. No per-ID simulator or UEFI firmware boot proof. |
 
 ## Release pilot: 504, 505, 52
 
@@ -241,15 +243,15 @@ legacy primitive names. For every build/test claim include the artifact and
 revision, command, target, mode, result and route witness. Label build-only,
 fixture-only, skipped, failed and not run distinctly.
 
-**Evidence snapshot:** 12 planned, 86 implemented/staged, 0 tested,
-0 measured, 0 default. Integ5 witnessed hosted native success on 48 IDs;
-38 more are built in freeze2 but have no display-native proof. The release
-pilots timed 13 distinct IDs on one host; none qualifies as a default. No
-ID has cleared the full target-matrix gate.
+**Evidence snapshot:** all 86 integrated alternatives have hosted route
+evidence (48 display-free, 38 additional in display CI). This is not the full
+target matrix: 86 implemented/staged, 0 tested, 0 measured, 0 default at the
+ledger gates. The 12 planned IDs (20–26, 28–31, 450) are not integrated;
+isolated supplemental builds do not count.
 
 ### Core (19)
 
-| ID | Registered primitive | Audit | State | Proof still needed |
+| ID | Registered primitive | Audit | State | Evidence or remaining gate |
 | ---: | --- | --- | --- | --- |
 | 20 | `largeAdd` | Extend | planned | Signed-magnitude add, carry and normalized result |
 | 21 | `largeSub` | Extend | planned | Subtract across signs and normalize zero |
@@ -263,41 +265,41 @@ ID has cleared the full target-matrix gate.
 | 29 | `largeBitOr` | Extend | planned | Bitwise OR with negative/sign-extension cases |
 | 30 | `largeBitXor` | Extend | planned | Bitwise XOR with negative/sign-extension cases |
 | 31 | `largeBitShift` | Extend | planned | Left/right shift, negative and oversized shifts |
-| 52 | `floatFractionPart` | Adapter | implemented/staged | Hosted exact IEEE fixture and LTO pilot; interpreter/baseline slower, opt inconclusive; keep legacy. |
-| 61 | `floatPrintString` | Extend | implemented/staged | Owned shortest-round-trip String, including special values — SDL-hosted fixture passed; target matrix outstanding. |
-| 152 | `utcMicroseconds` | Adapter | implemented/staged | Wall-clock microseconds and failure/availability — SDL-hosted fixture passed; target matrix outstanding. |
-| 153 | `threadCpuTime` | Adapter | implemented/staged | VM-thread CPU microseconds and clock availability — SDL-hosted fixture passed; target matrix outstanding. |
-| 169 | `stdoutWrite` | Adapter | implemented/staged | Counted stdout bytes, flush and receiver — SDL-hosted fixture passed; target matrix outstanding. |
-| 170 | `stderrWrite` | Adapter | implemented/staged | Counted stderr bytes, flush and receiver — SDL-hosted fixture passed; target matrix outstanding. |
-| 172 | `getenv` | Extend | implemented/staged | Owned environment text: absent, empty and nonempty — SDL-hosted fixture passed; 64 MiB capture limit and NO_PLATFORM outstanding. |
+| 52 | `floatFractionPart` | Adapter | implemented/staged | Hosted and x86-64 `NO_PLATFORM` IEEE fixture; LTO pilot: interpreter/baseline slower, opt inconclusive; keep legacy. |
+| 61 | `floatPrintString` | Extend | implemented/staged | Owned shortest-round-trip String, including special values — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding. |
+| 152 | `utcMicroseconds` | Adapter | implemented/staged | Wall-clock microseconds and failure/availability — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding. |
+| 153 | `threadCpuTime` | Adapter | implemented/staged | VM-thread CPU microseconds and clock availability — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding. |
+| 169 | `stdoutWrite` | Adapter | implemented/staged | Counted stdout bytes, flush and receiver — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding. |
+| 170 | `stderrWrite` | Adapter | implemented/staged | Counted stderr bytes, flush and receiver — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding. |
+| 172 | `getenv` | Extend | implemented/staged | Owned environment text: absent, empty and nonempty — Hosted and x86-64 `NO_PLATFORM` fixtures passed; 64 MiB capture limit remains. |
 
 ### Window/input (13)
 
-| ID | Registered primitive | Audit | State | Proof still needed |
+| ID | Registered primitive | Audit | State | Evidence or remaining gate |
 | ---: | --- | --- | --- | --- |
-| 400 | `windowOpen` | Adapter | implemented/staged | Counted title, live open and handle ownership |
-| 402 | `windowSize` | Adapter | implemented/staged | Losslessly pack point dimensions from one live query |
-| 403 | `windowPixelSize` | Adapter | implemented/staged | Losslessly pack pixel dimensions from one live query |
-| 405 | `windowSetTitle` | Adapter | implemented/staged | Live title update with exact counted-text admission |
-| 410 | `clipboardGet` | Extend | implemented/staged | Display CI pending; 64 MiB owner can reject legacy-readable text. |
-| 411 | `clipboardSet` | Adapter | implemented/staged | Set valid counted text; verify clipboard roundtrip |
+| 400 | `windowOpen` | Adapter | implemented/staged | Live window creation and handle accounting. |
+| 402 | `windowSize` | Adapter | implemented/staged | Live point extents before/after resize; legacy comparison. |
+| 403 | `windowPixelSize` | Adapter | implemented/staged | Positive live pixel extents; legacy comparison. |
+| 405 | `windowSetTitle` | Adapter | implemented/staged | Counted title update and embedded-NUL rejection. |
+| 410 | `clipboardGet` | Extend | implemented/staged | Unicode and empty text roundtrips; 64 MiB owner can reject legacy-readable text. |
+| 411 | `clipboardSet` | Adapter | implemented/staged | Unicode and empty text roundtrips. |
 | 412 | `nextEvent` | Extend | implemented/staged | Witnessed single FIFO dequeue on hosted proof build; text beyond ticket cap can remain queued where legacy succeeds. |
-| 413 | `injectEvent` | Extend | implemented/staged | Inject validated event record; preserve order and event data |
-| 415 | `platformLastError` | Extend | implemented/staged | Owned error text, preserving empty/error and encoding |
-| 417 | `platformHandleCounts` | Extend | implemented/staged | One handle-count array with correct shape and lifetime |
-| 418 | `droppedEvents` | Adapter | implemented/staged | Real queue overflow and dropped-count semantics |
-| 420 | `clipboardData` | Extend | implemented/staged | Owned MIME bytes; initial display CI failed unavailable-MIME assertion. Verify legacy mapping and positive payload. |
-| 421 | `windowSetSize` | Adapter | implemented/staged | Set valid size and check live window dimensions |
+| 413 | `injectEvent` | Extend | implemented/staged | FIFO, event data and real queue overflow. |
+| 415 | `platformLastError` | Extend | implemented/staged | Headless copyout and live invalid-window diagnostic. |
+| 417 | `platformHandleCounts` | Extend | implemented/staged | Exact headless handle counts and live window accounting. |
+| 418 | `droppedEvents` | Adapter | implemented/staged | Real queue overflow and exact dropped-count increment. |
+| 420 | `clipboardData` | Extend | implemented/staged | UTF-8 and unadvertised MIME bytes match legacy on X11; cleared selection returns nil. Legacy 20 MiB bound retained. |
+| 421 | `windowSetSize` | Adapter | implemented/staged | Live resize with extent check and invalid-size rejection. |
 
 ### GPU (31)
 
-| ID | Registered primitive | Audit | State | Proof still needed |
+| ID | Registered primitive | Audit | State | Evidence or remaining gate |
 | ---: | --- | --- | --- | --- |
 | 430 | `gpuCreateDevice` | Adapter | implemented/staged | Create and release a real GPU device |
 | 431 | `gpuClaimWindow` | Adapter | implemented/staged | Claim a live window on correct device/thread |
 | 432 | `gpuSwapchainFormat` | Adapter | implemented/staged | Query actual claimed swapchain format |
-| 433 | `gpuCreateShader` | Extend | implemented/staged | Bounded typed shader linked in freeze2; shader creation in CI pending. |
-| 434 | `gpuCreatePipeline` | Extend | implemented/staged | Bounded typed pipeline linked in freeze2; live pipeline in CI pending. |
+| 433 | `gpuCreateShader` | Extend | implemented/staged | Bounded typed shader creation with live device. |
+| 434 | `gpuCreatePipeline` | Extend | implemented/staged | Live bounded pipeline creation and wrong-stage rejection. |
 | 435 | `gpuCreateTexture` | Adapter | implemented/staged | Create a real texture; preserve formats and widths |
 | 436 | `gpuCreateSampler` | Adapter | implemented/staged | Create a real sampler with supported modes |
 | 437 | `gpuCreateBuffer` | Adapter | implemented/staged | Create a real buffer and verify resource size |
@@ -306,16 +308,16 @@ ID has cleared the full target-matrix gate.
 | 440 | `gpuUploadTexture` | Extend | implemented/staged | Bound texture region/stride; verify uploaded pixels |
 | 441 | `gpuAcquireCommandBuffer` | Adapter | implemented/staged | Acquire real command buffer with correct ownership |
 | 442 | `gpuAcquireSwapchain` | Extend | implemented/staged | Capture atomic texture/width/height result or no texture |
-| 443 | `gpuBeginPass` | Adapter | implemented/staged | Separate load/clear lanes; verify contents and handle consumption |
-| 444 | `gpuSetViewport` | Adapter | implemented/staged | Check viewport/f32 conversion in valid pass |
-| 445 | `gpuSetScissor` | Adapter | implemented/staged | Check scissor in valid pass |
+| 443 | `gpuBeginPass` | Adapter | implemented/staged | Live load and clear passes; clear admits both Float representations. |
+| 444 | `gpuSetViewport` | Adapter | implemented/staged | Live pass viewport with both Float representations; exact paired trace. |
+| 445 | `gpuSetScissor` | Adapter | implemented/staged | Live scissor; exact paired trace. |
 | 446 | `gpuBindPipeline` | Adapter | implemented/staged | Bind real pipeline in valid pass |
 | 447 | `gpuBindVertexBuffer` | Adapter | implemented/staged | Bind real vertex buffer and offsets |
 | 448 | `gpuBindTexture` | Adapter | implemented/staged | Bind real texture/sampler in valid pass |
 | 449 | `gpuPushUniforms` | Adapter | implemented/staged | Borrow bounded uniforms and verify shader output |
-| 450 | `gpuDraw` | Adapter | planned | No safe mixed-route render-state validation yet; keep primitive. Prove pipeline/vertex/instance state and actual draw output before adding a route. |
+| 450 | `gpuDraw` | Adapter | planned | No integrated route; mixed legacy/candidate render-state checks and draw-output proof required. |
 | 451 | `gpuEndPass` | Adapter | implemented/staged | End valid pass and consume handle exactly once |
-| 452 | `gpuBlit` | Extend | implemented/staged | Bounded blit linked in freeze2; destination readback in CI pending. |
+| 452 | `gpuBlit` | Extend | implemented/staged | Live bounded blit with destination readback. |
 | 453 | `gpuSubmit` | Adapter | implemented/staged | Submit once: failure, success/no fence, success/fence |
 | 454 | `gpuWaitFence` | Adapter | implemented/staged | Wait on a live fence and preserve blocking |
 | 455 | `gpuFenceDone` | Adapter | implemented/staged | Distinguish pending, signaled and bad fence |
@@ -323,11 +325,11 @@ ID has cleared the full target-matrix gate.
 | 458 | `gpuWaitIdle` | Adapter | implemented/staged | Wait idle on a valid device |
 | 459 | `gpuFenceElapsed` | Adapter | implemented/staged | Distinguish pending, elapsed and bad fence |
 | 460 | `gpuShaderLanguage` | Adapter | implemented/staged | Map actual shader format to checked enum |
-| 461 | `gpuCompileShader` | Extend | implemented/staged | Owned compiler-output linked in freeze2; backend success pending. 64 MiB cap can reject legacy-readable output. |
+| 461 | `gpuCompileShader` | Extend | implemented/staged | Owned GLSL output matches legacy; diagnostics checked. 64 MiB cap can reject legacy-readable output. |
 
 ### Files (15)
 
-| ID | Registered primitive | Audit | State | Proof still needed |
+| ID | Registered primitive | Audit | State | Evidence or remaining gate |
 | ---: | --- | --- | --- | --- |
 | 500 | `fileOpen` | Adapter | implemented/staged | Open real file with modes and counted path |
 | 501 | `fileClose` | Adapter | implemented/staged | Close live file once; preserve errors |
@@ -347,7 +349,7 @@ ID has cleared the full target-matrix gate.
 
 ### Socket/TLS/PTY (20)
 
-| ID | Registered primitive | Audit | State | Proof still needed |
+| ID | Registered primitive | Audit | State | Evidence or remaining gate |
 | ---: | --- | --- | --- | --- |
 | 540 | `socketListen` | Adapter | implemented/staged | Listen on loopback with counted host text |
 | 541 | `socketConnect` | Adapter | implemented/staged | Connect to local listener; preserve async status |
