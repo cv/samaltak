@@ -5,12 +5,13 @@
 #
 # Shards: the test classes (the VM's --test-list) are split over SAMALTAK_TEST_JOBS VM processes (default
 # min(nproc / 2, 8); 1 runs one VM, as before), balanced by each class's time in the last run with the same VM options
-# (the timings file SAMALTAK_TEST_TIMES_DIR/<key>, default the image's directory's test-times/; classes without a time
-# count by their number of tests). Each shard has its own TMPDIR and log; the output is the shards' logs one after
+# (the timings file SAMALTAK_TEST_TIMES_DIR/<key>, default the image's directory's test-times/, else the machine's
+# ~/.cache/samaltak/test-times/<key>, which every run updates too; classes without a time count by their number of
+# tests). Each shard has its own TMPDIR and log; the output is the shards' logs one after
 # another and one summary line "N run, N passed, N failed, N errors in T ms" (T: the slowest shard) like a single
 # VM's; a failure, error, crash or skipped test in any shard fails the suite.
 # Slots: every VM this script starts (a shard or the single VM) first takes one of the machine's SAMALTAK_TEST_SLOTS
-# test slots (tests/lib/slots.sh: default nproc / 2, at most one per 3 GB available), so that concurrent suites (gate
+# test slots (tests/lib/slots.sh: default 4/5 of the CPUs, at most one per 3 GB available), so that concurrent suites (gate
 # stages, several agents' gates) together run at most that many test VMs; the rest wait for a slot.
 # Timeline: with SAMALTAK_TIMELINE (tests/timeline.sh), each VM's run and its wait for a slot are events.
 # Displays: VMs sharing one X display disturb each other (a clipboard request answered after its requestor's window
@@ -148,7 +149,9 @@ while [ $n -gt 0 ]; do shift; n=$((n - 1)); done
 TIMES_DIR=${SAMALTAK_TEST_TIMES_DIR:-$(dirname "$IMAGE")/test-times}
 KEY=$(printf '%s%s%s' "$(basename "$IMAGE" .image)" "$VMOPTS" "${SAMALTAK_VERIFY_GC:+ verify-gc}" | tr -c 'A-Za-z0-9.,=-' '_')
 TIMES=$TIMES_DIR/$KEY
-KNOWN=$TIMES; [ -f "$KNOWN" ] || KNOWN=/dev/null
+# a copy shared by every directory on the machine, for a fresh worktree's first run (a gate's)
+SHARED_TIMES_DIR=${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}/samaltak/test-times
+KNOWN=$TIMES; [ -f "$KNOWN" ] || KNOWN=$SHARED_TIMES_DIR/$KEY; [ -f "$KNOWN" ] || KNOWN=/dev/null
 
 # Longest first, each class to the least loaded shard (weights: the recorded ms, else the number of tests times the
 # recorded ms per test, else the number of tests).
@@ -167,6 +170,8 @@ while [ $k -le "$JOBS" ]; do
   echo "$classes" >"$WORK/$k/classes"
   awk -v k=$k '$1 == k { n += $3 } END { print n + 0 }' "$WORK/plan" >"$WORK/$k/tests"
   # shellcheck disable=SC2086
+  # shard 1 has the longest class (the plan places the longest first): it is the suite's critical path
+  SLOT_POLL=1; [ $k = 1 ] && SLOT_POLL=0.2
   ( export TMPDIR="$WORK/$k/tmp"; SLOT_LABEL="shard $k/$JOBS $(basename "$IMAGE")$VMOPTS: $classes"
     with_slot timed run_vm $VMOPTS "$IMAGE" --headless --test-times --test $classes "$@" \
       >"$WORK/$k/log" 2>&1
@@ -208,6 +213,7 @@ st_suite: FAILED: shard $k of $JOBS ended early (exit $e), its last summary coun
 done
 if [ -s "$WORK/newtimes" ] && mkdir -p "$TIMES_DIR" 2>/dev/null; then
   { cat "$WORK/newtimes"; [ -f "$TIMES" ] && cat "$TIMES"; } | awk '!seen[$1]++' | sort >"$TIMES.$$" && mv "$TIMES.$$" "$TIMES"
+  mkdir -p "$SHARED_TIMES_DIR" 2>/dev/null && cp "$TIMES" "$SHARED_TIMES_DIR/$KEY.$$" 2>/dev/null && mv "$SHARED_TIMES_DIR/$KEY.$$" "$SHARED_TIMES_DIR/$KEY"
 fi
 summary="$run run, $passed passed, $failed failed, $errors errors"
 [ "$skipped" -gt 0 ] && summary="$summary, $skipped skipped"

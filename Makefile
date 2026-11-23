@@ -144,7 +144,7 @@ test-tools-part-auth:
 test-tools-part-recording:
 	$(TOOLS_PART) tests/remote/recording_test.sh $(OUT)/samaltak.image
 test-tools-part-rfb:
-	$(TOOLS_PART) tests/remote/rfb_test.sh $(OUT)/samaltak.image
+	SLOT_POLL=0.2 $(TOOLS_PART) tests/remote/rfb_test.sh $(OUT)/samaltak.image
 test-tools-part-desktop:
 	$(TOOLS_PART) tests/tools/desktop_test.sh $(OUT)/samaltak.image
 test-tools-part-snapshot:
@@ -381,7 +381,7 @@ test-uefi-part-files:
 test-uefi-part-fat:
 	$(MAKE) test-uefi-fat UEFI_RUN=$(UEFI_PART_RUN) UEFI_SLOT=tests/with-slot
 test-uefi-part-rfb:
-	$(UEFI_PART_ENV) tests/remote/rfb_test.sh --uefi
+	SLOT_POLL=0.2 $(UEFI_PART_ENV) tests/remote/rfb_test.sh --uefi
 test-uefi-part-net:
 	$(UEFI_PART_ENV) tools/samaltak-ctl --session uefi-test open --uefi --headless
 	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); N=$(UEFI_PART_RUN)/net.log; \
