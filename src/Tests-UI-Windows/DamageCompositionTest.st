@@ -31,8 +31,8 @@ presentedDuring: aBlock
 	^world compositor presentedCount - before
 !
 readouts
-	"How many frames the top bar's readout, refreshed twice a second, may have presented in the last presentedDuring: (more frames take longer on a loaded machine)."
-	^elapsed // 500 + 1
+	"How many frames the top bar's readout, refreshed twice a second, may have presented in the last presentedDuring: (more frames take longer on a loaded machine), and one more: a refresh just before it began that a loaded machine presents inside it (2 frames in under 500 ms once in a gate)."
+	^elapsed // 500 + 2
 ! !
 
 !DamageCompositionTest methodsFor: 'tests'!
