@@ -171,7 +171,7 @@ own server, and QEMU's VNC server. "Before" is the server that sent each damaged
 | | image | QEMU |
 | --- | --- | --- |
 | a key to its pixels (one every 300 ms: KeyEvent sent → end of the first update that changes the Workspace) | 18 ms (12-24 over the runs, p90 15-27; with the spin: 30) | 82 ms (82-97) |
-| full-screen update (a non-incremental request of the whole screen → its last byte) | 62 ms, 127 KB (with the spin: 64) | 97 ms (94-114), 125 KB |
+| full-screen update (a non-incremental request of the whole screen → its last byte) | 43 ms, 128 KB (before ZRLE's fixes below: 62; with the spin: 64) | 97 ms (94-114), 125 KB |
 | first connect (TCP connect → the first full update) | 0.34 s, 206 KB | 0.32 s, 200 KB |
 
 **Only the blocks that changed.** The compositor's damage is in quads' bounds: text laid out again damages a whole
@@ -199,11 +199,31 @@ typing, scrolling, dragging and streaming, and a key took 30 ms (29-41) to its p
 about 2 points of a core while they last. TCP throughput is the same: 8 MB over HTTPS from the host in 65-170 ms
 either way, 1 MB each way through the control service in about 110 ms.
 
+**The server's own time.** RfbConnection's and RfbDiffSource's statistics (`totalMs` and `diffMs`: finding what
+changed, making and sending updates), in ms an update, medians of 5 runs (with the NIC's spin, before 913de31's
+successors: it does not change them):
+
+| interaction | sending whole rectangles | changed blocks | and ZRLE without copies |
+| --- | --- | --- | --- |
+| idle, the World as it opens | 5.9 | 1.6 | 1.7 |
+| typing | 0.8 | 0.8 | 0.6 |
+| scrolling | 2.7 | 2.0 | 1.2 |
+| dragging | 6.2 | 4.2 | 2.6 |
+| the Agent streaming | 1.4 | 0.3 | 0.3 |
+
+Most of it was ZRLE. ZLib's streaming deflate copied the whole history it keeps (up to 96 KB) into a new input for each
+rectangle, and its Huffman code lengths searched the list of nodes for the lightest two (quadratic in the alphabet,
+for each block of each rectangle); the tiles' palettes were Dictionaries, and the runs were found twice. Now deflate
+appends to a buffer it keeps (the `zlibMatches` primitive takes the length used) and moves its window once a megabyte,
+the code lengths come from two queues, and a tile's palette is a small open-addressed table reused from tile to tile;
+the output is the same, byte for byte. Measured by the clock in the image while dragging (13 rectangles an update):
+the tiles take 0.75 ms an update, deflate 0.8 (of which 0.1 the matches and 0.3 choosing and writing the blocks'
+codes), comparing with the copy 0.5. In the Profiler, allocation and `Delay` scheduling look larger than they are:
+its CPU samples are taken when the timer Process wakes, which allocating 256 KB and scheduling a Delay make it do.
+
 **Where the image's CPU goes.**
 
-- The server itself costs little. RfbConnection's statistics and RfbDiffSource's (`totalMs` and `diffMs`: finding what
-  changed, making and sending updates) give 0.8 ms an update typing, 0.3 streaming, 2.0 scrolling and 4.2 dragging: 1-2 %
-  of a core, 16 % dragging.
+- The server itself costs little: the table above, 1-2 % of a core, 10 % dragging.
 - The rest is the input and the drawing. With `--silent` (the client asks for no updates; the same input and
   drawing, nothing encoded) the guest takes 17 % typing, 15 % scrolling, 33 % dragging (at 59 frames/s) and 10 %
   streaming; with the spin it took 41, 29, 108 and 10, with QEMU's server 14, 10, 20 and 10. QEMU's input comes
@@ -214,15 +234,16 @@ either way, 1 MB each way through the control service in about 110 ms.
 
 - typing, ≤ 1 KB a frame: met. The median update is 216 B; the mean of 1.9 KB includes the top bar's readout and the
   line scrolling.
-- typing, encode ≤ 0.5 ms a frame: 0.8 ms an update, making and sending. Close, but not met.
+- typing, encode ≤ 0.5 ms a frame: 0.6 ms an update, finding what changed, making and sending. Close, but not met.
 - typing latency, ≤ 1 frame + RTT + 10 ms: met. 18 ms on loopback (QEMU's: 82 ms).
 - idle with a client, no CPU: met for a still World (no updates, 2 %, as with QEMU's). A World that redraws costs
   6 KB/s and 7 % (QEMU's server sends 3.7 KB/s).
 - dragging, ≥ 15 updates/s of 20-60 KB: met. 43.3 updates/s of 13 KB (QEMU's: 22).
-- full-screen update, ≤ 150 ms (≤ 50 ms with primitives): 62 ms for 127 KB.
+- full-screen update, ≤ 150 ms (≤ 50 ms with primitives): 43 ms for 128 KB.
 - first connect, the whole screen within 0.5 s: 0.34 s.
 
 **For phase 2**, by these numbers:
 
 1. CopyRect for window drags (the compositor knows the move): fewer bytes than 500 KB/s, and less than 4.2 ms an update.
-2. The ZRLE tile primitive (D12) is not needed for these targets: a full screen takes 62 ms.
+2. The ZRLE tile primitive (D12) is not needed for these targets: a full screen takes 43 ms, and the tiles of a
+   dragged window's 13 rectangles 0.75 ms.
