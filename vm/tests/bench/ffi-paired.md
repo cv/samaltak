@@ -59,6 +59,30 @@ required stratum; a lower bound > 1.0 shows a slowdown. Everything else
 backend coverage, independent confirmation and a representative user workload
 before proposing a default. A raw bound-call benchmark cannot qualify a route.
 
+## Owned arithmetic and paged shader checks
+
+Headless CI runs the exact bigint semantics and forced-GC matrix via
+`make test-ffi-bigint-owned`, with logs under `build/ffi-bigint-owned-logs/`.
+For an existing AArch64 Linux cross build, run the same harness with a
+matching stage2 image: `tests/vm/bigint_owned_ffi_test.sh IMAGE QEMU_VM_WRAPPER LOG_DIR`.
+
+The paired runner also proves the real owned-add candidate (ID 20). To
+reproduce just that proof on a matched hosted build:
+
+```sh
+python3 vm/tests/bench/ffi-paired.py \
+  --vm vm/build/samaltak --image build/samaltak.image \
+  --logs /tmp/ffi-owned-add-proof --proof-only \
+  --case bigint-20-cancel --case bigint-20-mixed \
+  --case bigint-20-256b --case bigint-20-8192b
+```
+
+`make test-ffi-gpu-paged` is a separate opt-in target, also run in hosted
+Linux CI. With display denied, it checks copying and releasing a shader
+payload larger than 64 MiB. It enables `SAMALTAK_FFI_TEST_EXPORTS` only under
+`vm/build/ffi-test-exports/` and checks that the normal VM denies the fixture.
+Real draws run in `GPUFFIRegressionTest` in display CI.
+
 ## Isolated workload trials
 
 No new default routes are published. For file metadata trials only, start a

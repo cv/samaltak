@@ -85,7 +85,10 @@ test-core: image test-vm
 	tests/st_suite.sh $(OUT)/runtime.image -- Agents --load apps/Agents
 	tests/st_suite.sh $(OUT)/runtime.image -- Wodify --load apps/Wodify
 # Native-entry and semantic smoke, not the performance gate (shared CI CPUs are noisy).
-test-ffi-candidates-headless: image
+test-ffi-bigint-owned: image
+	tests/vm/bigint_owned_ffi_test.sh "$(OUT)/samaltak.image" "$(VM)" "$(OUT)/ffi-bigint-owned-logs"
+
+test-ffi-candidates-headless: image test-ffi-bigint-owned
 	tests/vm/ffi_migration_manifest_test.sh $(OUT)/samaltak.image $(VM)
 	tests/vm/ffi_migration_gate_test.sh $(OUT)/samaltak.image $(VM) sdl release
 	tests/vm/ffi_migration_owned_test.sh $(OUT)/samaltak.image $(VM) sdl release
@@ -98,6 +101,23 @@ test-ffi-candidates-headless: image
 	done
 	@logs=$$(mktemp -d); trap 'rm -rf "$$logs"' EXIT; \
 		python3 vm/tests/bench/ffi-paired.py --vm $(VM) --image $(OUT)/samaltak.image --logs "$$logs" --proof-only
+
+# Only this target builds a VM with test exports; use a separate object tree and binary.
+test-ffi-gpu-paged: image
+	$(PLATFORM_CHECK)
+	$(MAKE) -C vm BUILD=build/ffi-test-exports CPPFLAGS="$(CPPFLAGS) -DSAMALTAK_FFI_TEST_EXPORTS=1"
+	@set -eu; unset DISPLAY WAYLAND_DISPLAY XAUTHORITY SAMALTAK_NATIVE_GRANTS; \
+		export LC_ALL=C SDL_VIDEO_DRIVER=ffi_no_video SDL_VIDEODRIVER=ffi_no_video; \
+		result=$$(SAMALTAK_FFI_TEST_EXPORTS=1 $(VM) "$(OUT)/samaltak.image" --headless \
+			--eval "(PlatformFFI bind: #(call 'platform' 'platform_gpu_test_shader_pages' (writableBytesWithLength) i32)) isNil"); \
+		test "$$result" = true || { echo "Release VM did not deny the paged shader fixture: $$result" >&2; exit 1; }; \
+		for mode in none baseline opt; do \
+			echo "Paged shader fixture: $$mode"; \
+			result=$$(vm/build/ffi-test-exports/samaltak \
+				--jit "$$mode" --jit-threshold 0 --jit-flags eager "$(OUT)/samaltak.image" --headless \
+				--eval "$$(cat tests/vm/gpu_shader_paged_test.st)"); \
+			test "$$result" = true || { printf '%s\n' "$$result" >&2; exit 1; }; \
+		done
 
 # Run only in display CI (real SDL window + software Vulkan through the test runner's X server).
 # Keep one illustrative timing session; it is not a performance gate.
@@ -263,8 +283,8 @@ jit-video: vm image
 
 clean:
 	$(MAKE) -C vm clean
-	rm -rf build
+	rm -rf build vm/build/ffi-test-exports
 
 .PHONY: all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-nic test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test video mindblown-video jit-video clean
 
-.PHONY: test-ffi-candidates-headless test-ffi-candidates-display
+.PHONY: test-ffi-bigint-owned test-ffi-gpu-paged test-ffi-candidates-headless test-ffi-candidates-display

@@ -23,7 +23,7 @@ jobs:
           - test-jit-opt test-jit-cache
           - test-jit-deopt test-tools
           - test-uefi
-          - test-ffi-candidates-headless
+          - test-ffi-candidates-headless test-ffi-gpu-paged
           - test-ffi-candidates-display
     runs-on: ubuntu-24.04
     container: debian:bookworm-slim
@@ -45,11 +45,22 @@ jobs:
       - uses: actions/checkout@v6
       - name: Install SDL3 and shaderc
         run: .agents/setup
+      - name: Run hosted FFI checks without a display
+        if: ${{ matrix.targets == 'test-ffi-candidates-headless test-ffi-gpu-paged' }}
+        run: make ${{ matrix.targets }}
       - name: Run ${{ matrix.targets }} with software Vulkan
+        if: ${{ matrix.targets != 'test-ffi-candidates-headless test-ffi-gpu-paged' }}
         run: |
           mkdir -p .context "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"
           xvfb-run -a -s '-screen 0 1280x1024x24' make ${{ matrix.targets }}
+      - name: Upload bigint owned-result failure logs
+        if: ${{ failure() && matrix.targets == 'test-ffi-candidates-headless test-ffi-gpu-paged' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffi-bigint-owned-logs
+          path: build/ffi-bigint-owned-logs/
+          if-no-files-found: ignore
       - name: Upload display candidate proof and sample timings
         if: ${{ always() && matrix.targets == 'test-ffi-candidates-display' }}
         uses: actions/upload-artifact@v4

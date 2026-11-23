@@ -15,7 +15,7 @@ run() {
   label=$2
   method=$3
   shift 3
-  "$vm" "$image" --headless --jit "$mode" --jit-opt 8 --eden 1 "$@" \
+  "$vm" --jit "$mode" --jit-opt 8 --eden 1 "$@" "$image" --headless \
     --eval "[Compiler fileInString: '$proof'. Compiler evaluate: 'BigIntegerFFIProof $method']
       on: Error do: [:e | Smalltalk vm stderrWrite: e messageText, (String with: Character lf).
       Smalltalk vm stderrWrite: (e signalerContext stack first: 15) printString.

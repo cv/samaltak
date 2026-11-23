@@ -43,6 +43,8 @@ def cases(display=False):
             yield label, key, "file-io", f"fileIO: #{operation} width: {width} label: '{label}'"
     for variant, method in (("mixed", "Mixed"), ("sign", "Sign"), ("256b", "256b"), ("8192b", "8192b")):
         yield f"bigint-27-{variant}", 27, "bigint", f"bigInteger{method}"
+    for variant, method in (("cancel", "SmallResult"), ("mixed", "Mixed"), ("256b", "256b"), ("8192b", "8192b")):
+        yield f"bigint-20-{variant}", 20, "bigint-owned", f"bigIntegerAdd{method}"
     yield "socket-local-port", 547, "socket", "socketLocalPort"
     yield "socket-accept-pending", 542, "socket", "socketAcceptPending"
     for size in (64, 4096):

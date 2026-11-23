@@ -18,7 +18,7 @@ export LC_ALL=C
 export SDL_VIDEO_DRIVER=ffi_gate_no_video SDL_VIDEODRIVER=ffi_gate_no_video
 
 for mode in none baseline opt; do
-    if ! SAMALTAK_FFI_TEST_EXPORTS=1 "$VM" "$IMAGE" --headless --jit "$mode" --eval "
+    if ! SAMALTAK_FFI_TEST_EXPORTS=1 "$VM" --jit "$mode" "$IMAGE" --headless --eval "
     | must bindDenied legacyBind legacyInvoke rawDescriptor sqrtId cmpId parts writable names f |
     must := [:ok :label | ok ifFalse: [Error signal: label]].
     bindDenied := [:d | [FFI bind: d. false] on: FFIError do: [:e | true]].

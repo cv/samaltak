@@ -96,7 +96,7 @@ def main():
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 server = pool.submit(peer, listener, cert, key, resume)
                 result = subprocess.run(
-                    [args.vm.resolve(), args.image.resolve(), "--headless", "--jit", args.jit,
+                    [args.vm.resolve(), "--jit", args.jit, args.image.resolve(), "--headless",
                      "--load", source, "--eval", code],
                     text=True, capture_output=True, env=env, timeout=45,
                 )

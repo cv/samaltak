@@ -16,7 +16,7 @@ export SDL_VIDEO_DRIVER=bigint_ffi_no_video SDL_VIDEODRIVER=bigint_ffi_no_video
 [ "$trace" = --trace ] && export SAMALTAK_FFI_NATIVE_TRACE=1
 proof=$(sed "s/'/''/g" "$root/tests/vm/bigint_ffi.st")
 for mode in none baseline opt; do
-    if ! "$vm" "$image" --headless --jit "$mode" --jit-threshold 0 --jit-opt 20 \
+    if ! "$vm" --jit "$mode" --jit-threshold 0 --jit-opt 20 "$image" --headless \
         --eval "[Compiler fileInString: '$proof'. Compiler evaluate: 'BigIntegerFFIProof proof']
             on: Error do: [:e | Smalltalk vm stderrWrite: e messageText. Smalltalk quit: 1]" \
         >"$log/$mode.out" 2>"$log/$mode.err" ||
