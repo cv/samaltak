@@ -692,6 +692,7 @@ int32_t create_texture(int32_t dev, int32_t w, int32_t h, int32_t format, int32_
     ci->height = h;
     ci->layer_count_or_depth = 1;
     ci->num_levels = 1;
+    upload_flush(d);
     t = SDL_CreateGPUTexture(d->dev, ci);
     if (t == NULL) {
         return sdl_fail("SDL_CreateGPUTexture");

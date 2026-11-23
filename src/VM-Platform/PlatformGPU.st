@@ -5,7 +5,7 @@ VMPlatformModule subclass: #PlatformGPU
 
 PlatformGPU comment: 'A thin SDL_GPU wrapper with handles (one table for all kinds; dev = the handle of the object''s device).
 
-Uploads are batched: each device keeps one open copy pass on its own command buffer and one growing transfer buffer; the batch is submitted right before the next gpuSubmit/gpuDownload, so uploads execute before any command buffer submitted after them.
+Uploads are batched: each device keeps one open copy pass on its own command buffer and one growing transfer buffer; the batch is submitted right before the next gpuSubmit/gpuDownload or texture creation (SDL submits a command buffer of its own there), so uploads execute before any command buffer submitted after them, and no submit (one may defragment memory, moving what an upload writes) comes between an upload and the submit of its batch.
 
 Fence timing: a watcher thread polls the pending fences every 200 µs while any are pending and stamps when each completed, so callers learn the submit-to-completion time of a fence without blocking or spinning on the VM thread. Its entries (watches) are indexed by fence handle and guarded by watchLock.'!
 
@@ -366,6 +366,8 @@ createTexture: dev width: w height: h format: format usage: usage
 	ci height: h.
 	ci layer_count_or_depth: 1.
 	ci num_levels: 1.
+	"SDL submits a command buffer of its own here (the texture's first layout transition), and a submit may defragment memory: moving a buffer or texture into which an upload of the batch still waits, which would then land in the old copy. So the batch goes first."
+	self uploadFlush: d.
 	t := sdlGpu createTexture: d dev info: ci.
 	t isNull ifTrue: [^self sdlFail: 'SDL_CreateGPUTexture'].
 	th := common table: objs add: K_TEX pointer: t.
