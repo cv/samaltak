@@ -520,6 +520,7 @@ typedef void (*prim_fn)(void);
 #define PF_FD_SOCKET 1
 #define PF_FD_TLS 3
 #define PF_FILE_APPEND 2
+#define PF_FILE_CREATE_PRIVATE 4
 #define PF_FILE_CREATE_TRUNCATE 3
 #define PF_FILE_READ 0
 #define PF_FILE_READ_WRITE 1
