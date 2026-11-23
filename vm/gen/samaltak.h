@@ -1527,6 +1527,7 @@ extern oop ledger_procs[16];
 extern bool sampler_tick_unread;
 extern uint64_t stat_process_switches;
 extern uint64_t stat_reconciles;
+extern uint64_t stat_timer_arms;
 extern int32_t argc;
 extern int32_t args_start;
 extern char **argv;
