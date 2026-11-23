@@ -677,4 +677,57 @@ testZrlePrimitiveRefuses
 	self assert: (ok valueWithArguments: {px. 4. 3. 0. e scratch. px}) isNil.
 	self assert: (ok valueWithArguments: {ByteArray new: 63. 4. 3. 0. e scratch. ByteArray new: 100}) isNil.
 	self assert: (ok valueWithArguments: {px. 4. 3. 0. e scratch. #[1 2 3]}) isNil
+!
+diffSource: ext copy: bytes
+	"A diffing source whose copy is bytes."
+	^(RfbDiffSource on: source)
+		instVarNamed: 'extent' put: ext;
+		instVarNamed: 'copy' put: bytes;
+		yourself
+!
+testChangedBlocksPrimitiveIsTheSmalltalk
+	"The pixelBlocksDiff primitive finds the blocks and makes the copy that the Smalltalk does: rectangles anywhere, of any size, with a few bytes changed or many."
+	| random ext |
+	random := Random seed: 8642.
+	ext := 203 @ 117.
+	1 to: 200 do: [:t | | base x y w h rect bytes a b ca cb marks |
+		base := ((1 to: ext x * ext y * 4) collect: [:i | random nextInt: 3]) asByteArray.
+		x := (random nextInt: ext x) - 1.
+		y := (random nextInt: ext y) - 1.
+		w := random nextInt: ext x - x.
+		h := random nextInt: ext y - y.
+		rect := x @ y extent: w @ h.
+		bytes := ByteArray new: w * h * 4.
+		0 to: h - 1 do: [:j | bytes replaceFrom: j * w * 4 + 1 to: j + 1 * w * 4 with: base startingAt: (y + j) * ext x + x * 4 + 1].
+		(#(0 1 5 50 5000) at: t \\ 5 + 1) timesRepeat: [| i |
+			i := random nextInt: bytes size.
+			bytes at: i put: 255 - (bytes at: i)].
+		a := self diffSource: ext copy: base copy.
+		b := self diffSource: ext copy: base copy.
+		marks := ByteArray new: w + 31 // 16 * (h + 31 // 16).
+		self assert: (a primBlocks: bytes width: w height: h into: base copy stride: ext x * 4 left: x top: y block: 16 marks: marks) notNil.
+		ca := OrderedCollection new.
+		cb := OrderedCollection new.
+		a compare: rect with: bytes into: ca.
+		b compareInSmalltalk: rect with: bytes into: cb.
+		self assert: ca asArray equals: cb asArray.
+		self assert: (a instVarNamed: 'copy') equals: (b instVarNamed: 'copy')]
+!
+testChangedBlocksPrimitiveRefuses
+	"Rectangles outside the copy, marks too few, the same object twice."
+	| d copy px marks ok |
+	d := self diffSource: 32 @ 32 copy: nil.
+	copy := ByteArray new: 32 * 32 * 4.
+	px := ByteArray new: 16 * 16 * 4.
+	marks := ByteArray new: 4.
+	ok := [:pixels :c :left :top :m | d primBlocks: pixels width: 16 height: 16 into: c stride: 128 left: left top: top block: 16 marks: m].
+	self assert: (ok valueWithArguments: {px. copy. 16. 16. marks}) equals: 0.
+	self assert: (ok valueWithArguments: {px. copy. 8. 8. marks}) equals: 0.
+	self assert: (ok valueWithArguments: {px. copy. 8. 8. ByteArray new: 3}) isNil.
+	self assert: (ok valueWithArguments: {px. copy. 17. 0. marks}) isNil.
+	self assert: (ok valueWithArguments: {px. copy. 0. 17. marks}) isNil.
+	self assert: (ok valueWithArguments: {ByteArray new: 1023. copy. 0. 0. marks}) isNil.
+	self assert: (ok valueWithArguments: {px. px. 0. 0. marks}) isNil.
+	self assert: (ok valueWithArguments: {px. copy. 0. 0. copy}) isNil.
+	self assert: (ok valueWithArguments: {px. copy. -1. 0. marks}) isNil
 ! !

@@ -164,6 +164,7 @@ primitive_entry vm_primitive_table[] = {
     {212, 3, "rawBytesReplace", prim_raw_bytes_replace},
     {213, 3, "pixelsPack", prim_pixels_pack},
     {214, 3, "zrleTiles", prim_zrle_tiles},
+    {215, 3, "pixelBlocksDiff", prim_pixel_blocks_diff},
 #ifndef SAMALTAK_NO_PLATFORM
     {400, 2, "windowOpen", prim_window_open},
 #endif

@@ -1,5 +1,5 @@
 VMPrimitiveModule subclass: #ObjectPrimitives
-	instanceVariableNames: 'instancesClass instancesResult instancesCount search png deflate coder packer zrle'
+	instanceVariableNames: 'instancesClass instancesResult instancesCount search png deflate coder packer zrle diff'
 	classVariableNames: ''
 	package: 'VM-Core'!
 
@@ -7,7 +7,7 @@ ObjectPrimitives comment: 'Object, string and byte-access primitives. Indices ar
 
 !ObjectPrimitives class methodsFor: 'declaring'!
 declarations
-	^#((instancesClass oop) (instancesResult oop) (instancesCount size_t) (search ByteSearch) (png PngFilter) (deflate DeflateMatcher) (coder DeflateCoder) (packer PixelPacker) (zrle ZrleCoder))
+	^#((instancesClass oop) (instancesResult oop) (instancesCount size_t) (search ByteSearch) (png PngFilter) (deflate DeflateMatcher) (coder DeflateCoder) (packer PixelPacker) (zrle ZrleCoder) (diff PixelDiff))
 ! !
 
 !ObjectPrimitives methodsFor: 'object'!
@@ -660,6 +660,42 @@ primZrleTiles
 		offset: off
 		scratch: (self words32Of: scratch)
 		into: (self bytesOf: out)))
+!
+primPixelBlocksDiff
+	"(pixels, w, h, copy, stride, left, top, bs, marks): compares the w x h pixels of 4 bytes (rows w * 4 bytes) with the copy's at left, top (rows stride bytes), copies them in, and marks the bs x bs blocks that differ in marks (PixelDiff; RfbDiffSource>>compare:with:into:): a byte a block, 1 where it differs, its bands top to bottom, each its blocks left to right; answers how many blocks differ. pixels a byte object of at least w * h * 4 bytes; copy and marks distinct mutable byte objects, the rectangle within the copy, marks of at least as many bytes as blocks; 0 <= left, top; 0 <= w, h <= 2^22; (left + w) * 4 <= stride <= 2^26; 1 <= bs <= 256."
+	<vmPrimitive: 215 name: 'pixelBlocksDiff'>
+	<leaf>
+	| px w h kept stride left top bs marks |
+	self argCount = 9 ifFalse: [^self fail].
+	((self isInt: (self arg: 1)) and: [(self isInt: (self arg: 2)) and: [(self isInt: (self arg: 4)) and: [(self isInt: (self arg: 5)) and: [(self isInt: (self arg: 6)) and: [self isInt: (self arg: 7)]]]]]) ifFalse: [^self fail].
+	w := self intVal: (self arg: 1).
+	h := self intVal: (self arg: 2).
+	stride := self intVal: (self arg: 4).
+	left := self intVal: (self arg: 5).
+	top := self intVal: (self arg: 6).
+	bs := self intVal: (self arg: 7).
+	((left >= 0 and: [top >= 0]) and: [(w >= 0 and: [w <= 16r400000]) and: [(h >= 0 and: [h <= 16r400000]) and: [(bs >= 1 and: [bs <= 256]) and: [(left + w) * 4 <= stride and: [stride <= 16r4000000]]]]]) ifFalse: [^self fail].
+	px := self arg: 0.
+	kept := self arg: 3.
+	marks := self arg: 8.
+	((self isPtr: px) and: [(self formatOf: px) >= F_BYTES and: [(self formatOf: px) < (F_BYTES + 8)]]) ifFalse: [^self fail].
+	((self isPtr: kept) and: [(self formatOf: kept) >= F_BYTES and: [(self formatOf: kept) < (F_BYTES + 8) and: [(self isImmutable: kept) not]]]) ifFalse: [^self fail].
+	((self isPtr: marks) and: [(self formatOf: marks) >= F_BYTES and: [(self formatOf: marks) < (F_BYTES + 8) and: [(self isImmutable: marks) not]]]) ifFalse: [^self fail].
+	(kept ~= px and: [kept ~= marks and: [marks ~= px]]) ifFalse: [^self fail].
+	(w > 0 and: [h > 0]) ifFalse: [^self answer: (self intOop: 0)].
+	(w * h * 4) <= (memory byteSize: px) asInt64 ifFalse: [^self fail].
+	((top + h - 1) * stride + ((left + w) * 4)) <= (memory byteSize: kept) asInt64 ifFalse: [^self fail].
+	(((left + w - 1 quo: bs) - (left quo: bs) + 1) * ((top + h - 1 quo: bs) - (top quo: bs) + 1)) <= (memory byteSize: marks) asInt64 ifFalse: [^self fail].
+	self answer: (self intOop: (diff
+		blocks: (self bytesOf: px)
+		width: w
+		height: h
+		into: (self bytesOf: kept)
+		stride: stride
+		left: left
+		top: top
+		block: bs
+		marks: (self bytesOf: marks)))
 !
 isMutableBytes: o size: n
 	^(self isBytes: o size: n) and: [(self isImmutable: o) not]
