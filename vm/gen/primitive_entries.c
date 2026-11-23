@@ -128,13 +128,6 @@ primitive_entry vm_primitive_table[] = {
     {197, 2, "nextHandlerContext", prim_next_handler_context},
     {198, 2, "ensureMarker", prim_ensure_marker},
     {199, 2, "onDoMarker", prim_on_do_marker},
-    {200, 2, "displayOpen", prim_display_open},
-    {201, 3, "displayFill", prim_display_fill},
-    {202, 3, "displayCopy", prim_display_copy},
-    {203, 3, "displayText", prim_display_text},
-    {204, 3, "displayBits", prim_display_bits},
-    {205, 3, "displayNextEvent", prim_display_next_event},
-    {206, 3, "displayFlush", prim_display_flush},
     {250, 2, "ffiBind", prim_ffi_bind},
     {251, 2, "ffiInvoke", prim_ffi_invoke},
 #ifndef SAMALTAK_NO_PLATFORM

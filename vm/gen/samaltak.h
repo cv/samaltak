@@ -7,13 +7,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-#define guest_display_open(w, h, cell) ((void)(w), (void)(h), (void)(cell), false)
-#define guest_display_fill(x, y, w, h, rule) ((void)(x), (void)(y), (void)(w), (void)(h), (void)(rule))
-#define guest_display_copy(x, y, w, h, to_x, to_y) ((void)(x), (void)(y), (void)(w), (void)(h), (void)(to_x), (void)(to_y))
-#define guest_display_text(bytes, n, x, y, rule) ((void)(bytes), (void)(n), (void)(x), (void)(y), (void)(rule))
-#define guest_display_bits(bytes, x, y, w, h, rule) ((void)(bytes), (void)(x), (void)(y), (void)(w), (void)(h), (void)(rule))
-#define guest_display_next_event(event) ((void)(event), false)
-#define guest_display_flush() ((void)0)
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -1819,13 +1812,6 @@ void prim_stack_limit(void);
 void prim_terminate_to(void);
 void prim_time_slice(void);
 void prim_try_primitive(void);
-void prim_display_bits(void);
-void prim_display_copy(void);
-void prim_display_fill(void);
-void prim_display_flush(void);
-void prim_display_next_event(void);
-void prim_display_open(void);
-void prim_display_text(void);
 void configure_bound_site_trace(void);
 size_t copy_name(oop name, uint8_t *buf);
 void fill_bound_site(ffi_bound_site *site, oop owner, oop expected, oop selector, int32_t n);

@@ -35,6 +35,15 @@ def read_slots():
     return slots
 
 
+def read_guest_display_slots():
+    rows = [line.split() for line in (HERE / "guest_display_retired_slots.tsv").read_text().splitlines()
+            if line and not line.startswith("#")]
+    slots = {int(number): name for number, name in rows}
+    if len(rows) != 7 or set(slots) != set(range(200, 207)) or len(set(slots.values())) != 7:
+        raise ValueError("expected seven distinct retired guest-display slots")
+    return slots
+
+
 def command_for(vm, image, tier, expression):
     jit = ["--jit", tier]
     if tier != "none":
@@ -47,7 +56,7 @@ def command_for(vm, image, tier, expression):
 
 def probe_expression(slots, tier, backend):
     source = (HERE / "ffi_cutover_registry.st").read_text().replace("'", "''")
-    rows = " ".join(f"({n} '{name}')" for n, (name, _) in slots.items())
+    rows = " ".join(f"({n} '{name}')" for n, name in slots.items())
     platform = "true" if backend == "sdl" else "false"
     return (f"[Compiler fileInString: '{source}'. "
             f"(Smalltalk at: #FFICutoverProbe) new check: #({rows}) mode: #{tier} platform: {platform}] "
@@ -64,9 +73,15 @@ def check(args, slots):
                SDL_VIDEODRIVER="ffi_no_video", SAMALTAK_VERIFY_GC="1")
     vm, image = (p.resolve(strict=True) for p in (args.vm, args.image))
     args.logs.mkdir(parents=True, exist_ok=True)
+    # Image code replaces these operations; there is no typed-entry witness.
+    primitive_names = {n: name for n, (name, _) in slots.items()}
+    guest_display = read_guest_display_slots()
+    if primitive_names.keys() & guest_display.keys():
+        raise ValueError("guest display must not be counted as FFI cutover coverage")
+    primitive_names.update(guest_display)
     for tier in args.mode or TIERS:
         result = subprocess.run(command_for(vm, image, tier,
-                                probe_expression(slots, tier, args.backend)),
+                                probe_expression(primitive_names, tier, args.backend)),
                                 env=env, capture_output=True, timeout=120)
         stem = args.logs / f"registry-{args.backend}-{tier}"
         stem.with_suffix(".stdout").write_bytes(result.stdout)
@@ -74,7 +89,8 @@ def check(args, slots):
         if result.returncode or b"#ffiCutoverRegistryOK" not in result.stdout.splitlines():
             raise ValueError(f"{args.backend}/{tier}: registry probe failed "
                              f"(exit {result.returncode}); see {stem}.stdout and {stem}.stderr")
-        print(f"{args.backend}/{tier}: {len(slots)} retired slots, names and stale headers checked")
+        print(f"{args.backend}/{tier}: {len(slots)} FFI cutover and {len(guest_display)} guest-display "
+              "slots, names and stale headers checked")
 
 
 def coverage(args, slots):

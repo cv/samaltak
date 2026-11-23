@@ -117,9 +117,9 @@
     <h1>Retained VM primitives</h1>
     <p class="intro">Every numbered slot marked <strong>Keep</strong> in the FFI primitive audit, with its registered name and the reason it stays a primitive.</p>
     <ul class="summary" aria-label="Catalog totals">
-      <li><strong id="total">156</strong> retained IDs</li>
-      <li><strong id="family-total">11</strong> families</li>
-      <li><strong id="necessity-total">154</strong> necessity</li>
+      <li><strong id="total">149</strong> retained IDs</li>
+      <li><strong id="family-total">10</strong> families</li>
+      <li><strong id="necessity-total">147</strong> necessity</li>
       <li><strong id="policy-total">2</strong> policy</li>
     </ul>
   </div>
@@ -129,7 +129,7 @@
     <h2 id="reading-title">How to read this catalog</h2>
     <p><span class="badge">Necessity</span> The current contract needs VM state, image semantics or a target-specific service; an ordinary approved native call alone would not preserve it.</p>
     <p><span class="badge policy">Policy</span> A dedicated native interface could be designed, but migration is not justified or would change the authority boundary. The tags classify retention here, not what could ever be implemented.</p>
-    <p class="scope">Scope: the <a href="ffi-primitive-audit.md#dispositions">audit’s Keep IDs</a>, not all <strong id="sdl-total">192</strong> entries in the <a href="../vm/gen/primitive_entries.c">hosted SDL registry</a>. For example, 422 (<code>windowSetPosition</code>) is registered but outside the original audit. Approved FFI export IDs are separate. Registration does not guarantee implementation on every target.</p>
+    <p class="scope">Scope: the <a href="ffi-primitive-audit.md#dispositions">audit’s Keep IDs</a>, not all <strong id="sdl-total">185</strong> entries in the <a href="../vm/gen/primitive_entries.c">hosted SDL registry</a>. For example, 422 (<code>windowSetPosition</code>) is registered but outside the original audit. Approved FFI export IDs are separate. Registration does not guarantee implementation on every target.</p>
   </aside>
   <form id="filters" class="filters" role="search" aria-label="Filter retained primitives" hidden>
     <div class="controls">
@@ -159,7 +159,6 @@
       <li><a href="#execution">Execution, scheduling &amp; unwinding</a></li>
       <li><a href="#clocks">Scheduler &amp; work clocks</a></li>
       <li><a href="#vm-lifecycle">VM lifecycle, GC &amp; JIT</a></li>
-      <li><a href="#guest-display">Simulator guest display</a></li>
       <li><a href="#platform-display">Platform input, vsync &amp; GPU</a></li>
       <li><a href="#machine-raster">Machine &amp; software raster</a></li>
       <li><a href="#raw-nic">Raw network interface</a></li>
@@ -369,26 +368,6 @@
         <tr class="entry" id="p-180" data-basis="necessity"><th scope="row"><span class="num">180</span> <code>jitParameters</code></th><td><span class="badge necessity">Necessity</span> Reads the JIT mode, flags and thresholds and applies changes with the JIT’s own code invalidation rules.</td></tr>
         <tr class="entry" id="p-181" data-basis="necessity"><th scope="row"><span class="num">181</span> <code>jitCode</code></th><td><span class="badge necessity">Necessity</span> Packages machine code and bytecode maps/notes from installed JIT code or a temporary annotated compilation.</td></tr>
         <tr class="entry" id="p-182" data-basis="necessity"><th scope="row"><span class="num">182</span> <code>jitSendSites</code></th><td><span class="badge necessity">Necessity</span> Reads baseline inline-cache feedback as image objects: per-site state, classes, target methods and selector.</td></tr>
-      </tbody>
-    </table>
-  </section>
-  <section class="group" id="guest-display" aria-labelledby="guest-display-title">
-    <header>
-      <h2 id="guest-display-title">Simulator guest display <span class="group-count">· 7</span></h2>
-      <p>The VM Simulator’s <a href="../src/Tools/VMSimulator.st">Smalltalk-80 button</a> boots the <code>st80/</code> image in a simulated VM. <a href="../st80/ST80-UI/ScreenController.st"><code>ScreenController</code></a> opens a 640 × 400 one-bit screen and draws the Workspace inside it, not in a separate OS window. The host UI shows that screen in a <a href="../src/Tools/GuestScreen.st"><code>GuestScreen</code></a> pane.</p>
-      <p>In the Workspace, type <code>3 + 4</code> and press Cmd-P: <a href="../st80/ST80-UI/TextView.st">the guest’s compiler evaluates it</a> and the Workspace draws the selected <code>7</code> in reverse video. The guest polls pane input via 205, draws text via 203 and flushes via 206; it does not call SDL for those operations. The native VM registers these slots, but its <a href="../src/VM-Core/GuestDisplay.st">guest-display stub</a> fails <code>displayOpen</code>; host SDL window support does not supply a guest screen.</p>
-    </header>
-    <table aria-labelledby="guest-display-title">
-      <colgroup><col class="primitive-col"><col></colgroup>
-      <thead><tr><th scope="col">ID / Registered name</th><th scope="col">Why it stays</th></tr></thead>
-      <tbody>
-        <tr class="entry" id="p-200" data-basis="necessity"><th scope="row"><span class="num">200</span> <code>displayOpen</code></th><td><span class="badge necessity">Necessity</span> Opens the guest’s 1-bit screen and returns the fixed-width font cell size as a Point.</td></tr>
-        <tr class="entry" id="p-201" data-basis="necessity"><th scope="row"><span class="num">201</span> <code>displayFill</code></th><td><span class="badge necessity">Necessity</span> Applies the guest surface’s white, black, grey or invert rule to a clipped rectangle.</td></tr>
-        <tr class="entry" id="p-202" data-basis="necessity"><th scope="row"><span class="num">202</span> <code>displayCopy</code></th><td><span class="badge necessity">Necessity</span> Copies a guest pixel rectangle with clipping and overlap support within the same surface.</td></tr>
-        <tr class="entry" id="p-203" data-basis="necessity"><th scope="row"><span class="num">203</span> <code>displayText</code></th><td><span class="badge necessity">Necessity</span> Draws fixed-width glyph cells from bytes using the guest display’s normal or inverted raster rule.</td></tr>
-        <tr class="entry" id="p-204" data-basis="necessity"><th scope="row"><span class="num">204</span> <code>displayBits</code></th><td><span class="badge necessity">Necessity</span> Checks the packed 1-bit bitmap size, then draws high-bit-first rows using the guest’s opaque, set or invert rule.</td></tr>
-        <tr class="entry" id="p-205" data-basis="necessity"><th scope="row"><span class="num">205</span> <code>displayNextEvent</code></th><td><span class="badge necessity">Necessity</span> Dequeues guest input into a mutable five-slot object (type, position, key and modifiers) or returns nil.</td></tr>
-        <tr class="entry" id="p-206" data-basis="necessity"><th scope="row"><span class="num">206</span> <code>displayFlush</code></th><td><span class="badge necessity">Necessity</span> Presents the completed guest frame through the simulator after checking that its surface is open.</td></tr>
       </tbody>
     </table>
   </section>

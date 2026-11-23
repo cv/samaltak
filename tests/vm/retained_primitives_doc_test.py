@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 BASES = ("necessity", "policy")
-PROCESS_IDS = {515, 516, 518, 560}
+IMAGE_DISPLAY_IDS = set(range(200, 207))
 
 
 def check(ok, message):
@@ -18,9 +18,10 @@ def check(ok, message):
         raise SystemExit(message)
 
 
-def audited_ids(audit):
+def audited_ids(audit, disposition):
     ids = []
-    for ranges in re.findall(r"^\|\s*([\d, –-]+)\|\s*Keep\s*\|", audit, re.M):
+    pattern = rf"^\|\s*([\d, –-]+)\|\s*{re.escape(disposition)}\s*\|"
+    for ranges in re.findall(pattern, audit, re.M):
         for span in ranges.split(","):
             lo, *hi = [int(n) for n in re.split("[–-]", span)]
             ids.extend(range(lo, (hi[0] if hi else lo) + 1))
@@ -105,16 +106,29 @@ class Catalog(HTMLParser):
 
 
 def main():
-    keep = audited_ids((ROOT / "docs/ffi-primitive-audit.md").read_text(encoding="utf-8"))
-    check(len(keep) == len(set(keep)) == 156, "Audit must contain 156 unique Keep IDs")
-    check(not PROCESS_IDS.intersection(keep), "Retired process IDs must not be Keep")
+    audit = (ROOT / "docs/ffi-primitive-audit.md").read_text(encoding="utf-8")
+    keep = audited_ids(audit, "Keep")
+    check(len(keep) == len(set(keep)) == 149, "Audit must contain 149 unique Keep IDs")
+    image_ids = audited_ids(audit, "Image display")
+    check(len(image_ids) == 7 and set(image_ids) == IMAGE_DISPLAY_IDS,
+          "Audit must assign exactly 200–206 to Image display")
+    ffi_manifest = (ROOT / "tests/vm/ffi_cutover_slots.tsv").read_text(encoding="utf-8")
+    ffi_ids = {int(number) for number in re.findall(r"^(\d+)\t", ffi_manifest, re.M)}
+    ffi_audit = [n for disposition in ("Adapter", "Extend", "Process cutover")
+                 for n in audited_ids(audit, disposition)]
+    check(len(ffi_audit) == len(ffi_ids) == 102 and set(ffi_audit) == ffi_ids,
+          "Audit FFI retirements must match the 102 slots in the FFI manifest")
+    retired = ffi_ids | IMAGE_DISPLAY_IDS
+    check(len(retired) == 109, "Expected 102 FFI retirements and seven separate image display retirements")
+    check(retired.isdisjoint(keep), "Retired IDs must not be Keep")
 
     source = (ROOT / "vm/gen/primitive_entries.c").read_text(encoding="utf-8")
     pairs = re.findall(r'^\s*\{(\d+),\s*\d+,\s*"([^"]+)",\s*\w+\},', source, re.M)
     registry = {int(number): name for number, name in pairs}
     check(len(registry) == len(pairs), "Duplicate registry IDs")
-    live_process_ids = PROCESS_IDS & registry.keys()
-    check(not live_process_ids, f"Retired process IDs still registered: {sorted(live_process_ids)}")
+    live_retired_ids = retired & registry.keys()
+    check(not live_retired_ids, f"Retired IDs still registered: {sorted(live_retired_ids)}")
+    check(len(registry) == 185, "Expected 185 hosted SDL registry slots")
     check(registry.get(422) == "windowSetPosition" and 422 not in keep,
           "SDL slot 422 must be registered outside the original Keep catalog")
     check(set(keep) <= registry.keys(), f"Audit IDs missing from registry: {set(keep) - registry.keys()}")
@@ -155,6 +169,7 @@ def main():
           f"Stale catalog totals: expected {totals}")
     print(f"OK: {len(numbers)} exact Keep IDs/names across {len(catalog.groups)} families "
           f"({bases['necessity']} necessity, {bases['policy']} policy); {len(registry)} SDL slots.")
+    print(f"OK: {len(retired)} retired slots absent ({len(ffi_ids)} FFI, {len(image_ids)} image display).")
 
 
 if __name__ == "__main__":

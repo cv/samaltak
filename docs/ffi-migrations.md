@@ -2,9 +2,10 @@
 
 The Smalltalk API routes the original remove-98 operations and four
 additional hosted process operations through approved typed downcalls
-rather than numbered adapters. The native backends remain. See the
-[primitive audit](ffi-primitive-audit.md) and the
-[156 Keep IDs](vm-primitives-retained.html).
+rather than numbered adapters. The native backends remain. The separate
+image display cutover brings the total to 109 removed slots: 102 migrated
+to FFI and seven to image code. See the [primitive audit](ffi-primitive-audit.md)
+and the [149 Keep IDs](vm-primitives-retained.html).
 
 ## Original remove-98 scope
 
@@ -34,7 +35,14 @@ load and clear.
 Validate argument records and reject embedded NULs before any launch or
 replacement. Do not retry a native failure through another path.
 
-## Operation contract
+## Guest display scope (not FFI)
+
+Slots 200–206, from `displayOpen` through `displayFlush`, are reserved.
+The [Smalltalk-80 guest](../st80/README.md) owns the display and rasterizes in
+Smalltalk. The simulator presents published frames and supplies input
+through an image-object protocol, without a numbered or native call boundary.
+
+## Typed downcall contract
 
 - Use exact, approved signatures in `vm:core` or `platform`. An approved
   export ID is not a numbered primitive slot and does not confer launcher
@@ -54,10 +62,8 @@ replacement. Do not retry a native failure through another path.
   [bounded and owned output](ffi-owned-output.md).
 
 Hosted `NO_PLATFORM=1` still supports core downcalls but has no SDL routes.
-The simulator and UEFI cannot run the hosted adapters. The
-[simulator’s guest display](vm-primitives-retained.html#guest-display)
-retains its own numbered interface. A firmware build does not by itself
-demonstrate runtime behavior.
+The simulator and UEFI cannot run the hosted adapters. A firmware build
+does not by itself demonstrate runtime behavior.
 
 ## Images and bootstrapping
 

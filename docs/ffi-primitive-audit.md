@@ -2,9 +2,10 @@
 
 The original remove-98 set comprises 64 **Adapter** and 34 **Extend**
 IDs: 19 core and 79 platform. The hosted process cutover reserves four
-additional IDs (515, 516, 518, 560), separate from those 98. The
-[retained-primitives report](vm-primitives-retained.html) catalogs the 156
-**Keep** IDs. See the [cutover contract](ffi-migrations.md).
+additional IDs (515, 516, 518, 560). Of 109 removed slots, 102 moved
+to FFI and seven (200–206) to image code. The
+[retained-primitives report](vm-primitives-retained.html) catalogs
+the 149 **Keep** IDs. See the [cutover contract](ffi-migrations.md).
 
 ## Registry
 
@@ -12,14 +13,14 @@ The [generated registry](../vm/gen/primitive_entries.c) maps numbered
 primitive IDs to names and C entry points. The counts below describe scope,
 not completed runtime verification.
 
-| Family | Pre-cutover `ff327a9` | Original remove-98 target | Rebased remove-98 | With process cutover |
-| --- | ---: | ---: | ---: | ---: |
-| Core (including work clock) | 156 | 137 | 137 | 137 |
-| Simulator guest display | 7 | 7 | 7 | 7 |
-| Platform | 114 | 35 | 36 | 32 |
-| FFI infrastructure | 16 | 16 | 16 | 16 |
-| **Hosted SDL** | **293** | **195** | **196** | **192** |
-| **Hosted `NO_PLATFORM=1`** | **168** | **149** | **149** | **149** |
+| Family | Pre-cutover `ff327a9` | Original remove-98 target | Rebased remove-98 | With process cutover | Current (with image display) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Core (including work clock) | 156 | 137 | 137 | 137 | 137 |
+| Simulator guest display | 7 | 7 | 7 | 7 | 0 |
+| Platform | 114 | 35 | 36 | 32 | 32 |
+| FFI infrastructure | 16 | 16 | 16 | 16 | 16 |
+| **Hosted SDL** | **293** | **195** | **196** | **192** | **185** |
+| **Hosted `NO_PLATFORM=1`** | **168** | **149** | **149** | **149** | **142** |
 
 The rebased SDL registry includes 422 (`windowSetPosition`), which is
 outside the original audit and the Keep catalog. `NO_PLATFORM=1` omits
@@ -34,14 +35,15 @@ binary does not. Approved FFI export IDs are separate from these totals.
   protocol (see [output protocols](ffi-owned-output.md)).
 - **Live:** a facade already uses FFI; its numbered slot is outside this scope.
 - **Now:** an existing binding fits, but the numbered slot is outside this scope.
-- **Keep:** a numbered slot outside both cutovers, including VM-specific or
+- **Keep:** a numbered slot retained by the audit, including VM-specific or
   freestanding operations.
-- **Process cutover:** a hosted process operation migrated separately.
+- **Process cutover:** a hosted process operation migrated separately to FFI.
+- **Image display:** a simulator guest-display operation implemented in
+  Smalltalk, with no FFI export.
 - **Infra:** implements FFI itself.
 
-The original 98 and the four process IDs are reserved, not aliases.
-Reservation does not provide compatibility for an older image. Unassigned
-gaps such as 517 are not part of either retirement set.
+The 109 retired IDs are reserved, not aliases. Reservation does not provide
+compatibility for an older image. Unassigned gaps such as 517 are not retired IDs.
 
 ### Core and infrastructure
 
@@ -61,7 +63,7 @@ gaps such as 517 are not part of either retirement set.
 | 152–153 | Adapter | Scalar wrappers around `gettimeofday` and the real VM-thread CPU clock, preserving µs and failure/availability policy; no raw time structs. |
 | 160–168, 171, 173–174, 180–182, 195–199 | Keep | Lifecycle, GC, VM introspection and unwinding: `prim_snapshot`, `prim_vm_stats`, `prim_jit_send_sites`, `prim_terminate_to`. |
 | 169–170 | Adapter | Counted input to the existing VM streams (`fwrite` + `fflush`), not arbitrary fds or stream pointers. Preserve embedded NUL, surrogateescape and receiver. |
-| 200–206 | Keep | Simulator guest-display bridge (`prim_display_open` through `prim_display_flush`); the [Smalltalk-80 Workspace example](vm-primitives-retained.html#guest-display) shows the guest/host boundary. |
+| 200–206 | Image display | The [Smalltalk-80 guest](../st80/README.md) draws and publishes its own framebuffer; the simulator exchanges frames and input records with the image. |
 | 250–251, 263–265 | Infra | `ffiBind/ffiInvoke` legacy word path; `ffiPrepare/ffiBoundInvoke/ffiBoundInvokeArray` prepared downcalls. |
 | 252–262 | Infra | Vsync 252–254, SDL logs 255–258 and test probe 259, external grants 260–262. Native latch/queue, not a Smalltalk callback. |
 

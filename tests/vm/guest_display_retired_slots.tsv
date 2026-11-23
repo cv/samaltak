@@ -1,0 +1,8 @@
+# Retired image-side operations; no typed/native FFI entry.
+200	displayOpen
+201	displayFill
+202	displayCopy
+203	displayText
+204	displayBits
+205	displayNextEvent
+206	displayFlush
