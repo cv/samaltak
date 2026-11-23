@@ -14,6 +14,7 @@ static int32_t w_state;
 static atomic_bool w_stop;
 static atomic_int wake_event;
 
+static bool decode_process(const uint8_t *bytes, uint64_t n, bool pty, pf_process_request *request);
 static void drain_pipe(void);
 static int32_t ffi_clipboard_data(const uint8_t *bytes, uint64_t n, uint64_t ticket);
 static int32_t ffi_clipboard_get(uint8_t *receipt, uint64_t cap);
@@ -81,11 +82,15 @@ static int32_t ffi_platform_copy_output(uint64_t ticket, uint64_t offset, uint8_
 static int32_t ffi_platform_handle_counts(uint8_t *bytes, uint64_t cap);
 static int32_t ffi_platform_last_error(uint8_t *bytes, uint64_t cap);
 static int32_t ffi_platform_release_output(uint64_t ticket);
+static int32_t ffi_process_exec(const uint8_t *bytes, uint64_t n);
+static int64_t ffi_process_spawn(const uint8_t *bytes, uint64_t n);
+static int32_t ffi_process_wait(int64_t pid, int32_t block, uint8_t *out, uint64_t cap);
 static int32_t ffi_pty(int64_t h, int64_t rows, int64_t cols);
 static int32_t ffi_pty_close(int64_t h);
 static int32_t ffi_pty_foreground(int64_t h);
 static int64_t ffi_pty_read(int64_t h, uint8_t *buf, uint64_t n);
 static int32_t ffi_pty_semaphore(int64_t h, int64_t r, int64_t w);
+static int32_t ffi_pty_spawn(const uint8_t *bytes, uint64_t n, int32_t rows, int32_t cols, uint8_t *out, uint64_t cap);
 static int32_t ffi_pty_wait(int64_t h, int32_t block);
 static int64_t ffi_pty_write(int64_t h, const uint8_t *buf, uint64_t n);
 static int32_t ffi_set_cursor(int64_t kind);
@@ -116,11 +121,70 @@ static int32_t ffi_window_open(int64_t w, int64_t h, const uint8_t *bytes, uint6
 static int32_t ffi_window_pixel_size(int64_t win, uint8_t *bytes, uint64_t cap);
 static double ffi_window_refresh_rate(int64_t w);
 static int32_t ffi_window_size(int64_t win, uint8_t *bytes, uint64_t cap);
+static bool invalid_process_record(void);
+static int64_t process_le32(pf_process_request *request);
+static char *process_string(int64_t len, pf_process_request *request);
+static char **process_vector(int64_t count, pf_process_request *request);
+static void process_word(uint64_t value, uint8_t *out, int32_t n);
+static void release_process(pf_process_request *request);
 static void *watch_main(void *arg);
 static bool watcher_start(void);
 static void watcher_stop(void);
 static uint64_t sdl_platform_window_wire_at_count(const uint8_t *bytes, int32_t offset, int32_t n);
 static void sdl_platform_window_wire_at_put_count(uint8_t *bytes, int32_t offset, uint64_t value, int32_t n);
+
+/* SDLPlatform>>decodeProcess:size:pty:into: */
+static bool decode_process(const uint8_t *bytes, uint64_t n, bool pty, pf_process_request *request)
+{
+    int64_t count;
+    int64_t len;
+    request->storage = (char *)NULL;
+    request->argv = (char **)NULL;
+    request->envp = (char **)NULL;
+    request->cwd = (char *)NULL;
+    if ((bytes == NULL) || (n > 0x7FFFFFFF8LL)) {
+        return invalid_process_record();
+    }
+    request->input = bytes;
+    request->remaining = n;
+    count = process_le32(request);
+    if ((count <= 0) || ((count == 0xFFFFFFFFLL) || ((uint64_t)count > (request->remaining >> 2)))) {
+        return invalid_process_record();
+    }
+    request->storage = (char *)malloc(n);
+    if (request->storage == NULL) {
+        set_error("out of memory");
+        return false;
+    }
+    request->next = request->storage;
+    request->argv = process_vector(count, request);
+    if (request->argv == NULL) {
+        return false;
+    }
+    if (request->argv[0][0] == 0) {
+        return invalid_process_record();
+    }
+    if (pty) {
+        count = process_le32(request);
+        if (count != 0xFFFFFFFFLL) {
+            request->envp = process_vector(count, request);
+            if (request->envp == NULL) {
+                return false;
+            }
+        }
+        len = process_le32(request);
+        if (len != 0xFFFFFFFFLL) {
+            request->cwd = process_string(len, request);
+            if (request->cwd == NULL) {
+                return invalid_process_record();
+            }
+        }
+    }
+    if (request->remaining != 0) {
+        return invalid_process_record();
+    }
+    return true;
+}
 
 /* SDLPlatform>>drainPipe */
 static void drain_pipe(void)
@@ -374,6 +438,18 @@ static int32_t ffi_file_mkfifo_entry_witness(const uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 1538\n");
     return ffi_file_mkfifo(a1, a2);
 }
+static int64_t ffi_process_spawn_entry_witness(const uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1539\n");
+    return ffi_process_spawn(a1, a2);
+}
+static int32_t ffi_process_wait_entry_witness(int64_t a1, int32_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1540\n");
+    return ffi_process_wait(a1, a2, a3, a4);
+}
+static int32_t ffi_process_exec_entry_witness(const uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1542\n");
+    return ffi_process_exec(a1, a2);
+}
 static int32_t ffi_socket_listen_entry_witness(const uint8_t *a1, uint64_t a2, int64_t a3, int64_t a4) {
     fprintf(stderr, "\nffi-native-entry 1564\n");
     return ffi_socket_listen(a1, a2, a3, a4);
@@ -437,6 +513,10 @@ static int32_t ffi_tls_semaphore_entry_witness(int64_t a1, int64_t a2, int64_t a
 static int32_t ffi_tls_handshake_entry_witness(int64_t a1) {
     fprintf(stderr, "\nffi-native-entry 1579\n");
     return ffi_tls_handshake(a1);
+}
+static int32_t ffi_pty_spawn_entry_witness(const uint8_t *a1, uint64_t a2, int32_t a3, int32_t a4, uint8_t *a5, uint64_t a6) {
+    fprintf(stderr, "\nffi-native-entry 1584\n");
+    return ffi_pty_spawn(a1, a2, a3, a4, a5, a6);
 }
 static int64_t ffi_pty_read_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1585\n");
@@ -846,6 +926,24 @@ int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signatu
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_mkfifo_entry_witness;
         return 1538;
     }
+    if (packed_signature == 131 && strcmp(approved_name, "platform_process_spawn") == 0) {
+        *target_out = (uint64_t) ffi_process_spawn;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_process_spawn_entry_witness;
+        return 1539;
+    }
+    if (packed_signature == 12689 && strcmp(approved_name, "platform_process_wait") == 0) {
+        *target_out = (uint64_t) ffi_process_wait;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_process_wait_entry_witness;
+        return 1540;
+    }
+    if (packed_signature == 129 && strcmp(approved_name, "platform_process_exec") == 0) {
+        *target_out = (uint64_t) ffi_process_exec;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_process_exec_entry_witness;
+        return 1542;
+    }
     if (packed_signature == 33585 && strcmp(approved_name, "platform_sockets_listen") == 0) {
         *target_out = (uint64_t) ffi_socket_listen;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
@@ -941,6 +1039,12 @@ int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signatu
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_tls_handshake_entry_witness;
         return 1579;
+    }
+    if (packed_signature == 528785 && strcmp(approved_name, "platform_pty_spawn") == 0) {
+        *target_out = (uint64_t) ffi_pty_spawn;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_pty_spawn_entry_witness;
+        return 1584;
     }
     if (packed_signature == 915 && strcmp(approved_name, "pty_read") == 0) {
         *target_out = (uint64_t) ffi_pty_read;
@@ -2037,6 +2141,56 @@ static int32_t ffi_platform_release_output(uint64_t ticket)
     return platform_paged_output_release(ticket) ? 1 : 0;
 }
 
+/* SDLPlatform>>ffiProcessExec:size: */
+static int32_t ffi_process_exec(const uint8_t *bytes, uint64_t n)
+{
+    pf_process_request local;
+    pf_process_request *request;
+    memset(&local, 0, sizeof local);
+    request = &local;
+    if (decode_process(bytes, n, false, request)) {
+        exec(request->argv);
+    }
+    release_process(request);
+    return 0;
+}
+
+/* SDLPlatform>>ffiProcessSpawn:size: */
+static int64_t ffi_process_spawn(const uint8_t *bytes, uint64_t n)
+{
+    pf_process_request local;
+    pf_process_request *request;
+    int64_t pid;
+    memset(&local, 0, sizeof local);
+    request = &local;
+    pid = decode_process(bytes, n, false, request) ? platform_files_spawn(request->argv) : -1;
+    release_process(request);
+    return pid;
+}
+
+/* SDLPlatform>>ffiProcessWait:block:into:capacity: */
+static int32_t ffi_process_wait(int64_t pid, int32_t block, uint8_t *out, uint64_t cap)
+{
+    int local;
+    int *status;
+    bool local_2;
+    bool *done;
+    if ((cap != 5) || ((out == NULL) || ((pid != (int32_t)pid) || ((block != 0) && (block != 1))))) {
+        set_error("invalid process wait arguments");
+        return 0;
+    }
+    memset(&local, 0, sizeof local);
+    status = &local;
+    memset(&local_2, 0, sizeof local_2);
+    done = &local_2;
+    if (!process_wait(pid, block == 1, status, done)) {
+        return 0;
+    }
+    out[0] = (uint8_t)(*done ? 1 : 0);
+    process_word(*done ? (uint32_t)*status : 0, out + 1, 4);
+    return 1;
+}
+
 /* SDLPlatform>>ffiPty:rows:columns: */
 static int32_t ffi_pty(int64_t h, int64_t rows, int64_t cols)
 {
@@ -2068,6 +2222,32 @@ static int64_t ffi_pty_read(int64_t h, uint8_t *buf, uint64_t n)
 static int32_t ffi_pty_semaphore(int64_t h, int64_t r, int64_t w)
 {
     return (int32_t)(pty_semaphores((int32_t)h, (int32_t)r, (int32_t)w) ? 1 : 0);
+}
+
+/* SDLPlatform>>ffiPtySpawn:size:rows:columns:into:capacity: */
+static int32_t ffi_pty_spawn(const uint8_t *bytes, uint64_t n, int32_t rows, int32_t cols, uint8_t *out, uint64_t cap)
+{
+    pf_process_request local;
+    pf_process_request *request;
+    int64_t local_2;
+    int64_t *pid;
+    int32_t h;
+    if ((cap != 16) || ((out == NULL) || ((rows <= 0) || ((cols <= 0) || ((rows > 65535) || (cols > 65535)))))) {
+        set_error("invalid pty spawn arguments");
+        return 0;
+    }
+    memset(&local, 0, sizeof local);
+    request = &local;
+    memset(&local_2, 0, sizeof local_2);
+    pid = &local_2;
+    h = decode_process(bytes, n, true, request) ? platform_ptys_spawn(request->argv, request->envp, request->cwd, rows, cols, pid) : 0;
+    release_process(request);
+    if (h <= 0) {
+        return 0;
+    }
+    process_word((uint64_t)h, out, 8);
+    process_word((uint64_t)*pid, out + 8, 8);
+    return 1;
 }
 
 /* SDLPlatform>>ffiPtyWait:blocking: */
@@ -2414,6 +2594,13 @@ void platform_interface_init(void)
     }
 }
 
+/* SDLPlatform>>invalidProcessRecord */
+static bool invalid_process_record(void)
+{
+    set_error("invalid process request");
+    return false;
+}
+
 /* SDLPlatform>>poll */
 void platform_interface_poll(void)
 {
@@ -2425,6 +2612,95 @@ void platform_interface_poll(void)
     }
     platform_events_signal_ready();
     signal_notifications();
+}
+
+/* SDLPlatform>>processLE32: */
+static int64_t process_le32(pf_process_request *request)
+{
+    const uint8_t *src;
+    uint64_t word;
+    int i;
+    if (request->remaining < 4) {
+        return -1;
+    }
+    src = request->input;
+    word = 0ULL;
+    for (i = 0; i <= 3; i++) {
+        word = word | (((uint64_t)src[i]) << (i * 8));
+    }
+    request->input = src + 4;
+    request->remaining = request->remaining - 4;
+    return (int64_t)word;
+}
+
+/* SDLPlatform>>processString:in: */
+static char *process_string(int64_t len, pf_process_request *request)
+{
+    uint64_t n;
+    const uint8_t *src;
+    char *dest;
+    if ((len < 0) || ((len == 0xFFFFFFFFLL) || ((uint64_t)len > request->remaining))) {
+        return (char *)NULL;
+    }
+    n = (uint64_t)len;
+    src = request->input;
+    dest = request->next;
+    if (n != 0) {
+        if (memchr(src, 0, n) != NULL) {
+            return (char *)NULL;
+        }
+        memcpy(dest, src, n);
+    }
+    dest[n] = 0;
+    request->next = dest + n + 1;
+    request->input = src + n;
+    request->remaining = request->remaining - n;
+    return dest;
+}
+
+/* SDLPlatform>>processVector:in: */
+static char **process_vector(int64_t count, pf_process_request *request)
+{
+    char **vector;
+    int64_t i;
+    char *s;
+    if ((count < 0) || ((uint64_t)count > (request->remaining >> 2))) {
+        invalid_process_record();
+        return (char **)NULL;
+    }
+    vector = (char **)malloc(((uint64_t)count + 1) * sizeof(char *));
+    if (vector == NULL) {
+        set_error("out of memory");
+        return (char **)NULL;
+    }
+    for (i = 0; i <= count - 1; i++) {
+        s = process_string(process_le32(request), request);
+        if (s == NULL) {
+            free(vector);
+            invalid_process_record();
+            return (char **)NULL;
+        }
+        vector[i] = s;
+    }
+    vector[count] = (char *)NULL;
+    return vector;
+}
+
+/* SDLPlatform>>processWord:into:bytes: */
+static void process_word(uint64_t value, uint8_t *out, int32_t n)
+{
+    int32_t i;
+    for (i = 0; i <= n - 1; i++) {
+        out[i] = (uint8_t)(value >> (i * 8));
+    }
+}
+
+/* SDLPlatform>>releaseProcess: */
+static void release_process(pf_process_request *request)
+{
+    free(request->argv);
+    free(request->envp);
+    free(request->storage);
 }
 
 /* SDLPlatform>>shutdown */

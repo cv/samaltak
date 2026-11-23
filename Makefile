@@ -114,10 +114,12 @@ test-ffi-headless: image test-ffi-bigint-owned
 			|| { cat "$$log"; exit 1; }; \
 		python3 tests/vm/socket_ffi_test.py $(VM) $(OUT)/samaltak.image --jit "$$mode" --trace --logs "$(FFI_HEADLESS_LOGS)"; \
 	done
+	python3 tests/vm/process_ffi_test.py "$(OUT)/samaltak.image" "$(VM)" --logs "$(FFI_HEADLESS_LOGS)"
+	python3 tests/vm/ffi_exec_probe_test.py "$(OUT)/samaltak.image" "$(VM)"
 	python3 tests/vm/ffi_cutover.py coverage --profile hosted-headless \
-		--none "$(FFI_HEADLESS_LOGS)/core/none.stderr" "$(FFI_HEADLESS_LOGS)/file-none.log" "$(FFI_HEADLESS_LOGS)/window-none.stderr" "$(FFI_HEADLESS_LOGS)/socket-none.stderr" "$(OUT)/ffi-bigint-owned-logs/production-none.err" \
-		--baseline "$(FFI_HEADLESS_LOGS)/core/baseline.stderr" "$(FFI_HEADLESS_LOGS)/file-baseline.log" "$(FFI_HEADLESS_LOGS)/window-baseline.stderr" "$(FFI_HEADLESS_LOGS)/socket-baseline.stderr" "$(OUT)/ffi-bigint-owned-logs/production-baseline.err" \
-		--opt "$(FFI_HEADLESS_LOGS)/core/opt.stderr" "$(FFI_HEADLESS_LOGS)/file-opt.log" "$(FFI_HEADLESS_LOGS)/window-opt.stderr" "$(FFI_HEADLESS_LOGS)/socket-opt.stderr" "$(OUT)/ffi-bigint-owned-logs/production-opt.err"
+		--none "$(FFI_HEADLESS_LOGS)/core/none.stderr" "$(FFI_HEADLESS_LOGS)/file-none.log" "$(FFI_HEADLESS_LOGS)/window-none.stderr" "$(FFI_HEADLESS_LOGS)/socket-none.stderr" "$(OUT)/ffi-bigint-owned-logs/production-none.err" "$(FFI_HEADLESS_LOGS)/process-none.stderr" "$(FFI_HEADLESS_LOGS)/exec-none.stderr" \
+		--baseline "$(FFI_HEADLESS_LOGS)/core/baseline.stderr" "$(FFI_HEADLESS_LOGS)/file-baseline.log" "$(FFI_HEADLESS_LOGS)/window-baseline.stderr" "$(FFI_HEADLESS_LOGS)/socket-baseline.stderr" "$(OUT)/ffi-bigint-owned-logs/production-baseline.err" "$(FFI_HEADLESS_LOGS)/process-baseline.stderr" "$(FFI_HEADLESS_LOGS)/exec-baseline.stderr" \
+		--opt "$(FFI_HEADLESS_LOGS)/core/opt.stderr" "$(FFI_HEADLESS_LOGS)/file-opt.log" "$(FFI_HEADLESS_LOGS)/window-opt.stderr" "$(FFI_HEADLESS_LOGS)/socket-opt.stderr" "$(OUT)/ffi-bigint-owned-logs/production-opt.err" "$(FFI_HEADLESS_LOGS)/process-opt.stderr" "$(FFI_HEADLESS_LOGS)/exec-opt.stderr"
 	@logs=$$(mktemp -d "$(FFI_HEADLESS_LOGS)/paired.XXXXXXXX"); \
 		python3 vm/tests/bench/ffi-paired.py --vm $(VM) --image $(OUT)/samaltak.image --logs "$$logs" --proof-only
 

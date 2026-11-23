@@ -1,9 +1,10 @@
 # FFI primitive audit
 
-This audit defines the numbered-primitive scope of PR 8. The 64 **Adapter**
-and 34 **Extend** IDs are the remove-98 set: 19 core and 79 platform.
-See the [retained-primitives report](vm-primitives-retained.html) and the
-[cutover contract](ffi-migrations.md).
+The original remove-98 set comprises 64 **Adapter** and 34 **Extend**
+IDs: 19 core and 79 platform. The hosted process cutover reserves four
+additional IDs (515, 516, 518, 560), separate from those 98. The
+[retained-primitives report](vm-primitives-retained.html) catalogs the 156
+**Keep** IDs. See the [cutover contract](ffi-migrations.md).
 
 ## Registry
 
@@ -11,20 +12,19 @@ The [generated registry](../vm/gen/primitive_entries.c) maps numbered
 primitive IDs to names and C entry points. The counts below describe scope,
 not completed runtime verification.
 
-| Family | Pre-cutover branch `ff327a9` | Remove-98 target |
-| --- | ---: | ---: |
-| Core (including work clock) | 156 | 137 |
-| Simulator guest display | 7 | 7 |
-| Platform | 114 | 35 |
-| FFI infrastructure | 16 | 16 |
-| **Hosted SDL** | **293** | **195** |
-| **Hosted `NO_PLATFORM=1`** | **168** | **149** |
+| Family | Pre-cutover `ff327a9` | Original remove-98 target | Rebased remove-98 | With process cutover |
+| --- | ---: | ---: | ---: | ---: |
+| Core (including work clock) | 156 | 137 | 137 | 137 |
+| Simulator guest display | 7 | 7 | 7 | 7 |
+| Platform | 114 | 35 | 36 | 32 |
+| FFI infrastructure | 16 | 16 | 16 | 16 |
+| **Hosted SDL** | **293** | **195** | **196** | **192** |
+| **Hosted `NO_PLATFORM=1`** | **168** | **149** | **149** | **149** |
 
-`NO_PLATFORM=1` omits the platform rows and FFI notification slots 252–262.
-`--headless` on an SDL binary is not that build. Upstream main at `5d9a5a6`
-has 278 SDL and 163 no-platform entries; it includes 422
-(`windowSetPosition`), outside remove-98. Including 422 brings the cutover
-target to 196 on SDL only. Approved FFI export IDs are separate.
+The rebased SDL registry includes 422 (`windowSetPosition`), which is
+outside the original audit and the Keep catalog. `NO_PLATFORM=1` omits
+platform rows and FFI notification slots 252–262; `--headless` on an SDL
+binary does not. Approved FFI export IDs are separate from these totals.
 
 ## Dispositions
 
@@ -34,13 +34,14 @@ target to 196 on SDL only. Approved FFI export IDs are separate.
   protocol (see [output protocols](ffi-owned-output.md)).
 - **Live:** a facade already uses FFI; its numbered slot is outside this scope.
 - **Now:** an existing binding fits, but the numbered slot is outside this scope.
-- **Keep:** a numbered slot outside the cutover, including VM-specific or
+- **Keep:** a numbered slot outside both cutovers, including VM-specific or
   freestanding operations.
+- **Process cutover:** a hosted process operation migrated separately.
 - **Infra:** implements FFI itself.
 
-The 98 numbers in scope are reserved, not aliases. Reservation does not
-provide compatibility for an older image. Unassigned gaps such as 517 are
-not part of the retirement set.
+The original 98 and the four process IDs are reserved, not aliases.
+Reservation does not provide compatibility for an older image. Unassigned
+gaps such as 517 are not part of either retirement set.
 
 ### Core and infrastructure
 
@@ -60,7 +61,7 @@ not part of the retirement set.
 | 152–153 | Adapter | Scalar wrappers around `gettimeofday` and the real VM-thread CPU clock, preserving µs and failure/availability policy; no raw time structs. |
 | 160–168, 171, 173–174, 180–182, 195–199 | Keep | Lifecycle, GC, VM introspection and unwinding: `prim_snapshot`, `prim_vm_stats`, `prim_jit_send_sites`, `prim_terminate_to`. |
 | 169–170 | Adapter | Counted input to the existing VM streams (`fwrite` + `fflush`), not arbitrary fds or stream pointers. Preserve embedded NUL, surrogateescape and receiver. |
-| 200–206 | Keep | Simulator guest-display bridge (`prim_display_open` through `prim_display_flush`); native builds have no guest-display surface. Not host SDL. |
+| 200–206 | Keep | Simulator guest-display bridge (`prim_display_open` through `prim_display_flush`); the [Smalltalk-80 Workspace example](vm-primitives-retained.html#guest-display) shows the guest/host boundary. |
 | 250–251, 263–265 | Infra | `ffiBind/ffiInvoke` legacy word path; `ffiPrepare/ffiBoundInvoke/ffiBoundInvokeArray` prepared downcalls. |
 | 252–262 | Infra | Vsync 252–254, SDL logs 255–258 and test probe 259, external grants 260–262. Native latch/queue, not a Smalltalk callback. |
 
@@ -89,7 +90,7 @@ not part of the retirement set.
 | 480–483 | Keep | `prim_raster_draw/fill/blit/copy` decode surfaces, bounds, formats, strides and writable buffers or firmware addresses. |
 | 500–501, 503–509, 512, 514 | Adapter | `platform_files_size`, `position`, `seek` and close/flush fit scalars; writes borrow bounded read-only bytes; paths need the same counted-text rules as titles. |
 | 502, 510–511, 513 | Extend | `platform_files_read` writes into the caller’s slice; stat is one compound observation, directory/cwd results are owned text. |
-| 515–516, 518, 560 | Keep | `platform_files_spawn`/`platform_ptys_spawn` marshal argv/env as applicable; general `process_wait` selects/reaps by PID; exec replaces the VM process. |
+| 515–516, 518, 560 | Process cutover | Spawn returns a PID; wait selects and reaps by PID (not a PTY handle); exec replaces the VM process on success; PTY spawn returns a handle and PID together. |
 | 542, 545–547, 549, 553–555, 564–565 | Adapter | `platform_sockets_accept` can flatten local would-block into pending vs handle vs failure. Socket/TLS/PTY setters take numeric readiness indices; scheduler still signals OOPs. `platform_ptys_wait` can encode status/pending/error for a PTY handle; blocking still blocks the VM. |
 | 540–541, 548, 550 | Adapter | Counted text for listen/connect, lookup and TLS start. `platform_sockets_lookup` copies before worker handoff; `platform_tls_start` preserves verified-host setup and transfers the handle on success. |
 | 543, 551, 561 | Extend | `platform_sockets_recv`, `platform_tls_recv`, `pty_read` need writable caller slices. Preserve zero at EOF, would-block/nil and distinct facade failure. |

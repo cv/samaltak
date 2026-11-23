@@ -7,19 +7,14 @@ static bool bad;
 static uint8_t *address_arg(int i);
 static void answer_word(uint64_t w);
 static oop array_of(int64_t *v, int n);
-static bool bool_arg(int i);
 static uint8_t *bytes_of(oop o, size_t *n, bool writable);
 static double float_slot(oop a, int i);
-static void free_vector(char **v);
 static int64_t int_arg(int i);
-static bool is_text(oop o);
 static uint8_t *memory_arg(int i, int64_t offset, int64_t n, bool writable);
 static bool number_of(uint64_t o, double *d);
 static uint8_t *pointer_slot(oop a, int i);
 static bool platform_primitives_rect(oop r, int *out);
 static int64_t platform_primitives_slot(oop a, int i);
-static char *string_arg(int i);
-static char **string_vector(oop a, bool non_empty);
 static bool platform_primitives_surface(oop a, raster_state *s);
 static bool word_of(oop o, uint64_t *w);
 
@@ -74,20 +69,6 @@ static oop array_of(int64_t *v, int n)
     return a;
 }
 
-/* PlatformPrimitives>>boolArg: */
-static bool bool_arg(int i)
-{
-    oop o;
-    o = prim_base[1 + i];
-    if (o == true_oop) {
-        return true;
-    }
-    if (o != false_oop) {
-        bad = true;
-    }
-    return false;
-}
-
 /* PlatformPrimitives>>bytesOf:size:writable: */
 static uint8_t *bytes_of(oop o, size_t *n, bool writable)
 {
@@ -123,21 +104,6 @@ static double float_slot(oop a, int i)
     return *d;
 }
 
-/* PlatformPrimitives>>freeVector: */
-static void free_vector(char **v)
-{
-    char **p;
-    if (v == NULL) {
-        return;
-    }
-    p = v;
-    while (*p != NULL) {
-        free(*p);
-        p = p + 1;
-    }
-    free(v);
-}
-
 /* PlatformPrimitives>>intArg: */
 static int64_t int_arg(int i)
 {
@@ -149,17 +115,6 @@ static int64_t int_arg(int i)
         bad = true;
     }
     return *v;
-}
-
-/* PlatformPrimitives>>isText: */
-static bool is_text(oop o)
-{
-    int32_t f;
-    if (!((o & 7) == 0)) {
-        return false;
-    }
-    f = (int32_t)(((*(uint64_t *)o) >> H_FMT_SHIFT) & H_FMT_MASK);
-    return (f >= F_BYTES) || ((f == 10) || (f == 11));
 }
 
 /* PlatformPrimitives>>memoryArg:offset:length:writable: */
@@ -209,31 +164,6 @@ static uint8_t *pointer_slot(oop a, int i)
         bad = true;
     }
     return (uint8_t *)*w;
-}
-
-/* PlatformPrimitives>>primExecProcess */
-void prim_exec_process(void)
-{
-    bool r_args;
-    char **argv;
-    if (!({
-    bad = false;
-    r_args = prim_nargs == 1;
-    r_args; })) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        return;
-    }
-    argv = string_vector(prim_base[1], true);
-    if (argv == NULL) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        return;
-    }
-    exec(argv);
-    free_vector(argv);
-    prim_status = PS_FAIL;
-    prim_error_code = -1;
 }
 
 /* PlatformPrimitives>>primGpuTextureSize */
@@ -788,55 +718,6 @@ void prim_nic_status(void)
     prim_status = PS_OK;
 }
 
-/* PlatformPrimitives>>primProcessWait */
-void prim_process_wait(void)
-{
-    bool r_args;
-    int64_t pid;
-    bool block;
-    int local;
-    int *st;
-    bool local_2;
-    bool *done;
-    int v;
-    uint64_t v_2;
-    uint64_t v_3;
-    if (!({
-    bad = false;
-    r_args = prim_nargs == 2;
-    r_args; })) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        return;
-    }
-    pid = int_arg(0);
-    block = bool_arg(1);
-    if (bad) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        return;
-    }
-    memset(&local, 0, sizeof local);
-    st = &local;
-    memset(&local_2, 0, sizeof local_2);
-    done = &local_2;
-    if (!process_wait(pid, block, st, done)) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        return;
-    }
-    v_3 = ({
-    if (*done) {
-        v = *st;
-        v_2 = (uint64_t)((((int64_t)v) << 1) | 1);
-    } else {
-        v_2 = nil_oop;
-    }
-    v_2; });
-    prim_result = v_3;
-    prim_status = PS_OK;
-}
-
 /* PlatformPrimitives>>primPtyClose */
 void prim_pty_close(void)
 {
@@ -937,63 +818,6 @@ void prim_pty_resize(void)
         prim_status = PS_FAIL;
         prim_error_code = -1;
     }
-}
-
-/* PlatformPrimitives>>primPtySpawn */
-void prim_pty_spawn(void)
-{
-    char **envp;
-    char *cwd;
-    bool r_args;
-    char **argv;
-    int64_t rows;
-    int64_t cols;
-    int64_t local;
-    int64_t *pid;
-    int64_t h;
-    int64_t local_2[2];
-    int64_t *v;
-    oop v_2;
-    if (!({
-    bad = false;
-    r_args = prim_nargs == 5;
-    r_args; })) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        return;
-    }
-    argv = string_vector(prim_base[1], true);
-    envp = (char **)NULL;
-    if (prim_base[2] != nil_oop) {
-        envp = string_vector(prim_base[2], false);
-    }
-    cwd = (char *)NULL;
-    if (prim_base[3] != nil_oop) {
-        cwd = string_arg(2);
-    }
-    rows = int_arg(3);
-    cols = int_arg(4);
-    memset(&local, 0, sizeof local);
-    pid = &local;
-    h = 0;
-    if ((!bad) && ((argv != NULL) && (((envp != NULL) || (prim_base[2] == nil_oop)) && ((rows > 0) && ((cols > 0) && ((rows < 65536) && (cols < 65536))))))) {
-        h = platform_ptys_spawn(argv, envp, cwd, (int32_t)rows, (int32_t)cols, pid);
-    }
-    free_vector(argv);
-    free_vector(envp);
-    free(cwd);
-    if (h <= 0) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        return;
-    }
-    memset(&local_2, 0, sizeof local_2);
-    v = local_2;
-    v[0] = h;
-    v[1] = *pid;
-    v_2 = array_of(v, 2);
-    prim_result = v_2;
-    prim_status = PS_OK;
 }
 
 /* PlatformPrimitives>>primRasterBlit */
@@ -1259,39 +1083,6 @@ void prim_set_cursor(void)
         prim_status = PS_FAIL;
         prim_error_code = -1;
     }
-}
-
-/* PlatformPrimitives>>primSpawnProcess */
-void prim_spawn_process(void)
-{
-    bool r_args;
-    char **argv;
-    int64_t pid;
-    uint64_t v;
-    if (!({
-    bad = false;
-    r_args = prim_nargs == 1;
-    r_args; })) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        return;
-    }
-    argv = string_vector(prim_base[1], true);
-    if (argv == NULL) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        return;
-    }
-    pid = platform_files_spawn(argv);
-    free_vector(argv);
-    if (pid < 0) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        return;
-    }
-    v = (uint64_t)((pid << 1) | 1);
-    prim_result = v;
-    prim_status = PS_OK;
 }
 
 /* PlatformPrimitives>>primVsyncSemaphore */
@@ -1592,51 +1383,6 @@ static int64_t platform_primitives_slot(oop a, int i)
         return 0;
     }
     return ((int64_t)o) >> 1;
-}
-
-/* PlatformPrimitives>>stringArg: */
-static char *string_arg(int i)
-{
-    oop o;
-    char *s;
-    o = prim_base[1 + i];
-    s = is_text(o) ? utf8_of(o) : (char *)NULL;
-    if (s == NULL) {
-        bad = true;
-    }
-    return s;
-}
-
-/* PlatformPrimitives>>stringVector:nonEmpty: */
-static char **string_vector(oop a, bool non_empty)
-{
-    uint32_t n;
-    char **v;
-    int64_t i;
-    uint64_t s;
-    int64_t k;
-    if (!(((a & 7) == 0) && (((int32_t)(((*(uint64_t *)a) >> H_FMT_SHIFT) & H_FMT_MASK) == F_VAR) && ((!non_empty) || ((uint32_t)*(uint64_t *)a != 0))))) {
-        return (char **)NULL;
-    }
-    n = (uint32_t)*(uint64_t *)a;
-    v = (char **)calloc((uint64_t)n + 1, sizeof(char *));
-    if (v == NULL) {
-        return (char **)NULL;
-    }
-    for (i = 0; i <= (int64_t)n - 1; i++) {
-        s = *(uint64_t *)(a + 16 + 8 * i);
-        if (is_text(s)) {
-            v[i] = utf8_of(s);
-        }
-        if ((!is_text(s)) || (v[i] == NULL)) {
-            for (k = 0; k <= i - 1; k++) {
-                free(v[k]);
-            }
-            free(v);
-            return (char **)NULL;
-        }
-    }
-    return v;
 }
 
 /* PlatformPrimitives>>surface:into: */

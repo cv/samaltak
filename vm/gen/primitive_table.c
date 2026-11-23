@@ -6,6 +6,7 @@ static prim_fn by_number[1024];
 static int32_t flags[1024];
 static bool initialized;
 static const char *names[1024];
+static prim_try_guard try_guards[1024];
 
 static void init_table(void);
 
@@ -44,6 +45,12 @@ void install_trace_function(prim_fn fn, int n)
     by_number[n] = fn;
 }
 
+/* PrimitiveTable>>installTryGuard:for: */
+void install_try_guard(prim_try_guard guard, int n)
+{
+    try_guards[n] = guard;
+}
+
 /* PrimitiveTable>>isLeaf: */
 bool is_leaf(int64_t n)
 {
@@ -54,14 +61,19 @@ bool is_leaf(int64_t n)
     r_flags_of; }) & PRIM_LEAF) != 0;
 }
 
-/* PrimitiveTable>>isTryable: */
-bool is_tryable(int64_t n)
+/* PrimitiveTable>>isTryable:receiver: */
+bool is_tryable(int64_t n, oop owner)
 {
     int32_t r_flags_of;
-    return (({
+    prim_try_guard guard;
+    if ((({
     init_table();
     r_flags_of = (n > 0) && (n < MAX_PRIM) ? flags[n] : 0;
-    r_flags_of; }) & PRIM_TRYABLE) != 0;
+    r_flags_of; }) & PRIM_TRYABLE) == 0) {
+        return false;
+    }
+    guard = try_guards[n];
+    return (guard == NULL) || guard(owner);
 }
 
 /* PrimitiveTable>>lookup: */

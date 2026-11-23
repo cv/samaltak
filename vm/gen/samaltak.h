@@ -77,6 +77,7 @@
 
 typedef uint64_t oop;
 typedef void (*prim_fn)(void);
+typedef bool (*prim_try_guard)(oop);
 #ifndef SAMALTAK_NO_PLATFORM
 #endif
 
@@ -275,6 +276,7 @@ typedef void (*prim_fn)(void);
 #define FFI_OWNED_BYTE_LIMIT 67108864
 #define FFI_OWNED_LIMIT 16
 #define FFI_PLATFORM_BASE 32
+#define FFI_PLATFORM_EXEC 1542
 #define FFI_STUB_BYTES 256
 #define FFI_STUB_LIMIT 1024
 #define FFI_STUB_TABLE_SIZE 4096
@@ -891,6 +893,7 @@ typedef struct pf_event pf_event;
 typedef struct pf_obj pf_obj;
 typedef struct pf_output_lease pf_output_lease;
 typedef struct pf_owned_names pf_owned_names;
+typedef struct pf_process_request pf_process_request;
 typedef struct pf_stat pf_stat;
 typedef struct pf_table pf_table;
 typedef struct pf_vattr pf_vattr;
@@ -1313,6 +1316,17 @@ struct pf_owned_names {
     uint32_t count;
 };
 _Static_assert(sizeof(pf_owned_names) == 24, "the simulator lays out PfOwnedNames as C does");
+
+struct pf_process_request {
+    const uint8_t *input;
+    uint64_t remaining;
+    char *storage;
+    char *next;
+    char **argv;
+    char **envp;
+    char *cwd;
+};
+_Static_assert(sizeof(pf_process_request) == 56, "the simulator lays out PfProcessRequest as C does");
 
 struct pf_stat {
     bool exists;
@@ -2164,8 +2178,9 @@ uint64_t opt_runtime_tier_up(frame *f, int64_t loop);
 uint64_t unit_entry_of(uint64_t m, int64_t s);
 void opt_runtime_young_roots(void (*fn)(oop *));
 void install_trace_function(prim_fn fn, int n);
+void install_try_guard(prim_try_guard guard, int n);
 bool is_leaf(int64_t n);
-bool is_tryable(int64_t n);
+bool is_tryable(int64_t n, oop owner);
 prim_fn primitive_table_lookup(int64_t n);
 oop names_array(void);
 bool configure(void);
@@ -2378,7 +2393,6 @@ bool platform_paged_output_copy(uint64_t ticket, uint64_t offset, uint8_t *out, 
 void platform_paged_output_discard(void);
 bool platform_paged_output_release(uint64_t ticket);
 pf_output_lease *room_for(uint8_t *out, uint64_t cap);
-void prim_exec_process(void);
 void prim_gpu_texture_size(void);
 void prim_input_semaphore(void);
 void prim_machine_allocate(void);
@@ -2395,17 +2409,14 @@ void prim_nic_receive(void);
 void prim_nic_semaphore(void);
 void prim_nic_send(void);
 void prim_nic_status(void);
-void prim_process_wait(void);
 void prim_pty_close(void);
 void prim_pty_foreground(void);
 void prim_pty_resize(void);
-void prim_pty_spawn(void);
 void prim_raster_blit(void);
 void prim_raster_copy(void);
 void prim_raster_draw(void);
 void prim_raster_fill(void);
 void prim_set_cursor(void);
-void prim_spawn_process(void);
 void prim_vsync_semaphore(void);
 void prim_window_close(void);
 void prim_window_display_scale(void);
@@ -2428,12 +2439,14 @@ int32_t add(int fd, int kind, void *ptr);
 bool any_armed(void);
 void arm_read(int32_t h);
 void arm_write(int32_t h, bool armed);
+void cancel_descriptor(int32_t h);
 bool platform_sockets_close(int32_t s);
 bool platform_sockets_close_kind(int32_t h, int kind);
 int32_t platform_sockets_connect(char *host, int32_t port);
 int connected(int32_t s);
 pf_obj *fd_get(int32_t h, int kind);
 int32_t platform_sockets_handle_count(void);
+void install_descriptor(int fd, int32_t h);
 int32_t platform_sockets_listen(char *host, int32_t port, int32_t backlog);
 int local_port(int32_t s);
 int32_t platform_sockets_lookup(char *host_name);
@@ -2444,6 +2457,7 @@ ssize_t pty_read(int32_t p, void *buf, uint64_t n);
 bool pty_semaphores(int32_t p, int32_t read_index, int32_t write_index);
 ssize_t pty_write(int32_t p, const void *buf, uint64_t n);
 ssize_t platform_sockets_recv(int32_t s, void *buf, uint64_t n);
+int32_t reserve_descriptor(int kind, void *ptr);
 bool platform_sockets_semaphores_kind_read_write(int32_t h, int kind, int32_t read_index, int32_t write_index);
 bool platform_sockets_semaphores_read_write(int32_t s, int32_t read_index, int32_t write_index);
 ssize_t platform_sockets_send(int32_t s, const void *buf, uint64_t n);

@@ -1,6 +1,6 @@
 VMPrimitiveModule subclass: #FFIPrimitives
-	instanceVariableNames: 'ffiStubs runtimeNative bigint mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingArities bindingResultTags bindingSerial bindingSerials boundSites boundSiteCount boundSiteTrace boundTraceCounts ownedRows ownedReserved ownedSession ownedSerial'
-	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED FFI_BOUND_SITE_LIMIT FFI_OWNED_LIMIT FFI_OWNED_BYTE_LIMIT'
+	instanceVariableNames: 'ffiStubs runtimeNative bigint mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingUntryable bindingArities bindingResultTags bindingSerial bindingSerials boundSites boundSiteCount boundSiteTrace boundTraceCounts ownedRows ownedReserved ownedSession ownedSerial'
+	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_PLATFORM_EXEC FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED FFI_BOUND_SITE_LIMIT FFI_OWNED_LIMIT FFI_OWNED_BYTE_LIMIT'
 	package: 'VM-Jit'!
 
 FFIPrimitives comment: 'Prepare resolves an approved symbol and exact signature to a process-local wrapper. A bound send uses a session-tagged index checked against a VM-managed weak receiver reference. Saved images rebind from the symbolic descriptor. Native code must not reenter the VM or retain borrowed memory.'!
@@ -11,6 +11,7 @@ declarations
 	^#((ffiStubs FFIStubCompiler) (runtimeNative RuntimeNativeLoader) (bigint LargeIntegerPrimitives)
 		(bindingSession uint64_t) (bindingCount int32_t)
 		(bindingOwners 'oop[FFI_BINDING_LIMIT]') (bindingEntries 'uint64_t[FFI_BINDING_LIMIT]')
+		(bindingUntryable 'bool[FFI_BINDING_LIMIT]')
 		(bindingArities 'uint8_t[FFI_BINDING_LIMIT]') (bindingResultTags 'uint8_t[FFI_BINDING_LIMIT]')
 		(bindingSerial uint64_t) (bindingSerials 'uint64_t[FFI_BINDING_LIMIT]')
 		(boundSites 'FFIBoundSite[FFI_BOUND_SITE_LIMIT]') (boundSiteCount int32_t)
@@ -27,6 +28,7 @@ declarations
 initialize
 	FFI_MEMCMP := 11.
 	FFI_PLATFORM_BASE := 32.
+	FFI_PLATFORM_EXEC := 1542. "Approved platform ID: 1024 + 518."
 	FFI_DYNAMIC := 65536.
 	FFI_BINDING_LIMIT := 4096.
 	FFI_BOUND_SITE_LIMIT := 4096.
@@ -38,7 +40,7 @@ initialize
 !FFIPrimitives methodsFor: 'bound primitives'!
 primFFIPrepare
 	<vmPrimitive: 263 name: 'ffiPrepare'>
-	| owner arity entry slot result stateless |
+	| owner arity entry slot result untryable stateless |
 	self argCount = 0 ifFalse: [^self fail].
 	owner := self receiver.
 	arity := self local: 'int32_t'.
@@ -47,7 +49,8 @@ primFFIPrepare
 	entry ~= 0 ifTrue: [^self answerBool: true].
 	stateless := ffiStubs canPublishCode not.
 	result := self local: 'int32_t'.
-	entry := self prepareEntry: (self loadRef: owner at: 0) into: arity result: result staticOnly: stateless.
+	untryable := self local: 'bool'.
+	entry := self prepareEntry: (self loadRef: owner at: 0) into: arity result: result untryable: untryable staticOnly: stateless.
 	entry = 0 ifTrue: [^self fail].
 	stateless ifTrue: [^self answerBool: true].
 	self ensureBindingSession ifFalse: [^self fail].
@@ -62,6 +65,10 @@ primFFIPrepare
 	bindingEntries at: slot put: entry.
 	bindingArities at: slot put: arity value asUInt8.
 	bindingResultTags at: slot put: result value asUInt8.
+	bindingUntryable at: slot put: untryable value.
+	untryable value ifTrue: [
+		primitives installTryGuard: (self functionPointer: #canTryBoundOwner:) for: 264.
+		primitives installTryGuard: (self functionPointer: #canTryBoundOwner:) for: 265].
 	"The image token may recur when a weak slot is reused. Machine code checks a separate, never-reused serial. On exhaustion, keep serving the ordinary primitive."
 	bindingSerial < 16rFFFFFFFFFFFFFFFF ifTrue: [bindingSerial := bindingSerial + 1].
 	bindingSerials at: slot put: (bindingSerial = 16rFFFFFFFFFFFFFFFF ifTrue: [0] ifFalse: [bindingSerial]).
@@ -184,7 +191,23 @@ invocationEntry: owner into: arity
 	entry := self boundEntry: owner into: arity.
 	(entry ~= 0 or: [ffiStubs canPublishCode]) ifTrue: [^entry].
 	result := self local: 'int32_t'.
-	^self prepareEntry: (self loadRef: owner at: 0) into: arity result: result staticOnly: true
+	^self prepareEntry: (self loadRef: owner at: 0) into: arity result: result untryable: self null staticOnly: true
+!
+canTryBoundOwner: owner
+	"Probe only: a prepared exec can replace the VM. Check the live owner before
+	 reading its slot; stale tokens cannot enter hosted native code."
+	<function>
+	<var: #owner type: 'oop'>
+	<returns: 'bool'>
+	| arity entry |
+	arity := self local: 'int32_t'.
+	entry := self boundEntry: owner into: arity.
+	(entry = 0 or: [entry = FFI_BOUND_REJECTED]) ifTrue: [^true].
+	^(bindingUntryable at: (self slotFromToken: (self loadRef: owner at: 1))) not
+!
+slotFromToken: token
+	<var: #token type: 'oop'>
+	^((self intVal: token) asUInt64 bitAnd: (FFI_BINDING_LIMIT - 1) asUInt64) asInt32
 !
 isBindingShape: owner
 	<var: #owner type: 'oop'>
@@ -206,7 +229,7 @@ boundEntry: owner into: arity
 	value := (self intVal: token) asUInt64.
 	session := value bitClear: (FFI_BINDING_LIMIT - 1) asUInt64.
 	session = bindingSession ifFalse: [^0].
-	slot := (value bitAnd: (FFI_BINDING_LIMIT - 1) asUInt64) asInt32.
+	slot := self slotFromToken: token.
 	(slot >= bindingCount or: [(bindingOwners at: slot) ~= owner]) ifTrue: [^FFI_BOUND_REJECTED].
 	arity value: (bindingArities at: slot) asInt32.
 	^bindingEntries at: slot
@@ -223,7 +246,7 @@ describeBoundOwner: owner arity: n into: desc
 	entry := self boundEntry: owner into: arity.
 	(entry = 0 or: [entry = FFI_BOUND_REJECTED or: [arity value ~= n]]) ifTrue: [^false].
 	token := self loadRef: owner at: 1.
-	slot := ((self intVal: token) asUInt64 bitAnd: (FFI_BINDING_LIMIT - 1) asUInt64) asInt32.
+	slot := self slotFromToken: token.
 	serial := bindingSerials at: slot.
 	serial = 0 ifTrue: [^false].
 	desc serialAddr: (self cCoerce: bindingSerials + slot to: 'uint64_t').
@@ -279,11 +302,12 @@ invalidateBindings
 	bindingCount := 0.
 	bindingSession := 0
 !
-prepareEntry: descriptor into: arity result: resultOut staticOnly: staticOnly
+prepareEntry: descriptor into: arity result: resultOut untryable: untryable staticOnly: staticOnly
 	<function>
 	<var: #descriptor type: 'oop'>
 	<var: #arity type: 'int32_t *'>
 	<var: #resultOut type: 'int32_t *'>
+	<var: #untryable type: 'bool *'>
 	<var: #staticOnly type: 'bool'>
 	<var: #n type: 'int32_t'>
 	<var: #result type: 'int32_t'>
@@ -317,6 +341,7 @@ prepareEntry: descriptor into: arity result: resultOut staticOnly: staticOnly
 		((tags at: i) >= 8) ifTrue: [slots := slots + 1]].
 	slots > 6 ifTrue: [^0].
 	staticOnly ifTrue: [
+		"The static table contains only core wrappers, never a platform exec."
 		(libc strcmp: (self cCoerce: library to: 'const char *') with: 'vm:core') ~= 0 ifTrue: [^0].
 		signature := 0 asUInt32.
 		0 to: n - 1 do: [:i |
@@ -330,6 +355,7 @@ prepareEntry: descriptor into: arity result: resultOut staticOnly: staticOnly
 	target := self local: 'uint64_t'.
 	id := self resolve: library length: libLen symbol: symbol length: symLen types: tags count: n result: result prepared: true into: target.
 	id = 0 ifTrue: [^0].
+	untryable value: id = FFI_PLATFORM_EXEC.
 	operation := id = FFI_MEMCMP ifTrue: [1] ifFalse: [0].
 	arity value: n.
 	resultOut value: result.

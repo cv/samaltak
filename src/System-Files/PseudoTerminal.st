@@ -1,6 +1,6 @@
 Object subclass: #PseudoTerminal
 	instanceVariableNames: 'handle pid exitStatus semaphore semaphoreIndex session'
-	classVariableNames: 'CloseCall ForegroundCall LastActivity Open ResizeCall Session PtyReadCall PtyWriteCall PtySemaphoreCall PtyWaitCall'
+	classVariableNames: 'CloseCall ForegroundCall LastActivity Open ResizeCall Session PtyReadCall PtyWriteCall PtySemaphoreCall PtyWaitCall PtySpawnCall'
 	package: 'System-Files'!
 
 PseudoTerminal comment: 'I am the master side of a pseudo-terminal whose slave side runs a child process (a shell), over the platform''s pty primitives (vm/platform/README.md). Reading and writing never block: readInto: answers nil when nothing is pending, write:from:count: nil when the terminal is full. My semaphore is signaled (once, then re-armed by the next read or blocked write) when output arrives, the child side closes, or a blocked write may continue: drain until nil, then wait.
@@ -145,9 +145,12 @@ printOn: aStream
 !PseudoTerminal class methodsFor: 'instance creation'!
 spawn: argv environment: anArrayOrNil directory: aPathOrNil rows: rows columns: columns
 	"Run argv (its first element looked up in PATH) on a new terminal of rows × columns in aPathOrNil (nil: the VM's directory) with anArrayOrNil (''NAME=value'' Strings; nil: the VM's environment)."
-	| result |
-	result := self primSpawn: argv asArray environment: (anArrayOrNil ifNotNil: [:env | env asArray]) directory: aPathOrNil rows: rows columns: columns.
-	result isNil ifTrue: [^FileError signal: 'Cannot start ', argv first printString, ' on a pty: ', File lastError path: argv first].
+	| args result program |
+	args := argv asArray.
+	result := self primSpawn: args environment: (anArrayOrNil ifNotNil: [:env | env asArray]) directory: aPathOrNil rows: rows columns: columns.
+	result isNil ifTrue: [
+		program := args at: 1 ifAbsent: [nil].
+		^FileError signal: 'Cannot start ', program printString, ' on a pty: ', File lastError path: program].
 	^self new setHandle: (result at: 1) pid: (result at: 2)
 ! !
 
@@ -189,8 +192,21 @@ primForeground: aHandle
 	^result < 0 ifTrue: [nil] ifFalse: [result]
 !
 primSpawn: argv environment: env directory: cwd rows: rows columns: columns
-	<primitive: 'ptySpawn'>
-	^nil
+	| binding request out result launch |
+	binding := PtySpawnCall ifNil: [
+		PtySpawnCall := PlatformFFI bind: #(call 'platform' 'platform_pty_spawn' (bytesWithLength i32 i32 writableBytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	(rows isInteger and: [columns isInteger and: [
+		(rows between: 1 and: 65535) and: [columns between: 1 and: 65535]]]) ifFalse: [^nil].
+	request := ProcessLaunchRecord arguments: argv environment: env directory: cwd.
+	request isNil ifTrue: [^nil].
+	out := ByteArray new: 16.
+	launch := Array new: 2.
+	result := binding tryInvoke4: {request. 1. request size} with: rows with: columns with: {out. 1. out size}.
+	result = 1 ifFalse: [^nil].
+	launch at: 1 put: (FFIWire int64At: 1 in: out).
+	launch at: 2 put: (FFIWire int64At: 9 in: out).
+	^launch
 !
 primRead: h into: bytes start: start count: count
 	"Answer the byte count, 0 at end, nil if it would block, false on failure."

@@ -178,6 +178,12 @@ spawn: argv environment: envp directory: cwd rows: rows columns: cols pid: pidOu
 		libc free: child.
 		common setError: 'out of memory'.
 		^0].
+	h := sockets reserveDescriptor: PF_FD_PTY pointer: child.
+	h = 0 ifTrue: [
+		libc free: path.
+		libc free: env.
+		libc free: child.
+		^0].
 	ws := self local: 'struct winsize'.
 	ws ws_row: rows asUInt16.
 	ws ws_col: cols asUInt16.
@@ -190,6 +196,7 @@ spawn: argv environment: envp directory: cwd rows: rows columns: cols pid: pidOu
 	libc free: path.
 	libc free: env.
 	pid < 0 ifTrue: [
+		sockets cancelDescriptor: h.
 		libc free: child.
 		common failOS: 'forkpty' code: saved.
 		^0].
@@ -200,13 +207,7 @@ spawn: argv environment: envp directory: cwd rows: rows columns: cols pid: pidOu
 		posixProcesses tcsetattr: master value action: posixProcesses TCSANOW termios: tio].
 	child pid: pid.
 	child reaped: false.
-	h := sockets add: master value kind: PF_FD_PTY pointer: child.
-	h = 0 ifTrue: [
-		posixIO close: master value.
-		posixProcesses kill: pid signal: posixProcesses SIGHUP.
-		hungUp at: (pid rem: HUNG_UP_MAX) put: pid.
-		libc free: child.
-		^0].
+	sockets installDescriptor: master value at: h.
 	pidOut value: pid.
 	^h
 !

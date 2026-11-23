@@ -289,6 +289,7 @@ int32_t platform_ptys_spawn(char **argv, char **envp, char *cwd, int32_t rows, i
     char *path;
     char **env;
     pty_child *child;
+    int32_t h;
     struct winsize local;
     struct winsize *ws;
     int max_fd;
@@ -298,7 +299,6 @@ int32_t platform_ptys_spawn(char **argv, char **envp, char *cwd, int32_t rows, i
     int saved;
     struct termios local_3;
     struct termios *tio;
-    int32_t h;
     platform_interface_init();
     reap_hung_up();
     path = platform_ptys_resolve(argv[0], envp);
@@ -312,6 +312,13 @@ int32_t platform_ptys_spawn(char **argv, char **envp, char *cwd, int32_t rows, i
         free(env);
         free(child);
         set_error("out of memory");
+        return 0;
+    }
+    h = reserve_descriptor(PF_FD_PTY, child);
+    if (h == 0) {
+        free(path);
+        free(env);
+        free(child);
         return 0;
     }
     memset(&local, 0, sizeof local);
@@ -332,6 +339,7 @@ int32_t platform_ptys_spawn(char **argv, char **envp, char *cwd, int32_t rows, i
     free(path);
     free(env);
     if (pid < 0) {
+        cancel_descriptor(h);
         free(child);
         platform_common_fail_os_code("forkpty", saved);
         return 0;
@@ -344,14 +352,7 @@ int32_t platform_ptys_spawn(char **argv, char **envp, char *cwd, int32_t rows, i
     }
     child->pid = pid;
     child->reaped = false;
-    h = add(*master, PF_FD_PTY, child);
-    if (h == 0) {
-        close(*master);
-        kill(pid, SIGHUP);
-        hung_up[pid % HUNG_UP_MAX] = pid;
-        free(child);
-        return 0;
-    }
+    install_descriptor(*master, h);
     *pid_out = pid;
     return h;
 }

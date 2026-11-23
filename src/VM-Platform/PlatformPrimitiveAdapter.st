@@ -5,7 +5,7 @@ Object subclass: #PlatformPrimitiveAdapter
 
 PlatformPrimitiveAdapter comment: 'I expand one PlatformPrimitives declaration into an ordinary Lowtalk method. The image compiler installs it before translation or simulation; neither needs to understand adapter declarations.
 
-A row is (number name receiver selector result ((local type) ...) [documentation]). List bindings in backend call order; input locals are decoded left to right, out parameters go last, and (true literal) or (false literal) supplies a Boolean constant without consuming a primitive argument. Use handwritten Lowtalk for bespoke validation or ownership. The range policies supply (handle, bytes, count) from the existing four-argument range checker; path uses pathOp:.'!
+A row is (number name receiver selector result ((local type) ...) [documentation]). List bindings in backend call order; input locals are decoded left to right, out parameters go last, and (true literal) or (false literal) supplies a Boolean constant without consuming a primitive argument. Use handwritten Lowtalk for bespoke validation or ownership. The range policies supply (handle, bytes, count) from the existing four-argument range checker.'!
 
 !PlatformPrimitiveAdapter class methodsFor: 'installing'!
 install: groups in: aClass
@@ -81,7 +81,7 @@ sourceWithComment: aComment
 		s nextPut: $"; nextPutAll: aComment; nextPut: $"].
 	self lineOn: s.
 	s nextPutAll: '<vmPrimitive: '; print: number; nextPutAll: ' name: '; print: name asString; nextPut: $>.
-	(#(path readSize writeSize readCount writeCount) includes: result)
+	(#(readSize writeSize readCount writeCount) includes: result)
 		ifTrue: [self emitBufferAdapterOn: s]
 		ifFalse: [self emitCallAdapterOn: s].
 	^s contents
@@ -108,10 +108,6 @@ emitLocals: names on: s
 emitBufferAdapterOn: s
 	| call reading size |
 	bindings isEmpty ifFalse: [self invalid: 'buffer policies supply their own bindings'].
-	result = #path ifTrue: [
-		self lineOn: s.
-		s nextPutAll: 'self pathOp: [:p | '; nextPutAll: (self callWith: #(p)); nextPut: $].
-		^self].
 	reading := result = #readSize or: [result = #readCount].
 	size := result = #readSize or: [result = #writeSize].
 	call := self callWith: #('h value asInt32' 'p' 'n value asUInt64').
@@ -128,9 +124,8 @@ emitBufferAdapterOn: s
 		nextPutAll: '] ifFalse: ['; print: (size ifTrue: [-1] ifFalse: [-2]); nextPutAll: '])'
 !
 emitCallAdapterOn: s
-	| strings locals call |
-	strings := inputs select: [:b | b second = #string].
-	locals := ((inputs , outputs) collect: [:b | b first]) , (self resultLocalsWithStrings: strings).
+	| locals call |
+	locals := ((inputs , outputs) collect: [:b | b first]) , self resultLocals.
 	call := self callWith: (bindings collect: [:b |
 		b second = #literal
 			ifTrue: [
@@ -139,7 +134,6 @@ emitCallAdapterOn: s
 			ifFalse: [b first , (self castFor: b second)]]).
 	self emitLocals: locals on: s.
 	self emitArgumentsOn: s.
-	strings isEmpty ifFalse: [^self emitOwnedCall: call strings: strings on: s].
 	inputs isEmpty ifFalse: [
 		self lineOn: s.
 		s nextPutAll: 'bad ifTrue: [^self fail].'].
@@ -156,9 +150,7 @@ castFor: type
 !
 decoderFor: type
 	(#(int32 uint32 int64 optionalInt32) includes: type) ifTrue: [^'intArg: '].
-	type = #bool ifTrue: [^'boolArg: '].
 	type = #float ifTrue: [^'floatArg: '].
-	type = #string ifTrue: [^'stringArg: '].
 	type = #address ifTrue: [^'addressArg: '].
 	^self invalid: 'unknown input type ', type
 !
@@ -183,27 +175,10 @@ emitArgumentsOn: s
 		b second = #optionalInt32 ifTrue: [s nextPutAll: '] ifFalse: [0]'].
 		s nextPut: $.]
 !
-resultLocalsWithStrings: strings
-	strings isEmpty ifFalse: [
-		outputs isEmpty ifFalse: [self invalid: 'owned string with out parameters'].
-		result = #ok ifTrue: [^#(ok)].
-		result = #handle ifTrue: [^#(h)].
-		^self invalid: 'owned strings require ok or handle'].
+resultLocals
 	result = #pair ifTrue: [^#(ok)].
 	(#(nonNegativeInt64 bool ready) includes: result) ifTrue: [^#(r)].
 	^#()
-!
-emitOwnedCall: call strings: strings on: s
-	"Never call the backend on decode failure; free every decoded string, including NULLs."
-	self lineOn: s.
-	result = #ok
-		ifTrue: [s nextPutAll: 'ok := bad not and: ['; nextPutAll: call; nextPutAll: '].']
-		ifFalse: [s nextPutAll: 'h := bad ifTrue: [0] ifFalse: ['; nextPutAll: call; nextPutAll: '].'].
-	strings do: [:b |
-		self lineOn: s.
-		s nextPutAll: 'libc free: '; nextPutAll: b first; nextPut: $.].
-	self lineOn: s.
-	s nextPutAll: (result = #ok ifTrue: ['self answerOk: ok'] ifFalse: ['self answerHandle: h'])
 !
 emitResultOf: call on: s
 	| answer expression |

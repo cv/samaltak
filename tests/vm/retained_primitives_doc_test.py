@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 BASES = ("necessity", "policy")
+PROCESS_IDS = {515, 516, 518, 560}
 
 
 def check(ok, message):
@@ -105,12 +106,17 @@ class Catalog(HTMLParser):
 
 def main():
     keep = audited_ids((ROOT / "docs/ffi-primitive-audit.md").read_text(encoding="utf-8"))
-    check(len(keep) == len(set(keep)) == 160, "Audit must contain 160 unique Keep IDs")
+    check(len(keep) == len(set(keep)) == 156, "Audit must contain 156 unique Keep IDs")
+    check(not PROCESS_IDS.intersection(keep), "Retired process IDs must not be Keep")
 
     source = (ROOT / "vm/gen/primitive_entries.c").read_text(encoding="utf-8")
     pairs = re.findall(r'^\s*\{(\d+),\s*\d+,\s*"([^"]+)",\s*\w+\},', source, re.M)
     registry = {int(number): name for number, name in pairs}
     check(len(registry) == len(pairs), "Duplicate registry IDs")
+    live_process_ids = PROCESS_IDS & registry.keys()
+    check(not live_process_ids, f"Retired process IDs still registered: {sorted(live_process_ids)}")
+    check(registry.get(422) == "windowSetPosition" and 422 not in keep,
+          "SDL slot 422 must be registered outside the original Keep catalog")
     check(set(keep) <= registry.keys(), f"Audit IDs missing from registry: {set(keep) - registry.keys()}")
 
     html = (ROOT / "docs/vm-primitives-retained.html").read_text(encoding="utf-8")
@@ -142,13 +148,13 @@ def main():
           f"Catalog/audit mismatch: missing {sorted(set(keep) - set(numbers))}; "
           f"extra {sorted(set(numbers) - set(keep))}")
     totals = {
-        "total": len(numbers), "family-total": len(catalog.groups),
+        "total": len(numbers), "family-total": len(catalog.groups), "sdl-total": len(registry),
         "necessity-total": bases["necessity"], "policy-total": bases["policy"],
     }
     check(catalog.totals == {key: str(value) for key, value in totals.items()},
           f"Stale catalog totals: expected {totals}")
     print(f"OK: {len(numbers)} exact Keep IDs/names across {len(catalog.groups)} families "
-          f"({bases['necessity']} necessity, {bases['policy']} policy).")
+          f"({bases['necessity']} necessity, {bases['policy']} policy); {len(registry)} SDL slots.")
 
 
 if __name__ == "__main__":

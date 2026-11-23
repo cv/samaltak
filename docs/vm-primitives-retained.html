@@ -117,10 +117,10 @@
     <h1>Retained VM primitives</h1>
     <p class="intro">Every numbered slot marked <strong>Keep</strong> in the FFI primitive audit, with its registered name and the reason it stays a primitive.</p>
     <ul class="summary" aria-label="Catalog totals">
-      <li><strong id="total">160</strong> retained IDs</li>
-      <li><strong id="family-total">12</strong> families</li>
+      <li><strong id="total">156</strong> retained IDs</li>
+      <li><strong id="family-total">11</strong> families</li>
       <li><strong id="necessity-total">154</strong> necessity</li>
-      <li><strong id="policy-total">6</strong> policy</li>
+      <li><strong id="policy-total">2</strong> policy</li>
     </ul>
   </div>
 </header>
@@ -129,7 +129,7 @@
     <h2 id="reading-title">How to read this catalog</h2>
     <p><span class="badge">Necessity</span> The current contract needs VM state, image semantics or a target-specific service; an ordinary approved native call alone would not preserve it.</p>
     <p><span class="badge policy">Policy</span> A dedicated native interface could be designed, but migration is not justified or would change the authority boundary. The tags classify retention here, not what could ever be implemented.</p>
-    <p class="scope">Scope: the <a href="ffi-primitive-audit.md#dispositions">audit’s Keep dispositions</a>, joined by ID to the <a href="../vm/gen/primitive_entries.c">generated registry</a>. Other audit dispositions and approved FFI export IDs are outside this catalog. Registration does not guarantee implementation on every target.</p>
+    <p class="scope">Scope: the <a href="ffi-primitive-audit.md#dispositions">audit’s Keep IDs</a>, not all <strong id="sdl-total">192</strong> entries in the <a href="../vm/gen/primitive_entries.c">hosted SDL registry</a>. For example, 422 (<code>windowSetPosition</code>) is registered but outside the original audit. Approved FFI export IDs are separate. Registration does not guarantee implementation on every target.</p>
   </aside>
   <form id="filters" class="filters" role="search" aria-label="Filter retained primitives" hidden>
     <div class="controls">
@@ -162,7 +162,6 @@
       <li><a href="#guest-display">Simulator guest display</a></li>
       <li><a href="#platform-display">Platform input, vsync &amp; GPU</a></li>
       <li><a href="#machine-raster">Machine &amp; software raster</a></li>
-      <li><a href="#host-process">Hosted process control</a></li>
       <li><a href="#raw-nic">Raw network interface</a></li>
     </ol>
   </nav>
@@ -376,7 +375,8 @@
   <section class="group" id="guest-display" aria-labelledby="guest-display-title">
     <header>
       <h2 id="guest-display-title">Simulator guest display <span class="group-count">· 7</span></h2>
-      <p>These slots drive the simulator’s guest surface, not host SDL. Native builds register them but do not provide a guest display.</p>
+      <p>The VM Simulator’s <a href="../src/Tools/VMSimulator.st">Smalltalk-80 button</a> boots the <code>st80/</code> image in a simulated VM. <a href="../st80/ST80-UI/ScreenController.st"><code>ScreenController</code></a> opens a 640 × 400 one-bit screen and draws the Workspace inside it, not in a separate OS window. The host UI shows that screen in a <a href="../src/Tools/GuestScreen.st"><code>GuestScreen</code></a> pane.</p>
+      <p>In the Workspace, type <code>3 + 4</code> and press Cmd-P: <a href="../st80/ST80-UI/TextView.st">the guest’s compiler evaluates it</a> and the Workspace draws the selected <code>7</code> in reverse video. The guest polls pane input via 205, draws text via 203 and flushes via 206; it does not call SDL for those operations. The native VM registers these slots, but its <a href="../src/VM-Core/GuestDisplay.st">guest-display stub</a> fails <code>displayOpen</code>; host SDL window support does not supply a guest screen.</p>
     </header>
     <table aria-labelledby="guest-display-title">
       <colgroup><col class="primitive-col"><col></colgroup>
@@ -384,7 +384,7 @@
       <tbody>
         <tr class="entry" id="p-200" data-basis="necessity"><th scope="row"><span class="num">200</span> <code>displayOpen</code></th><td><span class="badge necessity">Necessity</span> Opens the guest’s 1-bit screen and returns the fixed-width font cell size as a Point.</td></tr>
         <tr class="entry" id="p-201" data-basis="necessity"><th scope="row"><span class="num">201</span> <code>displayFill</code></th><td><span class="badge necessity">Necessity</span> Applies the guest surface’s white, black, grey or invert rule to a clipped rectangle.</td></tr>
-        <tr class="entry" id="p-202" data-basis="necessity"><th scope="row"><span class="num">202</span> <code>displayCopy</code></th><td><span class="badge necessity">Necessity</span> Moves a guest pixel rectangle with clipping and overlap semantics within the same surface.</td></tr>
+        <tr class="entry" id="p-202" data-basis="necessity"><th scope="row"><span class="num">202</span> <code>displayCopy</code></th><td><span class="badge necessity">Necessity</span> Copies a guest pixel rectangle with clipping and overlap support within the same surface.</td></tr>
         <tr class="entry" id="p-203" data-basis="necessity"><th scope="row"><span class="num">203</span> <code>displayText</code></th><td><span class="badge necessity">Necessity</span> Draws fixed-width glyph cells from bytes using the guest display’s normal or inverted raster rule.</td></tr>
         <tr class="entry" id="p-204" data-basis="necessity"><th scope="row"><span class="num">204</span> <code>displayBits</code></th><td><span class="badge necessity">Necessity</span> Checks the packed 1-bit bitmap size, then draws high-bit-first rows using the guest’s opaque, set or invert rule.</td></tr>
         <tr class="entry" id="p-205" data-basis="necessity"><th scope="row"><span class="num">205</span> <code>displayNextEvent</code></th><td><span class="badge necessity">Necessity</span> Dequeues guest input into a mutable five-slot object (type, position, key and modifiers) or returns nil.</td></tr>
@@ -428,21 +428,6 @@
         <tr class="entry" id="p-481" data-basis="necessity"><th scope="row"><span class="num">481</span> <code>rasterFill</code></th><td><span class="badge necessity">Necessity</span> Fills a native pixel span with a checked one- or four-byte pixel value, including firmware-backed targets.</td></tr>
         <tr class="entry" id="p-482" data-basis="necessity"><th scope="row"><span class="num">482</span> <code>rasterBlit</code></th><td><span class="badge necessity">Necessity</span> Decodes two surface and rectangle records and writes to the destination with the requested filtering.</td></tr>
         <tr class="entry" id="p-483" data-basis="necessity"><th scope="row"><span class="num">483</span> <code>rasterCopy</code></th><td><span class="badge necessity">Necessity</span> Checks row strides, dimensions and writable Bitmap spans or native destinations, then applies channel-swap or alpha rules.</td></tr>
-      </tbody>
-    </table>
-  </section>
-  <section class="group" id="host-process" aria-labelledby="host-process-title">
-    <header>
-      <h2 id="host-process-title">Hosted process control <span class="group-count">· 4</span></h2>
-    </header>
-    <table aria-labelledby="host-process-title">
-      <colgroup><col class="primitive-col"><col></colgroup>
-      <thead><tr><th scope="col">ID / Registered name</th><th scope="col">Why it stays</th></tr></thead>
-      <tbody>
-        <tr class="entry" id="p-515" data-basis="policy"><th scope="row"><span class="num">515</span> <code>spawnProcess</code></th><td><span class="badge policy">Policy</span> Spawns via PATH from a native copy of the argument vector and inherits the host environment and streams; no general launch export was chosen.</td></tr>
-        <tr class="entry" id="p-516" data-basis="policy"><th scope="row"><span class="num">516</span> <code>processWait</code></th><td><span class="badge policy">Policy</span> Selects and reaps a child by PID, distinguishing pending from exit or signal status; keep this broader authority separate from PTY-handle wait.</td></tr>
-        <tr class="entry" id="p-518" data-basis="policy"><th scope="row"><span class="num">518</span> <code>execProcess</code></th><td><span class="badge policy">Policy</span> Marks extra descriptors close-on-exec and replaces the VM process on success; the audit leaves process replacement outside typed FFI.</td></tr>
-        <tr class="entry" id="p-560" data-basis="policy"><th scope="row"><span class="num">560</span> <code>ptySpawn</code></th><td><span class="badge policy">Policy</span> Starts a PTY child from argv, optional environment and directory, and terminal size, returning a PTY handle and PID together. The audit keeps this compound launch contract outside typed FFI.</td></tr>
       </tbody>
     </table>
   </section>

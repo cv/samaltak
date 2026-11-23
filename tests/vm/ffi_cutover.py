@@ -14,8 +14,8 @@ HERE = Path(__file__).resolve().parent
 TIERS = ("none", "baseline", "opt")
 TRACE = re.compile(rb"^ffi-native-entry ([0-9]+)\r?$", re.MULTILINE)
 CORE = set(range(20, 32)) | {52, 61, 152, 153, 169, 170, 172}
-HEADLESS = CORE | set(range(500, 515)) | set(range(540, 556)) | {
-    412, 413, 415, 417, 418, 561, 562, 564, 565,
+HEADLESS = CORE | set(range(500, 517)) | set(range(540, 556)) | {
+    412, 413, 415, 417, 418, 518, 560, 561, 562, 564, 565,
 }
 
 
@@ -29,9 +29,9 @@ def read_slots():
         if number in slots:
             raise ValueError(f"duplicate retired slot {number}")
         slots[number] = (name, tuple(map(int, witnesses.split(","))))
-    if (len(slots) != 98 or len({name for name, _ in slots.values()}) != 98
-            or len({entry for _, entries in slots.values() for entry in entries}) != 99):
-        raise ValueError("expected 98 distinct retired slots and 99 typed lanes")
+    if (len(slots) != 102 or len({name for name, _ in slots.values()}) != 102
+            or len({entry for _, entries in slots.values() for entry in entries}) != 103):
+        raise ValueError("expected 102 distinct retired slots and 103 typed lanes")
     return slots
 
 

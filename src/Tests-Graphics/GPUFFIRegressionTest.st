@@ -314,7 +314,8 @@ fragment float4 fmain() { return float4(0,1,0,1); }'.
 			uniformBuffers: 0 storageBuffers: 0 storageTextures: 0.
 		fs := gpu createShader: dev source: source entry: fragment stage: 1 samplers: 0
 			uniformBuffers: 0 storageBuffers: 0 storageTextures: 0.
-		pipe := gpu createPipeline: dev vertex: vs fragment: fs stride: 8 attributes: #(1 0)
+		"PF_VA_FLOAT2 (2), at byte offset 0, supplies both position components."
+		pipe := gpu createPipeline: dev vertex: vs fragment: fs stride: 8 attributes: #(2 0)
 			primitive: 0 blend: 0 format: 2.
 		tex := gpu createTexture: dev width: 4 height: 4 format: 2 usage: 2.
 		buffer := gpu createBuffer: dev usage: 1 size: 24.

@@ -10,6 +10,7 @@ static uint8_t binding_result_tags[4096];
 static uint64_t binding_serial;
 static uint64_t binding_serials[4096];
 static uint64_t binding_session;
+static bool binding_untryable[4096];
 static int32_t bound_site_count;
 bool bound_site_trace;
 static ffi_bound_site bound_sites[4096];
@@ -29,6 +30,7 @@ static bool ffi_primitives_borrow(oop slice, uint64_t *out, uint64_t *length);
 static uint64_t bound_entry(oop owner, int32_t *arity);
 static oop ffi_primitives_box(uint64_t bits, int32_t tag);
 static void call_bound(uint64_t entry, const oop *args);
+static bool can_try_bound_owner(oop owner);
 static bool describe_bound_owner(oop owner, int32_t n, ffi_bound_site *desc);
 static bool ensure_binding_session(void);
 static int32_t ffi_approved_core(const char *approved_name, uint32_t packed_signature, uint64_t *target_out);
@@ -80,7 +82,7 @@ static int32_t owned_reserve(uint32_t capacity, uint8_t *out, uint64_t length);
 static ffi_owned_row *owned_row(uint64_t ticket);
 static int32_t owned_size(uint64_t ticket);
 static int32_t owned_test(uint64_t ticket, int32_t mode);
-static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_out, bool static_only);
+static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_out, bool *untryable, bool static_only);
 static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, const uint8_t *symbol, size_t sym_len, const uint8_t *tags, int32_t n, int32_t result, bool prepared, uint64_t *target);
 static void trace_bound_primitive(void);
 static void update_binding_owners(bool (*is_dead)(oop *));
@@ -354,7 +356,7 @@ static uint64_t bound_entry(oop owner, int32_t *arity)
     if (!(session == binding_session)) {
         return 0;
     }
-    slot = (int32_t)(value & 4095ULL);
+    slot = (int32_t)(((uint64_t)(((int64_t)token) >> 1)) & 4095ULL);
     if ((slot >= binding_count) || (binding_owners[slot] != owner)) {
         return FFI_BOUND_REJECTED;
     }
@@ -404,6 +406,23 @@ static void call_bound(uint64_t entry, const oop *args)
     v = answer == 0 ? false_oop : answer;
     prim_result = v;
     prim_status = PS_OK;
+}
+
+/* FFIPrimitives>>canTryBoundOwner: */
+static bool can_try_bound_owner(oop owner)
+{
+    int32_t local;
+    int32_t *arity;
+    uint64_t entry;
+    uint64_t token;
+    memset(&local, 0, sizeof local);
+    arity = &local;
+    entry = bound_entry(owner, arity);
+    if ((entry == 0) || (entry == FFI_BOUND_REJECTED)) {
+        return true;
+    }
+    token = *(uint64_t *)(owner + 16 + 8);
+    return !binding_untryable[(int32_t)(((uint64_t)(((int64_t)token) >> 1)) & 4095ULL)];
 }
 
 /* FFIPrimitives>>configureBoundSiteTrace */
@@ -1002,7 +1021,7 @@ static uint64_t invocation_entry(oop owner, int32_t *arity)
     }
     memset(&local, 0, sizeof local);
     result = &local;
-    return prepare_entry(*(uint64_t *)(owner + 16 + 0), arity, result, true);
+    return prepare_entry(*(uint64_t *)(owner + 16 + 0), arity, result, (bool *)NULL, true);
 }
 
 /* FFIPrimitives>>invokeBoundArray: */
@@ -1758,8 +1777,8 @@ static int32_t owned_test(uint64_t ticket, int32_t mode)
     return published ? 1 : -23;
 }
 
-/* FFIPrimitives>>prepareEntry:into:result:staticOnly: */
-static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_out, bool static_only)
+/* FFIPrimitives>>prepareEntry:into:result:untryable:staticOnly: */
+static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_out, bool *untryable, bool static_only)
 {
     int32_t n;
     int32_t slots;
@@ -1853,6 +1872,7 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_ou
     if (id == 0) {
         return 0;
     }
+    *untryable = id == FFI_PLATFORM_EXEC;
     operation = id == FFI_MEMCMP ? 1 : 0;
     *arity = n;
     *result_out = result;
@@ -1919,6 +1939,8 @@ void prim_ffi_prepare(void)
     bool stateless;
     int32_t local_2;
     int32_t *result;
+    bool local_3;
+    bool *untryable;
     int32_t slot;
     int64_t v;
     uint64_t v_2;
@@ -1944,7 +1966,9 @@ void prim_ffi_prepare(void)
     stateless = !can_publish_code();
     memset(&local_2, 0, sizeof local_2);
     result = &local_2;
-    entry = prepare_entry(*(uint64_t *)(owner + 16 + 0), arity, result, stateless);
+    memset(&local_3, 0, sizeof local_3);
+    untryable = &local_3;
+    entry = prepare_entry(*(uint64_t *)(owner + 16 + 0), arity, result, untryable, stateless);
     if (entry == 0) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
@@ -1975,6 +1999,11 @@ void prim_ffi_prepare(void)
     binding_entries[slot] = entry;
     binding_arities[slot] = (uint8_t)*arity;
     binding_result_tags[slot] = (uint8_t)*result;
+    binding_untryable[slot] = *untryable;
+    if (*untryable) {
+        install_try_guard(can_try_bound_owner, 264);
+        install_try_guard(can_try_bound_owner, 265);
+    }
     if (binding_serial < 0xFFFFFFFFFFFFFFFFULL) {
         binding_serial = binding_serial + 1;
     }

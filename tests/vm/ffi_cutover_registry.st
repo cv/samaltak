@@ -10,6 +10,12 @@ check: slots mode: mode platform: hasPlatform
 	names := Smalltalk vm primitiveNames.
 	self require: ((names at: 401 ifAbsent: [nil]) notNil = hasPlatform)
 		because: 'wrong backend (unmigrated windowClose slot)'.
+	#((call platform platform_process_spawn (bytesWithLength) i64)
+	  (call platform platform_process_wait (i64 i32 writableBytesWithLength) i32)
+	  (call platform platform_process_exec (bytesWithLength) i32)
+	  (call platform platform_pty_spawn (bytesWithLength i32 i32 writableBytesWithLength) i32))
+		do: [:spec | self require: ((PlatformFFI bind: spec) notNil = hasPlatform)
+			because: 'wrong backend availability: ', spec third].
 	"Check all rows before trying a numeric header: never call a live primitive with probe arguments."
 	slots do: [:row |
 		self require: ((names at: row first ifAbsent: [nil]) isNil)

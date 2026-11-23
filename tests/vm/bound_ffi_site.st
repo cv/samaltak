@@ -20,8 +20,23 @@ fixtureStep: n
 ! !
 
 !BoundFFISiteProof class methodsFor: 'running'!
-witness: specialized
-	^self new initialize witness: specialized
+saveWitness: path
+	| resumed |
+	"File-in runs before the snapshot, with tracing off. On resume, bypass
+	startup/shutdown hooks so only the witness uses the positional primitive."
+	resumed := Smalltalk primSnapshot: path.
+	resumed == false ifTrue: [^#saved].
+	resumed == true ifFalse: [self error: 'could not save witness image'].
+	[
+		| route |
+		route := self new initialize witness.
+		"Array invoke keeps logging out of the positional counters."
+		(FFI bind: #(call 'vm:core' 'core_stdout_text' (countedText) void))
+			invoke: {route, (String with: Character lf)}.
+		Smalltalk primQuit: 0
+	] on: Error do: [:e |
+		Smalltalk vm stderrWrite: e messageText, (String with: Character lf).
+		Smalltalk primQuit: 1]
 !
 leaf
 	^self new initialize runLeaf
@@ -61,9 +76,8 @@ nativeCount
 fixtureSite: binding n: n
 	^binding fixtureStep: n
 !
-witness: specialized
-	| binding other answer before listing vm |
-	vm := Smalltalk vm.
+witness
+	| binding other answer before code |
 	binding := self step.
 	other := self other.
 	before := self nativeCount.
@@ -73,12 +87,13 @@ witness: specialized
 	self require: (self fixtureSite: binding n: 1) == 0 description: 'alias return-zero hit'.
 	self require: (self fixtureSite: binding n: nil) == false description: 'alias rejection, without retry'.
 	self require: self nativeCount = (before + 4098) description: 'alias exact native entry count'.
-	listing := (BoundFFISiteProof >> #fixtureSite:n:) machineCodeFor: #opt.
-	self require: (listing beginsWith: 'BoundFFISiteProof>>fixtureSite:n:  opt') description: 'no optimized caller listing'.
-	self require: (listing includesSubstring: 'bound FFI site: direct wrapper') = specialized
-		description: 'optimized caller direct-wrapper instruction does not match ffi-site flag'.
-	vm stdoutWrite: listing, (String with: Character lf).
-	^true
+	"Inspect the same compiler note as the annotated disassembly, without
+	running the disassembler (which itself uses bound FFI)."
+	code := (BoundFFISiteProof >> #fixtureSite:n:) jitCode: #opt.
+	self require: (code notNil and: [(code at: 6) = 'opt']) description: 'no optimized caller code'.
+	^((code at: 4) includes: 'bound FFI site: direct wrapper')
+		ifTrue: ['witness direct wrapper']
+		ifFalse: ['witness ordinary send']
 ! !
 
 !BoundFFISiteProof methodsFor: 'leaf call sites'!

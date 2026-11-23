@@ -246,18 +246,6 @@ primitive_entry vm_primitive_table[] = {
     {483, 2, "rasterCopy", prim_raster_copy},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
-    {515, 2, "spawnProcess", prim_spawn_process},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {516, 2, "processWait", prim_process_wait},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {518, 0, "execProcess", prim_exec_process},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {560, 2, "ptySpawn", prim_pty_spawn},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
     {563, 2, "ptyResize", prim_pty_resize},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM

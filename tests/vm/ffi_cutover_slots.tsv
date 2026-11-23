@@ -77,6 +77,9 @@
 512	dirCreate	1536
 513	cwd	1537
 514	mkfifo	1538
+515	spawnProcess	1539
+516	processWait	1540
+518	execProcess	1542
 540	socketListen	1564
 541	socketConnect	1565
 542	socketAccept	1566
@@ -93,6 +96,7 @@
 553	tlsClose	1577
 554	tlsSemaphore	1578
 555	tlsHandshake	1579
+560	ptySpawn	1584
 561	ptyRead	1585
 562	ptyWrite	1586
 564	ptySemaphore	1588

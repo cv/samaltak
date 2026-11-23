@@ -1,10 +1,12 @@
 # Numbered primitive cutover
 
-The remove-98 cutover covers the 98 **Adapter** and **Extend** IDs in the
-[primitive audit](ffi-primitive-audit.md). The existing Smalltalk API
-routes hosted calls through approved typed downcalls instead of numbered
-adapters. The native backends remain. See the
-[retained-primitives report](vm-primitives-retained.html) for the Keep set.
+The Smalltalk API routes the original remove-98 operations and four
+additional hosted process operations through approved typed downcalls
+rather than numbered adapters. The native backends remain. See the
+[primitive audit](ffi-primitive-audit.md) and the
+[156 Keep IDs](vm-primitives-retained.html).
+
+## Original remove-98 scope
 
 | Family | Reserved IDs | Count |
 | --- | --- | ---: |
@@ -13,6 +15,24 @@ adapters. The native backends remain. See the
 | GPU | 430–456, 458–461 | 31 |
 | Files | 500–514 | 15 |
 | Socket/TLS/PTY | 540–555, 561–562, 564–565 | 20 |
+
+The original coverage split is 59 hosted headless and 39 display operations;
+the 19 no-platform core operations are part of the 59, not additional.
+These count old operations, not exports. The original manifest lists 99
+typed-entry witnesses: 443 (begin render pass) has separate entries for
+load and clear.
+
+## Hosted process scope (separate)
+
+| Reserved ID | Operation contract |
+| --- | --- |
+| 515 | Spawn by PATH with the supplied argv, inheriting the environment and standard streams; return the PID. |
+| 516 | Wait with a POSIX PID selector, not a PTY handle. At the typed boundary, pending differs from failure and from completion (exit status or 128 plus signal); `File primWait:blocking:` returns nil for pending or failure. |
+| 518 | Keep `execvp` PATH and executable-format semantics. Success replaces the VM process; a return from the backend is failure. |
+| 560 | Spawn a PTY child with argv, optional environment and directory, and terminal size; return the handle and PID together. Inheriting the environment is distinct from passing an empty environment list. |
+
+Validate argument records and reject embedded NULs before any launch or
+replacement. Do not retry a native failure through another path.
 
 ## Operation contract
 
@@ -34,9 +54,10 @@ adapters. The native backends remain. See the
   [bounded and owned output](ffi-owned-output.md).
 
 Hosted `NO_PLATFORM=1` still supports core downcalls but has no SDL routes.
-The simulator and UEFI cannot run the hosted adapters. Portable computation
-and target-specific services are separate from the hosted route; a firmware
-build does not by itself demonstrate runtime behavior.
+The simulator and UEFI cannot run the hosted adapters. The
+[simulator’s guest display](vm-primitives-retained.html#guest-display)
+retains its own numbered interface. A firmware build does not by itself
+demonstrate runtime behavior.
 
 ## Images and bootstrapping
 

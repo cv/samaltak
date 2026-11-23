@@ -48,9 +48,6 @@ adapterGroups
 			(414 inputSemaphore events setSemaphore: receiver ((i int32)) 'external semaphore index (0 = none)')
 			(416 vsyncSemaphore vsync semaphore: ok ((i int32)) 'external semaphore index signaled per display refresh (0 = stop)')
 		))
-		('files and processes' (
-			(516 processWait files processWait:block:status:done: wait ((pid int64) (block bool) (st outInt) (done outBool)) 'pid block (Boolean) -> exit status or nil (running)')
-		))
 		('raw network interface' (
 			(583 nicSemaphore nic frameSemaphore: ok ((i int32)) 'index: signaled once when a frame is waiting, re-armed by a nicReceive that finds none; 0 = none')
 		))
@@ -75,30 +72,6 @@ intArg: i
 	v := self local: 'int64_t'.
 	(memory int64Of: (self arg: i) into: v) ifFalse: [bad := true].
 	^v value
-!
-boolArg: i
-	<function>
-	| o |
-	o := self arg: i.
-	o = memory trueOop ifTrue: [^true].
-	o ~= memory falseOop ifTrue: [bad := true].
-	^false
-!
-isText: o
-	<function>
-	| f |
-	(self isPtr: o) ifFalse: [^false].
-	f := self formatOf: o.
-	^f >= F_BYTES or: [f = 10 or: [f = 11]]
-!
-stringArg: i
-	"The malloc'd UTF-8 of a String argument (NULL, and bad set, otherwise)."
-	<function>
-	| o s |
-	o := self arg: i.
-	s := (self isText: o) ifTrue: [memory utf8Of: o] ifFalse: [self null].
-	s isNull ifTrue: [bad := true].
-	^s
 !
 bytesOf: o size: n writable: writable
 	"The raw bytes of a byte object or Bitmap, their count in n; NULL if o is none (or immutable and writable is wanted)."
@@ -135,33 +108,6 @@ rect: r into: out
 		(self isInt: v) ifFalse: [^false].
 		out at: i put: (self intVal: v) asInt32].
 	^true
-!
-stringVector: a nonEmpty: nonEmpty
-	"Malloc'd NULL-terminated C strings of an Array of Strings (NULL: not one, or empty when nonEmpty)."
-	<function>
-	| n v s |
-	((self isPtr: a) and: [(self formatOf: a) = F_VAR and: [nonEmpty not or: [(self numSlots: a) ~= 0]]]) ifFalse: [^self null].
-	n := self numSlots: a.
-	v := self cCoerce: (libc calloc: n asUInt64 + 1 size: (self sizeof: 'char *')) to: 'char **'.
-	v isNull ifTrue: [^self null].
-	0 to: n asInt64 - 1 do: [:i |
-		s := self loadRef: a at: i.
-		(self isText: s) ifTrue: [v at: i put: (memory utf8Of: s)].
-		((self isText: s) not or: [(v at: i) isNull]) ifTrue: [
-			0 to: i - 1 do: [:k | libc free: (v at: k)].
-			libc free: v.
-			^self null]].
-	^v
-!
-freeVector: v
-	<function>
-	| p |
-	v isNull ifTrue: [^self].
-	p := v.
-	[p value notNull] whileTrue: [
-		libc free: p value.
-		p := p + 1].
-	libc free: v
 ! !
 
 !PlatformPrimitives methodsFor: 'results'!
@@ -229,41 +175,6 @@ primGpuTextureSize
 	self answer: (self arrayOf: v count: 3)
 ! !
 
-!PlatformPrimitives methodsFor: 'files and processes'!
-pathOp: aBlock
-	"A primitive of one path argument: aBlock answers whether the operation on the path (a C string) succeeded."
-	| p ok |
-	(self args: 1) ifFalse: [^self fail].
-	p := self stringArg: 0.
-	ok := bad not and: [aBlock value: p].
-	libc free: p.
-	self answerOk: ok
-!
-primSpawnProcess
-	"argv (Array of Strings, PATH lookup) -> pid"
-	<vmPrimitive: 515 name: 'spawnProcess'>
-	| argv pid |
-	(self args: 1) ifFalse: [^self fail].
-	argv := self stringVector: (self arg: 0) nonEmpty: true.
-	argv isNull ifTrue: [^self fail].
-	pid := files spawn: argv.
-	self freeVector: argv.
-	pid < 0 ifTrue: [^self fail].
-	self answer: (self intOop: pid)
-!
-primExecProcess
-	"argv (Array of Strings, PATH lookup): the VM's process runs argv instead; fails if it cannot"
-	<vmPrimitive: 518 name: 'execProcess'>
-	<notTryable>
-	| argv |
-	(self args: 1) ifFalse: [^self fail].
-	argv := self stringVector: (self arg: 0) nonEmpty: true.
-	argv isNull ifTrue: [^self fail].
-	files exec: argv.
-	self freeVector: argv.
-	self fail
-! !
-
 !PlatformPrimitives methodsFor: 'raw network interface'!
 primNicOpen
 	"bytes (at least 6) -> bytes, the interface's MAC address in the first 6"
@@ -312,34 +223,6 @@ primNicStatus
 ! !
 
 !PlatformPrimitives methodsFor: 'pseudo-terminals'!
-primPtySpawn
-	"argv (Array of Strings, PATH lookup) env (Array of 'K=V' or nil = inherit) cwd (or nil) rows cols -> {pty. pid}"
-	<vmPrimitive: 560 name: 'ptySpawn'>
-	<var: #envp type: 'char **'>
-	<var: #cwd type: 'char *'>
-	| argv envp cwd rows cols pid h v |
-	(self args: 5) ifFalse: [^self fail].
-	argv := self stringVector: (self arg: 0) nonEmpty: true.
-	envp := self null.
-	(self arg: 1) ~= memory nilOop ifTrue: [envp := self stringVector: (self arg: 1) nonEmpty: false].
-	cwd := self null.
-	(self arg: 2) ~= memory nilOop ifTrue: [cwd := self stringArg: 2].
-	rows := self intArg: 3.
-	cols := self intArg: 4.
-	pid := self local: 'int64_t'.
-	h := 0.
-	(bad not and: [argv notNull and: [(envp notNull or: [(self arg: 1) = memory nilOop])
-		and: [rows > 0 and: [cols > 0 and: [rows < 65536 and: [cols < 65536]]]]]]) ifTrue: [
-			h := ptys spawn: argv environment: envp directory: cwd rows: rows asInt32 columns: cols asInt32 pid: pid].
-	self freeVector: argv.
-	self freeVector: envp.
-	libc free: cwd.
-	h <= 0 ifTrue: [^self fail].
-	v := self local: 'int64_t[2]'.
-	v at: 0 put: h.
-	v at: 1 put: pid value.
-	self answer: (self arrayOf: v count: 2)
-!
 primPtyResize
 	"pty rows cols"
 	<vmPrimitive: 563 name: 'ptyResize'>

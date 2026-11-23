@@ -1,5 +1,5 @@
 VMCoreModule subclass: #PrimitiveTable
-	instanceVariableNames: 'byNumber names flags initialized'
+	instanceVariableNames: 'byNumber names flags tryGuards initialized'
 	classVariableNames: 'MAX_PRIM PRIM_LEAF PRIM_TRYABLE'
 	package: 'VM-Core'!
 
@@ -7,7 +7,10 @@ PrimitiveTable comment: 'The primitives by number: the translator (or the simula
 
 !PrimitiveTable class methodsFor: 'declaring'!
 declarations
-	^#((byNumber 'prim_fn[MAX_PRIM]') (names 'const char *[MAX_PRIM]') (flags 'int32_t[MAX_PRIM]') (initialized bool))
+	^#((byNumber 'prim_fn[MAX_PRIM]') (names 'const char *[MAX_PRIM]') (flags 'int32_t[MAX_PRIM]') (tryGuards 'prim_try_guard[MAX_PRIM]') (initialized bool))
+!
+typedefs
+	^#((prim_try_guard 'bool (*)(oop)'))
 !
 initialize
 	MAX_PRIM := 1024.
@@ -50,9 +53,19 @@ isLeaf: n
 	<function>
 	^((self flagsOf: n) bitAnd: PRIM_LEAF) ~= 0
 !
-isTryable: n
+installTryGuard: guard for: n
+	"A receiver-dependent veto, used only by the debugger's primitive probe."
 	<function>
-	^((self flagsOf: n) bitAnd: PRIM_TRYABLE) ~= 0
+	<var: #guard type: 'prim_try_guard'>
+	tryGuards at: n put: guard
+!
+isTryable: n receiver: owner
+	<function>
+	<var: #owner type: 'oop'>
+	| guard |
+	((self flagsOf: n) bitAnd: PRIM_TRYABLE) = 0 ifTrue: [^false].
+	guard := tryGuards at: n.
+	^guard isNull or: [guard call: owner]
 !
 namesArray
 	"Array: element n is the name of primitive n (nil for gaps)."

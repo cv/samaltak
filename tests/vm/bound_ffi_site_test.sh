@@ -1,6 +1,6 @@
 #!/bin/sh
 # Usage: tests/vm/bound_ffi_site_test.sh IMAGE [VM [--no-pty]]
-# Set SITEFFI_TEST_LOG_DIR to preserve stdout (including annotated machine code) and stderr.
+# Set SITEFFI_TEST_LOG_DIR to preserve the witness route, counters and other logs.
 set -eu
 IMAGE=${1:?supply a full image}
 ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)
@@ -52,6 +52,7 @@ trace() {
     awk -v mode="$2" '/^ffi-site trace hits=[0-9]+ misses=[0-9]+ primitive=[0-9]+$/ {
         rows++
         split($3, h, "="); split($4, m, "="); split($5, p, "=")
+        # A miss falls through to the primitive; it is not a separate invocation.
         if (mode == "on") good = h[2] >= 3000 && m[2] >= 2 && p[2] >= 1 && h[2]+p[2] == 4099
         if (mode == "off") good = h[2] == 0 && m[2] == 0 && p[2] == 4099
         if (mode == "boxing") good = h[2] >= 24 && p[2] >= 1
@@ -64,10 +65,14 @@ trace() {
     }
 }
 
-# Attribution control uses the same VM, image, caller, binding and native target.
-SAMALTAK_FFI_SITE_TRACE=1 eval_case witness-on 'BoundFFISiteProof witness: true' --jit opt --jit-opt 200
+# Scope the process-wide counters by doing startup and file-in in an untraced
+# process. Both traces resume at the same point and count only the 4099 fixture sends.
+WITNESS="$TMP/witness.image"
+expect witness-setup '#saved' --jit none "$IMAGE" --headless \
+    --load "$ROOT/tests/vm/bound_ffi_site.st" --eval "BoundFFISiteProof saveWitness: '$WITNESS'"
+SAMALTAK_FFI_SITE_TRACE=1 expect witness-on 'witness direct wrapper' --jit opt --jit-opt 200 "$WITNESS" --headless
 trace witness-on on
-SAMALTAK_FFI_SITE_TRACE=1 eval_case witness-off 'BoundFFISiteProof witness: false' --jit opt --jit-opt 200 --jit-flags -ffi-site
+SAMALTAK_FFI_SITE_TRACE=1 expect witness-off 'witness ordinary send' --jit opt --jit-opt 200 --jit-flags -ffi-site "$WITNESS" --headless
 trace witness-off off
 eval_case interpreter 'BoundFFISiteProof leaf. BoundFFISiteProof boxing. BoundFFISiteProof deopt: false' --eden 1 --jit none
 eval_case optimized 'BoundFFISiteProof leaf. BoundFFISiteProof boxing. BoundFFISiteProof deopt: false' --eden 1 --jit opt --jit-opt 200

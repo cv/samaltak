@@ -293,10 +293,11 @@ The wrapper test covers Array and positional invocation, native entry counts
 and restore with reordered or missing grants. The site test (also run by
 `make test-jit-opt`) checks the emitted direct call and executed site counters
 with `ffi-site` on and off. It also checks fallback, boxing with GC, and
-deoptimization without replay. Set `SITEFFI_TEST_LOG_DIR` to keep the site
-test's disassembly and counters. To skip the PTY portion, pass `--no-pty`
-after the VM path to the wrapper and site tests. Both scripts use `--load`,
-which needs file support.
+deoptimization without replay. The witness loads its fixture before tracing
+and resumes the same snapshot for both flag settings. Set
+`SITEFFI_TEST_LOG_DIR` to keep the witness route and counters. To skip the PTY
+portion, pass `--no-pty` after the VM path to the wrapper and site tests. Both
+scripts use `--load`, which needs file support.
 
 On x64 and arm64 builds compiled with `-DSAMALTAK_FFI_TEST_EXPORTS`,
 `tests/vm/writable_ffi_test.sh IMAGE VM` checks guarded native writes,

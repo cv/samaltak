@@ -1,6 +1,6 @@
 Object subclass: #File
 	instanceVariableNames: ''
-	classVariableNames: 'ReadCall WriteCall CloseCall SeekCall FlushCall OpenCall DeleteCall DirCreateCall MkfifoCall RenameCall StatCall DirEntriesCall CwdCall NameSizeCall NameCopyCall NameReleaseCall'
+	classVariableNames: 'ReadCall WriteCall CloseCall SeekCall FlushCall OpenCall DeleteCall DirCreateCall MkfifoCall RenameCall StatCall DirEntriesCall CwdCall NameSizeCall NameCopyCall NameReleaseCall SpawnCall ProcessWaitCall ExecCall'
 	package: 'System-Files'!
 
 File comment: 'I am the facade for the platform''s file primitives; everything is on my class side. Paths are Strings (UTF-8 on the OS side), joined with /. Handles are SmallIntegers owned by FileStream. Failures signal FileError with the platform''s reason.'!
@@ -272,17 +272,37 @@ primLastError
 !
 primSpawn: argv
 	"Start argv first (looked up in PATH) with the other Strings as arguments, sharing the VM's standard streams. Answer its pid or nil."
-	<primitive: 'spawnProcess'>
-	^nil
+	| binding request result |
+	binding := SpawnCall ifNil: [
+		SpawnCall := PlatformFFI bind: #(call 'platform' 'platform_process_spawn' (bytesWithLength) i64)].
+	binding isNil ifTrue: [^nil].
+	request := ProcessLaunchRecord arguments: argv.
+	request isNil ifTrue: [^nil].
+	result := binding tryInvoke1: {request. 1. request size}.
+	(result == false or: [result <= 0]) ifTrue: [^nil].
+	^result
 !
 primWait: pid blocking: aBoolean
 	"Answer the exit status of the child pid (128 + signal number if killed), nil while it runs (aBoolean false); fail: nil."
-	<primitive: 'processWait'>
-	^nil
+	| binding out result |
+	(aBoolean == true or: [aBoolean == false]) ifFalse: [^nil].
+	binding := ProcessWaitCall ifNil: [
+		ProcessWaitCall := PlatformFFI bind: #(call 'platform' 'platform_process_wait' (i64 i32 writableBytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	out := ByteArray new: 5.
+	result := binding tryInvoke3: pid with: (aBoolean ifTrue: [1] ifFalse: [0]) with: {out. 1. out size}.
+	(result = 1 and: [out first = 1]) ifFalse: [^nil].
+	^FFIWire int32At: 2 in: out
 !
 primExec: argv
 	"Replace the VM's process by argv first (looked up in PATH) with the other Strings as arguments: same pid and standard streams, all other descriptors closed. Answers nil only if that failed."
-	<primitive: 'execProcess'>
+	| binding request |
+	binding := ExecCall ifNil: [
+		ExecCall := PlatformFFI bind: #(call 'platform' 'platform_process_exec' (bytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	request := ProcessLaunchRecord arguments: argv.
+	request isNil ifTrue: [^nil].
+	binding tryInvoke1: {request. 1. request size}.
 	^nil
 ! !
 
