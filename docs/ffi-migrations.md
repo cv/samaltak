@@ -211,17 +211,20 @@ same real calls, then rerun the full pilot and fresh-bind/resource tests;
 an opt-only win is not approval. No cross-backend or historical timing
 counts toward this result.
 
-**Rejected: generic method-context entry 266.** The private prototype
-passed strict routing, rebind and GC/deopt checks but was not integrated.
-On a quiet x86-64 default-LTO VM, each 505/52 case and mode had exactly
-128 typed witnesses and zero direct-arm witnesses. Separate paired runs
-on the same VM compared the prototype and the existing seeded facade
-against the dedicated primitive, not against each other. Prototype/dedicated
-medians (none/baseline/opt) were **1.0584/1.0547/1.0346** for file
-position and **1.1738/1.3941/1.4355** for fraction part; all six
-simultaneous 95% intervals lay above 1. Removing the nested send did not
-reach parity and lost the existing opt lowering on warm hits. Do not
-integrate 266 or switch callers.
+**Stock overhead diagnostic (freeze2, hosted x86-64 LTO).** On the
+same live file/backend, the full 505 candidate added **30 ns** in the
+interpreter and **37 ns** in baseline versus the raw numbered primitive
+(paired wall medians). A prebound positional wrapper without a facade
+or result checks still added **14/19 ns** (interpreter/baseline; only
+baseline's interval excluded parity). Seeded versus cached binding was
+inconclusive. Against a thin seeded facade in the interpreter, the
+false/fallback check alone added **11 ns** for 505, and negative-to-nil
+alone added **15 ns** for 504; most check contrasts were inconclusive.
+These paired contrasts include code-shape effects and are not additive.
+On a materialized, read-ahead `FileStream`, swapping only the position
+call added **50/43 ns** (interpreter/baseline) and saved **37 ns** in opt;
+that win disappeared with `-ffi-site`. This is attribution, not
+promotion evidence.
 
 ## Release pilot: bounded I/O, bigint, and owned output
 
