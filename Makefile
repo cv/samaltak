@@ -55,6 +55,7 @@ test-jit-none: image
 test-jit-baseline: image
 	tests/st_suite.sh $(OUT)/samaltak.image --jit baseline --jit-threshold 0
 test-jit-opt: image
+	tests/vm/bound_ffi_site_test.sh $(OUT)/samaltak.image $(VM)
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-flags eager
 test-jit-deopt: image
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-flags eager,deopt
