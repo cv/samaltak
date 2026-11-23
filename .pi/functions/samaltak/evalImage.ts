@@ -44,9 +44,10 @@ async function evalImage(
     "5",
     String(timeoutS),
     "vm/build/samaltak",
+    // VM options (--jit, --eden, --jit-cache ...) come before the image: after it they are the image's arguments
+    ...(input.vmArgs ?? []),
     image,
     "--headless",
-    ...(input.vmArgs ?? []),
     "--eval",
     expr,
   ];
