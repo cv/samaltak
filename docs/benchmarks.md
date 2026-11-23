@@ -257,13 +257,15 @@ vm/tests/bench/bound-ffi-site.py --vm vm/build/samaltak --image build/samaltak.i
   > site-ffi.csv 2> site-ffi.txt
 ```
 
-Sample: Linux x86-64, AMD EPYC 7B13, pinned to CPU 0 with the SMT sibling
-idle of other test work. Hosted SDL 3.2.24 build, GCC 12.2 (`-O2 -g
--flto=auto`, no PGO), on the branch rebased onto `314ab3f`. The `off`
-baseline is the same binary and image, not a separate revision. The runner
-alternates which mode goes first, uses default JIT thresholds in both
-(maturation 2, OSR 50, optimizing 1000), and excludes 64,000 warmup calls
-per variant and two discarded batches at each measured size.
+Sample: Linux x86-64, AMD EPYC 7B13, pinned to CPU 0 with no other test
+jobs on its SMT sibling. Hosted SDL 3.2.24 build, GCC 12.2
+(`-O2 -g -flto=auto`, no PGO), measured on the tree based on `314ab3f`
+before the later rebase. The `off` baseline uses the same binary and image
+(SHA-256 prefixes `bc085ca9d457`, `073d8cda9702`), not a separate revision.
+Both modes use
+default JIT thresholds (baseline 2, OSR 50, optimizing 1000), a 64 MiB
+JIT cache, and 16 MiB eden. The runner alternates which mode goes first,
+discarding 64,000 warmup calls per variant and two batches at each size.
 
 Median wall-clock ns/call at 100,000 calls/batch, 24 paired batches per
 row. Change is the median paired on−off difference; brackets are the
