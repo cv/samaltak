@@ -1632,7 +1632,11 @@ testAllocationAnsweringSomethingElseIsSent
 	o := JitRuntimeTestSubject new.
 	1200 timesRepeat: [self assert: (o make: 2) size equals: 2].
 	self assert: ((self listingOf: #make:) includesSubstring: 'allocate in eden').
-	3 timesRepeat: [self assert: (o make: -1) isNil].
+	"the last turn's fails, in optimized code: the loop's unit may inline make:, leaving its own code the lower tier's"
+	3 timesRepeat: [
+		1 to: 1200 do: [:k | | x |
+			x := o make: (k < 1200 ifTrue: [2] ifFalse: [-1]).
+			self assert: (k < 1200 ifTrue: [x size = 2] ifFalse: [x isNil])]].
 	self deny: ((self listingOf: #make:) includesSubstring: 'allocate in eden').
 	before := self statistics.
 	20 timesRepeat: [self assert: (o make: -1) isNil].
