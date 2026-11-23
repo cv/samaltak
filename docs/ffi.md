@@ -103,8 +103,8 @@ SAMALTAK_NATIVE_GRANTS="demo|demo_add|i32(i32,i32)|$ffi_dir/libdemo.so" \
 # 42
 ```
 
-A library that reads bytes can be granted explicitly with a fifth field, using
-the literal `syncBorrow` before the path:
+Borrow grants use a five-field row. Put the literal `syncBorrow` before the
+path:
 
 ```text
 demo|demo_sum|u64(u64,bytesWithLength)|syncBorrow|/absolute/path/libdemo.so
@@ -172,8 +172,9 @@ There is no Smalltalk callback.
   discarded and `droppedCount` reports the cumulative loss (saturating at
   2147483647). SDL logging continues as usual.
 
-Close subscriptions explicitly, for example with `ensure:`. Closing releases
-the registration and discards pending events; closing again is harmless.
+Close subscriptions explicitly, for example with `ensure:`. Dropping the
+object is not enough. Closing releases the registration and discards pending
+events; closing again is harmless.
 Registrations are process-local: bind again after restoring a snapshot.
 Polling a closed or stale subscription signals `FFIError`.
 
