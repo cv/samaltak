@@ -41,8 +41,8 @@ Check with `context.get().projectFunctions`.
   class times in this directory's `build/test-times` (the gate's runs keep them up to date). All test VMs and test-uefi's
   QEMUs on the machine share SAMALTAK_TEST_SLOTS slots (default 3/4 of the CPUs, 15 on the DGX Spark, at most one per
   3 GB available; flock files in `/tmp/samaltak-test-slots-<uid>`), so concurrent gates wait for each other's VMs
-  instead of each starting 8 per stage; a suite's shard with its longest class and the RFB scenarios get the next free
-  slot first. test-core's and test-tools's parts (the suites beside the main one, the scenarios) run at once too.
+  instead of each starting 8 per stage; a suite's shard with its longest class and the RFB scenarios (the critical path) get the next
+  free slot first, and a fifth more slots kept for them (SAMALTAK_TEST_SLOTS_RESERVED). test-core's and test-tools's parts (the suites beside the main one, the scenarios) run at once too.
   Timings are shared by the machine's worktrees (`~/.cache/samaltak/test-times`), so a fresh worktree's first run
   is balanced. The gate's VM comes from `~/.cache/samaltak/build` when its `vm/` was built before (the log says
   `build-cache: the VM from the cache`; tests/build-cache.sh), so a re-run or a rebase that left `vm/` alone skips

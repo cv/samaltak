@@ -171,7 +171,7 @@ while [ $k -le "$JOBS" ]; do
   awk -v k=$k '$1 == k { n += $3 } END { print n + 0 }' "$WORK/plan" >"$WORK/$k/tests"
   # shellcheck disable=SC2086
   # shard 1 has the longest class (the plan places the longest first): it is the suite's critical path
-  SLOT_POLL=1; [ $k = 1 ] && SLOT_POLL=0.2
+  SLOT_PRIORITY=; [ $k = 1 ] && SLOT_PRIORITY=1
   ( export TMPDIR="$WORK/$k/tmp"; SLOT_LABEL="shard $k/$JOBS $(basename "$IMAGE")$VMOPTS: $classes"
     with_slot timed run_vm $VMOPTS "$IMAGE" --headless --test-times --test $classes "$@" \
       >"$WORK/$k/log" 2>&1
