@@ -37,7 +37,10 @@ bindOrInvoke: invoke
 	<var: #first type: 'int32_t'>
 	<var: #n type: 'int32_t'>
 	<var: #result type: 'int32_t'>
-	| first library symbol libLen symLen tagObject tagBytes tags n resultOop result id target argArray words entry bits |
+	<var: #slots type: 'int32_t'>
+	<var: #slot type: 'int32_t'>
+	<var: #tag type: 'uint8_t'>
+	| first library symbol libLen symLen tagObject tagBytes tags n resultOop result id target argArray abiTags words entry bits slots slot tag |
 	first := invoke ifTrue: [1] ifFalse: [0].
 	self argCount = (invoke ifTrue: [6] ifFalse: [4]) ifFalse: [^self fail].
 	ffiStubs canPublishCode ifFalse: [^self fail].
@@ -53,6 +56,10 @@ bindOrInvoke: invoke
 	n := tagBytes asInt32.
 	tags := self local: 'uint8_t[6]'.
 	libc memcpy: tags from: (self bytesOf: tagObject) size: tagBytes.
+	"Tag 8 is logical; its C ABI uses two slots."
+	slots := n.
+	0 to: n - 1 do: [:i | (tags at: i) = 8 ifTrue: [slots := slots + 1]].
+	slots > 6 ifTrue: [^self fail].
 	resultOop := self arg: first + 3.
 	(self isInt: resultOop) ifFalse: [^self fail].
 	((self intVal: resultOop) < 1 or: [(self intVal: resultOop) > 7 or: [(self intVal: resultOop) = 5]]) ifTrue: [^self fail].
@@ -65,13 +72,26 @@ bindOrInvoke: invoke
 	argArray := self arg: 5.
 	(self isArray: argArray count: n asUInt32) ifFalse: [^self fail].
 	words := self local: 'uint64_t[6]'.
+	abiTags := self local: 'uint8_t[6]'.
 	id = FFI_MEMCMP
-		ifTrue: [(self marshalCompare: argArray into: words) ifFalse: [^self fail]]
+		ifTrue: [
+			(self marshalCompare: argArray into: words) ifFalse: [^self fail].
+			libc memcpy: abiTags from: tags size: tagBytes]
 		ifFalse: [
+			slot := 0.
 			0 to: n - 1 do: [:i |
-				(self marshal: (self loadRef: argArray at: i) tag: (tags at: i) into: words + i) ifFalse: [^self fail]]].
+				tag := tags at: i.
+				tag = 8 ifTrue: [
+					(self borrow: (self loadRef: argArray at: i) into: words + slot length: words + (slot + 1)) ifFalse: [^self fail].
+					abiTags at: slot put: 5.
+					slot := slot + 1.
+					tag := 4]
+				ifFalse: [
+					(self marshal: (self loadRef: argArray at: i) tag: tag into: words + slot) ifFalse: [^self fail]].
+				abiTags at: slot put: tag.
+				slot := slot + 1]].
 	"From the first borrow to the return of the call: no VM allocation, GC or reentry. Stubs contain only native targets and are cached by the compiler, never by the image."
-	entry := ffiStubs downcall: target value types: tags count: n result: result.
+	entry := ffiStubs downcall: target value types: abiTags count: slots result: result.
 	entry = 0 ifTrue: [^self fail].
 	bits := (self cCoerce: entry to: 'uint64_t (*)(uint64_t *)') call: words.
 	self answer: (self box: bits tag: result)
@@ -94,7 +114,7 @@ copyName: name into: buf
 			2 * (self numSlots: name) asUInt64 - (f - F_W32) asUInt64].
 	(n = 0 or: [n > 127]) ifTrue: [^0].
 	0 to: n asInt64 - 1 do: [:i |
-		c := memory stringCharAt: name index: i.
+		c := memory stringCharAt: name index: i asUInt64.
 		(c = 0 or: [c > 127]) ifTrue: [^0].
 		buf at: i put: c asUInt8].
 	buf at: n put: 0.
@@ -118,7 +138,7 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 	hasPointer := false.
 	0 to: n - 1 do: [:i |
 		t := tags at: i.
-		(t < 1 or: [t > 6]) ifTrue: [^0].
+		(t < 1 or: [t > 6 and: [t ~= 8]]) ifTrue: [^0].
 		t = 5 ifTrue: [hasPointer := true].
 		sig := ((sig asUInt64 << 4) bitOr: t asUInt64) asUInt32].
 	sig := ((sig asUInt64 << 4) bitOr: result asUInt64) asUInt32.
@@ -165,18 +185,20 @@ marshalCompare: array into: words
 	<var: #array type: 'oop'>
 	<var: #words type: 'uint64_t *'>
 	<returns: 'bool'>
-	| count |
+	| count length |
 	(self marshal: (self loadRef: array at: 2) tag: 4 into: words + 2) ifFalse: [^false].
 	count := words at: 2.
+	length := self local: 'uint64_t'.
 	0 to: 1 do: [:i |
-		(self borrow: (self loadRef: array at: i) count: count into: words + i) ifFalse: [^false]].
+		(self borrow: (self loadRef: array at: i) into: words + i length: length) ifFalse: [^false].
+		count > length value ifTrue: [^false]].
 	^true
 !
-borrow: slice count: count into: out
+borrow: slice into: out length: length
 	<function>
 	<var: #slice type: 'oop'>
-	<var: #count type: 'uint64_t'>
 	<var: #out type: 'uint64_t *'>
+	<var: #length type: 'uint64_t *'>
 	<returns: 'bool'>
 	| bytes offsetOop lengthOop start len size |
 	(self isArray: slice count: 3) ifFalse: [^false].
@@ -190,8 +212,9 @@ borrow: slice count: count into: out
 	(start < 1 or: [len < 0]) ifTrue: [^false].
 	start := start - 1.
 	size := self byteCount: bytes.
-	(start asUInt64 > size or: [len asUInt64 > (size - start asUInt64) or: [count > len asUInt64]]) ifTrue: [^false].
+	(start asUInt64 > size or: [len asUInt64 > (size - start asUInt64)]) ifTrue: [^false].
 	out value: (self cCoerce: (self bytesOf: bytes) + start to: 'uint64_t').
+	length value: len asUInt64.
 	^true
 !
 marshal: o tag: tag into: out

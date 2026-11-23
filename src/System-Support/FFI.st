@@ -7,7 +7,7 @@ FFI comment: 'I bind descriptors for registered native exports. A downcall descr
 
 	(FFI bind: #(call ''libm'' ''sqrt'' (f64) f64)) invoke: #(9.0).
 
-Scalar types are i32, u32, i64, u64 and f64. Use void only for a result (answers nil), and byteSlice only for a read-only byte argument. A slice is an Array {aByteArray. oneBasedOffset. length}. For memcmp, use (byteSlice byteSlice u64); the comparison count may not exceed either slice length. No argument or result is a native address. Unknown exports, mismatched signatures and rejected arguments signal FFIError. Notification descriptors start with #notification; FFINotification handles their schema.'!
+Scalar types are i32, u32, i64, u64 and f64. Use void only for a result (answers nil). For a launcher grant, bytesWithLength takes one read-only slice {aByteArray. oneBasedOffset. length} and passes a pointer and the validated length in two of at most six C slots. For memcmp, use (byteSlice byteSlice u64); the comparison count may not exceed either slice length. No argument or result is a native address. Unknown exports, mismatched signatures and rejected arguments signal FFIError. Notification descriptors start with #notification; FFINotification handles their schema.'!
 
 !FFI class methodsFor: 'binding'!
 bind: aDescriptor
@@ -23,7 +23,7 @@ bind: aDescriptor
 
 !FFI class methodsFor: 'private'!
 bindCall: aDescriptor
-	| library symbol types result tags resultTag id |
+	| library symbol types result tags resultTag id slots |
 	aDescriptor size = 5 ifFalse: [
 		^FFIError signal: 'Expected #(call library symbol argumentTypes resultType)'].
 	library := self copyName: (aDescriptor at: 2).
@@ -33,13 +33,16 @@ bindCall: aDescriptor
 	(types class == Array and: [types size <= 6]) ifFalse: [
 		^FFIError signal: 'FFI argument types must be an Array of up to six Symbols'].
 	tags := ByteArray new: types size.
+	slots := types size.
 	1 to: types size do: [:i |
 		| tag |
 		tag := self typeTag: (types at: i).
 		tag = 7 ifTrue: [^FFIError signal: '#void is only an FFI result type'].
+		tag = 8 ifTrue: [slots := slots + 1].
 		tags at: i put: tag].
+	slots > 6 ifTrue: [^FFIError signal: 'FFI argument types occupy more than six C slots'].
 	resultTag := self typeTag: result.
-	resultTag = 5 ifTrue: [^FFIError signal: '#byteSlice is only an FFI argument type'].
+	(resultTag = 5 or: [resultTag = 8]) ifTrue: [^FFIError signal: 'Byte slices are only FFI argument types'].
 	tags beReadOnlyObject.
 	id := self primBind: library symbol: symbol types: tags result: resultTag.
 	^FFIBinding new initializeID: id library: library symbol: symbol types: tags result: resultTag
@@ -62,7 +65,7 @@ copyName: anObject
 !
 typeTag: aSymbol
 	| tag |
-	tag := #(i32 u32 i64 u64 byteSlice f64 void) identityIndexOf: aSymbol.
+	tag := #(i32 u32 i64 u64 byteSlice f64 void bytesWithLength) identityIndexOf: aSymbol.
 	tag = 0 ifTrue: [^FFIError signal: 'Unknown FFI type; expected an FFI type Symbol'].
 	^tag
 !

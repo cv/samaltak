@@ -3,7 +3,7 @@ VMCoreModule subclass: #RuntimeNativeLoader
 	classVariableNames: 'NATIVE_GRANT_BYTES NATIVE_GRANT_BUFFER_SIZE NATIVE_GRANT_LIMIT NATIVE_GRANT_NAME_MAX NATIVE_GRANT_ARITY_MAX'
 	package: 'VM-Core'!
 
-RuntimeNativeLoader comment: 'The hosted launcher may grant fixed scalar exports before the image starts. It supplies absolute library paths, exact symbol names and their trusted C prototypes in SAMALTAK_NATIVE_GRANTS. The image supplies only counted logical names and tags. Lookup never loads a library and a target is returned only to VM code that builds the adapter.'!
+RuntimeNativeLoader comment: 'The hosted launcher may grant fixed exports with scalar and bounded byte arguments before the image starts. It supplies absolute library paths, exact symbol names and their trusted C prototypes in SAMALTAK_NATIVE_GRANTS. The image supplies only counted logical names and tags. Lookup never loads a library and a target is returned only to VM code that builds the adapter.'!
 
 !RuntimeNativeLoader class methodsFor: 'declaring'!
 declarations
@@ -48,13 +48,15 @@ configure
 		row := grants + i.
 		handle := dynamicLinker open: row path flags: (dynamicLinker RTLD_NOW bitOr: dynamicLinker RTLD_LOCAL).
 		handle isNull ifTrue: [^false].
-		row target: (dynamicLinker symbol: row symbol in: handle).
+		row target: (dynamicLinker symbolIn: handle named: row symbol).
 		row target isNull ifTrue: [^false]].
 	"Never dlclose: generated code and grant targets live for this VM process."
-	grantCount := count.
+	grantCount := count asInt32.
 	^true
 !
 endOf: text or: separator
+	<function>
+	<returns: 'char *'>
 	<var: #text type: 'char *'>
 	<var: #separator type: 'int32_t'>
 	| end |
@@ -63,6 +65,9 @@ endOf: text or: separator
 	^end
 !
 fieldAfter: text
+	<function>
+	<var: #text type: 'char *'>
+	<returns: 'char *'>
 	| end |
 	end := self endOf: text or: $| value.
 	end value = 0 ifTrue: [^self null].
@@ -70,13 +75,20 @@ fieldAfter: text
 	^end + 1
 !
 parseRow: line into: row count: count
-	| name signature path previous |
+	| name signature path previous slots contract |
 	name := self fieldAfter: line.
 	name isNull ifTrue: [^false].
 	signature := self fieldAfter: name.
 	signature isNull ifTrue: [^false].
 	path := self fieldAfter: signature.
 	path isNull ifTrue: [^false].
+	slots := self parseSignature: signature into: row.
+	slots < 0 ifTrue: [^false].
+	slots > row arity ifTrue: [
+		"Every borrow requires an explicit synchronous, nonretaining, nonreentrant contract."
+		contract := path.
+		path := self fieldAfter: path.
+		(path isNull or: [(libc strcmp: contract with: 'syncBorrow') ~= 0]) ifTrue: [^false]].
 	(path value ~= $/ value or: [(self endOf: path or: $| value) value ~= 0]) ifTrue: [^false].
 	((self validName: line alias: true) and: [self validName: name alias: false]) ifFalse: [^false].
 	"Do not shadow curated namespaces or allow multiple claimed types for one name."
@@ -86,7 +98,6 @@ parseRow: line into: row count: count
 		previous := grants + i.
 		((libc strcmp: line with: previous library) = 0 and: [(libc strcmp: name with: previous symbol) = 0])
 			ifTrue: [^false]].
-	(self parseSignature: signature into: row) ifFalse: [^false].
 	row library: line.
 	row symbol: name.
 	row path: path.
@@ -109,34 +120,44 @@ validName: text alias: alias
 	^size > 0
 !
 parseSignature: text into: row
-	| start end result n tag more |
+	"Store logical tags; answer the expanded C arity, or -1 on rejection."
+	<function>
+	<var: #text type: 'char *'>
+	<var: #row type: 'RuntimeNativeGrant *'>
+	<var: #slots type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<returns: 'int32_t'>
+	| start end result n tag more slots |
 	end := self endOf: text or: $( value.
-	end value = 0 ifTrue: [^false].
+	end value = 0 ifTrue: [^-1].
 	end value: 0.
 	result := self scalarTag: text.
-	result = 0 ifTrue: [^false].
+	result = 0 ifTrue: [^-1].
 	start := end + 1.
 	end := self endOf: start or: $) value.
-	(end value = 0 or: [(end at: 1) ~= 0]) ifTrue: [^false].
+	(end value = 0 or: [(end at: 1) ~= 0]) ifTrue: [^-1].
 	end value: 0.
 	n := 0.
+	slots := 0.
 	more := start value ~= 0.
 	[more] whileTrue: [
-		n >= NATIVE_GRANT_ARITY_MAX ifTrue: [^false].
 		end := self endOf: start or: $, value.
 		more := end value ~= 0.
 		end value: 0.
-		tag := self scalarTag: start.
-		(tag = 0 or: [tag = 7]) ifTrue: [^false].
+		tag := (libc strcmp: start with: 'bytesWithLength') = 0
+			ifTrue: [8] ifFalse: [self scalarTag: start].
+		(tag = 0 or: [tag = 7]) ifTrue: [^-1].
+		slots := slots + (tag = 8 ifTrue: [2] ifFalse: [1]).
+		slots > NATIVE_GRANT_ARITY_MAX ifTrue: [^-1].
 		row types at: n put: tag asUInt8.
 		n := n + 1.
 		start := end + 1].
 	row arity: n.
 	row resultType: result.
-	^true
+	^slots
 !
 scalarTag: text
-	"Match the registry/adapter's tag numbers. No pointer form."
+	"Result types are scalar or void; bytesWithLength is an argument-only schema."
 	(libc strcmp: text with: 'i32') = 0 ifTrue: [^1].
 	(libc strcmp: text with: 'u32') = 0 ifTrue: [^2].
 	(libc strcmp: text with: 'i64') = 0 ifTrue: [^3].

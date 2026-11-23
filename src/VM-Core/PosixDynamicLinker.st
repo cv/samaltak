@@ -22,7 +22,7 @@ open: path flags: flags
 	<c: 'void *dlopen(const char *path, int flags)'>
 	^CPointer null
 !
-symbol: name in: handle
+symbolIn: handle named: name
 	<c: 'void *dlsym(void *handle, const char *name)'>
 	^CPointer null
 ! !

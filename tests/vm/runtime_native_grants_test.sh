@@ -10,6 +10,7 @@ trap 'rm -rf "$TMP"' EXIT
 unset SAMALTAK_NATIVE_GRANTS
 
 cat >"$TMP/fixture.c" <<'C'
+#include <stddef.h>
 #include <stdint.h>
 
 int32_t ffi_test_i32_pair(int32_t a, int32_t b)
@@ -20,6 +21,19 @@ int32_t ffi_test_i32_pair(int32_t a, int32_t b)
 double ffi_test_mix(int32_t a, double b, uint64_t c, int64_t d, uint32_t e, double f)
 {
     return (double)a + b + (double)c + (double)d + (double)e + f;
+}
+
+uint64_t ffi_test_checksum(uint64_t seed, const uint8_t *bytes, size_t length)
+{
+    for (size_t i = 0; i < length; ++i)
+        seed = seed * 33 + bytes[i];
+    return seed;
+}
+
+uint64_t ffi_test_checksum_two(uint64_t seed, const uint8_t *a, size_t na,
+                               const uint8_t *b, size_t nb, uint64_t tail)
+{
+    return ffi_test_checksum(ffi_test_checksum(seed, a, na), b, nb) + tail;
 }
 
 void ffi_test_void(void) {}
@@ -40,6 +54,8 @@ LIB="$TMP/fixture.$EXT"
 PAIR="fixture|ffi_test_i32_pair|i32(i32,i32)|$LIB"
 MIX="fixture|ffi_test_mix|f64(i32,f64,u64,i64,u32,f64)|$LIB"
 VOID="fixture|ffi_test_void|void()|$LIB"
+CHECKSUM="fixture|ffi_test_checksum|u64(u64,bytesWithLength)|syncBorrow|$LIB"
+CHECKSUM_TWO="fixture|ffi_test_checksum_two|u64(u64,bytesWithLength,bytesWithLength,u64)|syncBorrow|$LIB"
 
 expect() {
     expected=$1
@@ -66,7 +82,9 @@ expect true "$IMAGE" --headless --eval "
         on: FFIError do: [:e | true]"
 SAMALTAK_NATIVE_GRANTS="$PAIR
 $MIX
-$VOID"
+$VOID
+$CHECKSUM
+$CHECKSUM_TWO"
 export SAMALTAK_NATIVE_GRANTS
 
 expect true "$IMAGE" --headless --eval "
@@ -91,6 +109,46 @@ expect true "$IMAGE" --headless --eval "
                         library: 'fixture' symbol: 'ffi_test_i32_pair'
                         types: #[2 1] result: 1 arguments: #(11 5)]]]]]])"
 
+expect true "$IMAGE" --headless --eval "
+    | checksum two bytes reject |
+    checksum := FFI bind: #(call 'fixture' 'ffi_test_checksum' (u64 bytesWithLength) u64).
+    two := FFI bind: #(call 'fixture' 'ffi_test_checksum_two' (u64 bytesWithLength bytesWithLength u64) u64).
+    bytes := #[9 3 5 7 10] copy.
+    reject := [:block | [block value. false] on: FFIError do: [:e | true]].
+    (checksum invoke: {7. {bytes. 2. 3}}) = 254998 ifFalse: [^false].
+    Smalltalk vm garbageCollect.
+    bytes at: 3 put: 6.
+    (checksum invoke: {7. {bytes. 2. 3}}) = 255031 ifFalse: [^false].
+    bytes at: 3 put: 5.
+    Smalltalk vm scavenge.
+    (two invoke: {7. {bytes. 2. 2}. {#[201 13 202]. 2. 1}. 23}) = 255027 ifFalse: [^false].
+    (checksum invoke: {16rFFFFFFFFFFFFFFFF. {bytes. 6. 0}}) = 16rFFFFFFFFFFFFFFFF ifFalse: [^false].
+    (checksum invoke: {7. {ByteArray new: 0. 1. 0}}) = 7 ifFalse: [^false].
+    ({1234. {bytes. 0. 1}. {bytes. 2. -1}. {bytes. 2. 5}.
+      {bytes. 6. 1}. {bytes. 7. 0}. {bytes. 1. 16rFFFFFFFFFFFFFFFF}.
+      {'not a ByteArray'. 1. 1}. {bytes. 2}. {bytes. 2. 3. 4}}
+        allSatisfy: [:slice | reject value: [checksum invoke: {7. slice}]]) ifFalse: [^false].
+    (reject value: [two invoke: {7. {bytes. 2. 2}. {bytes. 3. 4}. 23}]) ifFalse: [^false].
+    (reject value: [checksum invoke: {7. {bytes. 2. 3}. 4}]) ifFalse: [^false].
+    (#((call 'fixture' 'ffi_test_checksum' (u64 byteSlice u64) u64)
+       (call 'fixture' 'ffi_test_checksum' (u64 bytesWithLength u64) u64)
+       (call 'fixture' 'ffi_test_checksum' (u64 bytesWithLength) bytesWithLength)
+       (call 'fixture' 'ffi_test_checksum' (u64 u64) u64)
+       (call 'fixture' 'ffi_test_checksum' (bytesWithLength bytesWithLength bytesWithLength u64) u64))
+        allSatisfy: [:d | reject value: [FFI bind: d]]) ifFalse: [^false].
+    (reject value: [
+        checksum primInvoke: (checksum instVarNamed: 'id')
+            library: 'fixture' symbol: 'ffi_test_checksum'
+            types: #[4 5 4] result: 4 arguments: {7. {bytes. 2. 3}. 3}]) ifFalse: [^false].
+    reject value: [
+        checksum primInvoke: (checksum instVarNamed: 'id')
+            library: 'fixture' symbol: 'ffi_test_checksum'
+            types: #[3 8] result: 4 arguments: {7. {bytes. 2. 3}}]"
+
+reject_manifest "fixture|ffi_test_checksum|u64(u64,bytesWithLength)|$LIB"
+reject_manifest "fixture|ffi_test_checksum|u64(u64,bytesWithLength)|asyncBorrow|$LIB"
+reject_manifest "fixture|ffi_test_checksum|bytesWithLength(u64,bytesWithLength)|syncBorrow|$LIB"
+reject_manifest "fixture|ffi_test_checksum|u64(bytesWithLength,bytesWithLength,bytesWithLength,u64)|syncBorrow|$LIB"
 reject_manifest "fixture|ffi_test_i32_pair|i32(i32,i32)|fixture.$EXT"
 reject_manifest "fixture|missing_symbol|i32(i32,i32)|$LIB"
 reject_manifest "fixture|ffi_test_i32_pair|i32(i32,i32)|$TMP/missing.$EXT"
