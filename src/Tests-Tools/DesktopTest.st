@@ -82,7 +82,7 @@ testProcessBrowserShowsTheMandelbrotRunning
 	looked := false.
 	"One rendering can end before the CPU column's interval does: the window renders again until the test has looked."
 	self in: mb do: [mb content after: 0 do: [[looked] whileFalse: [mb content render]]].
-	[self assert: (self waitFor: [mb content isRendering]).
+	[self assert: (self waitFor: [mb content isRendering]) description: 'the Mandelbrot is not rendering'.
 	 pb := (self windowsOf: ProcessBrowser) first.
 	 "The interval the CPU column measures: the second since its last reading (the browser's own 4 Hz refresh waits in its queue meanwhile, and measures anew after)."
 	 state := self in: pb do: [
@@ -91,11 +91,11 @@ testProcessBrowserShowsTheMandelbrotRunning
 		pb content refresh.
 		cpu := pb content cpuOf: mb process.
 		pb content stateOf: mb process].
-	 self assert: (self waitFor: [mb content isRendering]).
+	 self assert: (self waitFor: [mb content isRendering]) description: 'the Mandelbrot stopped rendering'.
 	 self assert: state equals: 'running'.
-	 self assert: (pb content table items includes: mb process).
-	 self assert: cpu > 5.
-	 self assert: (self waitFor: [mb isBusy])]
+	 self assert: (pb content table items includes: mb process) description: 'the Mandelbrot''s Process is not in the table'.
+	 self assert: cpu > 5 description: 'the Mandelbrot''s CPU: ', cpu printString.
+	 self assert: (self waitFor: [mb isBusy]) description: 'the Mandelbrot''s window is not busy']
 		ensure: [looked := true]
 !
 testMandelbrotQueuesClicksWhileBusy

@@ -25,6 +25,8 @@ $CTL open --hidden --image "$IMAGE" >/dev/null 2>&1 || { echo "FAIL open"; exit 
 $CTL eval 'SourceFiler default enabled: false. 1' >/dev/null
 # the ref condition fails at once until the World registers its snapshot root
 i=0; until $CTL wait '@w6' 10000 >/dev/null 2>&1 || [ $i -ge 100 ]; do i=$((i + 1)); sleep 0.1; done
+# and until the windows are done opening: the System Browser is titled after its selection once it is not busy
+$CTL wait idle 30000 >/dev/null 2>&1
 check "default layout: six windows" "6" "$($CTL snapshot --depth 1 | grep -c '^window')"
 contains "w1 is the Workspace" "$($CTL snapshot --depth 1 | grep '^window @w1 ')" '"Workspace"'
 contains "w6 is the System Browser" "$($CTL snapshot --depth 1 | grep '^window @w6 ')" '"System Browser: Window"'

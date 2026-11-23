@@ -7,8 +7,9 @@ InspectorPixelsTest comment: 'I test the Inspector''s pixel view on Forms and gl
 
 !InspectorPixelsTest methodsFor: 'support'!
 rgbAt: aPoint
+	"The screen's pixel once the World settled (nothing left to present): a loaded machine can take longer than settle's 3 s, and a pixel read before the frame that draws it is the paper's."
 	| v |
-	self settle.
+	self assert: (world waitUntilSettled: 15000) description: 'the World did not settle'.
 	v := (world compositor sync: [:c | c screenshotScale: 1]) pixelValueAt: aPoint rounded.
 	^Array with: (v bitAnd: 255) with: ((v bitShift: -8) bitAnd: 255) with: ((v bitShift: -16) bitAnd: 255)
 !
