@@ -156,21 +156,22 @@ as soon as an update has come, as the viewers do). Keys and the pointer are RFB 
 input path (QEMU's: its USB keyboard and virtio tablet). Each interaction lasts 10 s. The numbers are medians of 5
 runs (image) and 3 (QEMU). CPU is QEMU's process (user + system) in % of one core: the guest's vCPUs, so the image's
 own server, and QEMU's VNC server. "Before" is the server that sent each damaged rectangle whole; "image" sends only the
-16x16 blocks that changed (RfbDiffSource, below).
+16x16 blocks that changed (RfbDiffSource, below). The image's columns were measured again without the NIC's spin
+(below), on 913de31 with it gone, interleaved with runs of 913de31 itself.
 
 | interaction | before: B/s | image: B/s | updates/s | B an update (median) | CPU | QEMU: B/s | updates/s | B an update (median) | CPU |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| idle, the World as it opens | 107 K | 4.8 K | 5.9 | 823 (842) | 32 % | 3.7 K | 4.9 | 763 (700) | 7 % |
-| idle, Mandelbrot and Process Browser closed | 0 | 0 | 0 | | 2 % | 60 | 0.2 | 298 | 2 % |
-| typing, 16 keys/s into the Workspace | 36 K | 35 K | 17.9 | 1.9 K (216) | 66 % | 48 K | 17.0 | 2.8 K (182) | 12 % |
-| scrolling the class list, 10 notches/s | 56 K | 55 K | 12.0 | 4.6 K (4.5 K) | 64 % | 51 K | 11.9 | 4.3 K (4.7 K) | 10 % |
-| dragging the Inspector, 60 moves/s | 452 K | 501 K | 37.8 | 13.4 K (13.4 K) | 94 % | 298 K | 22.0 | 13.4 K (14.9 K) | 18 % |
-| the Agent window streaming, 40 deltas/s | 89 K | 12 K | 33.9 | 354 (320) | 74 % | 13.6 K | 24.2 | 555 (467) | 12 % |
+| idle, the World as it opens | 107 K | 5.7 K | 2.3 | 2.1 K (424) | 7 % | 3.7 K | 4.9 | 763 (700) | 7 % |
+| idle, Mandelbrot and Process Browser closed | 0 | 126 | 0.1 | 1.3 K | 2 % | 60 | 0.2 | 298 | 2 % |
+| typing, 16 keys/s into the Workspace | 36 K | 34 K | 18.4 | 1.9 K (214) | 20 % | 48 K | 17.0 | 2.8 K (182) | 12 % |
+| scrolling the class list, 10 notches/s | 56 K | 54 K | 12.8 | 4.2 K (4.4 K) | 18 % | 51 K | 11.9 | 4.3 K (4.7 K) | 10 % |
+| dragging the Inspector, 60 moves/s | 452 K | 575 K | 43.3 | 13.3 K (13.1 K) | 43 % | 298 K | 22.0 | 13.4 K (14.9 K) | 18 % |
+| the Agent window streaming, 40 deltas/s | 89 K | 14 K | 40.5 | 358 (309) | 19 % | 13.6 K | 24.2 | 555 (467) | 12 % |
 
 | | image | QEMU |
 | --- | --- | --- |
-| a key to its pixels (one every 300 ms: KeyEvent sent → end of the first update that changes the Workspace) | 31 ms (25-40 over the runs; before: 31) | 82 ms (82-97) |
-| full-screen update (a non-incremental request of the whole screen → its last byte) | 66 ms, 128 KB (before: 64) | 97 ms (94-114), 125 KB |
+| a key to its pixels (one every 300 ms: KeyEvent sent → end of the first update that changes the Workspace) | 18 ms (12-24 over the runs, p90 15-27; with the spin: 30) | 82 ms (82-97) |
+| full-screen update (a non-incremental request of the whole screen → its last byte) | 62 ms, 127 KB (with the spin: 64) | 97 ms (94-114), 125 KB |
 | first connect (TCP connect → the first full update) | 0.34 s, 206 KB | 0.32 s, 200 KB |
 
 **Only the blocks that changed.** The compositor's damage is in quads' bounds: text laid out again damages a whole
@@ -187,17 +188,26 @@ new size makes the copy anew. That makes streaming 7 times and the idle World 22
 and cuts the server's own time by about four streaming and idle (0.3 ms an update streaming, 1.6 idle, comparing
 included; before: 1.4 and 5.9).
 
+**Without the NIC's spin.** For 20 ms after any frame came or went, the NIC's driver (`PciNetworkInterface`, and
+`UefiSnp` for the firmware's) looked for a frame without pause, as the firmware's timer ticks every 10 ms: every RFB
+input event and update kept a vCPU busy. Now it looks without pause only for 1 ms after a frame went out, until one
+comes (an ACK or the next request is due), and otherwise, for 100 ms, at every tick of the firmware's timer, set to
+tick every millisecond meanwhile (`Firmware>>fineTicks:`; docs/uefi.md, Network); the vCPU halts in between. With the
+spin (913de31) the guest took 13, 2, 69, 66, 95 and 73 % in the table's rows, with 17.6, 12.7, 39.0 and 33.5 updates/s
+typing, scrolling, dragging and streaming, and a key took 30 ms (29-41) to its pixels. The finer timer also makes the
+60 Hz refresh clock punctual: so the lower latency and the updates dragging and streaming gain. 1 ms ticks cost
+about 2 points of a core while they last. TCP throughput is the same: 8 MB over HTTPS from the host in 65-170 ms
+either way, 1 MB each way through the control service in about 110 ms.
+
 **Where the image's CPU goes.**
 
 - The server itself costs little. RfbConnection's statistics and RfbDiffSource's (`totalMs` and `diffMs`: finding what
   changed, making and sending updates) give 0.8 ms an update typing, 0.3 streaming, 2.0 scrolling and 4.2 dragging: 1-2 %
   of a core, 16 % dragging.
-- Most of the rest is the NIC's spin. With `--silent` (the client asks for no updates; the same input and drawing,
-  nothing encoded; measured with the server before) the guest takes 43 % typing, 31 % scrolling, 111 % dragging and 10 % streaming (with QEMU's
-  server: 14, 10, 20 and 10). For 20 ms after any frame came or went (`UefiSnp`, `SNP_BUSY_NS`), a wait polls the NIC
-  without pause instead of waiting for the firmware's 10 ms timer. So every RFB input event and every update keeps a
-  vCPU busy for up to 20 ms. QEMU's input comes through its USB keyboard and tablet, with no network frames. The spin
-  is also why the image's latency is lower.
+- The rest is the input and the drawing. With `--silent` (the client asks for no updates; the same input and
+  drawing, nothing encoded) the guest takes 17 % typing, 15 % scrolling, 33 % dragging (at 59 frames/s) and 10 %
+  streaming; with the spin it took 41, 29, 108 and 10, with QEMU's server 14, 10, 20 and 10. QEMU's input comes
+  through its USB keyboard and tablet, with no network frames.
 - The bytes are now QEMU's or fewer, but for dragging (more updates a second than QEMU's, each as large).
 
 **Against the targets** (the remote display's scope, Performance targets):
@@ -205,16 +215,14 @@ included; before: 1.4 and 5.9).
 - typing, ≤ 1 KB a frame: met. The median update is 216 B; the mean of 1.9 KB includes the top bar's readout and the
   line scrolling.
 - typing, encode ≤ 0.5 ms a frame: 0.8 ms an update, making and sending. Close, but not met.
-- typing latency, ≤ 1 frame + RTT + 10 ms: met. 31 ms on loopback, with frames of about 28 ms (QEMU's: 82 ms).
+- typing latency, ≤ 1 frame + RTT + 10 ms: met. 18 ms on loopback (QEMU's: 82 ms).
 - idle with a client, no CPU: met for a still World (no updates, 2 %, as with QEMU's). A World that redraws costs
-  4.8 KB/s; QEMU's server sends 3.7 KB/s.
-- dragging, ≥ 15 updates/s of 20-60 KB: met. 37.8 updates/s of 13 KB (QEMU's: 22).
-- full-screen update, ≤ 150 ms (≤ 50 ms with primitives): 66 ms for 128 KB.
+  6 KB/s and 7 % (QEMU's server sends 3.7 KB/s).
+- dragging, ≥ 15 updates/s of 20-60 KB: met. 43.3 updates/s of 13 KB (QEMU's: 22).
+- full-screen update, ≤ 150 ms (≤ 50 ms with primitives): 62 ms for 127 KB.
 - first connect, the whole screen within 0.5 s: 0.34 s.
 
 **For phase 2**, by these numbers:
 
-1. The NIC's spin (VM-UEFI `UefiSnp`) is the largest cost: 50-80 points of a core while anyone types or drags. Use a
-   shorter busy window, or spin only while a TCP send waits, or use a finer timer event, and keep the latency.
-2. CopyRect for window drags (the compositor knows the move): fewer bytes than 500 KB/s, and less than 4.2 ms an update.
-3. The ZRLE tile primitive (D12) is not needed for these targets: a full screen takes 66 ms.
+1. CopyRect for window drags (the compositor knows the move): fewer bytes than 500 KB/s, and less than 4.2 ms an update.
+2. The ZRLE tile primitive (D12) is not needed for these targets: a full screen takes 62 ms.
