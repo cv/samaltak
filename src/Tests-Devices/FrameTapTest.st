@@ -27,6 +27,26 @@ fill: aRectangle seed: n width: w
 ! !
 
 !FrameTapTest methodsFor: 'tests'!
+testMovesComeWithTheirFrames
+	"Moves noted before a frame (moved:to:) and given with it come to each listener in order, with the damage of the same frames; those that leave the screen do not; a new size drops them."
+	| tap l t |
+	tap := self tap.
+	l := tap listen.
+	tap moved: (10 @ 10 extent: 50 @ 20) to: 30 @ 40.
+	tap presented: #(#(10 10 70 50)) moves: (Array with: (Array with: (0 @ 0 extent: 10 @ 10) with: 195 @ 0)) extent: 200 @ 100.
+	tap presented: #(#(0 0 5 5)) moves: (Array with: (Array with: (0 @ 0 extent: 10 @ 10) with: 5 @ 5)) extent: 200 @ 100.
+	t := l take.
+	self assert: t first rects notEmpty.
+	self assert: (t at: 2) equals: (Array with: (Array with: (10 @ 10 extent: 50 @ 20) with: 30 @ 40) with: (Array with: (0 @ 0 extent: 10 @ 10) with: 5 @ 5)).
+	self assert: (l take at: 2) isEmpty.
+	tap presented: #(#(0 0 5 5)) moves: (Array with: (Array with: (0 @ 0 extent: 10 @ 10) with: 5 @ 5)) extent: 200 @ 100.
+	tap presented: #full extent: 100 @ 100.
+	t := l take.
+	self assert: t first isFull.
+	self assert: (t at: 2) isEmpty.
+	tap presented: #() extent: 100 @ 100.
+	self assert: (l take at: 2) isEmpty description: 'moves noted are given to one frame only'
+!
 testListenerAccumulatesFramesUntilTaken
 	| tap l d |
 	tap := self tap.

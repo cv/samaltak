@@ -68,6 +68,29 @@ testListenerRebuildsTheScreen
 	self assert: partial > 0 description: 'typing damages part of the screen'.
 	l close
 !
+testDraggedWindowIsAMove
+	"Dragging a window by its title bar (held, in steps: lifted, it is drawn a little smaller, the same each frame): the frame tap hears that its layer's pixels moved, by the step in device pixels."
+	| tap l a moves s |
+	tap := world compositor frameTap.
+	a := self open: (DamageTestView new color: Color white; yourself) title: 'Moved' at: (100 @ 100 extent: 300 @ 200).
+	self settle.
+	self down: 200 @ 110.
+	self moveTo: 205 @ 112.
+	self settle.
+	l := tap listen.
+	moves := OrderedCollection new.
+	1 to: 6 do: [:i |
+		self moveTo: (205 + (i * 10)) @ (112 + (i * 6)).
+		self settle.
+		moves addAll: (l take at: 2)].
+	self up: 265 @ 148.
+	self settle.
+	s := world displayScale.
+	self assert: moves notEmpty description: 'no move heard'.
+	self assert: (moves anySatisfy: [:m | (m at: 2) - m first origin = ((10 @ 6) * s) rounded]).
+	l close.
+	a close
+!
 testIdleWorldGivesLittleDamage
 	| tap l d |
 	tap := world compositor frameTap.

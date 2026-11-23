@@ -341,7 +341,7 @@ drawWindow: aWindow on: c time: now
 			c translateBy: rect origin during: [
 				c clip: (0 @ 0 extent: rect extent) during: [aWindow drawDecorationsOn: c time: now]]]].
 	"Where the layer's pixels land, for its damage: unscaled only (scaled, all of it is damaged)."
-	items isNil ifFalse: [items add: (Array with: aWindow with: q with: c quadCount - q with: (s = 1 ifTrue: [c deviceRectOf: rect]) with: layer)]
+	items isNil ifFalse: [items add: (Array with: aWindow with: q with: c quadCount - q with: (s = 1 ifTrue: [c deviceRectOf: rect]) with: layer with: (Array with: (c exactDeviceRectOf: rect) with: layer opacity))]
 !
 noteItem: aKey from: firstQuad on: c
 	items isNil ifFalse: [items add: (Array with: aKey with: firstQuad with: c quadCount - firstQuad with: nil with: nil)]
@@ -671,6 +671,29 @@ parts: aRectangle outside: occluders
 		parts size > 16 ifTrue: [^Array with: aRectangle]].
 	^parts
 !
+movesIn: newItems extent: aPoint
+	"The windows whose layer is drawn at the same size and opacity as in the last frame, but moved by whole device pixels (a window dragged, lifted or not: the same pixels, moved): {the device pixels it covered in the last frame. where they are now} each, for the frame tap (a remote display's CopyRect: a hint, the damage still covers where it went)."
+	| old moves screen |
+	previousItems isNil ifTrue: [^#()].
+	screen := 0 @ 0 extent: aPoint.
+	moves := OrderedCollection new.
+	old := nil.
+	newItems do: [:each | | n o d |
+		n := each size >= 6 ifTrue: [each at: 6].
+		n isNil ifFalse: [
+			old isNil ifTrue: [
+				old := IdentityDictionary new.
+				previousItems do: [:p | (p size >= 6 and: [(p at: 6) notNil]) ifTrue: [old at: p first put: (p at: 6)]]].
+			o := old at: each first ifAbsent: [nil].
+			(o notNil and: [(o at: 2) = (n at: 2) and: [(o first width - n first width) abs < 0.001 and: [(o first height - n first height) abs < 0.001]]]) ifTrue: [
+				d := n first origin - o first origin.
+				((d x - d x rounded) abs < 0.001 and: [(d y - d y rounded) abs < 0.001 and: [d rounded ~= (0 @ 0)]]) ifTrue: [| px |
+					d := d rounded.
+					px := ((o first left floor @ o first top floor corner: o first right ceiling @ o first bottom ceiling)
+						intersect: screen) intersect: (screen translateBy: d negated).
+					(px width > 0 and: [px height > 0]) ifTrue: [moves add: (Array with: px with: px origin + d)]]]]].
+	^moves
+!
 addLayerDamageOf: anItem in: aDisplayList rendered: toRender
 	"A window's layer rendered this frame damages the screen where its changed pixels land: moved by where it is drawn when drawn 1:1 (with a pixel around, for filtering), else everywhere it is drawn."
 	| layer rect damage |
@@ -696,7 +719,7 @@ checkDamage: aDamageRegion list: aDisplayList previous: olderList rendered: toRe
 
 !Compositor methodsFor: 'private'!
 present: t0 now: now
-	| scale toRender drawUs rasterUs t cmd list stats0 stats1 t1 shown gpuStart fence fenceAt probe before layerUs showUs newItems damage older s d whole overlay overlayDamage |
+	| scale toRender drawUs rasterUs t cmd list stats0 stats1 t1 shown gpuStart fence fenceAt probe before layerUs showUs newItems damage older s d whole overlay overlayDamage moves |
 	scale := world displayScale.
 	stats0 := Smalltalk vm statistics.
 	t := self frameClock.
@@ -745,12 +768,16 @@ present: t0 now: now
 	t := self frameClock.
 	gpuStart isNil ifTrue: [gpuStart := t].
 	whole := damage isFull or: [displayWindow needsFullFrame].
+	moves := self movesIn: newItems extent: list pixelExtent.
+	moves isEmpty ifFalse: [
+		"the firmware screen's tap hears the moves of the frame it presents next (this one); another compositor's never does"
+		FrameTap current ifNotNil: [:tap | (tap == frameTap or: [tap source isKindOf: Compositor]) ifFalse: [moves do: [:m | tap moved: m first to: (m at: 2)]]]].
 	shown := displayWindow show: list clear: Color desk damage: damage overlay: overlay damage: overlayDamage.
 	previousOverlay := overlay.
 	previousOverlayStamps := DisplayListDiff stampsOf: overlay.
 	"The surface's size (the list's), what is read back; the pointer's damage is not the frame's."
 	(frameTap notNil and: [whole or: [damage notEmpty]]) ifTrue: [
-		frameTap presented: (whole ifTrue: [#full] ifFalse: [damage rects]) extent: displayWindow surface pixelExtent].
+		frameTap presented: (whole ifTrue: [#full] ifFalse: [damage rects]) moves: moves extent: displayWindow surface pixelExtent].
 	showUs := self frameClock - t.
 	"The upload has copied these bytes; the next frame draws into the other buffer: these stay to compare it with (screenshots use independently owned lists)."
 	compositeBytes := previousList isNil ifFalse: [previousList vertices].

@@ -1,11 +1,13 @@
 Object subclass: #FrameTap
-	instanceVariableNames: 'source extent frame listeners lock'
+	instanceVariableNames: 'source extent frame listeners lock moves'
 	classVariableNames: ''
 	package: 'System-Devices'!
 
 FrameTap comment: 'I tell listeners what changed on a screen, frame by frame (a remote display''s damage feed, docs/graphics-damage.md). The screen''s presenter sends me presented:extent: after each frame it presented, with the rectangles that changed or #full, synchronously and at a cost of O(rectangles) a listener: the firmware screen (UEFI: FirmwareScreen>>present:width:height:rects: and the whole-frame present:width:height:), or the Compositor (hosted, after DisplayWindow>>show:clear:damage:). Each listener (a FrameTapListener, one per client) adds them to its own DamageRegion; its semaphore is signalled when that stops being empty. Damage piles up while a listener does not take it, so the frames it missed cost nothing.
 
 Pixels are read later, when they are sent, from my source (read:, readAll:): the firmware screen''s shadow copy (BGRA8, without the pointer, read under its lock), or the compositor''s surface (RGBA8, read back in its Process); pixelOrder says which. A pixel that changes after it was read is in a later frame''s damage, so a torn rectangle is repaired by the next update.
+
+A presenter that knows that a frame moved pixels (a window dragged: the compositor) says so before presenting it (moved:to:, or presented:moves:extent:): listeners take the moves with the damage of the same frames (FrameTapListener>>take), for a remote display''s CopyRect. A move is a hint: what it moves may not be all the frame shows there (another window over it), so the frame''s damage still covers its destination.
 
 FrameTap current is the screen''s tap: the firmware screen''s while it draws, else the tap of the World''s compositor.
 
@@ -69,10 +71,20 @@ critical: aBlock
 !FrameTap methodsFor: 'presenting'!
 presented: rectsOrFull extent: aPoint
 	"A frame of aPoint pixels was presented: rectsOrFull (Rectangles or {x. y. width. height} Arrays of pixels) changed since the last one, or #full: all of it. A new size damages everything."
-	lock critical: [
+	self presented: rectsOrFull moves: #() extent: aPoint
+!
+presented: rectsOrFull moves: anArray extent: aPoint
+	"The same, and the frame moved the pixels of each {Rectangle. Point} of anArray (after those noted by moved:to: since the last frame) from the rectangle to the point, in that order, before drawing the damage."
+	lock critical: [| all |
+		all := (moves isNil or: [moves isEmpty]) ifTrue: [anArray] ifFalse: [moves asArray , anArray].
+		moves := nil.
 		frame := frame + 1.
 		extent := aPoint.
-		listeners do: [:each | each frame: frame damaged: rectsOrFull extent: aPoint]]
+		listeners do: [:each | each frame: frame damaged: rectsOrFull moves: all extent: aPoint]]
+!
+moved: aRectangle to: aPoint
+	"The next frame presented moves aRectangle's pixels to aPoint (its presenter says so before presenting it)."
+	lock critical: [(moves ifNil: [moves := OrderedCollection new]) add: (Array with: aRectangle with: aPoint)]
 ! !
 
 !FrameTap methodsFor: 'reading'!

@@ -376,6 +376,10 @@ displayList
 ! !
 
 !Canvas methodsFor: 'private'!
+exactDeviceRectOf: aRectangle
+	"aRectangle (points, in my coordinates) in device pixels, not snapped."
+	^(aRectangle left + originX * scale) @ (aRectangle top + originY * scale) corner: (aRectangle right + originX * scale) @ (aRectangle bottom + originY * scale)
+!
 deviceX: x
 	"Snap a horizontal coordinate (points, before translation) to device pixels."
 	| d |
