@@ -1,9 +1,9 @@
 VMModule subclass: #CodeCache
 	instanceVariableNames: 'posix jit cacheStart cacheBase cacheTop cacheLimit cacheSpace'
-	classVariableNames: 'CACHE_SPACE'
+	classVariableNames: 'CACHE_SPACE CACHE_BYTES CACHE_FFI_BYTES'
 	package: 'VM-Jit'!
 
-CodeCache comment: 'I am the region generated code lives in: one executable mapping (JitPlatform: MAP_JIT on macOS), bump allocated, flushed as a whole. On macOS a thread either writes the region or executes it: beginWriting before writing code, endWritingFrom:size: after it (write protection back on, instruction cache invalidated).
+CodeCache comment: 'I am the bump-allocated, flushable region for compiled methods and VM JIT code. On macOS I share a MAP_JIT mapping with a separately allocated FFI prefix. A thread either writes the mapping or executes it: beginWriting before writing code, endWritingFrom:size: after it (write protection back on, instruction cache invalidated).
 
 	cache openWithSize: 64 * 1024 * 1024.
 	entry := cache allocate: size.
@@ -19,8 +19,10 @@ declarations
 	^#((posix Posix) (jit JitPlatform) (cacheStart uint64_t) (cacheBase uint64_t) (cacheTop uint64_t) (cacheLimit uint64_t) (cacheSpace 'uint8_t[CACHE_SPACE]'))
 !
 initialize
-	"Room for the largest cache (128 MB) and a page."
-	CACHE_SPACE := (128 << 20) + 16384
+	CACHE_BYTES := 128 << 20.
+	CACHE_FFI_BYTES := 256 << 10.
+	"Room for the cache, Darwin's separate FFI arena, and page alignment."
+	CACHE_SPACE := CACHE_BYTES + CACHE_FFI_BYTES + 16384
 ! !
 
 !CodeCache methodsFor: 'region'!
@@ -32,15 +34,25 @@ openWithSize: size
 	"Map the region; answer whether it worked. It takes the place of cacheSpace (zero-fill, in the VM's own image): near the VM's data, so that adrp from the code reaches it (tiering counters, type feedback, eden's top, call caches)."
 	<export>
 	<var: #size type: 'uint64_t'>
-	| p near |
-	near := ((self cCoerce: cacheSpace to: 'uint64_t') + 16383) bitClear: 16383.
-	p := jit map: (self cCoerce: near to: 'void *') size: size.
+	| p |
+	p := jit map: self mappingHint size: size.
 	p = posix MAP_FAILED ifTrue: [^false].
 	cacheStart := self cCoerce: p to: 'uint64_t'.
 	cacheBase := cacheStart.
 	cacheTop := cacheStart.
 	cacheLimit := cacheStart + size.
 	^true
+!
+mappingHint
+	<function>
+	<returns: 'void *'>
+	^self cCoerce: (((self cCoerce: cacheSpace to: 'uint64_t') + 16383) bitClear: 16383) to: 'void *'
+!
+maxCacheBytes
+	^CACHE_BYTES
+!
+ffiArenaBytes
+	^CACHE_FFI_BYTES
 !
 start
 	^cacheStart

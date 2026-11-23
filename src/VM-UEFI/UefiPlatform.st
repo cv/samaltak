@@ -38,4 +38,10 @@ wait: timeoutUs
 !
 shutdown
 	<export>
+!
+ffiTarget: id
+	<export>
+	<var: #id type: 'int32_t'>
+	<returns: 'uint64_t'>
+	^0
 ! !
