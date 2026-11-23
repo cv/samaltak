@@ -1,14 +1,14 @@
 UefiModule subclass: #UefiMachine
-	instanceVariableNames: 'common events watched watchedSems watchedCount timer lastCheckMs'
+	instanceVariableNames: 'common events watched watchedSems watchedCount timer lastCheckMs timerArch defaultTick fine'
 	classVariableNames: 'UEFI_WAIT_MAX UEFI_WATCH_MAX'
 	package: 'VM-UEFI'!
 
-UefiMachine comment: 'The firmware for drivers written in Smalltalk (in place of PlatformMachine): the system table, calls of the firmware''s functions (efi:with:...), and up to UEFI_WATCH_MAX watched events: each signals its semaphore when the firmware signals it, found by UefiPlatform''s wait (WaitForEvent on them and a timer) and poll (CheckEvent, at most once a millisecond).'!
+UefiMachine comment: 'The firmware for drivers written in Smalltalk (in place of PlatformMachine): the system table, calls of the firmware''s functions (efi:with:...), and up to UEFI_WATCH_MAX watched events: each signals its semaphore when the firmware signals it, found by UefiPlatform''s wait (WaitForEvent on them and a timer) and poll (CheckEvent, at most once a millisecond). fineTicks: makes the firmware''s timer interrupt (EFI_TIMER_ARCH_PROTOCOL), and so its timer events, tick every millisecond instead of every 10 ms while the NIC is busy (UefiPlatform).'!
 
 !UefiMachine class methodsFor: 'declaring'!
 declarations
 	^#((common PlatformCommon) (events PlatformEvents) (watched 'void *[UEFI_WATCH_MAX]') (watchedSems 'int32_t[UEFI_WATCH_MAX]') (watchedCount int32_t)
-		(timer 'void *') (lastCheckMs int64_t))
+		(timer 'void *') (lastCheckMs int64_t) (timerArch 'EfiTimerArch *') (defaultTick int64_t) (fine bool))
 !
 replaces
 	^PlatformMachine
@@ -116,4 +116,38 @@ wait: us
 	index := self local: 'uint64_t'.
 	(self efiFailed: (self efi: self boot waitForEvent with: n with: events with: index)) ifTrue: [^self].
 	index value < watchedCount asUInt64 ifTrue: [scheduler signalExternalSemaphore: (watchedSems at: index value)]
+!
+fineTicks: on
+	"The firmware's timer interrupt every millisecond (on), or at its own period again; answer whether it ticks every millisecond now (not without EFI_TIMER_ARCH_PROTOCOL). Then a wait: of 1 lasts until the next tick, and the CPU halts meanwhile."
+	<function>
+	<var: #on type: 'bool'>
+	<returns: 'bool'>
+	| guid p period |
+	on = fine ifTrue: [^fine].
+	defaultTick = 0 ifTrue: [
+		defaultTick := -1.
+		guid := self local: 'EfiGuid'.
+		firmware guid: guid data1: 16r26BACCB3 data2: 16r6F42 data3: 16r11D4 data4: 16rBCE70080C73C8881.
+		p := self local: 'void *'.
+		((self efiFailed: (self efi: self boot locateProtocol with: guid with: self null with: p)) not and: [p value notNull]) ifTrue: [
+			timerArch := self cCoerce: p value to: 'EfiTimerArch *'.
+			period := self local: 'uint64_t'.
+			(self efiFailed: (self efi: timerArch getTimerPeriod with: timerArch with: period)) ifFalse: [defaultTick := period value asInt64]]].
+	defaultTick <= 0 ifTrue: [^false].
+	defaultTick > 10000 ifTrue: [
+		(self efiFailed: (self efi: timerArch setTimerPeriod with: timerArch with: (on ifTrue: [10000] ifFalse: [defaultTick]))) ifTrue: [^false]].
+	fine := on.
+	^fine
+! !
+
+VMStruct subclass: #EfiTimerArch
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-UEFI'!
+
+EfiTimerArch comment: 'EFI_TIMER_ARCH_PROTOCOL (PI 1.8, volume 2, 12.10): the timer interrupt that drives the firmware''s timer events (periods in 100 ns).'!
+
+!EfiTimerArch class methodsFor: 'declaring'!
+fields
+	^#((registerHandler 'void *') (setTimerPeriod 'void *') (getTimerPeriod 'void *') (generateSoftInterrupt 'void *'))
 ! !
