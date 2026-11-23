@@ -31,6 +31,18 @@ ENOMEM
 EACCES
 	^13
 !
+EFAULT
+	^14
+!
+EBUSY
+	^16
+!
+EEXIST
+	^17
+!
+ENODEV
+	^19
+!
 EINVAL
 	^22
 !

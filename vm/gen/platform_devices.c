@@ -29,6 +29,7 @@ bool device_constants(int64_t *v)
     v[10] = (int64_t)FIONREAD;
     v[11] = (int64_t)TIOCGWINSZ;
     v[12] = (int64_t)TIOCSWINSZ;
+    v[13] = MAP_ANON;
     return true;
 }
 
@@ -77,6 +78,22 @@ int64_t device_open(char *path, int32_t flags)
     return (int64_t)fd;
 }
 
+/* PlatformDevices>>deviceRead:address:count:offset: */
+int64_t device_read(int32_t fd, uint64_t address, uint64_t n, int64_t offset)
+{
+    ssize_t r;
+    for (;;) {
+        r = pread(fd, (void *)address, n, offset);
+        if (!((r < 0) && (errno == EINTR))) {
+            break;
+        }
+    }
+    if (r < 0) {
+        return platform_devices_failed("pread");
+    }
+    return (int64_t)r;
+}
+
 /* PlatformDevices>>deviceUnmap:length: */
 int64_t device_unmap(uint64_t address, uint64_t length)
 {
@@ -84,6 +101,22 @@ int64_t device_unmap(uint64_t address, uint64_t length)
         return platform_devices_failed("munmap");
     }
     return 0;
+}
+
+/* PlatformDevices>>deviceWrite:address:count:offset: */
+int64_t device_write(int32_t fd, uint64_t address, uint64_t n, int64_t offset)
+{
+    ssize_t r;
+    for (;;) {
+        r = pwrite(fd, (void *)address, n, offset);
+        if (!((r < 0) && (errno == EINTR))) {
+            break;
+        }
+    }
+    if (r < 0) {
+        return platform_devices_failed("pwrite");
+    }
+    return (int64_t)r;
 }
 
 /* PlatformDevices>>failed: */

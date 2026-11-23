@@ -524,7 +524,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define PF_BUFUSE_INDEX 2
 #define PF_BUFUSE_STORAGE 4
 #define PF_BUFUSE_VERTEX 1
-#define PF_DEVICE_CONSTANTS 13
+#define PF_DEVICE_CONSTANTS 14
 #define PF_EVENT_QUEUE_MAX 4096
 #define PF_EV_DISPLAY_SCALE_CHANGED 13
 #define PF_EV_FOCUS_GAINED 11
@@ -2247,7 +2247,9 @@ bool device_constants(int64_t *v);
 int64_t device_ioctl(int32_t fd, uint64_t request, uint64_t argument);
 int64_t device_map(uint64_t length, int32_t prot, int32_t flags, int32_t fd, int64_t offset);
 int64_t device_open(char *path, int32_t flags);
+int64_t device_read(int32_t fd, uint64_t address, uint64_t n, int64_t offset);
 int64_t device_unmap(uint64_t address, uint64_t length);
+int64_t device_write(int32_t fd, uint64_t address, uint64_t n, int64_t offset);
 int64_t dropped(void);
 bool platform_events_next(pf_event *out);
 void pump(void);
@@ -2329,7 +2331,9 @@ void prim_device_constants(void);
 void prim_device_ioctl(void);
 void prim_device_map(void);
 void prim_device_open(void);
+void prim_device_read(void);
 void prim_device_unmap(void);
+void prim_device_write(void);
 void prim_dir_create(void);
 void prim_dir_entries(void);
 void prim_dropped_events(void);

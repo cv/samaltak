@@ -542,6 +542,12 @@ primitive_entry vm_primitive_table[] = {
 #ifndef SAMALTAK_NO_PLATFORM
     {595, 2, "deviceConstants", prim_device_constants},
 #endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {596, 2, "deviceRead", prim_device_read},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {597, 2, "deviceWrite", prim_device_write},
+#endif
     {640, 3, "cryptoFeatures", prim_features},
     {641, 3, "cryptoSha256", prim_sha256},
     {642, 3, "cryptoSha512", prim_sha512},

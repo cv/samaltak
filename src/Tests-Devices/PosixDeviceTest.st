@@ -3,7 +3,7 @@ TestCase subclass: #PosixDeviceTest
 	classVariableNames: ''
 	package: 'Tests-Devices'!
 
-PosixDeviceTest comment: 'PosixDevice on a host, without a GPU: ioctl on a file (FIONREAD) and on a pseudo-terminal master (TIOCSWINSZ, TIOCGWINSZ through Machine memory), mmap of a scratch file read and written through Machine, munmap, and the OSErrors (ENOENT, EBADF, ENOTTY, EINVAL, bad arguments). On UEFI (a firmware, no operating system) each test checks instead that every call fails cleanly.'!
+PosixDeviceTest comment: 'PosixDevice on a host, without a GPU: ioctl on a file (FIONREAD) and on a pseudo-terminal master (TIOCSWINSZ, TIOCGWINSZ through Machine memory), pread and pwrite at an offset, mmap of a scratch file read and written through Machine, anonymous mmap, munmap, and the OSErrors (ENOENT, EBADF, ENOTTY, EINVAL, bad arguments). On UEFI (a firmware, no operating system) each test checks instead that every call fails cleanly.'!
 
 !PosixDeviceTest methodsFor: 'private'!
 onFirmware
@@ -17,6 +17,8 @@ onFirmware
 	self should: [PosixDevice ioctl: 0 request: PosixDevice FIONREAD argument: 0] raise: OSError.
 	self should: [PosixDevice mmap: 4096 protection: PosixDevice PROT_READ flags: PosixDevice MAP_SHARED fd: 0 offset: 0] raise: OSError.
 	self should: [PosixDevice munmap: 4096 length: 4096] raise: OSError.
+	self should: [PosixDevice read: 0 at: 0 into: 4096 count: 4] raise: OSError.
+	self should: [PosixDevice write: 0 at: 0 from: 4096 count: 4] raise: OSError.
 	self should: [PosixDevice close: 0] raise: OSError
 !
 errorOf: aBlock
@@ -27,6 +29,37 @@ openRW: path
 ! !
 
 !PosixDeviceTest methodsFor: 'tests'!
+testReadAndWriteAtAnOffset
+	"pread and pwrite at an offset, through Machine memory; the descriptor's own position does not move."
+	| path fd a |
+	Machine hasFirmware ifTrue: [^self onFirmware].
+	path := self scratchPath: 'rw'.
+	File writeBytes: (ByteArray new: 8192 withAll: 1) to: path.
+	fd := self openRW: path.
+	a := Machine allocate: 16.
+	[Machine bytesAt: a put: #[1 2 3 4 5 6 7 8].
+	self assert: (PosixDevice write: fd at: 5000 from: a count: 8) equals: 8.
+	Machine bytesAt: a put: (ByteArray new: 16).
+	self assert: (PosixDevice read: fd at: 4998 into: a count: 12) equals: 12.
+	self assert: (Machine bytesAt: a count: 12) equals: #[1 1 1 2 3 4 5 6 7 8 1 1].
+	self assert: (PosixDevice read: fd at: 8190 into: a count: 16) equals: 2.
+	self assert: (PosixDevice read: fd at: 9000 into: a count: 16) equals: 0.
+	self assert: (PosixDevice ioctl: fd request: PosixDevice FIONREAD argument: a) equals: 0.
+	self assert: (Machine int32At: a) equals: 8192.
+	self assert: (self errorOf: [PosixDevice read: -1 at: 0 into: a count: 4]) errno equals: OSError EBADF]
+		ensure: [Machine free: a. PosixDevice close: fd].
+	self assert: ((File readBytes: path) copyFrom: 5001 to: 5008) equals: #[1 2 3 4 5 6 7 8]
+!
+testAnonymousMapping
+	| a |
+	Machine hasFirmware ifTrue: [^self onFirmware].
+	a := PosixDevice mmap: 65536 protection: (PosixDevice PROT_READ bitOr: PosixDevice PROT_WRITE) flags: (PosixDevice MAP_PRIVATE bitOr: PosixDevice MAP_ANONYMOUS) fd: -1 offset: 0.
+	[self assert: a \\ 4096 equals: 0.
+	self assert: (Machine bytesAt: a + 65000 count: 8) equals: (ByteArray new: 8).
+	Machine uint64At: a + 65528 put: 16r0102030405060708.
+	self assert: (Machine uint64At: a + 65528) equals: 16r0102030405060708]
+		ensure: [PosixDevice munmap: a length: 65536]
+!
 testIoctlOnAFile
 	| path fd n |
 	Machine hasFirmware ifTrue: [^self onFirmware].

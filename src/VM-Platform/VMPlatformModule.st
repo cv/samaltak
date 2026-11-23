@@ -90,7 +90,7 @@ initialize
 	"live handles: files sockets windows gpuDevices shaders pipelines textures samplers buffers fences ptys"
 	PF_HANDLE_COUNTS := 11.
 	"devices: the host constants PlatformDevices>>deviceConstants: fills"
-	PF_DEVICE_CONSTANTS := 13.
+	PF_DEVICE_CONSTANTS := 14.
 	"what a device call answers where there are no devices (UEFI): no errno"
 	PF_NO_DEVICES := -16r40000000
 ! !

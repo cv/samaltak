@@ -8,10 +8,12 @@ PosixDevice comment: 'I am the devices of a POSIX host (Linux, macOS) for driver
 	open: path flags: anInteger	-> fd (flags: my O_ constants, or-ed; nothing is added, so pass O_CLOEXEC)
 	close: fd
 	ioctl: fd request: anInteger argument: anInteger	-> ioctl''s result (argument: an Integer, or the address of memory outside the heap, Machine allocate:, that the call reads or fills)
-	mmap: length protection: p flags: f fd: fd offset: off	-> the address of the mapping (read and write it with Machine uint32At: and its siblings)
+	read: fd at: offset into: address count: n	-> pread''s result: bytes of fd at offset into Machine memory (a VFIO device''s configuration region)
+	write: fd at: offset from: address count: n	-> pwrite''s result
+	mmap: length protection: p flags: f fd: fd offset: off	-> the address of the mapping (read and write it with Machine uint32At: and its siblings; fd -1 and MAP_ANONYMOUS: zeroed memory of the process)
 	munmap: address length: n
 
-A call that fails signals an OSError with its errno and strerror''s text; one that cannot be made (a bad argument, or no operating system: on UEFI every call fails) an OSError whose errno is nil. The constants (O_RDWR O_CLOEXEC ... PROT_READ PROT_WRITE MAP_SHARED, the requests FIONREAD TIOCGWINSZ TIOCSWINSZ) are the host''s values, asked of the VM at each use (they differ between Linux and macOS; an image moves between them); without devices, Linux''s. isAvailable answers whether there are devices.
+A call that fails signals an OSError with its errno and strerror''s text; one that cannot be made (a bad argument, or no operating system: on UEFI every call fails) an OSError whose errno is nil. The constants (O_RDWR O_CLOEXEC ... PROT_READ PROT_WRITE MAP_SHARED MAP_ANONYMOUS, the requests FIONREAD TIOCGWINSZ TIOCSWINSZ) are the host''s values, asked of the VM at each use (they differ between Linux and macOS; an image moves between them); without devices, Linux''s. isAvailable answers whether there are devices.
 
 The VM does not track descriptors or mappings: close and unmap what you open and map (ensure:). Misused (a wrong address or length), I crash the VM like a driver in C would.'!
 
@@ -36,6 +38,14 @@ primMmap: length protection: p flags: f fd: fd offset: offset
 	<primitive: 'deviceMap'>
 	^nil
 !
+primRead: fd address: address count: n offset: offset
+	<primitive: 'deviceRead'>
+	^nil
+!
+primWrite: fd address: address count: n offset: offset
+	<primitive: 'deviceWrite'>
+	^nil
+!
 primMunmap: address length: n
 	<primitive: 'deviceUnmap'>
 	^nil
@@ -53,7 +63,7 @@ check: result call: what path: aPath
 	^result
 !
 constant: index
-	^(self primConstants ifNil: [#(0 1 2 16r80000 16r800 16r100 1 2 1 2 16r541B 16r5413 16r5414)]) at: index
+	^(self primConstants ifNil: [#(0 1 2 16r80000 16r800 16r100 1 2 1 2 16r541B 16r5413 16r5414 16r20)]) at: index
 ! !
 
 !PosixDevice class methodsFor: 'devices'!
@@ -78,6 +88,14 @@ mmap: length protection: p flags: f fd: fd offset: offset
 !
 munmap: address length: n
 	self check: (self primMunmap: address length: n) call: 'munmap' path: nil
+!
+read: fd at: offset into: address count: n
+	"pread(2): up to n bytes of fd from offset into the memory at address (Machine allocate:, or a mapping); answer how many."
+	^self check: (self primRead: fd address: address count: n offset: offset) call: 'pread' path: nil
+!
+write: fd at: offset from: address count: n
+	"pwrite(2): n bytes from the memory at address to fd at offset; answer how many were written."
+	^self check: (self primWrite: fd address: address count: n offset: offset) call: 'pwrite' path: nil
 ! !
 
 !PosixDevice class methodsFor: 'constants'!
@@ -121,4 +139,8 @@ TIOCGWINSZ
 !
 TIOCSWINSZ
 	^self constant: 13
+!
+MAP_ANONYMOUS
+	"With fd -1: memory of the process, not of a file (MAP_ANON)."
+	^self constant: 14
 ! !

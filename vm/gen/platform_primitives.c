@@ -423,7 +423,7 @@ exit_answer_device_result:;
 void prim_device_constants(void)
 {
     bool r_args;
-    int64_t local[13];
+    int64_t local[14];
     int64_t *v;
     oop v_2;
     if (!({
@@ -609,6 +609,55 @@ void prim_device_open(void)
 exit_answer_device_result:;
 }
 
+/* PlatformPrimitives>>primDeviceRead */
+void prim_device_read(void)
+{
+    bool r_args;
+    int32_t r_fd_arg;
+    int64_t fd_2;
+    int32_t fd;
+    uint64_t local;
+    uint64_t *a;
+    int64_t count;
+    int64_t offset;
+    int64_t r;
+    uint64_t v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 4;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    fd = ({
+    fd_2 = int_arg(0);
+    if ((fd_2 < -2147483648) || (fd_2 > 0x7FFFFFFF)) {
+        bad = true;
+    }
+    r_fd_arg = (int32_t)fd_2;
+    r_fd_arg; });
+    memset(&local, 0, sizeof local);
+    a = &local;
+    count = int_arg(2);
+    offset = int_arg(3);
+    if (bad || ((count < 0) || ((offset < 0) || (!u64_of(prim_base[2], a))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    r = device_read(fd, *a, (uint64_t)count, offset);
+    if (r == PF_NO_DEVICES) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        goto exit_answer_device_result;
+    }
+    v = int64_oop(r);
+    prim_result = v;
+    prim_status = PS_OK;
+exit_answer_device_result:;
+}
+
 /* PlatformPrimitives>>primDeviceUnmap */
 void prim_device_unmap(void)
 {
@@ -635,6 +684,55 @@ void prim_device_unmap(void)
         return;
     }
     r = device_unmap(*a, (uint64_t)length);
+    if (r == PF_NO_DEVICES) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        goto exit_answer_device_result;
+    }
+    v = int64_oop(r);
+    prim_result = v;
+    prim_status = PS_OK;
+exit_answer_device_result:;
+}
+
+/* PlatformPrimitives>>primDeviceWrite */
+void prim_device_write(void)
+{
+    bool r_args;
+    int32_t r_fd_arg;
+    int64_t fd_2;
+    int32_t fd;
+    uint64_t local;
+    uint64_t *a;
+    int64_t count;
+    int64_t offset;
+    int64_t r;
+    uint64_t v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 4;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    fd = ({
+    fd_2 = int_arg(0);
+    if ((fd_2 < -2147483648) || (fd_2 > 0x7FFFFFFF)) {
+        bad = true;
+    }
+    r_fd_arg = (int32_t)fd_2;
+    r_fd_arg; });
+    memset(&local, 0, sizeof local);
+    a = &local;
+    count = int_arg(2);
+    offset = int_arg(3);
+    if (bad || ((count < 0) || ((offset < 0) || (!u64_of(prim_base[2], a))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    r = device_write(fd, *a, (uint64_t)count, offset);
     if (r == PF_NO_DEVICES) {
         prim_status = PS_FAIL;
         prim_error_code = -1;

@@ -3,7 +3,7 @@ VMPlatformModule subclass: #PlatformDevices
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
-PlatformDevices comment: 'Devices of the operating system as drivers in Smalltalk reach them (the device primitives of PlatformPrimitives, PosixDevice in the image): open(2) with the caller''s flags, close(2), ioctl(2) with a word (an integer or an address of Machine memory), mmap(2) of a descriptor and munmap(2). The descriptors are raw (not in a handle table): the image owns them. Each answers its result, or minus errno where the call failed, the error string set to the call''s strerror. constants: fills the host''s values of the flags and requests the image names (they differ between Linux and macOS). On UEFI, VM-UEFI''s UefiNoIO replaces me: every call answers PF_NO_DEVICES, and the primitive fails.'!
+PlatformDevices comment: 'Devices of the operating system as drivers in Smalltalk reach them (the device primitives of PlatformPrimitives, PosixDevice in the image): open(2) with the caller''s flags, close(2), ioctl(2) with a word (an integer or an address of Machine memory), pread(2) and pwrite(2) at an offset (a VFIO device''s regions), mmap(2) of a descriptor (or anonymous memory) and munmap(2). The descriptors are raw (not in a handle table): the image owns them. Each answers its result, or minus errno where the call failed, the error string set to the call''s strerror. constants: fills the host''s values of the flags and requests the image names (they differ between Linux and macOS). On UEFI, VM-UEFI''s UefiNoIO replaces me: every call answers PF_NO_DEVICES, and the primitive fails.'!
 
 !PlatformDevices methodsFor: 'devices'!
 failed: what
@@ -66,6 +66,34 @@ deviceMap: length protection: prot flags: flags fd: fd offset: offset
 	p = posix MAP_FAILED ifTrue: [^self failed: 'mmap'].
 	^(self cCoerce: p to: 'int64_t')
 !
+deviceRead: fd address: address count: n offset: offset
+	"pread(fd, address, n, offset) -> the bytes read, or minus errno; retried on EINTR."
+	<function>
+	<var: #fd type: 'int32_t'>
+	<var: #address type: 'uint64_t'>
+	<var: #n type: 'uint64_t'>
+	<var: #offset type: 'int64_t'>
+	<returns: 'int64_t'>
+	| r |
+	[r := posixProcesses pread: fd into: (self cCoerce: address to: 'void *') count: n offset: offset.
+	 r < 0 and: [posixIO errno = posixIO EINTR]] whileTrue.
+	r < 0 ifTrue: [^self failed: 'pread'].
+	^r asInt64
+!
+deviceWrite: fd address: address count: n offset: offset
+	"pwrite(fd, address, n, offset) -> the bytes written, or minus errno; retried on EINTR."
+	<function>
+	<var: #fd type: 'int32_t'>
+	<var: #address type: 'uint64_t'>
+	<var: #n type: 'uint64_t'>
+	<var: #offset type: 'int64_t'>
+	<returns: 'int64_t'>
+	| r |
+	[r := posixProcesses pwrite: fd from: (self cCoerce: address to: 'void *') count: n offset: offset.
+	 r < 0 and: [posixIO errno = posixIO EINTR]] whileTrue.
+	r < 0 ifTrue: [^self failed: 'pwrite'].
+	^r asInt64
+!
 deviceUnmap: address length: length
 	"munmap(address, length) -> 0, or minus errno."
 	<function>
@@ -76,7 +104,7 @@ deviceUnmap: address length: length
 	^0
 !
 deviceConstants: v
-	"The host's O_RDONLY O_WRONLY O_RDWR O_CLOEXEC O_NONBLOCK O_NOCTTY PROT_READ PROT_WRITE MAP_SHARED MAP_PRIVATE FIONREAD TIOCGWINSZ TIOCSWINSZ into v (PF_DEVICE_CONSTANTS); answer whether there are devices."
+	"The host's O_RDONLY O_WRONLY O_RDWR O_CLOEXEC O_NONBLOCK O_NOCTTY PROT_READ PROT_WRITE MAP_SHARED MAP_PRIVATE FIONREAD TIOCGWINSZ TIOCSWINSZ MAP_ANON into v (PF_DEVICE_CONSTANTS); answer whether there are devices."
 	<function>
 	<var: #v type: 'int64_t *'>
 	<returns: 'bool'>
@@ -93,5 +121,6 @@ deviceConstants: v
 	v at: 10 put: posixProcesses FIONREAD asInt64.
 	v at: 11 put: posixProcesses TIOCGWINSZ asInt64.
 	v at: 12 put: posixProcesses TIOCSWINSZ asInt64.
+	v at: 13 put: posix MAP_ANON.
 	^true
 ! !

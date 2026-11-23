@@ -421,6 +421,26 @@ deviceMap: length protection: prot flags: flags fd: fd offset: offset
 	common setError: 'not on UEFI'.
 	^PF_NO_DEVICES
 !
+deviceRead: fd address: address count: n offset: offset
+	<function>
+	<var: #fd type: 'int32_t'>
+	<var: #address type: 'uint64_t'>
+	<var: #n type: 'uint64_t'>
+	<var: #offset type: 'int64_t'>
+	<returns: 'int64_t'>
+	common setError: 'not on UEFI'.
+	^PF_NO_DEVICES
+!
+deviceWrite: fd address: address count: n offset: offset
+	<function>
+	<var: #fd type: 'int32_t'>
+	<var: #address type: 'uint64_t'>
+	<var: #n type: 'uint64_t'>
+	<var: #offset type: 'int64_t'>
+	<returns: 'int64_t'>
+	common setError: 'not on UEFI'.
+	^PF_NO_DEVICES
+!
 deviceUnmap: address length: length
 	<function>
 	<var: #address type: 'uint64_t'>

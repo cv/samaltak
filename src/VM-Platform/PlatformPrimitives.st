@@ -1733,6 +1733,30 @@ primDeviceMap
 	(bad or: [length < 0 or: [offset < 0]]) ifTrue: [^self fail].
 	self answerDeviceResult: (devices deviceMap: length asUInt64 protection: prot flags: flags fd: fd offset: offset)
 !
+primDeviceRead
+	"fd address count offset -> pread(2) into the memory at address (machineAllocate or deviceMap): the bytes read, or minus errno"
+	<vmPrimitive: 596 name: 'deviceRead'>
+	| fd a count offset |
+	(self args: 4) ifFalse: [^self fail].
+	fd := self fdArg: 0.
+	a := self local: 'uint64_t'.
+	count := self intArg: 2.
+	offset := self intArg: 3.
+	(bad or: [count < 0 or: [offset < 0 or: [(memory u64Of: (self arg: 1) into: a) not]]]) ifTrue: [^self fail].
+	self answerDeviceResult: (devices deviceRead: fd address: a value count: count asUInt64 offset: offset)
+!
+primDeviceWrite
+	"fd address count offset -> pwrite(2) from the memory at address: the bytes written, or minus errno"
+	<vmPrimitive: 597 name: 'deviceWrite'>
+	| fd a count offset |
+	(self args: 4) ifFalse: [^self fail].
+	fd := self fdArg: 0.
+	a := self local: 'uint64_t'.
+	count := self intArg: 2.
+	offset := self intArg: 3.
+	(bad or: [count < 0 or: [offset < 0 or: [(memory u64Of: (self arg: 1) into: a) not]]]) ifTrue: [^self fail].
+	self answerDeviceResult: (devices deviceWrite: fd address: a value count: count asUInt64 offset: offset)
+!
 primDeviceUnmap
 	"address length -> 0, or minus errno"
 	<vmPrimitive: 594 name: 'deviceUnmap'>
@@ -1744,7 +1768,7 @@ primDeviceUnmap
 	self answerDeviceResult: (devices deviceUnmap: a value length: length asUInt64)
 !
 primDeviceConstants
-	"-> {O_RDONLY. O_WRONLY. O_RDWR. O_CLOEXEC. O_NONBLOCK. O_NOCTTY. PROT_READ. PROT_WRITE. MAP_SHARED. MAP_PRIVATE. FIONREAD. TIOCGWINSZ. TIOCSWINSZ}, the host's values; fails where there are no devices (UEFI)"
+	"-> {O_RDONLY. O_WRONLY. O_RDWR. O_CLOEXEC. O_NONBLOCK. O_NOCTTY. PROT_READ. PROT_WRITE. MAP_SHARED. MAP_PRIVATE. FIONREAD. TIOCGWINSZ. TIOCSWINSZ. MAP_ANON}, the host's values; fails where there are no devices (UEFI)"
 	<vmPrimitive: 595 name: 'deviceConstants'>
 	| v |
 	(self args: 0) ifFalse: [^self fail].

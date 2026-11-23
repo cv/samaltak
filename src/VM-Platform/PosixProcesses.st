@@ -79,6 +79,14 @@ ioctl: fd request: request argument: argument
 	<c: 'int ioctl(int fd, unsigned long request, ...)'>
 	^self notSimulated
 !
+pread: fd into: buf count: n offset: offset
+	<c: 'ssize_t pread(int fd, void *buf, size_t n, off_t offset)'>
+	^self notSimulated
+!
+pwrite: fd from: buf count: n offset: offset
+	<c: 'ssize_t pwrite(int fd, const void *buf, size_t n, off_t offset)'>
+	^self notSimulated
+!
 TIOCSWINSZ
 	<cMacro: 'unsigned long TIOCSWINSZ'>
 	^self notSimulated
