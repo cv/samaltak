@@ -80,7 +80,7 @@ width: w height: h title: aString hidden: aBoolean
 	^self new setWindow: (HostWindow width: w height: h title: aString flags: (aBoolean ifTrue: [7] ifFalse: [6]))
 !
 width: w height: h title: aString flags: anInteger
-	"flags: 1 hidden, 2 resizable, 4 highDensity (HostWindow)."
+	"flags: 1 hidden, 2 resizable, 4 highDensity, 8 desktop (HostWindow)."
 	^self new setWindow: (HostWindow width: w height: h title: aString flags: anInteger)
 !
 on: aHostWindow

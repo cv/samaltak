@@ -57,6 +57,7 @@ bool platform_windows_close(int32_t win)
     }
     window_closing(win);
     SDL_StopTextInput(sw);
+    closing_desktop_window(sw);
     SDL_DestroyWindow(sw);
     platform_common_table_remove(table, win);
     return true;
@@ -127,7 +128,10 @@ int32_t platform_windows_open(int32_t w, int32_t h, char *title, int32_t flags)
     if ((flags & PF_WIN_HIGH_DENSITY) != 0) {
         f = f | SDL_WINDOW_HIGH_PIXEL_DENSITY;
     }
-    sw = SDL_CreateWindow(title != NULL ? title : "", w, h, f);
+    sw = ((flags & PF_WIN_DESKTOP) != 0) && ((flags & PF_WIN_HIDDEN) == 0) ? open_desktop_window(title != NULL ? title : "", w, h, f) : (SDL_Window *)NULL;
+    if (sw == NULL) {
+        sw = SDL_CreateWindow(title != NULL ? title : "", w, h, f);
+    }
     if (sw == NULL) {
         a = SDL_GetError();
         snprintf(last_error, LAST_ERROR_SIZE, "SDL_CreateWindow: %s", a);
@@ -230,12 +234,32 @@ bool set_cursor(int32_t kind)
     return SDL_SetCursor(cursors[kind]);
 }
 
+/* PlatformWindows>>setPosition:x:y: */
+bool set_position(int32_t win, int32_t x, int32_t y)
+{
+    SDL_Window *sw;
+    sw = sdl_window(win);
+    if (sw == NULL) {
+        return false;
+    }
+    if (move_desktop_window(sw, x, y)) {
+        return true;
+    }
+    return SDL_SetWindowPosition(sw, x, y);
+}
+
 /* PlatformWindows>>setSize:width:height: */
 bool set_size(int32_t win, int32_t w, int32_t h)
 {
     SDL_Window *sw;
     sw = sdl_window(win);
-    return (sw != NULL) && SDL_SetWindowSize(sw, w, h);
+    if (sw == NULL) {
+        return false;
+    }
+    if (resize_desktop_window(sw, w, h)) {
+        return true;
+    }
+    return SDL_SetWindowSize(sw, w, h);
 }
 
 /* PlatformWindows>>setTextInputArea:x:y:width:height:cursor: */

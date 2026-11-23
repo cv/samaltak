@@ -50,6 +50,24 @@ compileShader: source stage: stage size: sizeOut
 	self subclassResponsibility
 ! !
 
+!PlatformHost methodsFor: 'desktop windows'!
+openDesktopWindow: title width: w height: h flags: flags
+	"A window on the desktop (PF_WIN_DESKTOP): above the wallpaper, below every window, placed by moveDesktopWindow:x:y:, never taking the keyboard focus; NULL where the system has none (PlatformWindows then opens an ordinary window)."
+	self subclassResponsibility
+!
+resizeDesktopWindow: sw width: w height: h
+	"Resize desktop window sw to w × h points; false if sw is no desktop window."
+	self subclassResponsibility
+!
+moveDesktopWindow: sw x: x y: y
+	"Place desktop window sw x @ y points from the top left of the area the bar and docks leave free; false if sw is no desktop window."
+	self subclassResponsibility
+!
+closingDesktopWindow: sw
+	"SDL window sw is about to be destroyed."
+	self subclassResponsibility
+! !
+
 PlatformHost subclass: #DarwinPlatformHost
 	instanceVariableNames: 'coreVideo darwin displayLink'
 	classVariableNames: ''
@@ -124,16 +142,39 @@ compileShader: source stage: stage size: sizeOut
 	^self null
 ! !
 
+!DarwinPlatformHost methodsFor: 'desktop windows'!
+openDesktopWindow: title width: w height: h flags: flags
+	"None on macOS: an ordinary window."
+	<export>
+	<returns: 'SDL_Window *'>
+	<var: #flags type: 'SDL_WindowFlags'>
+	^self null
+!
+resizeDesktopWindow: sw width: w height: h
+	<export>
+	<var: #sw type: 'SDL_Window *'>
+	^false
+!
+moveDesktopWindow: sw x: x y: y
+	<export>
+	<var: #sw type: 'SDL_Window *'>
+	^false
+!
+closingDesktopWindow: sw
+	<export>
+	<var: #sw type: 'SDL_Window *'>
+! !
+
 PlatformHost subclass: #LinuxPlatformHost
-	instanceVariableNames: 'linux shaderc compiler vertexOptions fragmentOptions vsyncOn vsyncPeriodUs vsyncStarted'
+	instanceVariableNames: 'linux desktop shaderc compiler vertexOptions fragmentOptions vsyncOn vsyncPeriodUs vsyncStarted'
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
-LinuxPlatformHost comment: 'The platform layer on Linux: a thread that wakes at the display''s refresh rate (absolute CLOCK_MONOTONIC deadlines) for the refreshes, environ, SIGPIPE ignored (there is no SO_NOSIGPIPE), the alt key as cmd and the super key as alt (the window manager keeps most super combinations), GLSL compiled to SPIR-V with shaderc (SDL_GPU on Vulkan).'!
+LinuxPlatformHost comment: 'The platform layer on Linux: a thread that wakes at the display''s refresh rate (absolute CLOCK_MONOTONIC deadlines) for the refreshes, environ, SIGPIPE ignored (there is no SO_NOSIGPIPE), the alt key as cmd and the super key as alt (the window manager keeps most super combinations), GLSL compiled to SPIR-V with shaderc (SDL_GPU on Vulkan), desktop windows as Wayland layer surfaces (WaylandDesktop; none under X11).'!
 
 !LinuxPlatformHost class methodsFor: 'declaring'!
 declarations
-	^#((linux LinuxPlatform) (shaderc Shaderc) (compiler shaderc_compiler_t) (vertexOptions shaderc_compile_options_t)
+	^#((linux LinuxPlatform) (desktop WaylandDesktop) (shaderc Shaderc) (compiler shaderc_compiler_t) (vertexOptions shaderc_compile_options_t)
 		(fragmentOptions shaderc_compile_options_t) (vsyncOn atomic_bool) (vsyncPeriodUs atomic_int) (vsyncStarted bool))
 !
 targetOS
@@ -273,6 +314,29 @@ environment
 	"The environ of the process: the address of the environment array."
 	<c: 'char ***_NSGetEnviron(void)'>
 	^self error: 'not simulated'
+! !
+
+!LinuxPlatformHost methodsFor: 'desktop windows'!
+openDesktopWindow: title width: w height: h flags: flags
+	<export>
+	<returns: 'SDL_Window *'>
+	<var: #flags type: 'SDL_WindowFlags'>
+	^desktop openSurface: title width: w height: h flags: flags
+!
+resizeDesktopWindow: sw width: w height: h
+	<export>
+	<var: #sw type: 'SDL_Window *'>
+	^desktop resizeSurface: sw width: w height: h
+!
+moveDesktopWindow: sw x: x y: y
+	<export>
+	<var: #sw type: 'SDL_Window *'>
+	^desktop placeSurface: sw x: x y: y
+!
+closingDesktopWindow: sw
+	<export>
+	<var: #sw type: 'SDL_Window *'>
+	desktop destroySurface: sw
 ! !
 
 CLibrary subclass: #LinuxPlatform

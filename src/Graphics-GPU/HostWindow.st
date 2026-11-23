@@ -60,6 +60,10 @@ hidden: aBoolean
 	"Open hidden (offscreen) or shown when my handle is created next (first use, new session)."
 	flags := (flags bitAnd: -2) + (aBoolean ifTrue: [1] ifFalse: [0])
 !
+moveTo: aPoint
+	"Move me to aPoint points: on the desktop (flag 8) from the top left of the area the bar leaves free, else on the screen (where the window manager lets me). Answer whether the host did."
+	^self isOpen and: [(GPUPlatform window: handle x: aPoint x rounded y: aPoint y rounded) ~~ false]
+!
 textInputArea: aRectangle cursor: x
 	"Where text is being typed (points; x: the caret within aRectangle): the input method shows its candidates there."
 	self isOpen ifTrue: [
@@ -86,7 +90,7 @@ width: w height: h title: aString
 	^self width: w height: h title: aString flags: 6
 !
 width: w height: h title: aString flags: anInteger
-	"flags: 1 hidden, 2 resizable, 4 highDensity."
+	"flags: 1 hidden, 2 resizable, 4 highDensity, 8 desktop (above the wallpaper, below every window, never focused: a Wayland layer surface where the compositor has the layer shell, else an ordinary window)."
 	^self new setWidth: w height: h title: aString flags: anInteger
 ! !
 

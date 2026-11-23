@@ -50,6 +50,11 @@ SDL_Keymod alt_keymod(void)
     return SDL_KMOD_ALT;
 }
 
+/* DarwinPlatformHost>>closingDesktopWindow: */
+void closing_desktop_window(SDL_Window *sw)
+{
+}
+
 /* DarwinPlatformHost>>cmdKeymod */
 SDL_Keymod cmd_keymod(void)
 {
@@ -69,11 +74,29 @@ char **environment(void)
     return *_NSGetEnviron();
 }
 
+/* DarwinPlatformHost>>moveDesktopWindow:x:y: */
+bool move_desktop_window(SDL_Window *sw, int32_t x, int32_t y)
+{
+    return false;
+}
+
 /* DarwinPlatformHost>>onRefresh:now:output:flags:flagsOut:context: */
 static CVReturn on_refresh(CVDisplayLinkRef link, const CVTimeStamp *now, const CVTimeStamp *output_time, CVOptionFlags flags_in, CVOptionFlags *flags_out, void *context)
 {
     refreshed();
     return kCVReturnSuccess;
+}
+
+/* DarwinPlatformHost>>openDesktopWindow:width:height:flags: */
+SDL_Window *open_desktop_window(char *title, int32_t w, int32_t h, SDL_WindowFlags flags)
+{
+    return (SDL_Window *)NULL;
+}
+
+/* DarwinPlatformHost>>resizeDesktopWindow:width:height: */
+bool resize_desktop_window(SDL_Window *sw, int32_t w, int32_t h)
+{
+    return false;
 }
 
 /* DarwinPlatformHost>>shaderFormats */

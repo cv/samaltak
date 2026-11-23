@@ -221,6 +221,9 @@ primitive_entry vm_primitive_table[] = {
     {421, 2, "windowSetSize", prim_window_set_size},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
+    {422, 2, "windowSetPosition", prim_window_set_position},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
     {430, 2, "gpuCreateDevice", prim_gpu_create_device},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
