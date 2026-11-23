@@ -5,6 +5,8 @@
 # at the end "stages: all passed in N s" or "stages: FAILED: <stages>" (exit 1). Every stage runs to its end, a failing
 # one does not stop the others. The Smalltalk suites share the machine's test slots (tests/st_suite.sh), and each of
 # their VMs gets an Xvfb of its own (SAMALTAK_TEST_XVFB=1) when DISPLAY is set, so that the stages' windows do not meet.
+# Build cache: the VM (vm/build) comes from and goes into the machine's cache, keyed by vm/'s tree and the compilers
+# (tests/build-cache.sh; SAMALTAK_BUILD_CACHE=0: none), so that a gate of an already built vm/ skips its compile.
 # Timeline: every recipe line, test VM and slot wait goes into OUT/stages/timeline (SAMALTAK_TIMELINE; set it empty
 # for none), and the end shows each stage's span and the steps of the build and of the stage that ended last, the
 # critical path (tests/timeline.sh; tests/timeline.sh OUT/stages/timeline all: every stage's).
@@ -37,10 +39,14 @@ PIDS=
 trap '[ -n "$PIDS" ] && kill $PIDS 2>/dev/null; exit 143' INT TERM HUP
 
 echo "stages: building (make all)"
-# shellcheck disable=SC2086
 t=$(tl_now)
+# The VM from the machine's build cache when vm/ was built before (tests/build-cache.sh), the rest at once (-j -O).
+tests/build-cache.sh restore
+NPROC=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)
+PAR="-j$NPROC -O"; case $(make --version 2>/dev/null | head -1) in *' 3.'*) PAR= ;; esac
 # shellcheck disable=SC2086
-SAMALTAK_TIMELINE_PARENT=build make $VARS all || { echo "stages: FAILED: the build (make all)"; exit 1; }
+SAMALTAK_TIMELINE_PARENT=build make $PAR $VARS all || { echo "stages: FAILED: the build (make all)"; exit 1; }
+tests/build-cache.sh save
 tl_add "$t" "$(tl_now)" 0 stages "make all" build
 
 for s in $STAGES; do
@@ -77,6 +83,8 @@ while [ -n "$left" ]; do
   [ -n "$left" ] && sleep 2
 done
 wait
+# what test-tools built besides (vm/build/platform-vm, platform-test) goes into the cache too
+tests/build-cache.sh save >/dev/null
 timeline
 [ -z "$failed" ] || { echo "stages: FAILED:$failed (in $(( $(date +%s) - START )) s)"; exit 1; }
 echo "stages: all passed in $(( $(date +%s) - START )) s"

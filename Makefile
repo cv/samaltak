@@ -18,7 +18,7 @@ TEST_IMAGE ?= image
 all: vm seed image runtime
 
 vm:
-	$(MAKE) -C vm
+	$(MAKE) -C vm $(BUILD_JOBS)
 
 seed: vm
 	boot/build-image.sh src $(OUT)/seed.image
@@ -54,7 +54,7 @@ test-vm: vm
 # After changing the VM's Lowtalk sources (src/VM-Core, src/VM-Platform): translate them into vm/gen (checked in).
 translate: image
 	$(VM) $(OUT)/samaltak.image --headless --eval "[VMTranslator generateVM. 'ok'] on: Error do: [:e | e messageText]"
-	$(MAKE) -C vm
+	$(MAKE) -C vm $(BUILD_JOBS)
 
 # The image's tests under each JIT, every method compiled on its first activation (under opt also optimized after
 # one more, and again with deoptimization stress); Tests-Kernel also with a code cache small enough to be flushed
