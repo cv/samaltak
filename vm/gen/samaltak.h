@@ -2073,6 +2073,7 @@ void prim_zlib_adler32(void);
 void prim_zlib_matches(void);
 void prim_zlib_token_counts(void);
 void prim_zlib_write_tokens(void);
+void prim_zrle_tiles(void);
 bool build(oop m, int32_t s, int32_t t, int32_t d, bool res);
 bool inlinable_closure(oop c);
 bool opt_codegen_generate(oop m, int a);
@@ -2191,6 +2192,7 @@ void prim_work_clock_start(void);
 void prim_work_clock_stop(void);
 char *banner(void);
 int main(int n, char **v);
+int64_t zrle_coder_tiles(uint8_t *px, int64_t w, int64_t h, int64_t bpp, int64_t cp, int64_t off, uint32_t *s, uint8_t *out);
 #ifdef __APPLE__
 void begin_writing(void);
 bool can_run_code(void);

@@ -2561,3 +2561,111 @@ exit_is_bytes_3:;
     prim_status = PS_OK;
 }
 
+/* ObjectPrimitives>>primZrleTiles */
+void prim_zrle_tiles(void)
+{
+    oop o;
+    oop o_2;
+    oop o_3;
+    oop o_4;
+    oop o_5;
+    oop o_6;
+    int64_t w;
+    oop o_7;
+    int64_t h;
+    oop o_8;
+    int64_t bpp;
+    oop o_9;
+    int64_t cp;
+    oop o_10;
+    int64_t off;
+    oop px;
+    oop scratch;
+    oop out;
+    bool r_is_bytes;
+    int32_t f;
+    int64_t tiles;
+    int64_t v;
+    uint64_t v_2;
+    if (!(prim_nargs == 8)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o = prim_base[2];
+    if (!(((o & 1) != 0) && ({
+    o_2 = prim_base[3];
+    ((o_2 & 1) != 0) && ({
+    o_3 = prim_base[4];
+    ((o_3 & 1) != 0) && ({
+    o_4 = prim_base[5];
+    ((o_4 & 1) != 0) && ({
+    o_5 = prim_base[6];
+    (o_5 & 1) != 0; }); }); }); }))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o_6 = prim_base[2];
+    w = ((int64_t)o_6) >> 1;
+    o_7 = prim_base[3];
+    h = ((int64_t)o_7) >> 1;
+    o_8 = prim_base[4];
+    bpp = ((int64_t)o_8) >> 1;
+    o_9 = prim_base[5];
+    cp = ((int64_t)o_9) >> 1;
+    o_10 = prim_base[6];
+    off = ((int64_t)o_10) >> 1;
+    if (!((w >= 0) && (w <= 65535) && ((h >= 0) && (h <= 65535) && ((bpp == 1) || ((bpp == 2) || (bpp == 4)))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (!(((cp == bpp) && (off == 0)) || ((bpp == 4) && ((cp == 3) && ((off == 0) || (off == 1)))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    px = prim_base[1];
+    scratch = prim_base[7];
+    out = prim_base[8];
+    if (!(((px & 7) == 0) && (((int32_t)(((*(uint64_t *)px) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) && ((int32_t)(((*(uint64_t *)px) >> H_FMT_SHIFT) & H_FMT_MASK) < 24)))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (!(({
+    if (!((scratch & 7) == 0)) {
+        r_is_bytes = false;
+        goto exit_is_bytes;
+    }
+    f = (int32_t)(((*(uint64_t *)scratch) >> H_FMT_SHIFT) & H_FMT_MASK);
+    r_is_bytes = (f >= F_BYTES) && ((f < 24) && (byte_size(scratch) == 52224ULL));
+exit_is_bytes:;
+    r_is_bytes; }) && (!(((*(uint64_t *)scratch) & H_IMMUTABLE) != 0)) && (((out & 7) == 0) && (!(((*(uint64_t *)out) & H_IMMUTABLE) != 0))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (!(((int32_t)(((*(uint64_t *)out) >> H_FMT_SHIFT) & H_FMT_MASK) >= F_BYTES) && (((int32_t)(((*(uint64_t *)out) >> H_FMT_SHIFT) & H_FMT_MASK) < 24) && ((out != px) && (out != scratch))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    tiles = (w + 63) / 64 * ((h + 63) / 64);
+    if (!(w * h * bpp <= (int64_t)byte_size(px))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    if (!(w * h * cp + tiles <= (int64_t)byte_size(out))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = zrle_coder_tiles((uint8_t *)(px + 16), w, h, bpp, cp, off, (uint32_t *)(scratch + 16), (uint8_t *)(out + 16));
+    v_2 = (uint64_t)((v << 1) | 1);
+    prim_result = v_2;
+    prim_status = PS_OK;
+}
+

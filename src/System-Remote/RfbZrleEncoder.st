@@ -1,9 +1,11 @@
 Object subclass: #RfbZrleEncoder
-	instanceVariableNames: 'zstream bpp cp cpOffset pixels width out runStarts runLengths runIndexes runCount paletteOffsets paletteSize slotKeys slotIndexes slotGenerations generation'
+	instanceVariableNames: 'zstream bpp cp cpOffset pixels width out runStarts runLengths runIndexes runCount paletteOffsets paletteSize slotKeys slotIndexes slotGenerations generation scratch tileBuffer'
 	classVariableNames: ''
 	package: 'System-Remote'!
 
-RfbZrleEncoder comment: 'I encode rectangles in ZRLE (RFC 6143, 7.7.6) for one RFB connection, over its one zlib stream (RfbZStream). A rectangle is cut into 64x64 tiles, left to right, top to bottom; each tile is coded the cheapest of five ways, judged from one pass over it that finds its runs and its colours (up to 127, in a small open-addressed table reused from tile to tile), which the coding then uses without looking at the pixels again: solid (one CPIXEL), packed palette (2-16 colours, 1, 2 or 4 bits an index, rows byte-aligned), plain RLE (CPIXEL and run length), palette RLE (2-127 colours, an index byte, run lengths after the long ones), or raw. A run''s length L is L - 1 as bytes of 255 and a last byte below it. Pixels come in the client''s format (RfbPixelFormat convertBgra:count:), CPIXELs cut out of them (cpixelSize, cpixelOffset).'!
+RfbZrleEncoder comment: 'I encode rectangles in ZRLE (RFC 6143, 7.7.6) for one RFB connection, over its one zlib stream (RfbZStream). A rectangle is cut into 64x64 tiles, left to right, top to bottom; each tile is coded the cheapest of five ways, judged from one pass over it that finds its runs and its colours (up to 127, in a small open-addressed table reused from tile to tile), which the coding then uses without looking at the pixels again: solid (one CPIXEL), packed palette (2-16 colours, 1, 2 or 4 bits an index, rows byte-aligned), plain RLE (CPIXEL and run length), palette RLE (2-127 colours, an index byte, run lengths after the long ones), or raw. A run''s length L is L - 1 as bytes of 255 and a last byte below it. Pixels come in the client''s format (RfbPixelFormat convertBgra:count:), CPIXELs cut out of them (cpixelSize, cpixelOffset).
+
+The VM''s zrleTiles primitive (ZrleCoder: runs found 16 bytes at a time with NEON or SSE2) codes a whole rectangle''s tiles in one call; the Smalltalk here (tilesInSmalltalk:width:height:bytesPerPixel:cpixelSize:offset:) is what it does byte for byte, and what runs where it cannot.'!
 
 !RfbZrleEncoder methodsFor: 'encoding'!
 encode: clientPixels width: w height: h format: aFormat
@@ -30,11 +32,24 @@ encode: clientPixels width: w height: h format: aFormat on: aStream
 !
 tiles: clientPixels width: w height: h format: aFormat
 	"The uncompressed tile data of a rectangle."
+	| size buffer n |
+	size := w * h * aFormat cpixelSize + ((w + 63 // 64) * (h + 63 // 64)).
+	buffer := (tileBuffer notNil and: [tileBuffer size >= size])
+		ifTrue: [tileBuffer]
+		ifFalse: [ByteArray new: size].
+	n := self primTiles: clientPixels width: w height: h bytesPerPixel: aFormat bytesPerPixel cpixelSize: aFormat cpixelSize offset: (aFormat cpixelOffset ifNil: [0]) scratch: self scratch into: buffer.
+	n isNil ifTrue: [^self tilesInSmalltalk: clientPixels width: w height: h bytesPerPixel: aFormat bytesPerPixel cpixelSize: aFormat cpixelSize offset: (aFormat cpixelOffset ifNil: [0])].
+	"a buffer of up to 1 MB is kept for the next rectangle"
+	(buffer ~~ tileBuffer and: [size <= 1048576]) ifTrue: [tileBuffer := buffer].
+	^buffer copyFrom: 1 to: n
+!
+tilesInSmalltalk: clientPixels width: w height: h bytesPerPixel: aBpp cpixelSize: aCp offset: anOffset
+	"tiles:width:height:format:'s bytes, made here: a CPIXEL aCp bytes of each pixel's aBpp from anOffset."
 	pixels := clientPixels.
 	width := w.
-	bpp := aFormat bytesPerPixel.
-	cp := aFormat cpixelSize.
-	cpOffset := aFormat cpixelOffset ifNil: [0].
+	bpp := aBpp.
+	cp := aCp.
+	cpOffset := anOffset.
 	out := WriteStream on: (ByteArray new: (w * h * cp // 4 max: 64)).
 	0 to: h - 1 by: 64 do: [:ty |
 		0 to: w - 1 by: 64 do: [:tx |
@@ -43,6 +58,15 @@ tiles: clientPixels width: w height: h format: aFormat
 ! !
 
 !RfbZrleEncoder methodsFor: 'private'!
+primTiles: px width: w height: h bytesPerPixel: aBpp cpixelSize: aCp offset: anOffset scratch: aByteArray into: buffer
+	"The VM's zrleTiles (ObjectPrimitives>>primZrleTiles): the tiles into buffer, answering their size; nil if it cannot (an older VM, arguments out of range)."
+	<primitive: 'zrleTiles'>
+	^nil
+!
+scratch
+	"The zrleTiles primitive's working memory: a tile's runs and palette."
+	^scratch ifNil: [scratch := ByteArray new: 52224]
+!
 valueAt: offset
 	"The pixel at byte offset (1-based) as an Integer (its bytes as they lie: a key, not a colour)."
 	bpp = 4 ifTrue: [^pixels uint32At: offset].

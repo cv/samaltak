@@ -1,5 +1,5 @@
 VMPrimitiveModule subclass: #ObjectPrimitives
-	instanceVariableNames: 'instancesClass instancesResult instancesCount search png deflate coder packer'
+	instanceVariableNames: 'instancesClass instancesResult instancesCount search png deflate coder packer zrle'
 	classVariableNames: ''
 	package: 'VM-Core'!
 
@@ -7,7 +7,7 @@ ObjectPrimitives comment: 'Object, string and byte-access primitives. Indices ar
 
 !ObjectPrimitives class methodsFor: 'declaring'!
 declarations
-	^#((instancesClass oop) (instancesResult oop) (instancesCount size_t) (search ByteSearch) (png PngFilter) (deflate DeflateMatcher) (coder DeflateCoder) (packer PixelPacker))
+	^#((instancesClass oop) (instancesResult oop) (instancesCount size_t) (search ByteSearch) (png PngFilter) (deflate DeflateMatcher) (coder DeflateCoder) (packer PixelPacker) (zrle ZrleCoder))
 ! !
 
 !ObjectPrimitives methodsFor: 'object'!
@@ -627,6 +627,39 @@ primPixelsPack
 	((y + h - 1) * stride + ((x + w) * 4)) <= (memory byteSize: src) asInt64 ifFalse: [^self fail].
 	packer pack: (self bytesOf: src) + (y * stride) + (x * 4) stride: stride width: w height: h swap: swap into: (self bytesOf: dst).
 	self answer: dst
+!
+primZrleTiles
+	"(pixels, w, h, bpp, cp, offset, scratch, out): the ZRLE tiles of a w x h rectangle of pixels (rows w * bpp bytes; ZrleCoder, RfbZrleEncoder>>tiles:width:height:format:) into out from its first byte; answers how many bytes they are. bpp 1, 2 or 4; the CPIXEL cp bytes from offset: the whole pixel (cp = bpp, offset 0) or 3 bytes of 4 from 0 or 1. pixels a byte object of at least w * h * bpp bytes; scratch and out distinct mutable byte objects, scratch of exactly 52224 bytes, out of at least w * h * cp bytes and one a 64x64 tile; 0 <= w, h <= 65535."
+	<vmPrimitive: 214 name: 'zrleTiles'>
+	<leaf>
+	| px w h bpp cp off scratch out tiles |
+	self argCount = 8 ifFalse: [^self fail].
+	((self isInt: (self arg: 1)) and: [(self isInt: (self arg: 2)) and: [(self isInt: (self arg: 3)) and: [(self isInt: (self arg: 4)) and: [self isInt: (self arg: 5)]]]]) ifFalse: [^self fail].
+	w := self intVal: (self arg: 1).
+	h := self intVal: (self arg: 2).
+	bpp := self intVal: (self arg: 3).
+	cp := self intVal: (self arg: 4).
+	off := self intVal: (self arg: 5).
+	((w >= 0 and: [w <= 65535]) and: [(h >= 0 and: [h <= 65535]) and: [bpp = 1 or: [bpp = 2 or: [bpp = 4]]]]) ifFalse: [^self fail].
+	((cp = bpp and: [off = 0]) or: [bpp = 4 and: [cp = 3 and: [off = 0 or: [off = 1]]]]) ifFalse: [^self fail].
+	px := self arg: 0.
+	scratch := self arg: 6.
+	out := self arg: 7.
+	((self isPtr: px) and: [(self formatOf: px) >= F_BYTES and: [(self formatOf: px) < (F_BYTES + 8)]]) ifFalse: [^self fail].
+	((self isMutableBytes: scratch size: 52224) and: [(self isPtr: out) and: [(self isImmutable: out) not]]) ifFalse: [^self fail].
+	((self formatOf: out) >= F_BYTES and: [(self formatOf: out) < (F_BYTES + 8) and: [out ~= px and: [out ~= scratch]]]) ifFalse: [^self fail].
+	tiles := (w + 63 quo: 64) * (h + 63 quo: 64).
+	(w * h * bpp) <= (memory byteSize: px) asInt64 ifFalse: [^self fail].
+	(w * h * cp + tiles) <= (memory byteSize: out) asInt64 ifFalse: [^self fail].
+	self answer: (self intOop: (zrle
+		tiles: (self bytesOf: px)
+		width: w
+		height: h
+		bpp: bpp
+		cpixel: cp
+		offset: off
+		scratch: (self words32Of: scratch)
+		into: (self bytesOf: out)))
 !
 isMutableBytes: o size: n
 	^(self isBytes: o size: n) and: [(self isImmutable: o) not]

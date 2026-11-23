@@ -603,3 +603,78 @@ testOverTcpConnectionLimit
 	self assert: ((c handshakeVersion: 'RFB 003.008' security: 1 password: nil) includesSubstring: 'too many').
 	sockets do: [:each | each close]
 ! !
+
+!RfbTest methodsFor: 'tests: primitives'!
+zrleFormats
+	"ZRLE's kinds of pixel formats: native BGRX (3-byte CPIXELs from byte 0), big-endian (from byte 1), 32 bits with channels in all four bytes (4-byte CPIXELs), 16 and 8 bits."
+	^{RfbPixelFormat native.
+		RfbPixelFormat bitsPerPixel: 32 depth: 24 bigEndian: true maxes: #(255 255 255) shifts: #(16 8 0).
+		RfbPixelFormat bitsPerPixel: 32 depth: 32 bigEndian: false maxes: #(255 255 255) shifts: #(20 12 4).
+		RfbPixelFormat bitsPerPixel: 16 depth: 16 bigEndian: false maxes: #(31 63 31) shifts: #(11 5 0).
+		RfbPixelFormat bitsPerPixel: 8 depth: 8 bigEndian: false maxes: #(7 7 3) shifts: #(0 3 6)}
+!
+assertZrleOf: bgra width: w height: h
+	"The zrleTiles primitive's tiles of the BGRA8 pixels are the Smalltalk's, in each kind of format."
+	self zrleFormats do: [:f | | px e off |
+		px := f convertBgra: bgra count: w * h.
+		off := f cpixelOffset ifNil: [0].
+		e := RfbZrleEncoder new.
+		self assert: (e primTiles: px width: w height: h bytesPerPixel: f bytesPerPixel cpixelSize: f cpixelSize offset: off scratch: e scratch into: (ByteArray new: w * h * f cpixelSize + (w + 63 // 64 * (h + 63 // 64)))) notNil.
+		self
+			assert: (e tiles: px width: w height: h format: f)
+			equals: (RfbZrleEncoder new tilesInSmalltalk: px width: w height: h bytesPerPixel: f bytesPerPixel cpixelSize: f cpixelSize offset: off)]
+!
+randomBgra: n mode: mode random: random
+	"n BGRA8 pixels: one colour (0), two (1), four (2), a dozen (3) or 200 (4) in runs of random lengths, noise (5); alpha mostly 255, sometimes not."
+	| colours out i |
+	colours := (1 to: (#(1 2 4 12 200 1) at: mode + 1)) collect: [:k | ((1 to: 3) collect: [:b | (random nextInt: 256) - 1]) asByteArray].
+	out := ByteArray new: n * 4.
+	i := 0.
+	[i < n] whileTrue: [| c len |
+		c := colours at: (random nextInt: colours size).
+		len := mode = 5 ifTrue: [1] ifFalse: [#(1 1 2 3 7 64 300) at: (random nextInt: 7)].
+		(len min: n - i) timesRepeat: [
+			mode = 5 ifTrue: [c := ((1 to: 3) collect: [:b | (random nextInt: 256) - 1]) asByteArray].
+			out replaceFrom: i * 4 + 1 to: i * 4 + 3 with: c startingAt: 1.
+			out at: i * 4 + 4 put: ((random nextInt: 10) = 1 ifTrue: [random nextInt: 2] ifFalse: [255]).
+			i := i + 1]].
+	^out
+!
+testZrlePrimitiveIsTheSmalltalk
+	"Rectangles of 1 to 200 pixels across, one tile to several, partial ones at the edges, every kind of tile."
+	| random |
+	random := Random seed: 97531.
+	#(#(1 1) #(3 2) #(64 64) #(65 65) #(130 70) #(200 3) #(7 130)) do: [:size |
+		0 to: 5 do: [:mode |
+			self assertZrleOf: (self randomBgra: size first * size last mode: mode random: random) width: size first height: size last]]
+!
+testZrlePrimitiveOnScreenshots
+	"Screenshots of the World's themes (prototypes/screenshots: text, gradients, pictures), the middle of each: the primitive's tiles are the Smalltalk's. Where the files are not there (UEFI), there is nothing to compare."
+	#('theme-swiss.png' 'theme-phosphor.png' 'proto-4-morphic.png') do: [:name | | form w h all bgra |
+		form := [(Smalltalk at: #PNGReader) formFromFile: 'prototypes/screenshots/', name] on: Error do: [:e | e return: nil].
+		form isNil ifFalse: [
+			w := form width min: 600.
+			h := form height min: 360.
+			all := ByteArray new: form width * form height * 4.
+			all replaceFrom: 1 to: all size withRawBytesOf: form bits startingAt: 1.
+			bgra := ByteArray new: w * h * 4.
+			0 to: h - 1 do: [:y | bgra replaceFrom: y * w * 4 + 1 to: y + 1 * w * 4 with: all startingAt: (form height - h // 2 + y) * form width + (form width - w // 2) * 4 + 1].
+			self assertZrleOf: bgra width: w height: h]]
+!
+testZrlePrimitiveRefuses
+	"Pixel sizes and CPIXELs ZRLE has not, buffers too small or the same, a scratch of the wrong size."
+	| e px ok |
+	e := RfbZrleEncoder new.
+	px := ByteArray new: 4 * 4 * 4.
+	ok := [:pixels :bpp :cp :off :scratch :out | e primTiles: pixels width: 4 height: 4 bytesPerPixel: bpp cpixelSize: cp offset: off scratch: scratch into: out].
+	self assert: (ok valueWithArguments: {px. 4. 3. 0. e scratch. ByteArray new: 49}) notNil.
+	self assert: (ok valueWithArguments: {px. 4. 3. 0. e scratch. ByteArray new: 48}) isNil.
+	self assert: (ok valueWithArguments: {px. 3. 3. 0. e scratch. ByteArray new: 100}) isNil.
+	self assert: (ok valueWithArguments: {px. 4. 3. 2. e scratch. ByteArray new: 100}) isNil.
+	self assert: (ok valueWithArguments: {px. 4. 4. 1. e scratch. ByteArray new: 100}) isNil.
+	self assert: (ok valueWithArguments: {px. 2. 3. 0. e scratch. ByteArray new: 100}) isNil.
+	self assert: (ok valueWithArguments: {px. 4. 3. 0. ByteArray new: 100. ByteArray new: 100}) isNil.
+	self assert: (ok valueWithArguments: {px. 4. 3. 0. e scratch. px}) isNil.
+	self assert: (ok valueWithArguments: {ByteArray new: 63. 4. 3. 0. e scratch. ByteArray new: 100}) isNil.
+	self assert: (ok valueWithArguments: {px. 4. 3. 0. e scratch. #[1 2 3]}) isNil
+! !
