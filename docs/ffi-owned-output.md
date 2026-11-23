@@ -2,8 +2,9 @@
 
 These protocols are for declared, reviewed built-ins using the prepared FFI
 wrappers. They add neither C pointer values to the image nor native calls
-into Smalltalk. Keep the original primitive and use it only on a pre-entry
-miss. An operation that has entered native code is never replayed.
+into Smalltalk. Production still uses the original primitives. An opt-in
+facade may fall back only before entry to the operation; it never replays
+a completed operation.
 
 ## Known capacity
 
@@ -32,7 +33,7 @@ handle/width/height record can each use one call and one buffer; their
 status explains whether a record was written. Validate array stride and
 count before allocating an image Array.
 
-## Variable owned payload
+## Shared bounded owner
 
 `FFIOwnedOutput captureUpTo: maxBytes do: [:ticket | ...]` reserves a
 fresh ticket before entering the producer. The block must directly return
@@ -90,6 +91,48 @@ with an empty native table and a new random mask: reopening an image can
 rebind descriptors but does not resurrect any payload. Release of an
 invalid ticket is harmless.
 
+The shared cap still applies to clipboard text (410) and event records
+(412). A clipboard result above 64 MiB can fail after entry. An event
+with text exceeding 64 MiB minus its 80-byte wire header fails without
+dequeue. Neither failure replays the primitive. Clipboard MIME data
+(420) keeps its existing 20 MiB limit.
+
+## Paged shader compiler output (461)
+
+The SDL-hosted shader producer takes a fresh, zeroed 16-byte writable
+receipt. It compiles once and adopts the exclusive native buffer. On
+success the receipt holds a nonzero process-local ticket and exact size,
+as two little-endian u64 words. The image allocates the exact ByteArray
+and copies it into checked writable slices of at most 1 MiB per call.
+Each copy validates the ticket, offset and length; no page reruns the
+compiler. The image releases the ticket in `ensure:`, reading the receipt
+even if unwound before the wrapper delivered its status. Invalid or
+released tickets do not grant access.
+
+This owner allows 16 live results, not a shared 64 MiB byte budget. The
+ByteArray representation, heap and native allocation still limit size.
+Tickets are process-local, not snapshot state. A failed compiler call,
+allocation or page copy never triggers legacy replay.
+
+## Owned integer result (tag 11)
+
+`ownedIntegerMagnitude` is a result tag for exact, approved `vm:core`
+prepared calls with two `integerMagnitude` arguments. It is not a general
+aggregate or pointer ABI and is unavailable to launcher grants and the
+legacy word FFI. Each borrowed magnitude consumes two machine lanes.
+The wrapper passes a fifth, hidden argument pointing to a native stack
+record. The producer writes a status and normalized signed limb count;
+the result uses four inline limbs or one owned native allocation and
+does not alias either input.
+
+After native return, both borrows are dead. The collecting wrapper boxes
+a SmallInteger or synchronizes the pending frame before allocating a
+LargeInteger, copies the owned limbs once, and frees any native allocation.
+The VM heap and object representation bound the result; there is no byte
+serialization cap. `false` means pre-entry rejection, `nil` a completed
+allocation/size failure, and `true` a completed division-by-zero status.
+The facade translates completed failures without invoking the old primitive.
+
 ## Verification
 
 With an image and hosted VM built with the test export enabled
@@ -103,3 +146,12 @@ The fixture is also runtime-gated. The test uses the prepared path in
 interpreter, baseline and optimizing modes. It has no display work. Add
 `--trace` to check the number of native producer entries if built with
 approved-target tracing.
+
+The [owned integer fixture](../tests/vm/bigint_owned_ffi_test.sh) takes
+`IMAGE VM LOG_DIR` and checks arithmetic completions and forced post-native
+GC. The [paged shader fixture](../tests/vm/gpu_shader_paged_test.st) uses
+a synthetic result above 64 MiB on a display-denied, SDL-hosted test-export
+build. It checks bounds, stale/released tickets and exact paged copy; it
+does not run a real shader compilation. See the
+[migration ledger](ffi-migrations.md#status-ledger) for revision-specific
+results and outstanding checks.

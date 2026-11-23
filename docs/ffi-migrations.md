@@ -4,7 +4,9 @@ Scope: the 64 **Adapter** and 34 **Extend** IDs in the
 [primitive audit](ffi-primitive-audit.md). Existing **Live**, **Now**,
 **Keep** and **Infra** IDs are not migration credit. Keep the numbered
 primitive slots, original public API and legacy behavior. A candidate
-provides a second implementation, not an alias for the primitive.
+provides a second implementation on its admitted inputs, not an alias for
+the primitive or a claim of parity for every legacy input. No production
+send has switched.
 
 ## Implementation plan and contract
 
@@ -40,11 +42,13 @@ provides a second implementation, not an alias for the primitive.
    ranges. For compound results, define byte order, fields, size caps and
    success/no-result/error tags; use one bounded copyout or an owned
    immutable native result with typed copy and explicit release. The
-   proposed owned path reserves a process-local ticket before the call;
+   shared bounded owner reserves a process-local ticket before the call;
    the producer can publish once, then the image copies at most the
-   reserved capacity and releases in `ensure:`. Keep the table on the VM
-   thread, bound both per-result and total storage, reject stale tickets,
-   and distinguish present-empty from absent. Capture side-effecting or
+   reserved capacity and releases in `ensure:`. Use a reviewed
+   [family-specific result protocol](ffi-owned-output.md) when a fixed
+   byte budget is unsuitable: 461 adopts one native result and copies it
+   in pages; tag 11 boxes owned limbs within the collecting wrapper.
+   Reject stale tickets and distinguish present-empty from absent. Capture side-effecting or
    changing results once (stat, events, swapchain, etc.): no size probe
    that reruns the operation. Decode only complete, validated records;
    allocate or box only after borrowed addresses are dead. For large
@@ -55,9 +59,11 @@ provides a second implementation, not an alias for the primitive.
 4. **Stage the facade and prove both routes.** Preserve receiver, input
    admission and narrowing, object shape, native status, errors, handle
    kind/lifetime/thread rules, scheduler rearming and partial I/O.
-   Fallback is allowed only when unavailable or rejected **before** native
-   entry. After entry, nil, zero, error, pending and partial progress are
-   results, never reasons to retry the primitive. A JIT guard miss may use
+   Fallback is allowed only when unavailable or declined **before** native
+   entry to the operation. A separate non-mutating eligibility query
+   (450) can decline before the draw; it does not execute the draw.
+   After entry to the operation, nil, zero, error, pending and partial
+   progress are results, never reasons to retry the primitive. A JIT guard miss may use
    the normal prepared send; distinguish that from a primitive fallback.
    Old images retain their slots. Restored descriptors reauthorize against
    the current registry; native resources, wrappers and result tokens do
@@ -123,11 +129,11 @@ in the audit or benchmarks do not count.
 
 | Slice | Next gate |
 | --- | --- |
-| Files (500–514) | Start with 505/504 on valid buffered files, then 503/502 with offset/canary and EOF checks. Stage path and handle operations; 510 needs one compound stat, 511/513 need owned surrogateescape text. For 511, preserve large directories with a separately bounded streaming copy of one native result or keep legacy; no truncation or re-enumeration. |
-| Core (20–31, 52, 61, 152–153, 169–170, 172) | Prove scalar fraction part, real clocks and VM stream writes (including binary text). Use bounded text copyout for 61 and owned text for 172, preserving absent versus empty. Pilot 27 with a vetted signed-magnitude input and scalar result; cover 20–26/28–31 only after a bounded result and exact oversized behavior are specified. Do not replace VM arithmetic by fixed-width scalars. |
-| Window/input (400, 402–403, 405, 410–413, 415, 417–418, 420–421) | Close the owned-size gaps for 410/412; validate restore, lifetime and live-workload parity before switching senders. |
-| GPU (430–456, 458–461) | Validate mixed-route state and output for 450, close the 461 owned-size gap, and pair a full render workload before switching senders. |
-| Socket/TLS/PTY (540–555, 561–562, 564–565) | Loopback and verified TLS plus a real child PTY; prove would-block vs EOF vs error, partial sends, wakeups and close/ownership. Verify TLS retry storage never retains a borrowed pointer and PTY wait reports status/consumes as before. |
+| Files (500–514) | Retest buffered and bounded I/O with paired workloads; extend measurements beyond the pilot. Preserve one stat observation (510) and paged copies of one native result (511/513). |
+| Core (20–31, 52, 61, 152–153, 169–170, 172) | Extend corrected tag-11 checks to the release matrix; pair mixed and large inputs separately. Current scalar, text and compare pilots do not clear the release gate. |
+| Window/input (400, 402–403, 405, 410–413, 415, 417–418, 420–421) | 410/412 retain owned-size gaps; validate restore, lifetime and live-workload parity before switching senders. |
+| GPU (430–456, 458–461) | Extend the remote-CI 450 draw/readback and 461 paged compile checks to other supported GPU backends. Pair a full render workload before switching senders. |
+| Socket/TLS/PTY (540–555, 561–562, 564–565) | Extend the loopback, verified TLS and child PTY evidence to the release matrix; pair live retries and partial I/O, not just TCP sends. |
 
 ## API and route boundaries
 
@@ -138,7 +144,7 @@ entry. Review sources and report route evidence at the following boundaries:
 | Family | Image boundary | Successful-route witness |
 | --- | --- | --- |
 | Files | `File class>>ffiCandidatePrim*` in [File](../src/System-Files/File.st); not a FileStream cutover. | [FileFFITest](../src/Tests-Kernel/FileFFITest.st) uses real temporary paths/descriptors, not an invalid ID loop. 510 is one stat; 511/513 copy from one native observation using a paged, process-local owner. Its 16 live-owner limit and existing backend bounds still apply. |
-| Core | Candidate siblings on `Float`, `Time class`, `VirtualMachine` and `Integer`; `vm:core` is not an alias for a launcher grant. | [Core fixture](../tests/vm/core_ffi_test.py) checks real numerics, clocks, output bytes and environment values; [bigint fixture](../tests/vm/bigint_ffi_test.sh) distinguishes signed-magnitude native entry from Integer fallback. |
+| Core | Candidate siblings on `Float`, `Time class`, `VirtualMachine` and `Integer`; `vm:core` is not an alias for a launcher grant. | [Core fixture](../tests/vm/core_ffi_test.py) checks real numerics, clocks, output bytes and environment values; [compare](../tests/vm/bigint_ffi_test.sh) and [owned arithmetic](../tests/vm/bigint_owned_ffi_test.sh) fixtures distinguish native entry from Integer fallback. |
 | Window/input | Candidate siblings on `GPUPrimitives class` and `VirtualMachine`; not a scheduler registration change. | [Window fixture](../tests/vm/window_ffi_test.sh): headless queue/overflow and handle diagnostics, separately from display-CI window/clipboard success. Empty headless state cannot prove a successful graphics route. |
 | GPU | Candidate siblings on `GPUPrimitives class`; native handles keep kind, thread and consumption rules. | Graphics CI must use a real device, resources and pass; compiler or static registry success is not an actual render test. |
 | Socket/TLS/PTY | `RemoteSocket class>>ffiCandidatePlatform*` is hosted only and does not replace dispatch to `NetworkStack`. `TLSSocket class` and `PseudoTerminal class` have separate `ffiCandidatePrim*` siblings. | [Socket fixture](../tests/vm/socket_ffi_test.py) checks loopback, verified localhost TLS, and a child PTY. Test WANT retry storage, native close and switching between candidate/legacy while progress is pending. |
@@ -158,11 +164,11 @@ Explicit publication in a disposable trial is not a production default.
 | Registry and seeded bindings | Live source file-in on hosted release controls: exact registry prototype and duplicate-key rejection; literal binding validation and actual existing `libm` downcall. Warmed literal rebind after restore passed none/baseline/opt on `cbe6326` with source file-in. This does not prove restore for any new export. |
 | Launcher/legacy gates | [Manifest](../tests/vm/ffi_migration_manifest_test.sh) and legacy controls passed on hosted controls. Isolated Linux x86-64 `NO_PLATFORM=1` [writable](../tests/vm/writable_ffi_test.sh) fixture: 80 native entries per mode (none/baseline/opt/opt without site), including completed error and boxing/GC; release denied the test export. AArch64 Linux `NO_PLATFORM=1` cross-build/QEMU also produced 80 entries per mode; QEMU is not native-host performance evidence. Focused resolver check rejects mismatched result/slice modes, unavailable platform IDs and wrong names. These are infrastructure checks, not 98-ID credit. |
 | New core routes | `migration98-integ5-155237-2` Linux x86-64 SDL-hosted `-O0` VM with canonical seed: `python3 tests/vm/core_ffi_test.py IMAGE VM --trace`. 52/61/152/153/169/170/172 passed in none/baseline/opt, with exact native entry counts (11/24/1/1/2/2/4) per mode and no legacy fallback. Matched stage2 image also passed all seven; proof-only workload ran 30 case/mode combinations with 64 candidate entries and zero direct entries. The new seed on the `cbe6326` hosted VM passed the missing-export controls in all three modes. This diagnostic run is distinct from the freeze2 checks below. |
-| ID 27 (bigint compare) | Same hosted diagnostic VM/seed, `tests/vm/bigint_ffi_test.sh IMAGE VM --trace`: 1,589 native entries per mode, including prepared Array, positional, candidate facade and post-GC; missing-export fallback separately passed on hosted control. This does not implement the eleven result-producing bigint primitives. |
+| ID 27 (bigint compare) | Same hosted diagnostic VM/seed, `tests/vm/bigint_ffi_test.sh IMAGE VM --trace`: 1,589 native entries per run, including prepared Array, positional, candidate facade and post-GC; missing-export fallback separately passed. The original wrapper passed tier flags after the image; the paired pilot below is separate. This is the scalar tag-10 input path, not evidence for the eleven tag-11 result producers. |
 | Files 500–514 | Same diagnostic VM/seed, `--headless --test FileFFITest FileTest`: 18/18 per mode, all 15 typed export IDs traced. On full stage2 image, six paired workload shapes verified exact 300 candidate entries and zero direct entries in each mode (18 combinations, proof-only). New VM + old image: 12/12 legacy `FileTest`, no new entries. |
-| Socket/TLS/PTY | Same diagnostic VM/seed, `tests/vm/socket_ffi_test.py VM IMAGE --jit MODE --trace`: all 20 routes traced in none/baseline/opt including trusted TLS, mixed retry, real I/O and readiness. New seed + old VM fallback passed all modes. Five workload shapes passed the route-only controls (15 combinations); no timing inferred. |
-| Window/input | Same diagnostic VM/seed, `tests/vm/window_ffi_test.sh IMAGE VM`: headless none/baseline/opt passed with 412/413/415/417/418 entry counts 11/4,106/1/1/3 in each mode. No display-dependent operation entered. Clipboard text and event text still have the owned-output cap gap. |
-| [Display CI](https://github.com/schani/samaltak/actions/runs/45215914479/job/137836879418) | `f70c88c` stage2, `make test-ffi-candidates-display` on X11/Xvfb with lavapipe: window fixture and GPU 8/8 passed in each of none/baseline/opt with legacy calls poisoned on the exercised paths. Window: 400, 402–403, 405, 410–411, 415, 417, 420–421. GPU: 430–449, 451–456, 458–461 (both 443 lanes). |
+| Socket/TLS/PTY | Same diagnostic VM/seed, `tests/vm/socket_ffi_test.py VM IMAGE --jit MODE --trace`: All 20 routes were traced with live loopback, verified TLS, mixed retry and child PTY I/O; old-VM missing-export fallback also passed. The original socket fixture put VM options after the image, so these runs do not establish coverage by tier. See the separate paired TCP-send pilot below. |
+| Window/input | Same diagnostic VM/seed, `tests/vm/window_ffi_test.sh IMAGE VM`: headless none/baseline/opt passed with 412/413/415/417/418 entry counts 11/4,106/1/1/3 in each mode. No display-dependent operation entered. The 410/412 size gaps are separate from this fixture's ordinary inputs. |
+| [Display CI](https://github.com/schani/samaltak/actions/runs/45215914479/job/137836879418) | `f70c88c` stage2, `make test-ffi-candidates-display` on X11/Xvfb with lavapipe: window fixture and GPU 8/8 passed in each of none/baseline/opt with legacy calls poisoned on the exercised paths. Window: 400, 402–403, 405, 410–411, 415, 417, 420–421. GPU: 430–449, 451–456, 458–461 (both 443 lanes). This is the earlier GPU state: 450 was absent and 461 used the shared bounded owner, not the paged ABI. |
 | Display paired subset | Exact trace counts only for 402/403/405/421 and the joint 444+445 case: 1,024 entries per target in each mode, zero direct entries. All 15 case/mode timing samples were inconclusive (one session); no rollout credit. |
 | Restored image | `tests/vm/ffi_trial_test.sh` passed on the same hosted diagnostic build: FileStream reaches 504 during explicit trial, then uninstalls; restored normal snapshot uses legacy. Shared ticket restore/unwind passed with an owned fixture, not with every family's live result. |
 | Owned-copy authority | Integ5 x64 hosted diagnostic and test-export relink, [owned fixture](../tests/vm/owned_ffi_test.sh): 135 producer entries per mode (none/baseline/opt); separate gate verifies reserve/copy, unwind/termination and denies old ticket after restore. No operation ID credit. |
@@ -170,6 +176,16 @@ Explicit publication in a disposable trial is not a production default.
 | Freeze2 Linux `NO_PLATFORM=1` | x86-64: 41/41 focused tests per mode, grants/manifest/registry/owned gates and release denial of the writable fixture passed. Wrapper and bound-site harnesses passed via the `fileInString` launcher adapter (`--load` unavailable). Full matching image passed exact traced routes 52/61/152/153/169/170/172 with GC verification in all three modes. AArch64 cross-build and QEMU architecture smoke passed; neither that smoke nor the isolated writable fixture establishes AArch64 per-ID parity. SDL routes are unavailable on these builds. |
 | Rebased hosted checks | `07aa290` default LTO: clean seed, stage2 and `tests/vm/gen_test.sh` passed; checked-in C matched the freeze2 release. Focused suites passed 119/119 in each mode. These are suite/build results, not a per-ID native witness. |
 | Simulator and firmware | Freeze2 `VMSimulationTest` passed 5/5 in the canonical layout. No per-ID simulator or UEFI firmware boot proof. |
+
+### Supplemental checks for tag 11, 450 and paged 461
+
+| Artifact | Result and scope |
+| --- | --- |
+| Clean supplemental snapshot | `migration98-supplement-f70c88c-162550` (`f70c88c` plus the exact landed tag-11 and GPU source patches, before the upstream rebase): fresh x86-64/AArch64 translation, SDL-hosted test-enabled x86-64 and `NO_PLATFORM` AArch64 C builds passed. Fresh hosted stage2 and `tests/vm/gen_test.sh` passed. The seven supplemental generated files landed byte-for-byte in `aab306b`; scheduler C comes from `9d78aa1`. |
+| Corrected tag-11 x86-64 SDL | On the clean supplemental stage2, [owned arithmetic](../tests/vm/bigint_owned_ffi_test.sh) passed in actual none/baseline/opt: 16,701 native completions and, in the separate forced post-native full-GC fixture, 74 adds and one shift per tier. The CI-agent local run recorded 93 actual optimized bound-site hits; the supplemental retest recorded 94. A separate 67,108,865-byte magnitude add/compare passed. VM tuning options must precede the image: the old command put them after it, so its tier labels and zero-hit result do not establish a failure in opt. |
+| Corrected tag-11 AArch64 `NO_PLATFORM` | CI-agent local cross-build/QEMU rerun of the clean supplement passed with pre-image VM options: 16,701 native completions and forced-GC witnesses of 74 adds and one shift per tier, plus 75 actual optimized bound-site hits. This is correctness evidence, not native-host timing. |
+| Corrected SDL headless, 450/461 | On the same test-enabled snapshot, the [paged fixture](../tests/vm/gpu_shader_paged_test.st) adopted, copied and released a synthetic 67,108,868-byte result, checking bounds and stale tickets in actual none/baseline/opt. Per tier, the invalid-pass probe reached 450 eligibility twice and draw once, rejected before SDL, with no legacy replay. Successful draws and live compiles are separate display checks. |
+| Pushed `aab306b` display CI | [Remote display job](https://github.com/schani/samaltak/actions/runs/45217681989/job/137843146462), X11/Xvfb with lavapipe: window and GPU 9/9 passed in each mode, including 450 with a legacy pipeline bind, poisoned draw fallback and green pixel readback, and 461 live paged compilation with a legacy byte oracle and error check. The paired subset passed 15 exact route proofs; timing remains inconclusive and does not include 450 or 461. |
 
 ## Release pilot: 504, 505, 52
 
@@ -194,6 +210,18 @@ legacy primitive. Next, isolate cached versus seeded facade costs on the
 same real calls, then rerun the full pilot and fresh-bind/resource tests;
 an opt-only win is not approval. No cross-backend or historical timing
 counts toward this result.
+
+**Rejected: generic method-context entry 266.** The private prototype
+passed strict routing, rebind and GC/deopt checks but was not integrated.
+On a quiet x86-64 default-LTO VM, each 505/52 case and mode had exactly
+128 typed witnesses and zero direct-arm witnesses. Separate paired runs
+on the same VM compared the prototype and the existing seeded facade
+against the dedicated primitive, not against each other. Prototype/dedicated
+medians (none/baseline/opt) were **1.0584/1.0547/1.0346** for file
+position and **1.1738/1.3941/1.4355** for fraction part; all six
+simultaneous 95% intervals lay above 1. Removing the nested send did not
+reach parity and lost the existing opt lowering on warm hits. Do not
+integrate 266 or switch callers.
 
 ## Release pilot: bounded I/O, bigint, and owned output
 
@@ -223,13 +251,18 @@ definition as above.
 
 The at-par gate exited 1: 23 slower, 17 inconclusive and 2 at-par
 strata. No ID passes across these tested modes. File I/O supports real
-bounded slices but adds about 40 allocated bytes/call and interpreter cost; investigate
-slice construction and send/wrapper overhead before repeating. For 169/170,
-measure text encoding separately; for 172, isolate encode, ticket/copy and
-decode costs without deleting ownership checks. Compare mixed and large
-Integer routes separately. Only TCP sends were timed, not TLS; retain
-the verified TLS semantic checks and add a paired live retry workload
-before any TLS performance claim.
+bounded slices but adds about 40 allocated bytes/call and interpreter cost.
+Compare mixed and large Integer routes separately. Only TCP sends were
+timed, not TLS; pair a live retry workload before claiming TLS parity.
+
+**Rejected: generated text prototype (169/170/172).** In a separate
+quiet x86-64 default-LTO experiment, 324 same-VM pairs put stdout, stderr
+and getenv near **1×** legacy cost (0.981–1.043× median ratios), versus
+**2.8–32.7×** for the staged paths above. None of the nine workload/tier
+strata met the at-par gate: interpreter getenv was slower, and the other
+eight were inconclusive. The static per-export OOP wrapper also bypassed
+the required runtime-generated machine code for each binding. Do not
+integrate that shortcut or switch callers.
 
 ## Status ledger
 
@@ -243,35 +276,42 @@ legacy primitive names. For every build/test claim include the artifact and
 revision, command, target, mode, result and route witness. Label build-only,
 fixture-only, skipped, failed and not run distinctly.
 
-**Evidence snapshot:** all 86 integrated alternatives have hosted route
-evidence (48 display-free, 38 additional in display CI). This is not the full
-target matrix: 86 implemented/staged, 0 tested, 0 measured, 0 default at the
-ledger gates. The 12 planned IDs (20–26, 28–31, 450) are not integrated;
-isolated supplemental builds do not count.
+**Status at `aab306b` (rebased on `9d78aa1`): 98 integrated alternatives
+on admitted inputs; 0 production switches.** The final 12 IDs (20–26,
+28–31, 450) have opt-in facades and translator-generated C. ID 461 now
+uses paged output. Corrected x86-64 and AArch64/QEMU checks witnessed
+all 11 tag-11 producers in each tier and actual collecting opt hits; display CI
+confirmed 450 draw/readback and the new 461 ABI. No ID clears the full
+tested/measured/default gates. Keep legacy defaults and fallback for
+unsupported inputs and backends.
 
 ### Core (19)
 
+“Tag 11” rows share the corrected x86-64 and AArch64 arithmetic evidence above.
+ID 20 and ID 31 also have forced-GC witnesses; the optimized bound-site
+hit counts are for ID 20. This is not release timing or full matrix parity.
+
 | ID | Registered primitive | Audit | State | Evidence or remaining gate |
 | ---: | --- | --- | --- | --- |
-| 20 | `largeAdd` | Extend | planned | Signed-magnitude add, carry and normalized result |
-| 21 | `largeSub` | Extend | planned | Subtract across signs and normalize zero |
-| 22 | `largeMul` | Extend | planned | Multi-limb product, bounded output and overflow fallback |
-| 23 | `largeQuo` | Extend | planned | Truncating quotient, negative signs and zero divisor |
-| 24 | `largeRem` | Extend | planned | Truncating remainder sign and zero divisor |
-| 25 | `largeFloorDiv` | Extend | planned | Floor quotient on mixed-sign operands |
-| 26 | `largeMod` | Extend | planned | Floor modulo on mixed-sign operands |
-| 27 | `largeCompare` | Extend | implemented/staged | Matched 1,589 native compare entries/mode on hosted proof build; core backend matrix pending. |
-| 28 | `largeBitAnd` | Extend | planned | Bitwise AND with negative/sign-extension cases |
-| 29 | `largeBitOr` | Extend | planned | Bitwise OR with negative/sign-extension cases |
-| 30 | `largeBitXor` | Extend | planned | Bitwise XOR with negative/sign-extension cases |
-| 31 | `largeBitShift` | Extend | planned | Left/right shift, negative and oversized shifts |
+| 20 | `largeAdd` | Extend | implemented/staged | Tag 11; signed add and normalized carry; forced GC with actual opt hits. Paired route proof only (12/12 strata, 1,024 candidate entries each, zero direct); release timing pending. |
+| 21 | `largeSub` | Extend | implemented/staged | Tag 11; signed subtract and normalized zero. |
+| 22 | `largeMul` | Extend | implemented/staged | Tag 11; multi-limb product with heap bounds; allocation failure completes without replay. |
+| 23 | `largeQuo` | Extend | implemented/staged | Tag 11; truncating quotient and completed zero-divide status. |
+| 24 | `largeRem` | Extend | implemented/staged | Tag 11; truncating remainder with dividend sign and completed zero-divide status. |
+| 25 | `largeFloorDiv` | Extend | implemented/staged | Tag 11; floor quotient across signs and completed zero-divide status. |
+| 26 | `largeMod` | Extend | implemented/staged | Tag 11; floor remainder with divisor sign and completed zero-divide status. |
+| 27 | `largeCompare` | Extend | implemented/staged | Matched 1,589 native compare entries per hosted proof run; backend matrix pending. |
+| 28 | `largeBitAnd` | Extend | implemented/staged | Tag 11; two’s-complement AND with sign extension. |
+| 29 | `largeBitOr` | Extend | implemented/staged | Tag 11; two’s-complement OR with sign extension. |
+| 30 | `largeBitXor` | Extend | implemented/staged | Tag 11; two’s-complement XOR with sign extension. |
+| 31 | `largeBitShift` | Extend | implemented/staged | Tag 11; signed shift, floor-rounded right shift and completed oversized-left failure; forced-GC witness. |
 | 52 | `floatFractionPart` | Adapter | implemented/staged | Hosted and x86-64 `NO_PLATFORM` IEEE fixture; LTO pilot: interpreter/baseline slower, opt inconclusive; keep legacy. |
 | 61 | `floatPrintString` | Extend | implemented/staged | Owned shortest-round-trip String, including special values — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding. |
 | 152 | `utcMicroseconds` | Adapter | implemented/staged | Wall-clock microseconds and failure/availability — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding. |
 | 153 | `threadCpuTime` | Adapter | implemented/staged | VM-thread CPU microseconds and clock availability — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding. |
-| 169 | `stdoutWrite` | Adapter | implemented/staged | Counted stdout bytes, flush and receiver — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding. |
-| 170 | `stderrWrite` | Adapter | implemented/staged | Counted stderr bytes, flush and receiver — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding. |
-| 172 | `getenv` | Extend | implemented/staged | Owned environment text: absent, empty and nonempty — Hosted and x86-64 `NO_PLATFORM` fixtures passed; 64 MiB capture limit remains. |
+| 169 | `stdoutWrite` | Adapter | implemented/staged | Counted stdout bytes, flush and receiver — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding; generated-text prototype rejected. |
+| 170 | `stderrWrite` | Adapter | implemented/staged | Counted stderr bytes, flush and receiver — Hosted and x86-64 `NO_PLATFORM` fixtures passed; target matrix outstanding; generated-text prototype rejected. |
+| 172 | `getenv` | Extend | implemented/staged | Owned environment text: absent, empty and nonempty — Hosted and x86-64 `NO_PLATFORM` fixtures passed; 64 MiB capture limit remains. Generated-text prototype rejected. |
 
 ### Window/input (13)
 
@@ -281,9 +321,9 @@ isolated supplemental builds do not count.
 | 402 | `windowSize` | Adapter | implemented/staged | Live point extents before/after resize; legacy comparison. |
 | 403 | `windowPixelSize` | Adapter | implemented/staged | Positive live pixel extents; legacy comparison. |
 | 405 | `windowSetTitle` | Adapter | implemented/staged | Counted title update and embedded-NUL rejection. |
-| 410 | `clipboardGet` | Extend | implemented/staged | Unicode and empty text roundtrips; 64 MiB owner can reject legacy-readable text. |
+| 410 | `clipboardGet` | Extend | implemented/staged | Unicode and empty text roundtrips. Legacy-readable text above the 64 MiB owned cap fails after native entry; no replay. |
 | 411 | `clipboardSet` | Adapter | implemented/staged | Unicode and empty text roundtrips. |
-| 412 | `nextEvent` | Extend | implemented/staged | Witnessed single FIFO dequeue on hosted proof build; text beyond ticket cap can remain queued where legacy succeeds. |
+| 412 | `nextEvent` | Extend | implemented/staged | Witnessed single FIFO dequeue. The 64 MiB ticket includes an 80-byte header; oversized text fails without dequeue or native replay, where legacy can succeed. |
 | 413 | `injectEvent` | Extend | implemented/staged | FIFO, event data and real queue overflow. |
 | 415 | `platformLastError` | Extend | implemented/staged | Headless copyout and live invalid-window diagnostic. |
 | 417 | `platformHandleCounts` | Extend | implemented/staged | Exact headless handle counts and live window accounting. |
@@ -315,7 +355,7 @@ isolated supplemental builds do not count.
 | 447 | `gpuBindVertexBuffer` | Adapter | implemented/staged | Bind real vertex buffer and offsets |
 | 448 | `gpuBindTexture` | Adapter | implemented/staged | Bind real texture/sampler in valid pass |
 | 449 | `gpuPushUniforms` | Adapter | implemented/staged | Borrow bounded uniforms and verify shader output |
-| 450 | `gpuDraw` | Adapter | planned | No integrated route; mixed legacy/candidate render-state checks and draw-output proof required. |
+| 450 | `gpuDraw` | Adapter | implemented/staged | Checked procedural offscreen draw; compatible active pass, live resource-free pipeline with no vertex attributes, and checked count/first. General resource-bound and swapchain draws stay legacy. `aab306b` display CI passed pixel readback in all modes. |
 | 451 | `gpuEndPass` | Adapter | implemented/staged | End valid pass and consume handle exactly once |
 | 452 | `gpuBlit` | Extend | implemented/staged | Live bounded blit with destination readback. |
 | 453 | `gpuSubmit` | Adapter | implemented/staged | Submit once: failure, success/no fence, success/fence |
@@ -325,7 +365,7 @@ isolated supplemental builds do not count.
 | 458 | `gpuWaitIdle` | Adapter | implemented/staged | Wait idle on a valid device |
 | 459 | `gpuFenceElapsed` | Adapter | implemented/staged | Distinguish pending, elapsed and bad fence |
 | 460 | `gpuShaderLanguage` | Adapter | implemented/staged | Map actual shader format to checked enum |
-| 461 | `gpuCompileShader` | Extend | implemented/staged | Owned GLSL output matches legacy; diagnostics checked. 64 MiB cap can reject legacy-readable output. |
+| 461 | `gpuCompileShader` | Extend | implemented/staged | One compile, process-local receipt, bounded pages and eventual release. The shared 64 MiB cap no longer applies; `aab306b` display CI covered the paged compile and diagnostics; the oversized result was synthetic. |
 
 ### Files (15)
 
@@ -348,6 +388,9 @@ isolated supplemental builds do not count.
 | 514 | `mkfifo` | Adapter | implemented/staged | Create actual FIFO; verify mode and path failures |
 
 ### Socket/TLS/PTY (20)
+
+Original fixture witnesses show native entry, not tier coverage; see
+the socket check above.
 
 | ID | Registered primitive | Audit | State | Evidence or remaining gate |
 | ---: | --- | --- | --- | --- |
