@@ -9,9 +9,10 @@
 # count by their number of tests). Each shard has its own TMPDIR and log; the output is the shards' logs one after
 # another and one summary line "N run, N passed, N failed, N errors in T ms" (T: the slowest shard) like a single
 # VM's; a failure, error, crash or skipped test in any shard fails the suite.
-# Slots: every VM this script starts (a shard or the single VM) first takes one of SAMALTAK_TEST_SLOTS lock files in
-# SAMALTAK_TEST_SLOT_DIR (default nproc / 2, in /tmp/samaltak-test-slots-<uid>, with flock(1)), so that concurrent
-# suites (gate stages, several agents' gates) together run at most that many test VMs; the rest wait for a slot.
+# Slots: every VM this script starts (a shard or the single VM) first takes one of the machine's SAMALTAK_TEST_SLOTS
+# test slots (tests/lib/slots.sh: default nproc / 2, at most one per 3 GB available), so that concurrent suites (gate
+# stages, several agents' gates) together run at most that many test VMs; the rest wait for a slot.
+# Timeline: with SAMALTAK_TIMELINE (tests/timeline.sh), each VM's run and its wait for a slot are events.
 # Displays: VMs sharing one X display disturb each other (a clipboard request answered after its requestor's window
 # went is a BadWindow that ends the VM), so with SAMALTAK_TEST_XVFB=1 each VM gets an Xvfb of its own; the default
 # (auto) does that for shards when DISPLAY is set; 0: always DISPLAY. Shards render with 2 lavapipe threads each
@@ -33,10 +34,7 @@ JOBS=$(( NPROC / 2 )); [ "$JOBS" -gt 8 ] && JOBS=8
 JOBS=${SAMALTAK_TEST_JOBS:-$JOBS}
 case $JOBS in ''|*[!0-9]*) JOBS=1 ;; esac
 [ "$JOBS" -lt 1 ] && JOBS=1
-SLOTS=${SAMALTAK_TEST_SLOTS:-$(( NPROC / 2 ))}
-case $SLOTS in ''|*[!0-9]*) SLOTS=1 ;; esac
-[ "$SLOTS" -lt 1 ] && SLOTS=1
-SLOT_DIR=${SAMALTAK_TEST_SLOT_DIR:-/tmp/samaltak-test-slots-$(id -u)}
+. tests/lib/slots.sh
 XVFB=${SAMALTAK_TEST_XVFB:-auto}
 VM_TIMEOUT=${SAMALTAK_TEST_VM_TIMEOUT:-1800}
 case $VM_TIMEOUT in ''|*[!0-9]*) VM_TIMEOUT=1800 ;; esac
@@ -47,24 +45,13 @@ PIDS=
 trap '[ -n "${SAMALTAK_TEST_KEEP:-}" ] && echo "st_suite: kept $WORK" || rm -rf "$WORK"' EXIT
 trap '[ -n "$PIDS" ] && kill $PIDS 2>/dev/null; exit 143' INT TERM HUP
 
-# with_slot COMMAND...: run COMMAND holding one of the machine's test slots (a lock on a slot file, which the
-# subshell holds; exit 75 when it is taken: then the next one, and after all of them again a second later; COMMAND
-# runs with the lock's descriptor closed, so that nothing it leaves behind keeps the slot). Without flock(1) or a
-# writable slot directory, COMMAND just runs.
-with_slot() {
-  if ! command -v flock >/dev/null 2>&1 || ! mkdir -p "$SLOT_DIR" 2>/dev/null || ! [ -w "$SLOT_DIR" ]; then
-    "$@"; return
-  fi
-  while :; do
-    i=1
-    while [ $i -le "$SLOTS" ]; do
-      ( flock -n 9 || exit 75; "$@" 9>&- ) 9>>"$SLOT_DIR/slot$i"
-      s=$?
-      [ $s = 75 ] || return $s
-      i=$((i + 1))
-    done
-    sleep 1
-  done
+# timed COMMAND...: COMMAND, its run an event of the timeline (SLOT_LABEL its text).
+timed() {
+  tt=$(tl_now)
+  "$@"
+  ts=$?
+  tl_add "$tt" "$(tl_now)" $ts st_suite "${SLOT_LABEL:-}"
+  return $ts
 }
 
 # vm ARGS...: the VM, ended after VM_TIMEOUT seconds (its backtraces first, if gdb may attach): its exit status.
@@ -133,8 +120,9 @@ verdict() { # SUMMARY EXIT
 }
 
 serial() {
+  SLOT_LABEL="$IMAGE$VMOPTS: $*"
   # shellcheck disable=SC2086
-  with_slot run_vm $VMOPTS "$IMAGE" --headless --test "$@" >"$WORK/log" 2>&1
+  with_slot timed run_vm $VMOPTS "$IMAGE" --headless --test "$@" >"$WORK/log" 2>&1
   code=$?
   cat "$WORK/log"
   verdict "$(summary_of "$WORK/log")" $code
@@ -179,7 +167,8 @@ while [ $k -le "$JOBS" ]; do
   echo "$classes" >"$WORK/$k/classes"
   awk -v k=$k '$1 == k { n += $3 } END { print n + 0 }' "$WORK/plan" >"$WORK/$k/tests"
   # shellcheck disable=SC2086
-  ( export TMPDIR="$WORK/$k/tmp"; with_slot run_vm $VMOPTS "$IMAGE" --headless --test-times --test $classes "$@" \
+  ( export TMPDIR="$WORK/$k/tmp"; SLOT_LABEL="shard $k/$JOBS $(basename "$IMAGE")$VMOPTS: $classes"
+    with_slot timed run_vm $VMOPTS "$IMAGE" --headless --test-times --test $classes "$@" \
       >"$WORK/$k/log" 2>&1
     echo $? >"$WORK/$k/exit" ) &
   PIDS="$PIDS $!"

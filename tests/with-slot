@@ -1,0 +1,5 @@
+#!/bin/sh
+# usage: tests/with-slot COMMAND...: COMMAND holding one of the machine's test slots (tests/lib/slots.sh), e.g. a
+# QEMU boot of make test-uefi; its exit status.
+. "$(dirname "$0")/lib/slots.sh"
+with_slot "$@"

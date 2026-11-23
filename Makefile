@@ -1,6 +1,11 @@
 # Samaltak: VM, seed image (the Smalltalk ImageBuilder, run in boot/seed.image), full image (stage 2), tests.
 # OUT selects the build directory, so concurrent builds do not collide: make image OUT=build/me
 OUT ?= build
+# SAMALTAK_TIMELINE=FILE: each recipe line's start, end, exit status and target go into FILE (tests/timed-sh), and
+# st_suite's VMs and slot waits too; tests/timeline.sh reports it (tests/stages.sh: OUT/stages/timeline).
+ifneq ($(SAMALTAK_TIMELINE),)
+SHELL = $(CURDIR)/tests/timed-sh $@
+endif
 
 VM := vm/build/samaltak
 # What the test targets build first: image (always rebuilt), or fresh-image (only when src/, boot/ or the VM are newer:

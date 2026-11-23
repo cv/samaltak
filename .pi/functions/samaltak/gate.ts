@@ -159,6 +159,8 @@ cd "$W" || exit 1
 if [ -x tests/stages.sh ]; then set -- tests/stages.sh "$@"; else set -- make "$@"; fi
 VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json SDL_VIDEODRIVER=x11 SDL_VIDEO_X11_SCALING_FACTOR=2 XDG_RUNTIME_DIR="$R" TMPDIR="$T" SAMALTAK_TEST_TIMES_DIR="$O/build/test-times" xvfb-run -a -s "-screen 0 1280x1024x24" "$@" > "$D/$I.log" 2>&1
 e=$?
+tl=build; for a in "$@"; do case $a in OUT=*) tl=${a#OUT=} ;; esac; done
+cp "$tl/stages/timeline" "$D/$I.timeline" 2>/dev/null
 echo $e > "$D/$I.exit.tmp"; mv "$D/$I.exit.tmp" "$D/$I.exit"
 rm -rf "$T"
 if [ $e = 0 ] && [ "$W" != "$O" ]; then git -C "$O" worktree remove --force "$W" >/dev/null 2>&1; fi`;

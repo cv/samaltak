@@ -1,0 +1,16 @@
+#!/bin/sh
+# make's SHELL while SAMALTAK_TIMELINE names a file (the Makefile, top): runs a recipe line as /bin/sh would and
+# appends its start, end (epoch seconds), exit status, stage, target and command to that file as an event
+# (tests/lib/timeline.sh), the parent of the events of what it runs; tests/timeline.sh reports them. usage (make):
+# timed-sh TARGET -c LINE; $(shell) calls (no target) just run.
+[ "$1" = -c ] && exec /bin/sh "$@"
+target=$1
+shift
+. "$(dirname "$0")/lib/timeline.sh"
+t0=$(tl_now)
+id=$$.${t0#*.}
+SAMALTAK_TIMELINE_PARENT=$id /bin/sh "$@"
+e=$?
+shift
+tl_add "$t0" "$(tl_now)" $e "$target" "$*" "$id"
+exit $e
