@@ -717,6 +717,7 @@ uint64_t jit_baseline_runtime_miss(frame *f, oop rcv, uint64_t ret)
     uint64_t lit;
     uint64_t target;
     int64_t i_3;
+    int k_2;
     oop m;
     int64_t r_method_prim;
     uint64_t p_2;
@@ -731,6 +732,7 @@ uint64_t jit_baseline_runtime_miss(frame *f, oop rcv, uint64_t ret)
     uint64_t target_4;
     uint64_t target_5;
     int64_t i_5;
+    int k_3;
     oop m_2;
     int64_t r_method_prim_2;
     uint64_t p_3;
@@ -857,7 +859,12 @@ exit_flags_of:;
             patch_branch_at(site, target);
             invalidate((void *)site, 4);
         } else if ((s->info & BL_SITE_MEGA) != 0) {
-            i_3 = (int64_t)((((cls ^ sel) >> 3) & 4095) * 4);
+            i_3 = (int64_t)((((cls ^ sel) >> 3) & 2047) * 8);
+            if (!(mega_table[i_3] == 0)) {
+                for (k_2 = 0; k_2 <= 3; k_2++) {
+                    mega_table[i_3 + 4 + k_2] = mega_table[i_3 + k_2];
+                }
+            }
             mega_table[i_3] = cls;
             mega_table[i_3 + 1] = sel;
             mega_table[i_3 + 2] = t->uentry;
@@ -909,7 +916,12 @@ exit_add_case_to:;
                 target_5 = (jit_flags & JIT_FLAG_MEGA) != 0 ? bl_mega : bl_miss;
                 patch_branch_at(site, target_5);
                 invalidate((void *)site, 4);
-                i_5 = (int64_t)((((cls ^ sel) >> 3) & 4095) * 4);
+                i_5 = (int64_t)((((cls ^ sel) >> 3) & 2047) * 8);
+                if (!(mega_table[i_5] == 0)) {
+                    for (k_3 = 0; k_3 <= 3; k_3++) {
+                        mega_table[i_5 + 4 + k_3] = mega_table[i_5 + k_3];
+                    }
+                }
                 mega_table[i_5] = cls;
                 mega_table[i_5 + 1] = sel;
                 mega_table[i_5 + 2] = t->uentry;
@@ -970,6 +982,7 @@ uint64_t jit_baseline_runtime_miss(frame *f, oop rcv, uint64_t ret)
     uint64_t lit;
     uint64_t target;
     int64_t i_3;
+    int k_2;
     oop m;
     int64_t r_method_prim;
     uint64_t p_2;
@@ -984,6 +997,7 @@ uint64_t jit_baseline_runtime_miss(frame *f, oop rcv, uint64_t ret)
     uint64_t target_4;
     uint64_t target_5;
     int64_t i_5;
+    int k_3;
     oop m_2;
     int64_t r_method_prim_2;
     uint64_t p_3;
@@ -1110,7 +1124,12 @@ exit_flags_of:;
             patch_branch_at(site, target);
             invalidate((void *)site, 4);
         } else if ((s->info & BL_SITE_MEGA) != 0) {
-            i_3 = (int64_t)((((cls ^ sel) >> 3) & 4095) * 4);
+            i_3 = (int64_t)((((cls ^ sel) >> 3) & 2047) * 8);
+            if (!(mega_table[i_3] == 0)) {
+                for (k_2 = 0; k_2 <= 3; k_2++) {
+                    mega_table[i_3 + 4 + k_2] = mega_table[i_3 + k_2];
+                }
+            }
             mega_table[i_3] = cls;
             mega_table[i_3 + 1] = sel;
             mega_table[i_3 + 2] = t->uentry;
@@ -1162,7 +1181,12 @@ exit_add_case_to:;
                 target_5 = (jit_flags & JIT_FLAG_MEGA) != 0 ? bl_mega : bl_miss;
                 patch_branch_at(site, target_5);
                 invalidate((void *)site, 4);
-                i_5 = (int64_t)((((cls ^ sel) >> 3) & 4095) * 4);
+                i_5 = (int64_t)((((cls ^ sel) >> 3) & 2047) * 8);
+                if (!(mega_table[i_5] == 0)) {
+                    for (k_3 = 0; k_3 <= 3; k_3++) {
+                        mega_table[i_5 + 4 + k_3] = mega_table[i_5 + k_3];
+                    }
+                }
                 mega_table[i_5] = cls;
                 mega_table[i_5 + 1] = sel;
                 mega_table[i_5 + 2] = t->uentry;
@@ -1413,6 +1437,7 @@ uint64_t perform_miss(frame *f, oop rcv, uint64_t ret, uint64_t info)
     oop o_3;
     uint64_t c_3;
     int64_t i_2;
+    int k_2;
     oop m_2;
     int64_t r_method_prim_2;
     uint64_t p_2;
@@ -1473,7 +1498,12 @@ uint64_t perform_miss(frame *f, oop rcv, uint64_t ret, uint64_t info)
         return (c_3 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT) ? send_from(f, ret) : 1;
     }
     if ((jit_flags & JIT_FLAG_IC) != 0) {
-        i_2 = (int64_t)((((cls ^ sel) >> 3) & 4095) * 4);
+        i_2 = (int64_t)((((cls ^ sel) >> 3) & 2047) * 8);
+        if (!(mega_table[i_2] == 0)) {
+            for (k_2 = 0; k_2 <= 3; k_2++) {
+                mega_table[i_2 + 4 + k_2] = mega_table[i_2 + k_2];
+            }
+        }
         mega_table[i_2] = cls;
         mega_table[i_2 + 1] = sel;
         mega_table[i_2 + 2] = t->uentry;
