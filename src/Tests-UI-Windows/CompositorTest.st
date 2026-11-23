@@ -149,6 +149,16 @@ testTopBarReadoutMakesNoFramesOfItsOwn
 	self assert: (bar updateAt: now + 9100000 presenting: true).
 	self assert: (bar statsText includesSubstring: ' 1 fps')
 !
+testRequestsAloneMakeNoReadoutFrames
+	"A remote viewer reads each frame it was told about through a request (Compositor>>sync:): the readout must not ride along with those, or each read would bring a frame, and that frame the next read."
+	| before |
+	self settle.
+	before := world compositor presentedCount.
+	10 timesRepeat: [
+		world compositor sync: [:c | nil].
+		(Delay forMilliseconds: 150) wait].
+	self assert: world compositor presentedCount - before < 2 description: (world compositor presentedCount - before) printString, ' frames'
+!
 testOpenAndCloseAnimations
 	| w layer |
 	w := Window new title: 'Animated'; content: RecordingTestView new; bounds: (100 @ 100 extent: 300 @ 200); yourself.

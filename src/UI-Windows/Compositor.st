@@ -239,17 +239,22 @@ vsyncIndex
 	^vsyncIndex
 !
 sleep
+	"Until World>>changed or a request wakes me, or 500 ms pass: a Delay signals wake then (a timed wait would start a watchdog Process each time, and a sleeping World would show it come and go in the Process Browser)."
+	| timeout |
 	sleeping := true.
 	self class armVsync.
 	wake consumeAllSignals.
-	world needsFrame ifFalse: [wake waitTimeoutMSecs: 500].
+	(world needsFrame or: [requests isEmpty not]) ifFalse: [
+		timeout := Delay forMilliseconds: 500.
+		timeout signal: wake.
+		[wake wait] ensure: [timeout cancel]].
 	sleeping := false.
 	wake consumeAllSignals.
 	self armVsync.
 	vsync consumeAllSignals
 !
 frame
-	| t0 now animating needs |
+	| t0 now animating changed needs |
 	"On the recording clock the GPU's frames, like an external program, take real time: while any are unfinished the clock moves with real time instead of jumping to the next deadline. Not while recording: the recorder waits for each frame, and every tick gets its own."
 	onWorkClock ifTrue: [Smalltalk vm workClockPaced: (OSProcess externalWork or: [recorder isNil and: [gpuTimer inFlight > 0]])].
 	(recorder isNil and: [requests isEmpty and: [gpuTimer inFlight >= self class maxFramesInFlight]]) ifTrue: [^self].
@@ -259,11 +264,12 @@ frame
 	clock := now.
 	animating := self stepAt: now.
 	t0 - lastScan > 1000000 ifTrue: [self scanProcesses: t0].
-	needs := world consumeNeedsFrame | animating | requests isEmpty not
+	changed := world consumeNeedsFrame | animating
 		| (world presentsContinuously and: [renderer device isSoftware not]) | recorder notNil.
-	"A frame for the readout alone does not count in it: otherwise it would measure, and keep making, its own frames."
-	countsFrame := needs.
-	needs := (world topBar updateAt: t0 presenting: needs) | needs.
+	needs := changed | requests isEmpty not.
+	"A frame for the readout alone does not count in it: otherwise it would measure, and keep making, its own frames. Nor does one for a request (a remote viewer reading the frame it was told about, a screenshot), and the readout does not ride along with it: it changes nothing, and the readout's frame would bring the next read."
+	countsFrame := changed.
+	needs := (world topBar updateAt: t0 presenting: changed) | needs.
 	needs ifFalse: [
 		idleFrames := idleFrames + 1.
 		^self].
@@ -351,9 +357,9 @@ drawToastsOn: c
 
 !Compositor methodsFor: 'requests'!
 do: aBlock
-	"Run aBlock (with me as argument) in my Process after the next frame, which I present at my next tick however many frames are in flight."
+	"Run aBlock (with me as argument) in my Process after the next frame, which I present at my next tick however many frames are in flight. The World did not change for it: the frame presents only what did, if anything."
 	requests nextPut: aBlock.
-	world changed
+	self wake
 !
 sync: aBlock
 	"Run aBlock in my Process; answer its value (at most 10 s)."
