@@ -1,6 +1,6 @@
 VMCoreModule subclass: #JitRuntime
 	instanceVariableNames: 'stubs baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending releasePending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned perfMap jitDump jitDumpIndex'
-	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BG JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_LIVE JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
+	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BG JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_COLD JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_LIVE JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
 	package: 'VM-Jit'!
 
 JitRuntime comment: 'The runtime every compiler''s machine code runs on (docs/jit.md, Shared runtime): configuration (--jit, --jit-threshold, --jit-osr, --jit-flags, --jit-cache), the compiled methods (JitMethod headers in the code cache, found by the method''s identity hash; their methods are GC roots, young ones listed for scavenges), the interpreter''s hooks (activated:, resume:, backJump:), the functions machine code calls (interrupt:, interruptAtEntry:, closure:, makeArray:, widow:, writeBarrier:value:), code cache flushes, statistics.
@@ -51,7 +51,8 @@ initialize
 	JIT_FLAG_LIVE := 2097152.
 	"the optimizing tier compiles on a helper thread where there is one (OptRuntime>>background)"
 	JIT_FLAG_BG := 4194304.
-	JIT_FLAG_LAST := JIT_FLAG_BG.
+	JIT_FLAG_COLD := 8388608.
+	JIT_FLAG_LAST := JIT_FLAG_COLD.
 	JIT_TABLE_SIZE := 65536.
 	JIT_MAX_YOUNG := 4096.
 	JIT_MAX_MAP := 32768.
@@ -152,6 +153,9 @@ deoptFlag
 !
 bgFlag
 	^JIT_FLAG_BG
+!
+coldFlag
+	^JIT_FLAG_COLD
 !
 backgroundState
 	"jitParameters: -1 if the optimizing tier compiles on the VM's thread, else its helper's state (0 idle, 1 working on a job, 2 the job waiting to be installed)."
@@ -279,6 +283,7 @@ flagNamed: name length: n
 	(self is: name length: n named: 'eager') ifTrue: [^JIT_FLAG_EAGER].
 	(self is: name length: n named: 'deopt') ifTrue: [^JIT_FLAG_DEOPT].
 	(self is: name length: n named: 'bg') ifTrue: [^JIT_FLAG_BG].
+	(self is: name length: n named: 'cold') ifTrue: [^JIT_FLAG_COLD].
 	^0
 !
 is: s length: n named: name
@@ -308,6 +313,7 @@ flagName: bit
 	bit = JIT_FLAG_CALLS ifTrue: [^'calls'].
 	bit = JIT_FLAG_EAGER ifTrue: [^'eager'].
 	bit = JIT_FLAG_BG ifTrue: [^'bg'].
+	bit = JIT_FLAG_COLD ifTrue: [^'cold'].
 	^'deopt'
 !
 lastFlag
@@ -902,6 +908,8 @@ finish: m code: start mode: md
 	md = JIT_OPT ifTrue: [p := optimizer writeExtra: h at: p].
 	md = JIT_BASELINE ifTrue: [
 		p := baseline writeTables: h at: p.
+		"its sites report every class they meet (inline cache misses) to the feedback as it is now: OptBuilder>>unreached:special:pc:act:"
+		self tiering ifTrue: [h generation: feedback generation + 1].
 		(baseline plainEntry and: [asm isX64 not or: [(self uint8At: h uentry) = 16r48]]) ifTrue: [h flags: (h flags bitOr: JM_ENTRY)]].
 	self sortMap: h.
 	h start: start + (self mapOffsetOf: h pc: (md = JIT_OPT ifTrue: [optimizer unitEntry] ifFalse: [0])).

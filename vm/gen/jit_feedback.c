@@ -4,6 +4,7 @@
 
 static int64_t fb_count;
 uint8_t fb_floats[1048576];
+uint32_t fb_generation;
 static feedback_site fb_sites[65536];
 static bool fb_young;
 
@@ -38,6 +39,7 @@ static void jit_feedback_clear(void)
     memset(fb_sites, 0, sizeof(feedback_site) * FB_MAX);
     fb_count = 0;
     fb_young = false;
+    fb_generation = fb_generation + 1;
 }
 
 /* JitFeedback>>flagsAt:pc: */

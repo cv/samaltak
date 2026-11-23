@@ -901,6 +901,22 @@ testAClassGuardMovedBeforeALoopReportsTheClass
 		self assert: (o ats: #(1 2 3) times: 20000) equals: 20000].
 	self stressed ifFalse: [self deny: ((self listingOf: #ats:times:) includesSubstring: 'inline cache')]
 !
+testSendsThatNeverRanDeoptimize
+	"A send without feedback that never ran is a deoptimization point, not a call: the closure only it takes is not made, so the loop is optimized (calling the send, the closure would escape and the loop's unit fail). Taken, it deoptimizes, its receiver's class becomes its feedback, and the code compiled next sends it: no deoptimization every time."
+	| o before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'cold: n flag: f | s | s := 0. 1 to: n do: [:i | f ifTrue: [3 timesRepeat: [s := s + 1]]. s := s + i]. ^s'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [self assert: (o cold: 20000 flag: false) equals: 200010000].
+	self stressed ifFalse: [self assert: ((self listingOf: #cold:flag:) includesSubstring: 'a send that never ran: deoptimize')].
+	self assert: (o cold: 20000 flag: true) equals: 200070000.
+	before := self statistics.
+	3 timesRepeat: [self assert: (o cold: 20000 flag: true) equals: 200070000].
+	self assert: (o cold: 20000 flag: false) equals: 200010000.
+	self stressed ifFalse: [
+		self assert: (self statistics - before) optDeoptimizations < 10.
+		self deny: ((self listingOf: #cold:flag:) includesSubstring: 'a send that never ran: deoptimize')]
+!
 testCountedLoopsCheckBoundsOnce
 	"A loop that counts up to a limit from before it checks once, where it is entered, that the indexed accesses its counter makes of an object from before it are within bounds: the accesses check none. A limit beyond the object's size leaves there: the lower tier runs the loop and fails at the element that is not, and the code compiled next checks at each access."
 	| o a |
@@ -1125,6 +1141,9 @@ testSmallIntegerDivisionInline
 		self assert: (o harmonic: 10) equals: ((1 to: 10) inject: 0.0 into: [:sum :i | sum + (1.0 / i)])].
 	self assert: (((JitRuntimeTestSubject >> #sumOver:by:) machineCodeFor: #opt) includesSubstring: 'exact: a remainder deoptimizes').
 	self assert: (((JitRuntimeTestSubject >> #harmonic:) machineCodeFor: #opt) includesSubstring: 'exact: a remainder deoptimizes').
+	"quotients:by: optimized from its next entry on (the loop above may have inlined it into its own unit, leaving it a loop's unit only)"
+	Smalltalk vm jitParameters: #(nil 'eager' nil nil).
+	self assert: (o quotients: 10 by: 1) equals: 55.
 	before := self statistics.
 	self assert: (o quotients: 10 by: 2) equals: 55 / 2.
 	self should: [o quotients: 3 by: 0] raise: ZeroDivide.

@@ -1187,6 +1187,7 @@ uint64_t deopt_guard(frame *f, int64_t k)
     jit_method *h;
     int32_t *rec;
     int32_t why;
+    bool cold;
     bool stressed;
     bool r_note_hoisted;
     int32_t i;
@@ -1274,8 +1275,12 @@ uint64_t deopt_guard(frame *f, int64_t k)
     feedback_site *s_5;
     int64_t n_6;
     int i_9;
+    int64_t osr;
+    int32_t full;
     oop m_7;
-    int32_t n_7;
+    int64_t n_7;
+    oop m_8;
+    int32_t n_8;
     jit_method *h_3;
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         canonicalize_below(f);
@@ -1283,7 +1288,9 @@ uint64_t deopt_guard(frame *f, int64_t k)
     h = (jit_method *)f->code;
     rec = h->meta + h->sp_table[k];
     why = rec[0] >> 8;
-    stressed = ((jit_flags & JIT_FLAG_DEOPT) != 0) && (state_block->stress <= 0);
+    cold = ((why & FB_DEOPT_COLD) != 0) && (h->deopts < 3);
+    why = why & -1025;
+    stressed = (!cold) && (((jit_flags & JIT_FLAG_DEOPT) != 0) && (state_block->stress <= 0));
     if (stressed) {
         why = 0;
     }
@@ -1532,6 +1539,9 @@ exit_operand_flags_at:;
     r_signature_at_3 = (int64_t)s_4->flags + (n_5 << 32);
 exit_signature_at_3:;
     r_signature_at_3; });
+        if (sig != -1) {
+            cold = false;
+        }
         if (!met) {
             note_flags(m, pc, (uint32_t)why);
         }
@@ -1600,7 +1610,15 @@ exit_signature_at_4:;
             rt_stamp = rt_stamp + 1;
             site_at(m, pc)->stamp = rt_stamp;
         }
-        if ((!fresh) && ((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0))) {
+        if (cold) {
+            fresh = false;
+            osr = jit_osr_threshold > 1 ? jit_osr_threshold : 1;
+            full = initial_count(rt_act_method[0]);
+            m_7 = rt_act_method[0];
+            n_7 = osr < full ? osr : full;
+            opt_counts[((uint32_t)(((*(uint64_t *)m_7) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = (int32_t)n_7;
+        }
+        if ((!cold) && ((!fresh) && ((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0)))) {
             if (site_at(m, pc)->stamp > h->stamp) {
                 fresh = true;
             } else {
@@ -1626,9 +1644,9 @@ exit_signature_at_4:;
         }
         rt_stat_invalidations = rt_stat_invalidations + 1;
         if ((h->block_start == 0) && (h->osr_pc == 0)) {
-            m_7 = h->method;
-            n_7 = initial_count(h->method);
-            opt_counts[((uint32_t)(((*(uint64_t *)m_7) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_7;
+            m_8 = h->method;
+            n_8 = initial_count(h->method);
+            opt_counts[((uint32_t)(((*(uint64_t *)m_8) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_8;
             h_3 = (jit_method *)h->lower;
             begin_writing();
             h_3->opt = 0;

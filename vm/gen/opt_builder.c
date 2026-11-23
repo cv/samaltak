@@ -96,6 +96,7 @@ static int32_t opt_builder_read(int32_t var, int32_t b);
 static void seal(int32_t b);
 static bool send_performed(uint64_t sel, int32_t rcv, oop cls, int32_t n, int32_t pc, int32_t a, int32_t r);
 static int32_t state_act(int32_t a, int32_t pc, int32_t d, int32_t lp);
+static bool unreached(int32_t kind, int32_t k, int32_t pc, int32_t a);
 static void opt_builder_write(int32_t var, int32_t v, int32_t b);
 
 /* OptBuilder>>addPhiOperands:var: */
@@ -11053,6 +11054,7 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_34;
     int32_t n_36;
     int32_t n_31;
+    feedback_site *site;
     oop r_known_class_of;
     int32_t n_37;
     opt_node *nd_2;
@@ -11363,7 +11365,6 @@ static bool inline_send(uint64_t sel, int32_t argc, int32_t kind, int32_t k, int
     int32_t n_70;
     int32_t n_72;
     int32_t n_67;
-    feedback_site *site;
     int i_35;
     uint32_t fl;
     int64_t n;
@@ -13497,6 +13498,10 @@ exit_write_6:;
 exit_send:;
     r_send; });
     }
+    site = site_at((opt_acts + a)->method, pc);
+    if ((site == NULL) && unreached(kind, k, pc, a)) {
+        return true;
+    }
     cls = ({
     n_37 = live_value_of(rcv);
     nd_2 = opt_nodes + n_37;
@@ -14965,7 +14970,6 @@ exit_write_12:;
 exit_send_2:;
     r_send_2; });
     }
-    site = site_at((opt_acts + a)->method, pc);
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "opt: send at pc %d of act %d: feedback %s ", pc, a, site == NULL ? "none" : "some");
         print_symbol(sel, stderr);
@@ -21173,6 +21177,37 @@ exit_receiver_slot_at:;
         (opt_states + s)->parent = state_act(p, pc_3, d_2, pc_3);
     }
     return s;
+}
+
+/* OptBuilder>>unreached:special:pc:act: */
+static bool unreached(int32_t kind, int32_t k, int32_t pc, int32_t a)
+{
+    jit_method *h;
+    int32_t r_add;
+    int32_t n_2;
+    int32_t n;
+    if (!(((jit_flags & JIT_FLAG_COLD) != 0) && (!((jit_flags & JIT_FLAG_EAGER) != 0)))) {
+        return false;
+    }
+    if (!((kind == 0) || ((kind == 2) && ((k == 11) || ((k == 25) || ((k == 26) || (k == 31))))))) {
+        return false;
+    }
+    h = jit_runtime_lookup((opt_acts + a)->method);
+    if (!((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->mode == JIT_BASELINE) && (h->generation == fb_generation + 1)))) {
+        return false;
+    }
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "opt: send at pc %d of act %d never ran: deoptimize\n", pc, a);
+    }
+    n = ({
+    n_2 = new_node(O_DEOPT, R_NONE);
+    append(n_2, ob_cur_block);
+    r_add = n_2;
+    r_add; });
+    (opt_nodes + n)->aux = 2;
+    (opt_nodes + n)->state = state_act(a, pc, (int32_t)ob_ana_depth[(opt_acts + a)->ana + pc], -1);
+    ob_cur_block = -1;
+    return true;
 }
 
 /* OptBuilder>>write:value:in: */

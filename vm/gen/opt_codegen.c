@@ -11782,9 +11782,12 @@ exit_dst_3:;
             s_2 = ({
     k = ({
     op_2 = (int32_t)(opt_nodes + n)->op;
-    why = (op_2 == O_GUARDCLASS) || ((op_2 == O_GUARDCLOSURE) || ((op_2 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_2 == O_NOTINTS ? FB_INTS : (op_2 == O_GUARDINT) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || (op_2 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why = (op_2 == O_GUARDCLASS) || ((op_2 == O_GUARDCLOSURE) || ((op_2 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_2 == O_NOTINTS ? FB_INTS : (op_2 == O_GUARDINT) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || (op_2 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why = FB_DEOPT_HOISTED;
+    }
+    if ((op_2 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why = why | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -18466,9 +18469,12 @@ exit_src_11:;
     s_3 = ({
     k_5 = ({
     op_3 = (int32_t)(opt_nodes + n)->op;
-    why_2 = (op_3 == O_GUARDCLASS) || ((op_3 == O_GUARDCLOSURE) || ((op_3 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_3 == O_NOTINTS ? FB_INTS : (op_3 == O_GUARDINT) || ((op_3 == O_IADD) || ((op_3 == O_ISUB) || ((op_3 == O_IMUL) || ((op_3 == O_IMOD) || ((op_3 == O_IDIV) || (op_3 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_2 = (op_3 == O_GUARDCLASS) || ((op_3 == O_GUARDCLOSURE) || ((op_3 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_3 == O_NOTINTS ? FB_INTS : (op_3 == O_GUARDINT) || ((op_3 == O_IADD) || ((op_3 == O_ISUB) || ((op_3 == O_IMUL) || ((op_3 == O_IMOD) || ((op_3 == O_IDIV) || (op_3 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_2 = FB_DEOPT_HOISTED;
+    }
+    if ((op_3 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_2 = why_2 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -20736,9 +20742,12 @@ exit_dst_8:;
         s_4 = ({
     k_6 = ({
     op_4 = (int32_t)(opt_nodes + n)->op;
-    why_3 = (op_4 == O_GUARDCLASS) || ((op_4 == O_GUARDCLOSURE) || ((op_4 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_4 == O_NOTINTS ? FB_INTS : (op_4 == O_GUARDINT) || ((op_4 == O_IADD) || ((op_4 == O_ISUB) || ((op_4 == O_IMUL) || ((op_4 == O_IMOD) || ((op_4 == O_IDIV) || (op_4 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_3 = (op_4 == O_GUARDCLASS) || ((op_4 == O_GUARDCLOSURE) || ((op_4 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_4 == O_NOTINTS ? FB_INTS : (op_4 == O_GUARDINT) || ((op_4 == O_IADD) || ((op_4 == O_ISUB) || ((op_4 == O_IMUL) || ((op_4 == O_IMOD) || ((op_4 == O_IDIV) || (op_4 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_3 = FB_DEOPT_HOISTED;
+    }
+    if ((op_4 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_3 = why_3 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -21097,9 +21106,12 @@ exit_src_15:;
     s_5 = ({
     k_7 = ({
     op_5 = (int32_t)(opt_nodes + n)->op;
-    why_4 = (op_5 == O_GUARDCLASS) || ((op_5 == O_GUARDCLOSURE) || ((op_5 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_5 == O_NOTINTS ? FB_INTS : (op_5 == O_GUARDINT) || ((op_5 == O_IADD) || ((op_5 == O_ISUB) || ((op_5 == O_IMUL) || ((op_5 == O_IMOD) || ((op_5 == O_IDIV) || (op_5 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_4 = (op_5 == O_GUARDCLASS) || ((op_5 == O_GUARDCLOSURE) || ((op_5 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_5 == O_NOTINTS ? FB_INTS : (op_5 == O_GUARDINT) || ((op_5 == O_IADD) || ((op_5 == O_ISUB) || ((op_5 == O_IMUL) || ((op_5 == O_IMOD) || ((op_5 == O_IDIV) || (op_5 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_4 = FB_DEOPT_HOISTED;
+    }
+    if ((op_5 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_4 = why_4 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -28039,9 +28051,12 @@ exit_source_15:;
             s_8 = ({
     k_8 = ({
     op_6 = (int32_t)(opt_nodes + n)->op;
-    why_5 = (op_6 == O_GUARDCLASS) || ((op_6 == O_GUARDCLOSURE) || ((op_6 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_6 == O_NOTINTS ? FB_INTS : (op_6 == O_GUARDINT) || ((op_6 == O_IADD) || ((op_6 == O_ISUB) || ((op_6 == O_IMUL) || ((op_6 == O_IMOD) || ((op_6 == O_IDIV) || (op_6 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_5 = (op_6 == O_GUARDCLASS) || ((op_6 == O_GUARDCLOSURE) || ((op_6 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_6 == O_NOTINTS ? FB_INTS : (op_6 == O_GUARDINT) || ((op_6 == O_IADD) || ((op_6 == O_ISUB) || ((op_6 == O_IMUL) || ((op_6 == O_IMOD) || ((op_6 == O_IDIV) || (op_6 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_5 = FB_DEOPT_HOISTED;
+    }
+    if ((op_6 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_5 = why_5 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -29706,9 +29721,12 @@ exit_source_20:;
                 s_9 = ({
     k_10 = ({
     op_8 = (int32_t)(opt_nodes + n)->op;
-    why_6 = (op_8 == O_GUARDCLASS) || ((op_8 == O_GUARDCLOSURE) || ((op_8 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_8 == O_NOTINTS ? FB_INTS : (op_8 == O_GUARDINT) || ((op_8 == O_IADD) || ((op_8 == O_ISUB) || ((op_8 == O_IMUL) || ((op_8 == O_IMOD) || ((op_8 == O_IDIV) || (op_8 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_6 = (op_8 == O_GUARDCLASS) || ((op_8 == O_GUARDCLOSURE) || ((op_8 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_8 == O_NOTINTS ? FB_INTS : (op_8 == O_GUARDINT) || ((op_8 == O_IADD) || ((op_8 == O_ISUB) || ((op_8 == O_IMUL) || ((op_8 == O_IMOD) || ((op_8 == O_IDIV) || (op_8 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_6 = FB_DEOPT_HOISTED;
+    }
+    if ((op_8 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_6 = why_6 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -30557,9 +30575,12 @@ exit_source_22:;
             s_9 = ({
     k_11 = ({
     op_9 = (int32_t)(opt_nodes + n)->op;
-    why_7 = (op_9 == O_GUARDCLASS) || ((op_9 == O_GUARDCLOSURE) || ((op_9 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_9 == O_NOTINTS ? FB_INTS : (op_9 == O_GUARDINT) || ((op_9 == O_IADD) || ((op_9 == O_ISUB) || ((op_9 == O_IMUL) || ((op_9 == O_IMOD) || ((op_9 == O_IDIV) || (op_9 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_7 = (op_9 == O_GUARDCLASS) || ((op_9 == O_GUARDCLOSURE) || ((op_9 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_9 == O_NOTINTS ? FB_INTS : (op_9 == O_GUARDINT) || ((op_9 == O_IADD) || ((op_9 == O_ISUB) || ((op_9 == O_IMUL) || ((op_9 == O_IMOD) || ((op_9 == O_IDIV) || (op_9 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_7 = FB_DEOPT_HOISTED;
+    }
+    if ((op_9 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_7 = why_7 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -32174,9 +32195,12 @@ exit_dsrc_4:;
             s_9 = ({
     k_12 = ({
     op_10 = (int32_t)(opt_nodes + n)->op;
-    why_8 = (op_10 == O_GUARDCLASS) || ((op_10 == O_GUARDCLOSURE) || ((op_10 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_10 == O_NOTINTS ? FB_INTS : (op_10 == O_GUARDINT) || ((op_10 == O_IADD) || ((op_10 == O_ISUB) || ((op_10 == O_IMUL) || ((op_10 == O_IMOD) || ((op_10 == O_IDIV) || (op_10 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_8 = (op_10 == O_GUARDCLASS) || ((op_10 == O_GUARDCLOSURE) || ((op_10 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_10 == O_NOTINTS ? FB_INTS : (op_10 == O_GUARDINT) || ((op_10 == O_IADD) || ((op_10 == O_ISUB) || ((op_10 == O_IMUL) || ((op_10 == O_IMOD) || ((op_10 == O_IDIV) || (op_10 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_8 = FB_DEOPT_HOISTED;
+    }
+    if ((op_10 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_8 = why_8 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -34226,9 +34250,12 @@ exit_condition_of:;
         s = ({
     k_14 = ({
     op_12 = (int32_t)(opt_nodes + n)->op;
-    why_9 = (op_12 == O_GUARDCLASS) || ((op_12 == O_GUARDCLOSURE) || ((op_12 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_12 == O_NOTINTS ? FB_INTS : (op_12 == O_GUARDINT) || ((op_12 == O_IADD) || ((op_12 == O_ISUB) || ((op_12 == O_IMUL) || ((op_12 == O_IMOD) || ((op_12 == O_IDIV) || (op_12 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_9 = (op_12 == O_GUARDCLASS) || ((op_12 == O_GUARDCLOSURE) || ((op_12 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_12 == O_NOTINTS ? FB_INTS : (op_12 == O_GUARDINT) || ((op_12 == O_IADD) || ((op_12 == O_ISUB) || ((op_12 == O_IMUL) || ((op_12 == O_IMOD) || ((op_12 == O_IDIV) || (op_12 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_9 = FB_DEOPT_HOISTED;
+    }
+    if ((op_12 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_9 = why_9 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -34596,9 +34623,12 @@ exit_src_30:;
         s = ({
     k_15 = ({
     op_13 = (int32_t)(opt_nodes + n)->op;
-    why_10 = (op_13 == O_GUARDCLASS) || ((op_13 == O_GUARDCLOSURE) || ((op_13 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_13 == O_NOTINTS ? FB_INTS : (op_13 == O_GUARDINT) || ((op_13 == O_IADD) || ((op_13 == O_ISUB) || ((op_13 == O_IMUL) || ((op_13 == O_IMOD) || ((op_13 == O_IDIV) || (op_13 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_10 = (op_13 == O_GUARDCLASS) || ((op_13 == O_GUARDCLOSURE) || ((op_13 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_13 == O_NOTINTS ? FB_INTS : (op_13 == O_GUARDINT) || ((op_13 == O_IADD) || ((op_13 == O_ISUB) || ((op_13 == O_IMUL) || ((op_13 == O_IMOD) || ((op_13 == O_IDIV) || (op_13 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_10 = FB_DEOPT_HOISTED;
+    }
+    if ((op_13 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_10 = why_10 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -35014,9 +35044,12 @@ exit_source_35:;
         s = ({
     k_16 = ({
     op_14 = (int32_t)(opt_nodes + n)->op;
-    why_11 = (op_14 == O_GUARDCLASS) || ((op_14 == O_GUARDCLOSURE) || ((op_14 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_14 == O_NOTINTS ? FB_INTS : (op_14 == O_GUARDINT) || ((op_14 == O_IADD) || ((op_14 == O_ISUB) || ((op_14 == O_IMUL) || ((op_14 == O_IMOD) || ((op_14 == O_IDIV) || (op_14 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_11 = (op_14 == O_GUARDCLASS) || ((op_14 == O_GUARDCLOSURE) || ((op_14 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_14 == O_NOTINTS ? FB_INTS : (op_14 == O_GUARDINT) || ((op_14 == O_IADD) || ((op_14 == O_ISUB) || ((op_14 == O_IMUL) || ((op_14 == O_IMOD) || ((op_14 == O_IDIV) || (op_14 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_11 = FB_DEOPT_HOISTED;
+    }
+    if ((op_14 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_11 = why_11 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -35391,9 +35424,12 @@ exit_src_33:;
         s = ({
     k_17 = ({
     op_15 = (int32_t)(opt_nodes + n)->op;
-    why_12 = (op_15 == O_GUARDCLASS) || ((op_15 == O_GUARDCLOSURE) || ((op_15 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_15 == O_NOTINTS ? FB_INTS : (op_15 == O_GUARDINT) || ((op_15 == O_IADD) || ((op_15 == O_ISUB) || ((op_15 == O_IMUL) || ((op_15 == O_IMOD) || ((op_15 == O_IDIV) || (op_15 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_12 = (op_15 == O_GUARDCLASS) || ((op_15 == O_GUARDCLOSURE) || ((op_15 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_15 == O_NOTINTS ? FB_INTS : (op_15 == O_GUARDINT) || ((op_15 == O_IADD) || ((op_15 == O_ISUB) || ((op_15 == O_IMUL) || ((op_15 == O_IMOD) || ((op_15 == O_IDIV) || (op_15 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_12 = FB_DEOPT_HOISTED;
+    }
+    if ((op_15 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_12 = why_12 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -36235,9 +36271,12 @@ exit_src_36:;
         s = ({
     k_18 = ({
     op_16 = (int32_t)(opt_nodes + n)->op;
-    why_13 = (op_16 == O_GUARDCLASS) || ((op_16 == O_GUARDCLOSURE) || ((op_16 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_16 == O_NOTINTS ? FB_INTS : (op_16 == O_GUARDINT) || ((op_16 == O_IADD) || ((op_16 == O_ISUB) || ((op_16 == O_IMUL) || ((op_16 == O_IMOD) || ((op_16 == O_IDIV) || (op_16 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_13 = (op_16 == O_GUARDCLASS) || ((op_16 == O_GUARDCLOSURE) || ((op_16 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_16 == O_NOTINTS ? FB_INTS : (op_16 == O_GUARDINT) || ((op_16 == O_IADD) || ((op_16 == O_ISUB) || ((op_16 == O_IMUL) || ((op_16 == O_IMOD) || ((op_16 == O_IDIV) || (op_16 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_13 = FB_DEOPT_HOISTED;
+    }
+    if ((op_16 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_13 = why_13 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -36695,9 +36734,12 @@ exit_source_36:;
             s_10 = ({
     k_19 = ({
     op_17 = (int32_t)(opt_nodes + n)->op;
-    why_14 = (op_17 == O_GUARDCLASS) || ((op_17 == O_GUARDCLOSURE) || ((op_17 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_17 == O_NOTINTS ? FB_INTS : (op_17 == O_GUARDINT) || ((op_17 == O_IADD) || ((op_17 == O_ISUB) || ((op_17 == O_IMUL) || ((op_17 == O_IMOD) || ((op_17 == O_IDIV) || (op_17 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_14 = (op_17 == O_GUARDCLASS) || ((op_17 == O_GUARDCLOSURE) || ((op_17 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_17 == O_NOTINTS ? FB_INTS : (op_17 == O_GUARDINT) || ((op_17 == O_IADD) || ((op_17 == O_ISUB) || ((op_17 == O_IMUL) || ((op_17 == O_IMOD) || ((op_17 == O_IDIV) || (op_17 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_14 = FB_DEOPT_HOISTED;
+    }
+    if ((op_17 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_14 = why_14 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -37443,9 +37485,12 @@ exit_src_39:;
         s_11 = ({
     k_20 = ({
     op_18 = (int32_t)(opt_nodes + n)->op;
-    why_15 = (op_18 == O_GUARDCLASS) || ((op_18 == O_GUARDCLOSURE) || ((op_18 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_18 == O_NOTINTS ? FB_INTS : (op_18 == O_GUARDINT) || ((op_18 == O_IADD) || ((op_18 == O_ISUB) || ((op_18 == O_IMUL) || ((op_18 == O_IMOD) || ((op_18 == O_IDIV) || (op_18 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_15 = (op_18 == O_GUARDCLASS) || ((op_18 == O_GUARDCLOSURE) || ((op_18 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_18 == O_NOTINTS ? FB_INTS : (op_18 == O_GUARDINT) || ((op_18 == O_IADD) || ((op_18 == O_ISUB) || ((op_18 == O_IMUL) || ((op_18 == O_IMOD) || ((op_18 == O_IDIV) || (op_18 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_15 = FB_DEOPT_HOISTED;
+    }
+    if ((op_18 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_15 = why_15 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -38977,9 +39022,12 @@ exit_src_44:;
         s_12 = ({
     k_22 = ({
     op_20 = (int32_t)(opt_nodes + n)->op;
-    why_16 = (op_20 == O_GUARDCLASS) || ((op_20 == O_GUARDCLOSURE) || ((op_20 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_20 == O_NOTINTS ? FB_INTS : (op_20 == O_GUARDINT) || ((op_20 == O_IADD) || ((op_20 == O_ISUB) || ((op_20 == O_IMUL) || ((op_20 == O_IMOD) || ((op_20 == O_IDIV) || (op_20 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_16 = (op_20 == O_GUARDCLASS) || ((op_20 == O_GUARDCLOSURE) || ((op_20 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_20 == O_NOTINTS ? FB_INTS : (op_20 == O_GUARDINT) || ((op_20 == O_IADD) || ((op_20 == O_ISUB) || ((op_20 == O_IMUL) || ((op_20 == O_IMOD) || ((op_20 == O_IDIV) || (op_20 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_16 = FB_DEOPT_HOISTED;
+    }
+    if ((op_20 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_16 = why_16 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -40117,9 +40165,12 @@ exit_emit_div_by:;
             s_14 = ({
     k_24 = ({
     op_22 = (int32_t)(opt_nodes + n)->op;
-    why_17 = (op_22 == O_GUARDCLASS) || ((op_22 == O_GUARDCLOSURE) || ((op_22 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_22 == O_NOTINTS ? FB_INTS : (op_22 == O_GUARDINT) || ((op_22 == O_IADD) || ((op_22 == O_ISUB) || ((op_22 == O_IMUL) || ((op_22 == O_IMOD) || ((op_22 == O_IDIV) || (op_22 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_17 = (op_22 == O_GUARDCLASS) || ((op_22 == O_GUARDCLOSURE) || ((op_22 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_22 == O_NOTINTS ? FB_INTS : (op_22 == O_GUARDINT) || ((op_22 == O_IADD) || ((op_22 == O_ISUB) || ((op_22 == O_IMUL) || ((op_22 == O_IMOD) || ((op_22 == O_IDIV) || (op_22 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_17 = FB_DEOPT_HOISTED;
+    }
+    if ((op_22 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_17 = why_17 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -42181,9 +42232,12 @@ exit_src_46:;
         s_15 = ({
     k_25 = ({
     op_24 = (int32_t)(opt_nodes + n)->op;
-    why_18 = (op_24 == O_GUARDCLASS) || ((op_24 == O_GUARDCLOSURE) || ((op_24 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_24 == O_NOTINTS ? FB_INTS : (op_24 == O_GUARDINT) || ((op_24 == O_IADD) || ((op_24 == O_ISUB) || ((op_24 == O_IMUL) || ((op_24 == O_IMOD) || ((op_24 == O_IDIV) || (op_24 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_18 = (op_24 == O_GUARDCLASS) || ((op_24 == O_GUARDCLOSURE) || ((op_24 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_24 == O_NOTINTS ? FB_INTS : (op_24 == O_GUARDINT) || ((op_24 == O_IADD) || ((op_24 == O_ISUB) || ((op_24 == O_IMUL) || ((op_24 == O_IMOD) || ((op_24 == O_IDIV) || (op_24 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_18 = FB_DEOPT_HOISTED;
+    }
+    if ((op_24 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_18 = why_18 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -43670,9 +43724,12 @@ exit_dst_15:;
         s = ({
     k_26 = ({
     op_25 = (int32_t)(opt_nodes + n)->op;
-    why_19 = (op_25 == O_GUARDCLASS) || ((op_25 == O_GUARDCLOSURE) || ((op_25 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_25 == O_NOTINTS ? FB_INTS : (op_25 == O_GUARDINT) || ((op_25 == O_IADD) || ((op_25 == O_ISUB) || ((op_25 == O_IMUL) || ((op_25 == O_IMOD) || ((op_25 == O_IDIV) || (op_25 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_19 = (op_25 == O_GUARDCLASS) || ((op_25 == O_GUARDCLOSURE) || ((op_25 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_25 == O_NOTINTS ? FB_INTS : (op_25 == O_GUARDINT) || ((op_25 == O_IADD) || ((op_25 == O_ISUB) || ((op_25 == O_IMUL) || ((op_25 == O_IMOD) || ((op_25 == O_IDIV) || (op_25 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_19 = FB_DEOPT_HOISTED;
+    }
+    if ((op_25 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_19 = why_19 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -44316,9 +44373,12 @@ exit_emit_stress_at_19:;
         s = ({
     k_27 = ({
     op_26 = (int32_t)(opt_nodes + n)->op;
-    why_20 = (op_26 == O_GUARDCLASS) || ((op_26 == O_GUARDCLOSURE) || ((op_26 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_26 == O_NOTINTS ? FB_INTS : (op_26 == O_GUARDINT) || ((op_26 == O_IADD) || ((op_26 == O_ISUB) || ((op_26 == O_IMUL) || ((op_26 == O_IMOD) || ((op_26 == O_IDIV) || (op_26 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_20 = (op_26 == O_GUARDCLASS) || ((op_26 == O_GUARDCLOSURE) || ((op_26 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_26 == O_NOTINTS ? FB_INTS : (op_26 == O_GUARDINT) || ((op_26 == O_IADD) || ((op_26 == O_ISUB) || ((op_26 == O_IMUL) || ((op_26 == O_IMOD) || ((op_26 == O_IDIV) || (op_26 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_20 = FB_DEOPT_HOISTED;
+    }
+    if ((op_26 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_20 = why_20 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -44923,9 +44983,12 @@ exit_src_49:;
         s = ({
     k_28 = ({
     op_27 = (int32_t)(opt_nodes + n)->op;
-    why_21 = (op_27 == O_GUARDCLASS) || ((op_27 == O_GUARDCLOSURE) || ((op_27 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_27 == O_NOTINTS ? FB_INTS : (op_27 == O_GUARDINT) || ((op_27 == O_IADD) || ((op_27 == O_ISUB) || ((op_27 == O_IMUL) || ((op_27 == O_IMOD) || ((op_27 == O_IDIV) || (op_27 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_21 = (op_27 == O_GUARDCLASS) || ((op_27 == O_GUARDCLOSURE) || ((op_27 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_27 == O_NOTINTS ? FB_INTS : (op_27 == O_GUARDINT) || ((op_27 == O_IADD) || ((op_27 == O_ISUB) || ((op_27 == O_IMUL) || ((op_27 == O_IMOD) || ((op_27 == O_IDIV) || (op_27 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_21 = FB_DEOPT_HOISTED;
+    }
+    if ((op_27 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_21 = why_21 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -62502,9 +62565,12 @@ exit_is_fused_2:;
             s_23 = ({
     k_34 = ({
     op_29 = (int32_t)(opt_nodes + n)->op;
-    why_22 = (op_29 == O_GUARDCLASS) || ((op_29 == O_GUARDCLOSURE) || ((op_29 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_29 == O_NOTINTS ? FB_INTS : (op_29 == O_GUARDINT) || ((op_29 == O_IADD) || ((op_29 == O_ISUB) || ((op_29 == O_IMUL) || ((op_29 == O_IMOD) || ((op_29 == O_IDIV) || (op_29 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_22 = (op_29 == O_GUARDCLASS) || ((op_29 == O_GUARDCLOSURE) || ((op_29 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_29 == O_NOTINTS ? FB_INTS : (op_29 == O_GUARDINT) || ((op_29 == O_IADD) || ((op_29 == O_ISUB) || ((op_29 == O_IMUL) || ((op_29 == O_IMOD) || ((op_29 == O_IDIV) || (op_29 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_22 = FB_DEOPT_HOISTED;
+    }
+    if ((op_29 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_22 = why_22 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -64840,12 +64906,20 @@ exit_out_37:;
                 note("the global holds another value than the class speculated: deoptimize", 0);
             }
         }
+        if ((opt_nodes + n)->aux == 2) {
+            if (asm_noting) {
+                note("a send that never ran: deoptimize", 0);
+            }
+        }
         a_label_9 = ({
     k_37 = ({
     op_31 = (int32_t)(opt_nodes + n)->op;
-    why_23 = (op_31 == O_GUARDCLASS) || ((op_31 == O_GUARDCLOSURE) || ((op_31 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_31 == O_NOTINTS ? FB_INTS : (op_31 == O_GUARDINT) || ((op_31 == O_IADD) || ((op_31 == O_ISUB) || ((op_31 == O_IMUL) || ((op_31 == O_IMOD) || ((op_31 == O_IDIV) || (op_31 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_23 = (op_31 == O_GUARDCLASS) || ((op_31 == O_GUARDCLOSURE) || ((op_31 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_31 == O_NOTINTS ? FB_INTS : (op_31 == O_GUARDINT) || ((op_31 == O_IADD) || ((op_31 == O_ISUB) || ((op_31 == O_IMUL) || ((op_31 == O_IMOD) || ((op_31 == O_IDIV) || (op_31 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_23 = FB_DEOPT_HOISTED;
+    }
+    if ((op_31 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_23 = why_23 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -68547,9 +68621,12 @@ exit_dst_3:;
             s_5 = ({
     k = ({
     op_2 = (int32_t)(opt_nodes + n)->op;
-    why = (op_2 == O_GUARDCLASS) || ((op_2 == O_GUARDCLOSURE) || ((op_2 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_2 == O_NOTINTS ? FB_INTS : (op_2 == O_GUARDINT) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || (op_2 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why = (op_2 == O_GUARDCLASS) || ((op_2 == O_GUARDCLOSURE) || ((op_2 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_2 == O_NOTINTS ? FB_INTS : (op_2 == O_GUARDINT) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || (op_2 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why = FB_DEOPT_HOISTED;
+    }
+    if ((op_2 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why = why | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -70962,9 +71039,12 @@ exit_src_11:;
     s_15 = ({
     k_5 = ({
     op_3 = (int32_t)(opt_nodes + n)->op;
-    why_2 = (op_3 == O_GUARDCLASS) || ((op_3 == O_GUARDCLOSURE) || ((op_3 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_3 == O_NOTINTS ? FB_INTS : (op_3 == O_GUARDINT) || ((op_3 == O_IADD) || ((op_3 == O_ISUB) || ((op_3 == O_IMUL) || ((op_3 == O_IMOD) || ((op_3 == O_IDIV) || (op_3 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_2 = (op_3 == O_GUARDCLASS) || ((op_3 == O_GUARDCLOSURE) || ((op_3 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_3 == O_NOTINTS ? FB_INTS : (op_3 == O_GUARDINT) || ((op_3 == O_IADD) || ((op_3 == O_ISUB) || ((op_3 == O_IMUL) || ((op_3 == O_IMOD) || ((op_3 == O_IDIV) || (op_3 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_2 = FB_DEOPT_HOISTED;
+    }
+    if ((op_3 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_2 = why_2 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -71659,9 +71739,12 @@ exit_dst_8:;
         s_17 = ({
     k_6 = ({
     op_4 = (int32_t)(opt_nodes + n)->op;
-    why_3 = (op_4 == O_GUARDCLASS) || ((op_4 == O_GUARDCLOSURE) || ((op_4 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_4 == O_NOTINTS ? FB_INTS : (op_4 == O_GUARDINT) || ((op_4 == O_IADD) || ((op_4 == O_ISUB) || ((op_4 == O_IMUL) || ((op_4 == O_IMOD) || ((op_4 == O_IDIV) || (op_4 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_3 = (op_4 == O_GUARDCLASS) || ((op_4 == O_GUARDCLOSURE) || ((op_4 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_4 == O_NOTINTS ? FB_INTS : (op_4 == O_GUARDINT) || ((op_4 == O_IADD) || ((op_4 == O_ISUB) || ((op_4 == O_IMUL) || ((op_4 == O_IMOD) || ((op_4 == O_IDIV) || (op_4 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_3 = FB_DEOPT_HOISTED;
+    }
+    if ((op_4 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_3 = why_3 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -71877,9 +71960,12 @@ exit_src_15:;
     s_18 = ({
     k_7 = ({
     op_5 = (int32_t)(opt_nodes + n)->op;
-    why_4 = (op_5 == O_GUARDCLASS) || ((op_5 == O_GUARDCLOSURE) || ((op_5 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_5 == O_NOTINTS ? FB_INTS : (op_5 == O_GUARDINT) || ((op_5 == O_IADD) || ((op_5 == O_ISUB) || ((op_5 == O_IMUL) || ((op_5 == O_IMOD) || ((op_5 == O_IDIV) || (op_5 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_4 = (op_5 == O_GUARDCLASS) || ((op_5 == O_GUARDCLOSURE) || ((op_5 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_5 == O_NOTINTS ? FB_INTS : (op_5 == O_GUARDINT) || ((op_5 == O_IADD) || ((op_5 == O_ISUB) || ((op_5 == O_IMUL) || ((op_5 == O_IMOD) || ((op_5 == O_IDIV) || (op_5 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_4 = FB_DEOPT_HOISTED;
+    }
+    if ((op_5 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_4 = why_4 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -73740,9 +73826,12 @@ exit_offset_to_50:;
             s_23 = ({
     k_8 = ({
     op_6 = (int32_t)(opt_nodes + n)->op;
-    why_5 = (op_6 == O_GUARDCLASS) || ((op_6 == O_GUARDCLOSURE) || ((op_6 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_6 == O_NOTINTS ? FB_INTS : (op_6 == O_GUARDINT) || ((op_6 == O_IADD) || ((op_6 == O_ISUB) || ((op_6 == O_IMUL) || ((op_6 == O_IMOD) || ((op_6 == O_IDIV) || (op_6 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_5 = (op_6 == O_GUARDCLASS) || ((op_6 == O_GUARDCLOSURE) || ((op_6 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_6 == O_NOTINTS ? FB_INTS : (op_6 == O_GUARDINT) || ((op_6 == O_IADD) || ((op_6 == O_ISUB) || ((op_6 == O_IMUL) || ((op_6 == O_IMOD) || ((op_6 == O_IDIV) || (op_6 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_5 = FB_DEOPT_HOISTED;
+    }
+    if ((op_6 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_5 = why_5 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -74466,9 +74555,12 @@ exit_src_25:;
                 s_24 = ({
     k_10 = ({
     op_8 = (int32_t)(opt_nodes + n)->op;
-    why_6 = (op_8 == O_GUARDCLASS) || ((op_8 == O_GUARDCLOSURE) || ((op_8 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_8 == O_NOTINTS ? FB_INTS : (op_8 == O_GUARDINT) || ((op_8 == O_IADD) || ((op_8 == O_ISUB) || ((op_8 == O_IMUL) || ((op_8 == O_IMOD) || ((op_8 == O_IDIV) || (op_8 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_6 = (op_8 == O_GUARDCLASS) || ((op_8 == O_GUARDCLOSURE) || ((op_8 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_8 == O_NOTINTS ? FB_INTS : (op_8 == O_GUARDINT) || ((op_8 == O_IADD) || ((op_8 == O_ISUB) || ((op_8 == O_IMUL) || ((op_8 == O_IMOD) || ((op_8 == O_IDIV) || (op_8 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_6 = FB_DEOPT_HOISTED;
+    }
+    if ((op_8 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_6 = why_6 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -74749,9 +74841,12 @@ exit_offset_to_59:;
             s_24 = ({
     k_11 = ({
     op_9 = (int32_t)(opt_nodes + n)->op;
-    why_7 = (op_9 == O_GUARDCLASS) || ((op_9 == O_GUARDCLOSURE) || ((op_9 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_9 == O_NOTINTS ? FB_INTS : (op_9 == O_GUARDINT) || ((op_9 == O_IADD) || ((op_9 == O_ISUB) || ((op_9 == O_IMUL) || ((op_9 == O_IMOD) || ((op_9 == O_IDIV) || (op_9 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_7 = (op_9 == O_GUARDCLASS) || ((op_9 == O_GUARDCLOSURE) || ((op_9 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_9 == O_NOTINTS ? FB_INTS : (op_9 == O_GUARDINT) || ((op_9 == O_IADD) || ((op_9 == O_ISUB) || ((op_9 == O_IMUL) || ((op_9 == O_IMOD) || ((op_9 == O_IDIV) || (op_9 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_7 = FB_DEOPT_HOISTED;
+    }
+    if ((op_9 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_7 = why_7 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -75409,9 +75504,12 @@ exit_dsrc_4:;
             s_24 = ({
     k_12 = ({
     op_10 = (int32_t)(opt_nodes + n)->op;
-    why_8 = (op_10 == O_GUARDCLASS) || ((op_10 == O_GUARDCLOSURE) || ((op_10 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_10 == O_NOTINTS ? FB_INTS : (op_10 == O_GUARDINT) || ((op_10 == O_IADD) || ((op_10 == O_ISUB) || ((op_10 == O_IMUL) || ((op_10 == O_IMOD) || ((op_10 == O_IDIV) || (op_10 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_8 = (op_10 == O_GUARDCLASS) || ((op_10 == O_GUARDCLOSURE) || ((op_10 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_10 == O_NOTINTS ? FB_INTS : (op_10 == O_GUARDINT) || ((op_10 == O_IADD) || ((op_10 == O_ISUB) || ((op_10 == O_IMUL) || ((op_10 == O_IMOD) || ((op_10 == O_IDIV) || (op_10 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_8 = FB_DEOPT_HOISTED;
+    }
+    if ((op_10 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_8 = why_8 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -76225,9 +76323,12 @@ exit_condition_of:;
         s = ({
     k_14 = ({
     op_12 = (int32_t)(opt_nodes + n)->op;
-    why_9 = (op_12 == O_GUARDCLASS) || ((op_12 == O_GUARDCLOSURE) || ((op_12 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_12 == O_NOTINTS ? FB_INTS : (op_12 == O_GUARDINT) || ((op_12 == O_IADD) || ((op_12 == O_ISUB) || ((op_12 == O_IMUL) || ((op_12 == O_IMOD) || ((op_12 == O_IDIV) || (op_12 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_9 = (op_12 == O_GUARDCLASS) || ((op_12 == O_GUARDCLOSURE) || ((op_12 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_12 == O_NOTINTS ? FB_INTS : (op_12 == O_GUARDINT) || ((op_12 == O_IADD) || ((op_12 == O_ISUB) || ((op_12 == O_IMUL) || ((op_12 == O_IMOD) || ((op_12 == O_IDIV) || (op_12 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_9 = FB_DEOPT_HOISTED;
+    }
+    if ((op_12 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_9 = why_9 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -76453,9 +76554,12 @@ exit_offset_to_65:;
         s = ({
     k_15 = ({
     op_13 = (int32_t)(opt_nodes + n)->op;
-    why_10 = (op_13 == O_GUARDCLASS) || ((op_13 == O_GUARDCLOSURE) || ((op_13 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_13 == O_NOTINTS ? FB_INTS : (op_13 == O_GUARDINT) || ((op_13 == O_IADD) || ((op_13 == O_ISUB) || ((op_13 == O_IMUL) || ((op_13 == O_IMOD) || ((op_13 == O_IDIV) || (op_13 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_10 = (op_13 == O_GUARDCLASS) || ((op_13 == O_GUARDCLOSURE) || ((op_13 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_13 == O_NOTINTS ? FB_INTS : (op_13 == O_GUARDINT) || ((op_13 == O_IADD) || ((op_13 == O_ISUB) || ((op_13 == O_IMUL) || ((op_13 == O_IMOD) || ((op_13 == O_IDIV) || (op_13 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_10 = FB_DEOPT_HOISTED;
+    }
+    if ((op_13 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_10 = why_10 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -76656,9 +76760,12 @@ exit_offset_to_67:;
         s = ({
     k_16 = ({
     op_14 = (int32_t)(opt_nodes + n)->op;
-    why_11 = (op_14 == O_GUARDCLASS) || ((op_14 == O_GUARDCLOSURE) || ((op_14 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_14 == O_NOTINTS ? FB_INTS : (op_14 == O_GUARDINT) || ((op_14 == O_IADD) || ((op_14 == O_ISUB) || ((op_14 == O_IMUL) || ((op_14 == O_IMOD) || ((op_14 == O_IDIV) || (op_14 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_11 = (op_14 == O_GUARDCLASS) || ((op_14 == O_GUARDCLOSURE) || ((op_14 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_14 == O_NOTINTS ? FB_INTS : (op_14 == O_GUARDINT) || ((op_14 == O_IADD) || ((op_14 == O_ISUB) || ((op_14 == O_IMUL) || ((op_14 == O_IMOD) || ((op_14 == O_IDIV) || (op_14 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_11 = FB_DEOPT_HOISTED;
+    }
+    if ((op_14 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_11 = why_11 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -76899,9 +77006,12 @@ exit_offset_to_69:;
         s = ({
     k_17 = ({
     op_15 = (int32_t)(opt_nodes + n)->op;
-    why_12 = (op_15 == O_GUARDCLASS) || ((op_15 == O_GUARDCLOSURE) || ((op_15 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_15 == O_NOTINTS ? FB_INTS : (op_15 == O_GUARDINT) || ((op_15 == O_IADD) || ((op_15 == O_ISUB) || ((op_15 == O_IMUL) || ((op_15 == O_IMOD) || ((op_15 == O_IDIV) || (op_15 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_12 = (op_15 == O_GUARDCLASS) || ((op_15 == O_GUARDCLOSURE) || ((op_15 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_15 == O_NOTINTS ? FB_INTS : (op_15 == O_GUARDINT) || ((op_15 == O_IADD) || ((op_15 == O_ISUB) || ((op_15 == O_IMUL) || ((op_15 == O_IMOD) || ((op_15 == O_IDIV) || (op_15 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_12 = FB_DEOPT_HOISTED;
+    }
+    if ((op_15 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_12 = why_12 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -77316,9 +77426,12 @@ exit_src_35:;
         s = ({
     k_18 = ({
     op_16 = (int32_t)(opt_nodes + n)->op;
-    why_13 = (op_16 == O_GUARDCLASS) || ((op_16 == O_GUARDCLOSURE) || ((op_16 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_16 == O_NOTINTS ? FB_INTS : (op_16 == O_GUARDINT) || ((op_16 == O_IADD) || ((op_16 == O_ISUB) || ((op_16 == O_IMUL) || ((op_16 == O_IMOD) || ((op_16 == O_IDIV) || (op_16 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_13 = (op_16 == O_GUARDCLASS) || ((op_16 == O_GUARDCLOSURE) || ((op_16 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_16 == O_NOTINTS ? FB_INTS : (op_16 == O_GUARDINT) || ((op_16 == O_IADD) || ((op_16 == O_ISUB) || ((op_16 == O_IMUL) || ((op_16 == O_IMOD) || ((op_16 == O_IDIV) || (op_16 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_13 = FB_DEOPT_HOISTED;
+    }
+    if ((op_16 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_13 = why_13 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -77562,9 +77675,12 @@ exit_offset_to_74:;
             s_25 = ({
     k_19 = ({
     op_17 = (int32_t)(opt_nodes + n)->op;
-    why_14 = (op_17 == O_GUARDCLASS) || ((op_17 == O_GUARDCLOSURE) || ((op_17 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_17 == O_NOTINTS ? FB_INTS : (op_17 == O_GUARDINT) || ((op_17 == O_IADD) || ((op_17 == O_ISUB) || ((op_17 == O_IMUL) || ((op_17 == O_IMOD) || ((op_17 == O_IDIV) || (op_17 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_14 = (op_17 == O_GUARDCLASS) || ((op_17 == O_GUARDCLOSURE) || ((op_17 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_17 == O_NOTINTS ? FB_INTS : (op_17 == O_GUARDINT) || ((op_17 == O_IADD) || ((op_17 == O_ISUB) || ((op_17 == O_IMUL) || ((op_17 == O_IMOD) || ((op_17 == O_IDIV) || (op_17 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_14 = FB_DEOPT_HOISTED;
+    }
+    if ((op_17 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_14 = why_14 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -77943,9 +78059,12 @@ exit_offset_to_76:;
         s_26 = ({
     k_20 = ({
     op_18 = (int32_t)(opt_nodes + n)->op;
-    why_15 = (op_18 == O_GUARDCLASS) || ((op_18 == O_GUARDCLOSURE) || ((op_18 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_18 == O_NOTINTS ? FB_INTS : (op_18 == O_GUARDINT) || ((op_18 == O_IADD) || ((op_18 == O_ISUB) || ((op_18 == O_IMUL) || ((op_18 == O_IMOD) || ((op_18 == O_IDIV) || (op_18 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_15 = (op_18 == O_GUARDCLASS) || ((op_18 == O_GUARDCLOSURE) || ((op_18 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_18 == O_NOTINTS ? FB_INTS : (op_18 == O_GUARDINT) || ((op_18 == O_IADD) || ((op_18 == O_ISUB) || ((op_18 == O_IMUL) || ((op_18 == O_IMOD) || ((op_18 == O_IDIV) || (op_18 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_15 = FB_DEOPT_HOISTED;
+    }
+    if ((op_18 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_15 = why_15 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -78593,9 +78712,12 @@ exit_src_43:;
         s_27 = ({
     k_22 = ({
     op_20 = (int32_t)(opt_nodes + n)->op;
-    why_16 = (op_20 == O_GUARDCLASS) || ((op_20 == O_GUARDCLOSURE) || ((op_20 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_20 == O_NOTINTS ? FB_INTS : (op_20 == O_GUARDINT) || ((op_20 == O_IADD) || ((op_20 == O_ISUB) || ((op_20 == O_IMUL) || ((op_20 == O_IMOD) || ((op_20 == O_IDIV) || (op_20 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_16 = (op_20 == O_GUARDCLASS) || ((op_20 == O_GUARDCLOSURE) || ((op_20 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_20 == O_NOTINTS ? FB_INTS : (op_20 == O_GUARDINT) || ((op_20 == O_IADD) || ((op_20 == O_ISUB) || ((op_20 == O_IMUL) || ((op_20 == O_IMOD) || ((op_20 == O_IDIV) || (op_20 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_16 = FB_DEOPT_HOISTED;
+    }
+    if ((op_20 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_16 = why_16 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -79025,9 +79147,12 @@ exit_emit_div_by:;
             s_31 = ({
     k_24 = ({
     op_22 = (int32_t)(opt_nodes + n)->op;
-    why_17 = (op_22 == O_GUARDCLASS) || ((op_22 == O_GUARDCLOSURE) || ((op_22 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_22 == O_NOTINTS ? FB_INTS : (op_22 == O_GUARDINT) || ((op_22 == O_IADD) || ((op_22 == O_ISUB) || ((op_22 == O_IMUL) || ((op_22 == O_IMOD) || ((op_22 == O_IDIV) || (op_22 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_17 = (op_22 == O_GUARDCLASS) || ((op_22 == O_GUARDCLOSURE) || ((op_22 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_22 == O_NOTINTS ? FB_INTS : (op_22 == O_GUARDINT) || ((op_22 == O_IADD) || ((op_22 == O_ISUB) || ((op_22 == O_IMUL) || ((op_22 == O_IMOD) || ((op_22 == O_IDIV) || (op_22 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_17 = FB_DEOPT_HOISTED;
+    }
+    if ((op_22 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_17 = why_17 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -79763,9 +79888,12 @@ exit_offset_to_94:;
         s_32 = ({
     k_25 = ({
     op_24 = (int32_t)(opt_nodes + n)->op;
-    why_18 = (op_24 == O_GUARDCLASS) || ((op_24 == O_GUARDCLOSURE) || ((op_24 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_24 == O_NOTINTS ? FB_INTS : (op_24 == O_GUARDINT) || ((op_24 == O_IADD) || ((op_24 == O_ISUB) || ((op_24 == O_IMUL) || ((op_24 == O_IMOD) || ((op_24 == O_IDIV) || (op_24 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_18 = (op_24 == O_GUARDCLASS) || ((op_24 == O_GUARDCLOSURE) || ((op_24 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_24 == O_NOTINTS ? FB_INTS : (op_24 == O_GUARDINT) || ((op_24 == O_IADD) || ((op_24 == O_ISUB) || ((op_24 == O_IMUL) || ((op_24 == O_IMOD) || ((op_24 == O_IDIV) || (op_24 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_18 = FB_DEOPT_HOISTED;
+    }
+    if ((op_24 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_18 = why_18 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -80333,9 +80461,12 @@ exit_dst_15:;
         s = ({
     k_26 = ({
     op_25 = (int32_t)(opt_nodes + n)->op;
-    why_19 = (op_25 == O_GUARDCLASS) || ((op_25 == O_GUARDCLOSURE) || ((op_25 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_25 == O_NOTINTS ? FB_INTS : (op_25 == O_GUARDINT) || ((op_25 == O_IADD) || ((op_25 == O_ISUB) || ((op_25 == O_IMUL) || ((op_25 == O_IMOD) || ((op_25 == O_IDIV) || (op_25 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_19 = (op_25 == O_GUARDCLASS) || ((op_25 == O_GUARDCLOSURE) || ((op_25 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_25 == O_NOTINTS ? FB_INTS : (op_25 == O_GUARDINT) || ((op_25 == O_IADD) || ((op_25 == O_ISUB) || ((op_25 == O_IMUL) || ((op_25 == O_IMOD) || ((op_25 == O_IDIV) || (op_25 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_19 = FB_DEOPT_HOISTED;
+    }
+    if ((op_25 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_19 = why_19 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -80577,9 +80708,12 @@ exit_offset_to_102:;
         s = ({
     k_27 = ({
     op_26 = (int32_t)(opt_nodes + n)->op;
-    why_20 = (op_26 == O_GUARDCLASS) || ((op_26 == O_GUARDCLOSURE) || ((op_26 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_26 == O_NOTINTS ? FB_INTS : (op_26 == O_GUARDINT) || ((op_26 == O_IADD) || ((op_26 == O_ISUB) || ((op_26 == O_IMUL) || ((op_26 == O_IMOD) || ((op_26 == O_IDIV) || (op_26 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_20 = (op_26 == O_GUARDCLASS) || ((op_26 == O_GUARDCLOSURE) || ((op_26 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_26 == O_NOTINTS ? FB_INTS : (op_26 == O_GUARDINT) || ((op_26 == O_IADD) || ((op_26 == O_ISUB) || ((op_26 == O_IMUL) || ((op_26 == O_IMOD) || ((op_26 == O_IDIV) || (op_26 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_20 = FB_DEOPT_HOISTED;
+    }
+    if ((op_26 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_20 = why_20 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -80919,9 +81053,12 @@ exit_offset_to_105:;
         s = ({
     k_28 = ({
     op_27 = (int32_t)(opt_nodes + n)->op;
-    why_21 = (op_27 == O_GUARDCLASS) || ((op_27 == O_GUARDCLOSURE) || ((op_27 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_27 == O_NOTINTS ? FB_INTS : (op_27 == O_GUARDINT) || ((op_27 == O_IADD) || ((op_27 == O_ISUB) || ((op_27 == O_IMUL) || ((op_27 == O_IMOD) || ((op_27 == O_IDIV) || (op_27 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_21 = (op_27 == O_GUARDCLASS) || ((op_27 == O_GUARDCLOSURE) || ((op_27 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_27 == O_NOTINTS ? FB_INTS : (op_27 == O_GUARDINT) || ((op_27 == O_IADD) || ((op_27 == O_ISUB) || ((op_27 == O_IMUL) || ((op_27 == O_IMOD) || ((op_27 == O_IDIV) || (op_27 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_21 = FB_DEOPT_HOISTED;
+    }
+    if ((op_27 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_21 = why_21 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -87257,9 +87394,12 @@ exit_is_fused_2:;
             s_55 = ({
     k_34 = ({
     op_29 = (int32_t)(opt_nodes + n)->op;
-    why_22 = (op_29 == O_GUARDCLASS) || ((op_29 == O_GUARDCLOSURE) || ((op_29 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_29 == O_NOTINTS ? FB_INTS : (op_29 == O_GUARDINT) || ((op_29 == O_IADD) || ((op_29 == O_ISUB) || ((op_29 == O_IMUL) || ((op_29 == O_IMOD) || ((op_29 == O_IDIV) || (op_29 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_22 = (op_29 == O_GUARDCLASS) || ((op_29 == O_GUARDCLOSURE) || ((op_29 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_29 == O_NOTINTS ? FB_INTS : (op_29 == O_GUARDINT) || ((op_29 == O_IADD) || ((op_29 == O_ISUB) || ((op_29 == O_IMUL) || ((op_29 == O_IMOD) || ((op_29 == O_IDIV) || (op_29 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_22 = FB_DEOPT_HOISTED;
+    }
+    if ((op_29 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_22 = why_22 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -88465,12 +88605,20 @@ exit_offset_to_182:;
                 note("the global holds another value than the class speculated: deoptimize", 0);
             }
         }
+        if ((opt_nodes + n)->aux == 2) {
+            if (asm_noting) {
+                note("a send that never ran: deoptimize", 0);
+            }
+        }
         a_label_13 = ({
     k_37 = ({
     op_31 = (int32_t)(opt_nodes + n)->op;
-    why_23 = (op_31 == O_GUARDCLASS) || ((op_31 == O_GUARDCLOSURE) || ((op_31 == O_DEOPT) && ((opt_nodes + n)->aux == 0))) ? FB_DEOPT_CLASS : op_31 == O_NOTINTS ? FB_INTS : (op_31 == O_GUARDINT) || ((op_31 == O_IADD) || ((op_31 == O_ISUB) || ((op_31 == O_IMUL) || ((op_31 == O_IMOD) || ((op_31 == O_IDIV) || (op_31 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why_23 = (op_31 == O_GUARDCLASS) || ((op_31 == O_GUARDCLOSURE) || ((op_31 == O_DEOPT) && ((opt_nodes + n)->aux != 1))) ? FB_DEOPT_CLASS : op_31 == O_NOTINTS ? FB_INTS : (op_31 == O_GUARDINT) || ((op_31 == O_IADD) || ((op_31 == O_ISUB) || ((op_31 == O_IMUL) || ((op_31 == O_IMOD) || ((op_31 == O_IDIV) || (op_31 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n)->flags & NF_HOISTED) != 0) {
         why_23 = FB_DEOPT_HOISTED;
+    }
+    if ((op_31 == O_DEOPT) && ((opt_nodes + n)->aux == 2)) {
+        why_23 = why_23 | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n);
@@ -98101,9 +98249,12 @@ exit_source_2:;
             n_296 = o_2->node;
             value_10 = ({
     op_2 = (int32_t)(opt_nodes + n_296)->op;
-    why = (op_2 == O_GUARDCLASS) || ((op_2 == O_GUARDCLOSURE) || ((op_2 == O_DEOPT) && ((opt_nodes + n_296)->aux == 0))) ? FB_DEOPT_CLASS : op_2 == O_NOTINTS ? FB_INTS : (op_2 == O_GUARDINT) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || (op_2 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why = (op_2 == O_GUARDCLASS) || ((op_2 == O_GUARDCLOSURE) || ((op_2 == O_DEOPT) && ((opt_nodes + n_296)->aux != 1))) ? FB_DEOPT_CLASS : op_2 == O_NOTINTS ? FB_INTS : (op_2 == O_GUARDINT) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || (op_2 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n_296)->flags & NF_HOISTED) != 0) {
         why = FB_DEOPT_HOISTED;
+    }
+    if ((op_2 == O_DEOPT) && ((opt_nodes + n_296)->aux == 2)) {
+        why = why | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n_296);
@@ -101444,9 +101595,12 @@ exit_offset_to_34:;
             n_24 = o_5->node;
             value_10 = ({
     op_2 = (int32_t)(opt_nodes + n_24)->op;
-    why = (op_2 == O_GUARDCLASS) || ((op_2 == O_GUARDCLOSURE) || ((op_2 == O_DEOPT) && ((opt_nodes + n_24)->aux == 0))) ? FB_DEOPT_CLASS : op_2 == O_NOTINTS ? FB_INTS : (op_2 == O_GUARDINT) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || (op_2 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
+    why = (op_2 == O_GUARDCLASS) || ((op_2 == O_GUARDCLOSURE) || ((op_2 == O_DEOPT) && ((opt_nodes + n_24)->aux != 1))) ? FB_DEOPT_CLASS : op_2 == O_NOTINTS ? FB_INTS : (op_2 == O_GUARDINT) || ((op_2 == O_IADD) || ((op_2 == O_ISUB) || ((op_2 == O_IMUL) || ((op_2 == O_IMOD) || ((op_2 == O_IDIV) || (op_2 == O_ISHIFT)))))) ? FB_DEOPT_ARITH : FB_DEOPT_OTHER;
     if (((opt_nodes + n_24)->flags & NF_HOISTED) != 0) {
         why = FB_DEOPT_HOISTED;
+    }
+    if ((op_2 == O_DEOPT) && ((opt_nodes + n_24)->aux == 2)) {
+        why = why | FB_DEOPT_COLD;
     }
     if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
         fprintf(stderr, "guard safepoint %d: v%d\n", cg_sp_count, n_24);

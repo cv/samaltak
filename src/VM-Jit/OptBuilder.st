@@ -1658,10 +1658,12 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	kind = 1 ifTrue: [
 		cls := self loadRef: (self loadRef: (ir act: a) method at: CM_CLASS) at: BEH_SUPERCLASS.
 		^self send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r].
+	site := feedback siteAt: (ir act: a) method pc: pc.
+	"a send that never ran deoptimizes, also where the receiver's class is known: what it finds is not inlined (its sends have no feedback either)"
+	(site isNull and: [self unreached: kind special: k pc: pc act: a]) ifTrue: [^true].
 	cls := self knownClassOf: rcv.
 	cls = 0 ifTrue: [cls := self frameClassOf: rcv].
 	cls ~= 0 ifTrue: [^self send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r].
-	site := feedback siteAt: (ir act: a) method pc: pc.
 	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
 		libc fprintf: libc stderr format: 'opt: send at pc %d of act %d: feedback %s ' with: pc with: a with: (site isNull ifTrue: ['none'] ifFalse: ['some']).
 		interpreter printSymbol: sel on: libc stderr.
@@ -1727,6 +1729,24 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 		ifFalse: [self deoptAct: a state: s].
 	self seal: merge.
 	obCurBlock := (ir block: merge) npreds > 0 ifTrue: [merge] ifFalse: [-1].
+	^true
+!
+unreached: kind special: k pc: pc act: a
+	"The send at a's pc has no feedback: if it never ran, deoptimize there (O_DEOPT aux 2: the class of its receiver becomes its feedback, and the unit is compiled again), so that the code calls nothing and the closures it takes stay unmade (one that only a cold path passes on would make the unit fail: build:start:osr:depth:resident:). Only sends whose site in the lower tier reports every class it meets (an ordinary send, or a special selector the lower tier never takes inline), in a method whose baseline code was compiled since the feedback was last cleared (its sites linked since); not with eager, which optimizes before baseline code ran. Answer whether it did."
+	<function>
+	<var: #h type: 'JitMethod *'>
+	| h n |
+	((runtime flag: runtime coldFlag) and: [(runtime flag: runtime eagerFlag) not]) ifFalse: [^false].
+	(kind = 0 or: [kind = 2 and: [k = 11 or: [k = 25 or: [k = 26 or: [k = 31]]]]]) ifFalse: [^false].
+	h := runtime lookup: (ir act: a) method.
+	((runtime hasCode: h) and: [h mode = runtime baselineMode and: [h generation = (feedback generation + 1)]]) ifFalse: [^false].
+	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [libc fprintf: libc stderr format: 'opt: send at pc %d of act %d never ran: deoptimize
+' with: pc with: a].
+	n := self add: O_DEOPT rep: R_NONE.
+	(ir node: n) aux: 2.
+	"every temp of a, dead or not: deoptimizing here is not rare, and a temp no instruction reads again may still be what keeps an object alive (a registered one, say)"
+	(ir node: n) state: (self stateAct: a pc: pc depth: (self depthAt: pc act: a) livePc: -1).
+	obCurBlock := -1.
 	^true
 !
 send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r

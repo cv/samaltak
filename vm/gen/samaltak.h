@@ -282,6 +282,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define FB_DEOPT_ARITH 32
 #define FB_DEOPT_BOUNDS 64
 #define FB_DEOPT_CLASS 16
+#define FB_DEOPT_COLD 1024
 #define FB_DEOPT_HOISTED 512
 #define FB_DEOPT_OTHER 128
 #define FB_FLOAT 2
@@ -320,6 +321,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define JIT_FLAG_BG 4194304
 #define JIT_FLAG_BLOCKS 4096
 #define JIT_FLAG_CALLS 65536
+#define JIT_FLAG_COLD 8388608
 #define JIT_FLAG_DEOPT 524288
 #define JIT_FLAG_EAGER 262144
 #define JIT_FLAG_FLOAT 2048
@@ -328,7 +330,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define JIT_FLAG_HOIST 1048576
 #define JIT_FLAG_IC 16
 #define JIT_FLAG_INLINE 16384
-#define JIT_FLAG_LAST 4194304
+#define JIT_FLAG_LAST 8388608
 #define JIT_FLAG_LIVE 2097152
 #define JIT_FLAG_MEGA 64
 #define JIT_FLAG_NOTES 8
@@ -1436,6 +1438,7 @@ extern uint64_t stat_pics;
 extern uint64_t stat_prim_calls;
 extern uint64_t stat_walks;
 extern uint8_t fb_floats[1048576];
+extern uint32_t fb_generation;
 extern bool bottom_returned;
 extern bool copying;
 extern bool flush_pending;

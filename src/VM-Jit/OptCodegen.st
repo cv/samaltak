@@ -865,6 +865,7 @@ emitNode: n block: b next: nextBlock
 	op = O_RETURN ifTrue: [^self emitReturn: n].
 	op = O_DEOPT ifTrue: [
 		(ir node: n) aux = 1 ifTrue: [asm comment: 'the global holds another value than the class speculated: deoptimize'].
+		(ir node: n) aux = 2 ifTrue: [asm comment: 'a send that never ran: deoptimize'].
 		asm b: (self deoptLabelFor: n).
 		^self].
 	asm fail: ASM_ERR_OPERAND
@@ -2685,11 +2686,12 @@ recordGuard: n
 	"Metadata for deoptimizing at guard n: its state with every value where it is now, and why (feedback for the next compilation)."
 	| op why |
 	op := (ir node: n) op asInt32.
-	why := (op = O_GUARDCLASS or: [op = O_GUARDCLOSURE or: [op = O_DEOPT and: [(ir node: n) aux = 0]]])
+	why := (op = O_GUARDCLASS or: [op = O_GUARDCLOSURE or: [op = O_DEOPT and: [(ir node: n) aux ~= 1]]])
 		ifTrue: [feedback deoptClass]
 		ifFalse: [op = O_NOTINTS ifTrue: [feedback sawInts] ifFalse: [
 			(op = O_GUARDINT or: [op = O_IADD or: [op = O_ISUB or: [op = O_IMUL or: [op = O_IMOD or: [op = O_IDIV or: [op = O_ISHIFT]]]]]]) ifTrue: [feedback deoptArith] ifFalse: [feedback deoptOther]]].
 	((ir node: n) flags bitAnd: NF_HOISTED) ~= 0 ifTrue: [why := feedback deoptHoisted].
+	(op = O_DEOPT and: [(ir node: n) aux = 2]) ifTrue: [why := why bitOr: feedback deoptCold].
 	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [libc fprintf: libc stderr format: 'guard safepoint %d: v%d
 ' with: cgSpCount with: n].
 	^self recordState: (ir node: n) state kind: (SP_GUARD bitOr: why asInt64 << 8) asInt32 node: n inSlots: false

@@ -1,6 +1,6 @@
 VMCoreModule subclass: #JitFeedback
-	instanceVariableNames: 'fbSites fbCount fbYoung fbFloats'
-	classVariableNames: 'FB_CLASSES FB_FLOAT_BITS FB_INTS FB_DEOPT_ARITH FB_DEOPT_BOUNDS FB_DEOPT_CLASS FB_DEOPT_HOISTED FB_DEOPT_OTHER FB_FLOAT FB_MAX FB_MEGA FB_NONINT FB_OVERFLOW'
+	instanceVariableNames: 'fbSites fbCount fbYoung fbFloats fbGeneration'
+	classVariableNames: 'FB_CLASSES FB_FLOAT_BITS FB_INTS FB_DEOPT_ARITH FB_DEOPT_BOUNDS FB_DEOPT_CLASS FB_DEOPT_COLD FB_DEOPT_HOISTED FB_DEOPT_OTHER FB_FLOAT FB_MAX FB_MEGA FB_NONINT FB_OVERFLOW'
 	package: 'VM-Jit'!
 
 JitFeedback comment: 'Type feedback for the optimizing tier, independent of the compiler that collects it: one FeedbackSite per (method, bytecode pc), in an open-addressed table keyed by the method''s identity hash and the pc. A site holds up to FB_CLASSES receiver classes with counts (FB_MEGA once more were seen) and profile bits: FB_FLOAT (an arithmetic or comparison saw a Float operand), FB_NONINT (one that was neither SmallInteger nor Float), FB_OVERFLOW (SmallInteger arithmetic overflowed), FB_DEOPT_* (optimized code deoptimized here: a class guard, an arithmetic guard, a bounds check, anything else, a guard moved before a loop: it stays in the loop from then on).
@@ -9,7 +9,7 @@ Lower tiers report into it (docs/jit.md, Optimizing tier): noteSend:pc:class: wh
 
 !JitFeedback class methodsFor: 'declaring'!
 declarations
-	^#((fbSites 'FeedbackSite[FB_MAX]') (fbCount int64_t) (fbYoung bool) (fbFloats 'uint8_t[FB_FLOAT_BITS]'))
+	^#((fbSites 'FeedbackSite[FB_MAX]') (fbCount int64_t) (fbYoung bool) (fbFloats 'uint8_t[FB_FLOAT_BITS]') (fbGeneration uint32_t))
 !
 initialize
 	FB_MAX := 65536.
@@ -25,7 +25,9 @@ initialize
 	FB_DEOPT_BOUNDS := 64.
 	FB_DEOPT_OTHER := 128.
 	FB_INTS := 256.
-	FB_DEOPT_HOISTED := 512
+	FB_DEOPT_HOISTED := 512.
+	"in deoptimization records only, never a site's: a send that never ran"
+	FB_DEOPT_COLD := 1024
 ! !
 
 !JitFeedback methodsFor: 'constants'!
@@ -62,6 +64,9 @@ deoptOther
 !
 deoptHoisted
 	^FB_DEOPT_HOISTED
+!
+deoptCold
+	^FB_DEOPT_COLD
 ! !
 
 !JitFeedback methodsFor: 'sites'!
@@ -151,7 +156,12 @@ clear
 	<function>
 	libc memset: fbSites value: 0 size: (self sizeof: 'FeedbackSite') * FB_MAX.
 	fbCount := 0.
-	fbYoung := false
+	fbYoung := false.
+	fbGeneration := fbGeneration + 1
+!
+generation
+	"How often the table was cleared: baseline code compiled before the last time reports no class its inline caches had linked (JitMethod generation, for baseline code this plus 1)."
+	^fbGeneration
 !
 release
 	"All code was dropped (JitRuntime>>releaseMemory): forget the feedback and give back its pages (a hash table: even a few sites touch all of them)."

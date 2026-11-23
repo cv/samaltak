@@ -884,7 +884,7 @@ uint64_t jit_runtime_context_field(frame *f)
 void defaults(void)
 {
     jit_mode = JIT_OPT;
-    jit_flags = 7602167U;
+    jit_flags = 15990775U;
 }
 
 #if defined(__x86_64__)
@@ -1582,6 +1582,9 @@ exit_pool_offset:;
     }
     if (md == JIT_BASELINE) {
         p = write_tables(h, p);
+        if (jit_mode == JIT_OPT) {
+            h->generation = fb_generation + 1;
+        }
         if (plain_entry && (*(uint8_t *)h->uentry == 0x48)) {
             h->flags = h->flags | JM_ENTRY;
         }
@@ -1762,6 +1765,9 @@ exit_pool_offset:;
     }
     if (md == JIT_BASELINE) {
         p = write_tables(h, p);
+        if (jit_mode == JIT_OPT) {
+            h->generation = fb_generation + 1;
+        }
         if (plain_entry) {
             h->flags = h->flags | JM_ENTRY;
         }
@@ -1859,6 +1865,9 @@ char *flag_name(uint32_t bit)
     }
     if (bit == JIT_FLAG_BG) {
         return "bg";
+    }
+    if (bit == JIT_FLAG_COLD) {
+        return "cold";
     }
     return "deopt";
 }
@@ -2466,6 +2475,10 @@ bool parse_flags(char *s)
     }
     if ((strlen("bg") == (uint64_t)n) && (memcmp(name, "bg", (uint64_t)n) == 0)) {
         r_flag_named = JIT_FLAG_BG;
+        goto exit_flag_named;
+    }
+    if ((strlen("cold") == (uint64_t)n) && (memcmp(name, "cold", (uint64_t)n) == 0)) {
+        r_flag_named = JIT_FLAG_COLD;
         goto exit_flag_named;
     }
     r_flag_named = 0;

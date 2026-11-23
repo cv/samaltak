@@ -982,13 +982,16 @@ deoptGuard: f index: k
 	<var: #f type: 'Frame *'>
 	<var: #k type: 'int64_t'>
 	<returns: 'uint64_t'>
-	| h why r m pc fresh stressed sig rec met |
+	| h why r m pc fresh stressed sig rec met cold osr full |
 	runtime canonicalizeBelow: f.
 	h := self cCoerce: f code to: 'JitMethod *'.
 	rec := self recordOf: h index: k.
 	why := (rec at: 0) >> 8.
+	"a send that never ran (OptBuilder>>unreached:special:pc:act:): its receiver's class is feedback, but the code stays for the first three of its deoptimizations (a path taken once compiles nothing again; one that turns hot does, soon)"
+	cold := (why bitAnd: feedback deoptCold) ~= 0 and: [h deopts < 3].
+	why := why bitClear: feedback deoptCold.
 	"--jit-flags deopt: no feedback from the stress"
-	stressed := (runtime flag: runtime deoptFlag) and: [runtime state stress <= 0].
+	stressed := cold not and: [(runtime flag: runtime deoptFlag) and: [runtime state stress <= 0]].
 	stressed ifTrue: [why := 0].
 	met := (why = feedback deoptHoisted and: [(rec at: 2) ~= 0]) and: [self noteHoisted: rec of: h frame: f].
 	r := self deoptFrame: f index: k regs: runtime state dump mode: 0.
@@ -1009,6 +1012,8 @@ deoptGuard: f index: k
 			m := self poolAt: (rec at: 3) of: h.
 			pc := rec at: 1].
 		sig := self signatureAt: m pc: pc.
+		"the site reported before (the code is older than that): compile again now"
+		sig ~= -1 ifTrue: [cold := false].
 		"a class guard moved before a loop that met a class its send had not reported (when its code was compiled): the next code has that case, the guard may stay before the loop"
 		met ifFalse: [feedback noteFlags: m pc: pc flags: why asUInt32].
 		(why bitAnd: feedback deoptClass) ~= 0 ifTrue: [self noteReceiverAt: m pc: pc].
@@ -1016,8 +1021,14 @@ deoptGuard: f index: k
 		fresh ifTrue: [
 			rtStamp := rtStamp + 1.
 			(feedback siteAt: m pc: pc) stamp: rtStamp].
+		cold ifTrue: [
+			fresh := false.
+			"its method goes on in the lower tier, back in the code after as many backward jumps as an interpreted loop makes (materialize:)"
+			osr := runtime osrThreshold max: 1.
+			full := self initialCount: (rtActMethod at: 0).
+			runtime counterFor: (rtActMethod at: 0) put: (osr min: full)].
 		"in code compiled before the feedback said it: compile again now; again in code compiled with it: speculate no more here"
-		(fresh not and: [self isAlive: h]) ifTrue: [
+		(cold not and: [fresh not and: [self isAlive: h]]) ifTrue: [
 			(feedback siteAt: m pc: pc) stamp > h stamp
 				ifTrue: [fresh := true]
 				ifFalse: [
