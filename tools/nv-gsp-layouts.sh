@@ -49,12 +49,24 @@ cat > "$T/layouts.c" <<'EOF'
 #include "element.h"
 #include "registry.h"
 #include "rmgspseq.h"
+#include "alloc/alloc_channel.h"
+#include "ctrl/ctrl0080/ctrl0080gpu.h"
+#include "ctrl/ctrl0080/ctrl0080gr.h"
+#include "ctrl/ctrl0080/ctrl0080dma.h"
+#include "ctrl/ctrl2080/ctrl2080gr.h"
+#include "class/cl84a0.h"
+#include "class/clc361.h"
+#include "published/hopper/gh100/dev_mmu.h"
+#include "published/maxwell/gm107/dev_ram.h"
+#include "published/blackwell/gb100/dev_vm.h"
 
 #define S(t) printf("\t\t#('%s' %zu #(\n", #t, sizeof(t));
 #define F(t, f) printf("\t\t\t#('%s' %zu %zu)\n", #f, offsetof(t, f), sizeof(((t *)0)->f));
 #define A(t, f) printf("\t\t\t#('%s' %zu 0)\n", #f, offsetof(t, f)); /* a flexible array: offset only */
 #define E printf("\t\t))\n");
 #define C(n) printf("\t\t#('%s' %llu)\n", #n, (unsigned long long)(n));
+/* a register field hi:lo (dev_*.h): its low and high bit */
+#define B(n) printf("\t\t#('%s.low' %u)\n\t\t#('%s.high' %u)\n", #n, (unsigned)(0?n), #n, (unsigned)(1?n));
 
 int main(void)
 {
@@ -147,6 +159,41 @@ int main(void)
     S(PACKED_REGISTRY_TABLE) F(PACKED_REGISTRY_TABLE, size) F(PACKED_REGISTRY_TABLE, numEntries) A(PACKED_REGISTRY_TABLE, entries) E
     S(rpc_run_cpu_sequencer_v17_00) F(rpc_run_cpu_sequencer_v17_00, bufferSizeDWord) F(rpc_run_cpu_sequencer_v17_00, cmdIndex)
         F(rpc_run_cpu_sequencer_v17_00, regSaveArea) A(rpc_run_cpu_sequencer_v17_00, commandBuffer) E
+    S(rpc_alloc_memory_v13_01) F(rpc_alloc_memory_v13_01, hClient) F(rpc_alloc_memory_v13_01, hDevice)
+        F(rpc_alloc_memory_v13_01, hMemory) F(rpc_alloc_memory_v13_01, hClass) F(rpc_alloc_memory_v13_01, flags)
+        F(rpc_alloc_memory_v13_01, pteAdjust) F(rpc_alloc_memory_v13_01, format) F(rpc_alloc_memory_v13_01, length)
+        F(rpc_alloc_memory_v13_01, pageCount) F(rpc_alloc_memory_v13_01, pteDesc) A(rpc_alloc_memory_v13_01, pteDesc.pte_pde) E
+    S(NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_PARAMS) F(NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_PARAMS, physAddress)
+        F(NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_PARAMS, numEntries) F(NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_PARAMS, flags)
+        F(NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_PARAMS, hVASpace) F(NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_PARAMS, chId)
+        F(NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_PARAMS, subDeviceId) F(NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_PARAMS, pasid) E
+    S(NV_MEMORY_DESC_PARAMS) F(NV_MEMORY_DESC_PARAMS, base) F(NV_MEMORY_DESC_PARAMS, size)
+        F(NV_MEMORY_DESC_PARAMS, addressSpace) F(NV_MEMORY_DESC_PARAMS, cacheAttrib) E
+    S(NV_CHANNEL_ALLOC_PARAMS) F(NV_CHANNEL_ALLOC_PARAMS, hObjectError) F(NV_CHANNEL_ALLOC_PARAMS, hObjectBuffer)
+        F(NV_CHANNEL_ALLOC_PARAMS, gpFifoOffset) F(NV_CHANNEL_ALLOC_PARAMS, gpFifoEntries) F(NV_CHANNEL_ALLOC_PARAMS, flags)
+        F(NV_CHANNEL_ALLOC_PARAMS, hContextShare) F(NV_CHANNEL_ALLOC_PARAMS, hVASpace) F(NV_CHANNEL_ALLOC_PARAMS, hUserdMemory)
+        F(NV_CHANNEL_ALLOC_PARAMS, userdOffset) F(NV_CHANNEL_ALLOC_PARAMS, engineType) F(NV_CHANNEL_ALLOC_PARAMS, cid)
+        F(NV_CHANNEL_ALLOC_PARAMS, subDeviceId) F(NV_CHANNEL_ALLOC_PARAMS, hObjectEccError)
+        F(NV_CHANNEL_ALLOC_PARAMS, instanceMem.base) F(NV_CHANNEL_ALLOC_PARAMS, instanceMem.size)
+        F(NV_CHANNEL_ALLOC_PARAMS, instanceMem.addressSpace) F(NV_CHANNEL_ALLOC_PARAMS, instanceMem.cacheAttrib)
+        F(NV_CHANNEL_ALLOC_PARAMS, userdMem.base) F(NV_CHANNEL_ALLOC_PARAMS, userdMem.size)
+        F(NV_CHANNEL_ALLOC_PARAMS, userdMem.addressSpace) F(NV_CHANNEL_ALLOC_PARAMS, userdMem.cacheAttrib)
+        F(NV_CHANNEL_ALLOC_PARAMS, ramfcMem.base) F(NV_CHANNEL_ALLOC_PARAMS, ramfcMem.size)
+        F(NV_CHANNEL_ALLOC_PARAMS, ramfcMem.addressSpace) F(NV_CHANNEL_ALLOC_PARAMS, ramfcMem.cacheAttrib)
+        F(NV_CHANNEL_ALLOC_PARAMS, mthdbufMem.base) F(NV_CHANNEL_ALLOC_PARAMS, mthdbufMem.size)
+        F(NV_CHANNEL_ALLOC_PARAMS, mthdbufMem.addressSpace) F(NV_CHANNEL_ALLOC_PARAMS, mthdbufMem.cacheAttrib)
+        F(NV_CHANNEL_ALLOC_PARAMS, hPhysChannelGroup) F(NV_CHANNEL_ALLOC_PARAMS, internalFlags)
+        F(NV_CHANNEL_ALLOC_PARAMS, errorNotifierMem.base) F(NV_CHANNEL_ALLOC_PARAMS, errorNotifierMem.size)
+        F(NV_CHANNEL_ALLOC_PARAMS, errorNotifierMem.addressSpace) F(NV_CHANNEL_ALLOC_PARAMS, errorNotifierMem.cacheAttrib)
+        F(NV_CHANNEL_ALLOC_PARAMS, eccErrorNotifierMem.base) F(NV_CHANNEL_ALLOC_PARAMS, eccErrorNotifierMem.size)
+        F(NV_CHANNEL_ALLOC_PARAMS, eccErrorNotifierMem.addressSpace) F(NV_CHANNEL_ALLOC_PARAMS, eccErrorNotifierMem.cacheAttrib)
+        F(NV_CHANNEL_ALLOC_PARAMS, ProcessID) F(NV_CHANNEL_ALLOC_PARAMS, SubProcessID) F(NV_CHANNEL_ALLOC_PARAMS, encryptIv)
+        F(NV_CHANNEL_ALLOC_PARAMS, decryptIv) F(NV_CHANNEL_ALLOC_PARAMS, hmacNonce) F(NV_CHANNEL_ALLOC_PARAMS, tpcConfigID) E
+    S(NV0080_CTRL_GPU_GET_CLASSLIST_V2_PARAMS) F(NV0080_CTRL_GPU_GET_CLASSLIST_V2_PARAMS, numClasses)
+        F(NV0080_CTRL_GPU_GET_CLASSLIST_V2_PARAMS, classList) E
+    S(NV0080_CTRL_GR_GET_INFO_V2_PARAMS) F(NV0080_CTRL_GR_GET_INFO_V2_PARAMS, grInfoListSize)
+        F(NV0080_CTRL_GR_GET_INFO_V2_PARAMS, grInfoList) F(NV0080_CTRL_GR_GET_INFO_V2_PARAMS, grRouteInfo.flags)
+        F(NV0080_CTRL_GR_GET_INFO_V2_PARAMS, grRouteInfo.route) E
     printf("\t)\n!\nconstants\n\t\"{name. value}: the constants NvGsp uses, from the same headers.\"\n\t^#(\n");
     C(NV_VGPU_MSG_SIGNATURE_VALID) C(NV_VGPU_MSG_HEADER_VERSION_MAJOR_TOT) C(NV_VGPU_MSG_HEADER_VERSION_MINOR_TOT)
     C(NV_VGPU_MSG_RESULT_RPC_PENDING) C(NV_VGPU_MSG_UNION_INIT)
@@ -164,6 +211,20 @@ int main(void)
     C(GSP_SEQ_BUF_OPCODE_REG_STORE) C(GSP_SEQ_BUF_OPCODE_CORE_RESET) C(GSP_SEQ_BUF_OPCODE_CORE_START)
     C(GSP_SEQ_BUF_OPCODE_CORE_WAIT_FOR_HALT) C(GSP_SEQ_BUF_OPCODE_CORE_RESUME) C(GSP_SEQ_BUF_REG_SAVE_SIZE)
     C(LIBOS_MEMORY_REGION_RADIX_PAGE_SIZE) C(NVDM_TYPE_COT) C(MCTP_MSG_HEADER_TYPE_VENDOR_PCI) C(MCTP_MSG_HEADER_VENDOR_ID_NV)
+    C(NV01_MEMORY_LIST_SYSTEM) C(NV_VGPU_PTEDESC_IDR_NONE) C(NV_VGPU_PTE_64_SIZE)
+    C(NVOS02_FLAGS_PHYSICALITY_CONTIGUOUS) C(NVOS02_FLAGS_LOCATION_PCI) C(NVOS02_FLAGS_COHERENCY_CACHED) C(NVOS02_FLAGS_MAPPING_NO_MAP)
+    B(NVOS02_FLAGS_PHYSICALITY) B(NVOS02_FLAGS_LOCATION) B(NVOS02_FLAGS_COHERENCY) B(NVOS02_FLAGS_MAPPING)
+    C(NV0080_CTRL_CMD_DMA_SET_PAGE_DIRECTORY) C(NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_FLAGS_APERTURE_SYSMEM_COH)
+    B(NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_FLAGS_APERTURE)
+    C(NV0080_CTRL_CMD_GPU_GET_CLASSLIST_V2) C(NV0080_CTRL_GPU_CLASSLIST_MAX_SIZE)
+    C(NV2080_CTRL_CMD_GR_GET_INFO_V2) C(NV0080_CTRL_GR_INFO_MAX_SIZE)
+    B(NV_MMU_VER3_PDE_IS_PTE) B(NV_MMU_VER3_PDE_APERTURE) B(NV_MMU_VER3_PDE_PCF) B(NV_MMU_VER3_PDE_ADDRESS)
+    C(NV_MMU_VER3_PDE_APERTURE_SYSTEM_COHERENT_MEMORY) C(NV_MMU_VER3_PDE_PCF_VALID_UNCACHED_ATS_NOT_ALLOWED) C(NV_MMU_VER3_PDE__SIZE)
+    B(NV_MMU_VER3_DUAL_PDE_IS_PTE) B(NV_MMU_VER3_DUAL_PDE_APERTURE_BIG) B(NV_MMU_VER3_DUAL_PDE_ADDRESS_BIG)
+    B(NV_MMU_VER3_DUAL_PDE_APERTURE_SMALL) B(NV_MMU_VER3_DUAL_PDE_PCF_SMALL) B(NV_MMU_VER3_DUAL_PDE_ADDRESS_SMALL) C(NV_MMU_VER3_DUAL_PDE__SIZE)
+    B(NV_MMU_VER3_PTE_VALID) B(NV_MMU_VER3_PTE_APERTURE) B(NV_MMU_VER3_PTE_PCF) B(NV_MMU_VER3_PTE_KIND) B(NV_MMU_VER3_PTE_ADDRESS)
+    C(NV_MMU_VER3_PTE_APERTURE_SYSTEM_COHERENT_MEMORY) C(NV_MMU_VER3_PTE_PCF_REGULAR_RW_ATOMIC_UNCACHED_ACE) C(NV_MMU_VER3_PTE__SIZE)
+    C(NV_RAMIN_ALLOC_SIZE) C(NV_RAMUSERD_CHAN_SIZE) B(NV_VIRTUAL_FUNCTION_FULL_PHYS_OFFSET) C(NVC361_NOTIFY_CHANNEL_PENDING)
     printf("\t)\n! !\n");
     return 0;
 }

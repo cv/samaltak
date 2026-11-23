@@ -127,6 +127,7 @@ dryRun
 transport
 	^(NvGspTransport endpoint: endpoint doorbell: [registers write32: (self class register: #gspQueueHead) value: 0])
 		sequence: rpcSequence;
+		memory: memory;
 		open;
 		yourself
 ! !

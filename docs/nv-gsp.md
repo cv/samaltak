@@ -669,3 +669,67 @@ blocking domain ("Firmware has requested this device have a 1:1 IOMMU mapping, r
 a 1:1 mapping", iommu.c, since 6.x), and taking a group's DMA ownership for VFIO (`VFIO_GROUP_SET_CONTAINER`, or binding
 the cdev to iommufd) does exactly that. So `open:` will most likely fail on the GB10 with EINVAL at
 `VFIO_GROUP_SET_CONTAINER`; its error says so, and the kernel log (`dmesg`) has the line above. Checking that is the first thing to do on the dedicated Spark.
+
+## 14. Steps 4-6 against the fake GSP: the client side of RM
+
+`NvGspTransport`, given `memory:` (an `NvDmaMemory`; `NvGspBoot`'s transport gets the boot's) and `bar0:` (BAR0's CPU
+address), does what nvidia.ko's CPU-RM does itself (3.3), so `NvDevice`, `NvMemory`, `NvChannel` and `NvCompute` run
+over it unchanged. The routing comes from the NVOC export tables: none of the controls NvDevice and NvChannel make is
+`RMCTRL_FLAGS_ROUTE_TO_PHYSICAL` (0x40). GPU_GET_ID_INFO_V2 is 0x109 (`g_client_resource_nvoc.c` 815), GET_CLASSLIST
+0x10b (`g_device_nvoc.c` 185), GR_GET_INFO 0x118 (`g_subdevice_nvoc.c` 5208), GET_WORK_SUBMIT_TOKEN 0x10008
+(`g_kernel_channel_nvoc.c` 543), GPFIFO_SCHEDULE 0x10008 (`g_kernel_channel_group_api_nvoc.c` 215) and
+DMA_SET_PAGE_DIRECTORY 0x14004 (`g_device_nvoc.c` 890). CPU-RM handles each of them and forwards what it needs **[src]**.
+
+- **Step 4, RM objects.** Allocs and frees are GSP_RM_ALLOC/FREE, as CPU-RM forwards them. GPU_GET_ID_INFO_V2 is
+  answered locally (one GPU, instance 0). The two pointer controls are sent as their flat forms, GET_CLASSLIST_V2
+  (0x800292, 200 classes inline) and GR_GET_INFO_V2 (0x20801228, 58 `{index, data}` pairs inline), and the answers
+  are copied into NvDevice's buffers. **[inf]**: CPU-RM answers both from its own data, the class database
+  (`device_ctrl.c` 60-95) and GR static info (`NV2080_CTRL_CMD_INTERNAL_STATIC_KGR_GET_INFO`, `kernel_graphics.c`
+  1231). Whether GSP-RM answers the V2 forms when they are sent to it directly is the first step-4 question for the
+  dedicated Spark.
+- **Step 5, memory and VA.** An `NV01_MEMORY_SYSTEM` alloc becomes a DMA buffer plus `ALLOC_MEMORY`
+  (`rpc_alloc_memory_v13_01`: class `NV01_MEMORY_LIST_SYSTEM` 0x81, OS02 flags contiguous|PCI|cached 0x1000). Since the
+  memdesc is contiguous, a GSP client sends one PTE, the page number (`rpc.c` 3458-3500, `_issuePteDescRpc`
+  2252-2310), and the header length counts it **[src]**. A `FERMI_VASPACE_A` is forwarded and gets an `NvGmmu`: GMMU v3
+  tables in DMA memory (PD4 at bit 56 with 2 entries, PD3, PD2, PD1, dual PD0, 4 KB PTs; 3.4). Its root goes to GSP-RM
+  with `NV0080_CTRL_CMD_DMA_SET_PAGE_DIRECTORY` (0x801813, aperture SYSMEM_COH). `mapToGpu:` writes PTEs at VAs from
+  8 GB up. The entries:
+  - PDE: aperture 2 (coherent sysmem), PCF 3 (uncached, no ATS), address 51:12.
+  - Dual PDE: small half at 66:65, 69:67, 115:76; big half invalid.
+  - PTE: valid, aperture 2, PCF 1 (regular RW atomic uncached), kind 0, address 51:12 (`dev_mmu.h` 53-188).
+  - The PCF choices are **[inf]**.
+- **Step 6, channel and launch.** A GPFIFO alloc gets the descriptors CPU-RM fills on a GSP client (`kernel_channel.c`
+  2750-2830): `instanceMem` (a 4 KB block of its own, `NV_RAMIN_ALLOC_SIZE`), `ramfcMem` at the block's start,
+  `userdMem` (hUserdMemory[0] + userdOffset[0], `NV_RAMUSERD_CHAN_SIZE` 512) and `errorNotifierMem`, all ADDR_SYSMEM
+  (1, `g_mem_desc_nvoc.h` 115). The usermode page is BAR0 + 0xB80000 (`NV_VIRTUAL_FUNCTION_FULL_PHYS_OFFSET`, gb100
+  `dev_vm.h` 39; GB10B publishes no `dev_vm.h`, **[inf]**), with the doorbell at 0x90. NvChannel and NvCompute
+  then work as on Linux.
+- **Byte for byte**: all six new structures (`rpc_alloc_memory_v13_01` 56 B, `NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_PARAMS`
+  32, `NV_MEMORY_DESC_PARAMS` 24, `NV_CHANNEL_ALLOC_PARAMS` 368, `NV0080_CTRL_GPU_GET_CLASSLIST_V2_PARAMS` 804,
+  `NV0080_CTRL_GR_GET_INFO_V2_PARAMS` 488) and 70 constants, including every GMMU v3 field's bit positions, are in
+  `NvGspLayouts` from `tools/nv-gsp-layouts.sh` and checked by `NvGspLayoutTest`.
+- **Tests, verified only against `NvFakeGsp`** (`NvGspClientTest`). They check the PTE and PDE words against
+  hand-computed `dev_mmu.h` values, NvGmmu's levels, and ALLOC_MEMORY and SET_PAGE_DIRECTORY bytes. Then NvDevice opens
+  over the GSP transport: classes, `smVersion` 16rA04, 48 SMs, the page directory GSP-RM got. The fake then plays the
+  GPU through the tables in memory, with its own GMMU walk:
+  - NvMemory is reached through the page tables.
+  - A channel carries its descriptors, and fences come back as the fake host's semaphore releases.
+  - `NvCompute run:` of the cubin's `fill` launches: the fake reads the QMD's constant bank 0 address and the
+    parameters at 16r380, and writes what `fill` would.
+
+  None of GSP-RM's or the GPU's real behaviour is checked beyond the headers.
+
+Open for the dedicated Spark (the 580 source names them; none is done):
+- `SET_GUEST_SYSTEM_INFO` and `GET_GSP_STATIC_INFO` after GSP_INIT_DONE (`kernel_gsp.c` 4263-4275). The static info
+  carries `hInternalClient/Device/Subdevice`, the handles of the internal controls below.
+- CPU-RM's internal static queries, sent to GSP-RM on the internal client (the `NV2080_CTRL_CMD_INTERNAL_STATIC_KGR_*`
+  family: GET_INFO, GET_CONTEXT_BUFFERS_INFO `kernel_graphics.c` 749, GET_CAPS, GET_GLOBAL_SM_ORDER,
+  GET_FLOORSWEEPING_MASKS, GET_PPC_MASKS, GET_ZCULL_INFO, GET_ROP_INFO, GET_FECS_*, GET_PDB_PROPERTIES, the
+  SM_ISSUE_* ones; `NV2080_CTRL_CMD_INTERNAL_FIFO_GET_NUM_CHANNELS` `kernel_fifo.c` 1328).
+- GR context buffers and their promotion (`NV2080_CTRL_CMD_GPU_PROMOTE_CTX`, `kernel_graphics_context.c` 2174), which
+  a compute object needs before its first launch.
+- The channel group's method buffers (`mthdbufMem`, left 0).
+- The PDEs GSP-RM keeps for itself (`NV90F1_CTRL_CMD_VASPACE_COPY_SERVER_RESERVED_PDES`, `gpu_vaspace.c` 4038-4110),
+  and TLB invalidation after unmapping.
+- The work submit token: CPU-RM makes it from the channel id and runlist (`kfifoGenerateWorkSubmitTokenHal`). The fake
+  answers `16r40000000 + n`.

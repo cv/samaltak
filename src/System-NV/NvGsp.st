@@ -1,6 +1,6 @@
 Object subclass: #NvGsp
 	instanceVariableNames: ''
-	classVariableNames: 'Layouts'
+	classVariableNames: 'Constants Layouts'
 	package: 'System-NV'!
 
 NvGsp comment: 'I hold what booting and driving GSP-RM on the GB10 takes in memory (docs/nv-gsp.md, sections 2 and 3), as driver 580.178.04 lays it out: the C declarations of the boot and RPC structures (layouts: NvLayouts by their C names), their constants, and builders that fill them the way nvidia.ko does: the SEC2 chain-of-trust message (cotPayload..., sec2Message:), the GSP-FMC boot parameters, GspFwWprMeta, the LIBOS init arguments, GSP_ARGUMENTS_CACHED, the radix-3 page tables of the GSP-RM image, and the RPC messages (rpc headers, GSP_RM_ALLOC, GSP_RM_CONTROL, FREE) with the message-queue checksum. NvGspQueues puts the messages in the queues, NvGspTransport makes NvDevice''s RM calls of them.
@@ -12,6 +12,13 @@ The declarations are mine, from reading the headers; NvGspLayoutTest compares ev
 
 !NvGsp class methodsFor: 'declarations'!
 declarations
+	"C name -> {packed. declaration} (NvLayout): the boot and RPC structures, then the client RM's (steps 4-6)."
+	| d |
+	d := self bootDeclarations.
+	self clientRmDeclarations keysAndValuesDo: [:k :v | d at: k put: v].
+	^d
+!
+bootDeclarations
 	"C name -> {packed. declaration} (NvLayout), from the 580.178.04 headers named in each."
 	| rpcHeader |
 	rpcHeader := #(('header_version' #u32) ('signature' #u32) ('length' #u32) ('function' #u32) ('rpc_result' #u32) ('rpc_result_private' #u32) ('sequence' #u32)
@@ -98,7 +105,14 @@ struct: aName
 
 !NvGsp class methodsFor: 'constants'!
 constants
-	"The header constants I use, by their C names (NvGspLayoutTest checks them)."
+	"The header constants I use, by their C names (NvGspLayoutTest checks them): the boot's and RPCs', then the client RM's."
+	Constants isNil ifTrue: [
+		Constants := self bootConstants.
+		self clientRmConstants do: [:p | Constants at: p first put: p last]].
+	^Constants
+!
+bootConstants
+	"The boot's and the RPCs' header constants."
 	^Dictionary new
 		at: 'NV_VGPU_MSG_SIGNATURE_VALID' put: 16r43505256;
 		at: 'NV_VGPU_MSG_HEADER_VERSION_MAJOR_TOT' put: 3;
@@ -401,4 +415,124 @@ checksum: aByteArray
 		lo := lo bitXor: (aByteArray uint32At: i + 1).
 		hi := hi bitXor: (aByteArray uint32At: i + 5)].
 	^lo bitXor: hi
+! !
+
+!NvGsp class methodsFor: 'client RM'!
+clientRmDeclarations
+	"The structures of steps 4-6 (docs/nv-gsp.md 14), from the 580.178.04 headers named in each."
+	| desc |
+	desc := #(#struct (('base' (#aligned 8 #u64)) ('size' (#aligned 8 #u64)) ('addressSpace' #u32) ('cacheAttrib' #u32))).
+	^Dictionary new
+		"src/nvidia/generated/g_rpc-structures.h 79-91; pte_desc: src/nvidia/inc/kernel/vgpu/sdk-structures.h 199-208 (idr:2, reserved1:14, length:16 in one NvU32, then the PTEs aligned to 8)"
+		at: 'rpc_alloc_memory_v13_01' put: {false. #(('hClient' #handle) ('hDevice' #handle) ('hMemory' #handle) ('hClass' #u32) ('flags' #u32) ('pteAdjust' #u32) ('format' #u32)
+			('length' (#aligned 8 #u64)) ('pageCount' #u32) ('pteDesc' (#struct (('idrLength' #u32) ('pte_pde' (#array (#aligned 8 #u64) 0))))))};
+		"src/common/sdk/nvidia/inc/ctrl/ctrl0080/ctrl0080dma.h 832-840"
+		at: 'NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_PARAMS' put: {false. #(('physAddress' (#aligned 8 #u64)) ('numEntries' #u32) ('flags' #u32) ('hVASpace' #handle) ('chId' #u32) ('subDeviceId' #u32) ('pasid' #u32))};
+		"src/common/sdk/nvidia/inc/alloc/alloc_channel.h (NV_MAX_SUBDEVICES 8, CC_CHAN_ALLOC_IV_SIZE_DWORD 3, CC_CHAN_ALLOC_NONCE_SIZE_DWORD 8)"
+		at: 'NV_MEMORY_DESC_PARAMS' put: {false. desc last};
+		at: 'NV_CHANNEL_ALLOC_PARAMS' put: {false. {#('hObjectError' #handle). #('hObjectBuffer' #handle). #('gpFifoOffset' (#aligned 8 #u64)). #('gpFifoEntries' #u32). #('flags' #u32).
+			#('hContextShare' #handle). #('hVASpace' #handle). #('hUserdMemory' (#array #handle 8)). #('userdOffset' (#array (#aligned 8 #u64) 8)).
+			#('engineType' #u32). #('cid' #u32). #('subDeviceId' #u32). #('hObjectEccError' #handle).
+			{'instanceMem'. desc}. {'userdMem'. desc}. {'ramfcMem'. desc}. {'mthdbufMem'. desc}. #('hPhysChannelGroup' #handle). #('internalFlags' #u32).
+			{'errorNotifierMem'. desc}. {'eccErrorNotifierMem'. desc}. #('ProcessID' #u32). #('SubProcessID' #u32).
+			#('encryptIv' (#array #u32 3)). #('decryptIv' (#array #u32 3)). #('hmacNonce' (#array #u32 8)). #('tpcConfigID' #u32)}};
+		"src/common/sdk/nvidia/inc/ctrl/ctrl0080/ctrl0080gpu.h 504-513"
+		at: 'NV0080_CTRL_GPU_GET_CLASSLIST_V2_PARAMS' put: {false. #(('numClasses' #u32) ('classList' (#array #u32 200)))};
+		"src/common/sdk/nvidia/inc/ctrl/ctrl0080/ctrl0080gr.h 36-39, 286-290 (NV2080_CTRL_GR_GET_INFO_V2_PARAMS is it)"
+		at: 'NV0080_CTRL_GR_GET_INFO_V2_PARAMS' put: {false. #(('grInfoListSize' #u32) ('grInfoList' (#array (#struct (('index' #u32) ('data' #u32))) 58))
+			('grRouteInfo' (#aligned 8 (#struct (('flags' #u32) ('route' (#aligned 8 #u64)))))))};
+		yourself
+!
+clientRmConstants
+	"{C name. value}: what steps 4-6 use from the headers (NvGspLayouts has the compiler's)."
+	^#(#('NV01_MEMORY_LIST_SYSTEM' 16r81) #('NV_VGPU_PTEDESC_IDR_NONE' 0) #('NV_VGPU_PTE_64_SIZE' 8)
+		#('NVOS02_FLAGS_PHYSICALITY_CONTIGUOUS' 0) #('NVOS02_FLAGS_LOCATION_PCI' 0) #('NVOS02_FLAGS_COHERENCY_CACHED' 1) #('NVOS02_FLAGS_MAPPING_NO_MAP' 1)
+		#('NVOS02_FLAGS_PHYSICALITY.low' 4) #('NVOS02_FLAGS_PHYSICALITY.high' 7) #('NVOS02_FLAGS_LOCATION.low' 8) #('NVOS02_FLAGS_LOCATION.high' 11)
+		#('NVOS02_FLAGS_COHERENCY.low' 12) #('NVOS02_FLAGS_COHERENCY.high' 15) #('NVOS02_FLAGS_MAPPING.low' 30) #('NVOS02_FLAGS_MAPPING.high' 31)
+		#('NV0080_CTRL_CMD_DMA_SET_PAGE_DIRECTORY' 16r801813) #('NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_FLAGS_APERTURE_SYSMEM_COH' 1)
+		#('NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_FLAGS_APERTURE.low' 0) #('NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_FLAGS_APERTURE.high' 1)
+		#('NV0080_CTRL_CMD_GPU_GET_CLASSLIST_V2' 16r800292) #('NV0080_CTRL_GPU_CLASSLIST_MAX_SIZE' 200)
+		#('NV2080_CTRL_CMD_GR_GET_INFO_V2' 16r20801228) #('NV0080_CTRL_GR_INFO_MAX_SIZE' 58)
+		#('NV_MMU_VER3_PDE_IS_PTE.low' 0) #('NV_MMU_VER3_PDE_IS_PTE.high' 0) #('NV_MMU_VER3_PDE_APERTURE.low' 1) #('NV_MMU_VER3_PDE_APERTURE.high' 2)
+		#('NV_MMU_VER3_PDE_PCF.low' 3) #('NV_MMU_VER3_PDE_PCF.high' 5) #('NV_MMU_VER3_PDE_ADDRESS.low' 12) #('NV_MMU_VER3_PDE_ADDRESS.high' 51)
+		#('NV_MMU_VER3_PDE_APERTURE_SYSTEM_COHERENT_MEMORY' 2) #('NV_MMU_VER3_PDE_PCF_VALID_UNCACHED_ATS_NOT_ALLOWED' 3) #('NV_MMU_VER3_PDE__SIZE' 8)
+		#('NV_MMU_VER3_DUAL_PDE_IS_PTE.low' 0) #('NV_MMU_VER3_DUAL_PDE_IS_PTE.high' 0) #('NV_MMU_VER3_DUAL_PDE_APERTURE_BIG.low' 1) #('NV_MMU_VER3_DUAL_PDE_APERTURE_BIG.high' 2)
+		#('NV_MMU_VER3_DUAL_PDE_ADDRESS_BIG.low' 8) #('NV_MMU_VER3_DUAL_PDE_ADDRESS_BIG.high' 51)
+		#('NV_MMU_VER3_DUAL_PDE_APERTURE_SMALL.low' 65) #('NV_MMU_VER3_DUAL_PDE_APERTURE_SMALL.high' 66) #('NV_MMU_VER3_DUAL_PDE_PCF_SMALL.low' 67) #('NV_MMU_VER3_DUAL_PDE_PCF_SMALL.high' 69)
+		#('NV_MMU_VER3_DUAL_PDE_ADDRESS_SMALL.low' 76) #('NV_MMU_VER3_DUAL_PDE_ADDRESS_SMALL.high' 115) #('NV_MMU_VER3_DUAL_PDE__SIZE' 16)
+		#('NV_MMU_VER3_PTE_VALID.low' 0) #('NV_MMU_VER3_PTE_VALID.high' 0) #('NV_MMU_VER3_PTE_APERTURE.low' 1) #('NV_MMU_VER3_PTE_APERTURE.high' 2)
+		#('NV_MMU_VER3_PTE_PCF.low' 3) #('NV_MMU_VER3_PTE_PCF.high' 7) #('NV_MMU_VER3_PTE_KIND.low' 8) #('NV_MMU_VER3_PTE_KIND.high' 11)
+		#('NV_MMU_VER3_PTE_ADDRESS.low' 12) #('NV_MMU_VER3_PTE_ADDRESS.high' 51)
+		#('NV_MMU_VER3_PTE_APERTURE_SYSTEM_COHERENT_MEMORY' 2) #('NV_MMU_VER3_PTE_PCF_REGULAR_RW_ATOMIC_UNCACHED_ACE' 1) #('NV_MMU_VER3_PTE__SIZE' 8)
+		#('NV_RAMIN_ALLOC_SIZE' 4096) #('NV_RAMUSERD_CHAN_SIZE' 512)
+		#('NV_VIRTUAL_FUNCTION_FULL_PHYS_OFFSET.low' 16rB80000) #('NV_VIRTUAL_FUNCTION_FULL_PHYS_OFFSET.high' 16rBBFFFF) #('NVC361_NOTIFY_CHANNEL_PENDING' 16r90))
+!
+field: aName value: anInteger
+	"anInteger in the register field aName (hi:lo, its .low and .high constants), as a field of a wider word."
+	| low high |
+	low := self constant: aName, '.low'.
+	high := self constant: aName, '.high'.
+	anInteger < (1 bitShift: high - low + 1) ifFalse: [^self error: aName, ': ', anInteger printString, ' does not fit'].
+	^anInteger bitShift: low
+!
+field: aName of: aWord
+	| low high |
+	low := self constant: aName, '.low'.
+	high := self constant: aName, '.high'.
+	^(aWord bitShift: low negated) bitAnd: (1 bitShift: high - low + 1) - 1
+!
+pde: aDeviceAddress
+	"A GMMU v3 PDE (PD4 to PD1) pointing at the table at aDeviceAddress in coherent system memory, uncached, no ATS (dev_mmu.h 53-79)."
+	(aDeviceAddress bitAnd: 16rFFF) = 0 ifFalse: [^self error: 'PDE: table not 4 KB aligned'].
+	^((self field: 'NV_MMU_VER3_PDE_APERTURE' value: (self constant: 'NV_MMU_VER3_PDE_APERTURE_SYSTEM_COHERENT_MEMORY'))
+		bitOr: (self field: 'NV_MMU_VER3_PDE_PCF' value: (self constant: 'NV_MMU_VER3_PDE_PCF_VALID_UNCACHED_ATS_NOT_ALLOWED')))
+		bitOr: (self field: 'NV_MMU_VER3_PDE_ADDRESS' value: (aDeviceAddress bitShift: -12))
+!
+dualPdeSmall: aDeviceAddress
+	"A GMMU v3 dual PDE (PD0, 128 bits) whose small-page half points at the 4 KB page table at aDeviceAddress, the big-page half invalid: {low word. high word} (dev_mmu.h 82-128)."
+	| v |
+	(aDeviceAddress bitAnd: 16rFFF) = 0 ifFalse: [^self error: 'PDE: table not 4 KB aligned'].
+	v := ((self field: 'NV_MMU_VER3_DUAL_PDE_APERTURE_SMALL' value: (self constant: 'NV_MMU_VER3_PDE_APERTURE_SYSTEM_COHERENT_MEMORY'))
+		bitOr: (self field: 'NV_MMU_VER3_DUAL_PDE_PCF_SMALL' value: (self constant: 'NV_MMU_VER3_PDE_PCF_VALID_UNCACHED_ATS_NOT_ALLOWED')))
+		bitOr: (self field: 'NV_MMU_VER3_DUAL_PDE_ADDRESS_SMALL' value: (aDeviceAddress bitShift: -12)).
+	^Array with: (v bitAnd: 16rFFFFFFFFFFFFFFFF) with: (v bitShift: -64)
+!
+pte: aDeviceAddress
+	"A valid GMMU v3 PTE for the 4 KB page at aDeviceAddress: coherent system memory, read-write with atomics, uncached, kind 0 (pitch) (dev_mmu.h 131-188)."
+	(aDeviceAddress bitAnd: 16rFFF) = 0 ifFalse: [^self error: 'PTE: page not 4 KB aligned'].
+	^(((self field: 'NV_MMU_VER3_PTE_VALID' value: 1)
+		bitOr: (self field: 'NV_MMU_VER3_PTE_APERTURE' value: (self constant: 'NV_MMU_VER3_PTE_APERTURE_SYSTEM_COHERENT_MEMORY')))
+		bitOr: (self field: 'NV_MMU_VER3_PTE_PCF' value: (self constant: 'NV_MMU_VER3_PTE_PCF_REGULAR_RW_ATOMIC_UNCACHED_ACE')))
+		bitOr: (self field: 'NV_MMU_VER3_PTE_ADDRESS' value: (aDeviceAddress bitShift: -12))
+!
+allocMemoryClient: hClient device: hDevice memory: hMemory address: aDeviceAddress length: bytes sequence: sequence
+	"ALLOC_MEMORY for contiguous system memory at aDeviceAddress (rpcAllocMemory_v13_01, rpc.c 3458-3500): class NV01_MEMORY_LIST_SYSTEM, OS02 flags contiguous, PCI, cached, and, as for a GSP client, one PTE for the contiguous memdesc (the page number, _issuePteDescRpc 2252-2310); the header's length counts the PTEs."
+	| p flags |
+	flags := ((self field: 'NVOS02_FLAGS_PHYSICALITY' value: (self constant: 'NVOS02_FLAGS_PHYSICALITY_CONTIGUOUS'))
+		bitOr: (self field: 'NVOS02_FLAGS_LOCATION' value: (self constant: 'NVOS02_FLAGS_LOCATION_PCI')))
+		bitOr: (self field: 'NVOS02_FLAGS_COHERENCY' value: (self constant: 'NVOS02_FLAGS_COHERENCY_CACHED')).
+	p := (self struct: 'rpc_alloc_memory_v13_01')
+		at: 'hClient' put: hClient; at: 'hDevice' put: hDevice; at: 'hMemory' put: hMemory;
+		at: 'hClass' put: (self constant: 'NV01_MEMORY_LIST_SYSTEM'); at: 'flags' put: flags;
+		at: 'length' put: bytes; at: 'pageCount' put: 1;
+		at: 'pteDesc.idrLength' put: (self constant: 'NV_VGPU_PTEDESC_IDR_NONE') + (1 bitShift: 16);
+		yourself.
+	^self rpc: (self function: #ALLOC_MEMORY) payload: p counted: 8 params: ((NvStruct new: 8) u64At: 0 put: (aDeviceAddress bitShift: -12); bytes) sequence: sequence
+!
+setPageDirectory: aDeviceAddress entries: n vaSpace: hVASpace
+	"NV0080_CTRL_DMA_SET_PAGE_DIRECTORY's parameters: the root (PD4) of hVASpace's page tables, n entries, in coherent system memory (dma.c 430-520)."
+	^((self struct: 'NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_PARAMS')
+		at: 'physAddress' put: aDeviceAddress; at: 'numEntries' put: n;
+		at: 'flags' put: (self field: 'NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_FLAGS_APERTURE' value: (self constant: 'NV0080_CTRL_DMA_SET_PAGE_DIRECTORY_FLAGS_APERTURE_SYSMEM_COH'));
+		at: 'hVASpace' put: hVASpace; yourself)
+!
+classListV2
+	^(self struct: 'NV0080_CTRL_GPU_GET_CLASSLIST_V2_PARAMS')
+!
+grInfoV2: indexes
+	"NV2080_CTRL_GR_GET_INFO_V2's parameters asking for indexes (the data come back after each index)."
+	| p |
+	p := (self struct: 'NV0080_CTRL_GR_GET_INFO_V2_PARAMS') at: 'grInfoListSize' put: indexes size; yourself.
+	indexes doWithIndex: [:index :i | p u32At: (p layout offsetOf: 'grInfoList') + (8 * (i - 1)) put: index].
+	^p
 ! !

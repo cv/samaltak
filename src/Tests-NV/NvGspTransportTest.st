@@ -3,7 +3,7 @@ TestCase subclass: #NvGspTransportTest
 	classVariableNames: ''
 	package: 'Tests-NV'!
 
-NvGspTransportTest comment: 'Tests NvGspQueues, NvGspEndpoint and NvGspTransport against NvFakeGsp over real queues in Machine memory: the page table and queue headers as nvidia.ko makes them, RPC messages and their elements byte for byte (checksum, sequence numbers, entry counts), the ring''s wrap-around, multi-entry messages, events before a reply, errors, and NvDevice''s RM calls over RPC as far as they go before the client side of RM (step 4 of cv/samaltak#20). Needs no GPU.'!
+NvGspTransportTest comment: 'Tests NvGspQueues, NvGspEndpoint and NvGspTransport against NvFakeGsp over real queues in Machine memory: the page table and queue headers as nvidia.ko makes them, RPC messages and their elements byte for byte (checksum, sequence numbers, entry counts), the ring''s wrap-around, multi-entry messages, events before a reply, errors, and NvDevice''s RM calls over RPC as far as they go without the client side of RM (NvGspClientTest has it). Needs no GPU.'!
 
 !NvGspTransportTest methodsFor: 'running'!
 setUp
@@ -65,7 +65,6 @@ testErrors
 	root := transport alloc: NvRm classRootClient client: 0 parent: 0 params: nil.
 	self should: [transport alloc: NvRm classDevice client: root parent: 16r1234 params: nil] raise: NvError.
 	self should: [transport free: 16r1234 client: root parent: root] raise: NvError.
-	self should: [transport control: NvRm cmdDeviceGetClassList client: root object: root params: (NvRm classListParams: 0 list: 0)] raise: Error.
 	self should: [transport mapMemory: 1 client: root device: 2 size: 4096] raise: Error.
 	self should: [transport call: (NvGsp rpcFunction: 0 length: 0 sequence: 9)] raise: NvError.
 	"The queues are still in step after the errors."
@@ -99,10 +98,10 @@ testLargeMessages
 	self should: [transport control: 16r1235 client: root object: root params: (NvStruct new: 70000)] raise: Error
 !
 testNvDeviceOverGsp
-	"NvDevice's open goes over RPC up to the class list, whose parameters point at other memory: step 4. Its failure frees the root client."
+	"Without memory: NvDevice's open goes over RPC up to the VA space, whose page tables are the client side of RM. Its failure frees the root client."
 	| e |
 	e := [NvDevice open: 0 over: transport. nil] on: Error do: [:ex | ex return: ex messageText].
-	self assert: (e includesSubstring: 'step 4').
-	self assert: ((gsp received collect: [:m | m u32At: 12]) asArray) equals: #(103 76 103 103 10).
+	self assert: (e includesSubstring: 'set memory: first').
+	self assert: ((gsp received collect: [:m | m u32At: 12]) asArray) equals: #(103 103 103 76 76 103 10).
 	self assert: gsp objects isEmpty
 ! !
