@@ -139,10 +139,15 @@ setTextInputArea: win x: x y: y width: w height: h cursor: cursor
 	^sdl setTextInputArea: sw rect: r cursor: cursor
 !
 show: win visible: show
+	"Showing also raises the window and asks for the focus (the window manager may only mark it urgent)."
 	<export>
 	| sw |
 	sw := self sdlWindow: win.
-	^sw notNull and: [show ifTrue: [sdl showWindow: sw] ifFalse: [sdl hideWindow: sw]]
+	sw isNull ifTrue: [^false].
+	show ifFalse: [^sdl hideWindow: sw].
+	(sdl showWindow: sw) ifFalse: [^false].
+	sdl raiseWindow: sw.
+	^true
 !
 isHidden: win
 	"Hidden or minimized (or no window)."

@@ -270,7 +270,17 @@ bool platform_windows_show(int32_t win, bool show)
 {
     SDL_Window *sw;
     sw = sdl_window(win);
-    return (sw != NULL) && (show ? SDL_ShowWindow(sw) : SDL_HideWindow(sw));
+    if (sw == NULL) {
+        return false;
+    }
+    if (!show) {
+        return SDL_HideWindow(sw);
+    }
+    if (!SDL_ShowWindow(sw)) {
+        return false;
+    }
+    SDL_RaiseWindow(sw);
+    return true;
 }
 
 /* PlatformWindows>>shutdown */
