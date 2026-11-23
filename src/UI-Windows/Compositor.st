@@ -54,8 +54,16 @@ lastDamage
 !
 frameTap
 	"The FrameTap that hears each frame's damage after it was presented (FrameTap current where no firmware screen draws): its pixels are my window's surface, the whole composed frame in device pixels without the remote pointer (drawn over a copy: present:now:), RGBA8, read back in my Process."
-	frameTap isNil ifTrue: [frameTap := FrameTap source: self extent: ((displayWindow isNil or: [previousList isNil]) ifFalse: [displayWindow surface pixelExtent])].
+	"Made between frames, in my Process while I run: made in another, it could look for the last frame just before my first and be stored just after it, and then know no size until something changed on the screen."
+	frameTap isNil ifTrue: [
+		(running and: [process notNil and: [Processor activeProcess ~~ process]])
+			ifTrue: [self sync: [self makeFrameTap]]
+			ifFalse: [self makeFrameTap]].
 	^frameTap
+!
+makeFrameTap
+	"The size of the last frame presented, or nil before the first, which it then hears."
+	frameTap isNil ifTrue: [frameTap := FrameTap source: self extent: ((displayWindow isNil or: [previousList isNil]) ifFalse: [displayWindow surface pixelExtent])]
 !
 redrawAll
 	"Draw and present the whole screen at the next frame (my Process, or between frames)."
