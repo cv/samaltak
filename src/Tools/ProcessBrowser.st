@@ -1,9 +1,9 @@
 ToolPane subclass: #ProcessBrowser
-	instanceVariableNames: 'table stack source debugButton suspendButton terminateButton countLabel lastCpu lastTime cpu stackKey'
+	instanceVariableNames: 'table stack source debugButton suspendButton terminateButton countLabel lastCpu lastTime cpu stackKey meters lastStats lastGpu'
 	classVariableNames: ''
 	package: 'Tools'!
 
-ProcessBrowser comment: 'I am the Process Browser (prototypes/1-classic/tools.js openProcessBrowser): a live table of every Process (priority, name — with a window glyph for a window''s Process —, state, and CPU share from Process>>cpuMicroseconds deltas), refreshed four times a second; below, the selected Process''s stack (its real suspendedContext chain) and the source of the selected frame with its current expression marked.
+ProcessBrowser comment: 'I am the Process Browser (prototypes/1-classic/tools.js openProcessBrowser): a live table of every Process (priority, name — with a window glyph for a window''s Process —, state, and CPU share from Process>>cpuMicroseconds deltas), refreshed four times a second; above it a LoadMeters row with the load of each core the VM uses and of the GPU: cpu, the VM''s own core (every Process but the idle one, with the GC and the JIT: a Process''s CPU is its share of this core), jit, the core the background compiler runs on (VMStatistics>>optBackgroundMicroseconds), and gpu, the frames'' GPU time (GPUTimer>>totalMicroseconds); the toolbar sums the cores'' load (0.25 cores: a quarter of one core''s time). The application processors'' raster bands (CpuWorkers) are not measured by the VM: they show only as GPU time. below, the selected Process''s stack (its real suspendedContext chain) and the source of the selected frame with its current expression marked.
 
 Debug opens a debugger on the Process (Tools debugProcess:), Suspend / Resume and Terminate act on it; the window system''s own Processes (above user priority) are refused. Double-click a row to debug it. While I refresh I am the running Process; a runnable Process that used CPU since the last refresh is shown running (time-sliced), one that did not is ready.'!
 
@@ -32,6 +32,9 @@ build
 		with: (countLabel flex: 1; yourself)
 		with: ((Label text: '■ live' font: #uiBold) align: #right; fixed: 40; yourself)).
 	toolbar spacing: 6; padding: (6 @ 4 corner: 8 @ 4); fixed: 29.
+	meters := LoadMeters new.
+	meters name: 'load'; padding: (8 @ 0 corner: 0 @ 0); fixed: 20;
+		tooltip: 'cpu: the VM''s core (every Process, the GC, the JIT) · jit: the background compiler''s core · gpu: the frames'' GPU time. A Process''s CPU is its share of the VM''s core.'.
 	table := TableView new name: 'processes'; title: 'Processes'; yourself.
 	table
 		addColumn: (TableColumn title: '' width: 8 draw: [:canvas :rect :p :inverted | self drawStateSquareOn: canvas in: rect for: p inverted: inverted]);
@@ -55,7 +58,7 @@ build
 		with: ((self pane: stack title: 'Stack') percent: 44)
 		with: source).
 	bottom separators: true; percent: 34.
-	self addAll: (Array with: toolbar with: table with: Splitter new with: bottom)
+	self addAll: (Array with: toolbar with: meters with: table with: Splitter new with: bottom)
 !
 minimumWindowExtent
 	^400 @ 240
@@ -91,6 +94,7 @@ refresh
 		lastCpu at: p put: t].
 	(lastCpu keys reject: [:p | procs includes: p]) do: [:p | lastCpu removeKey: p].
 	lastTime := now.
+	meters isNil ifFalse: [self updateMeters: dt].
 	table items: (procs asSortedCollection: [:a :b | self process: a sortsBefore: b]) asArray.
 	table selection isNil ifTrue: [self selectFirstWindowProcess].
 	self updateButtons.
@@ -155,6 +159,36 @@ stateStyleOf: aProcess
 	s = 'running' ifTrue: [^(self isBusy: aProcess) ifTrue: [#(#bold #accent)] ifFalse: [#bold]].
 	s = 'suspended' ifTrue: [^#bold].
 	^#(#italic #muted)
+!
+updateMeters: dt
+	"The load of each core the VM uses and of the GPU over the last dt µs: the VM's core is every Process but the idle one (with the GC and the JIT); the background compiler runs on a core of its own."
+	| stats gpu list |
+	stats := Smalltalk vm statistics.
+	gpu := self gpuMicroseconds.
+	list := OrderedCollection new.
+	list add: 'cpu' -> ((cpu keys inject: 0.0 into: [:sum :p | p == Processor idleProcess ifTrue: [sum] ifFalse: [sum + (cpu at: p)]]) min: 100.0).
+	stats optBackgroundJobs > 0 ifTrue: [
+		list add: 'jit' -> (lastStats isNil
+			ifTrue: [0.0]
+			ifFalse: [(stats optBackgroundMicroseconds - lastStats optBackgroundMicroseconds) * 100.0 / dt min: 100.0])].
+	list add: 'gpu' -> ((gpu isNil or: [lastGpu isNil]) ifFalse: [(gpu - lastGpu) * 100.0 / dt min: 100.0]).
+	lastStats := stats.
+	lastGpu := gpu.
+	meters meters: list asArray
+!
+gpuMicroseconds
+	"The GPU time of the frames presented so far (GPUTimer), nil without a compositor that measures it."
+	| compositor timer |
+	compositor := [World current compositor] on: Error do: [:e | e return: nil].
+	compositor isNil ifTrue: [^nil].
+	timer := compositor gpuTimer.
+	(timer isNil or: [(timer respondsTo: #totalMicroseconds) not]) ifTrue: [^nil].
+	^timer totalMicroseconds
+!
+coresBusy
+	"How many cores' worth of time the VM used (its own core and the background compiler's)."
+	meters isNil ifTrue: [^0.0].
+	^(meters meters inject: 0.0 into: [:sum :each | (each key ~= 'gpu' and: [each value notNil]) ifTrue: [sum + each value] ifFalse: [sum]]) / 100.0
 ! !
 
 !ProcessBrowser methodsFor: 'drawing'!
@@ -269,7 +303,7 @@ updateButtons
 	debugButton enabled: system not.
 	suspendButton enabled: system not.
 	terminateButton enabled: system not.
-	countLabel text: table items size printString, ' processes · ', (table items count: [:each | self isBusy: each]) printString, ' busy'
+	countLabel text: table items size printString, ' processes · ', (table items count: [:each | self isBusy: each]) printString, ' busy · ', (self coresBusy printShowingDecimalPlaces: 2), ' cores'
 !
 debugSelected
 	| p |
