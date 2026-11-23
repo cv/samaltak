@@ -1677,11 +1677,12 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	merge := ir newBlock.
 	(ir block: merge) act: a.
 	andInts ifTrue: [n := n + 1].
-	"between classes of objects (no immediates): the class loaded once, compared with each (value numbering shares the load with other switches on the value)"
+	"between classes of objects (no immediates): the class loaded once, compared with each (value numbering shares the load with other switches on the value); aux 1: of an immediate it may answer any word that is no class (OptCodegen>>emitClassOf:)"
 	rcvClass := -1.
 	(andInts not and: [n > 1 and: [(self anyImmediate: site count: n) not]]) ifTrue: [
 		rcvClass := self add: O_CLASSOF rep: R_OOP.
-		(ir node: rcvClass) a: rcv].
+		(ir node: rcvClass) a: rcv.
+		(ir node: rcvClass) aux: 1].
 	0 to: n - 1 do: [:i |
 		cls := (andInts and: [i = (n - 1)]) ifTrue: [memory clsSmallint] ifFalse: [site classes at: i].
 		rcvClass >= 0

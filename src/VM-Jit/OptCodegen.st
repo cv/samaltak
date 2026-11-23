@@ -1521,6 +1521,12 @@ emitClassOf: n
 	nd := ir node: n.
 	x := self src: nd a into: self scratchB.
 	r := self dst: n.
+	nd aux = 1 ifTrue: [
+		"only compared with classes of objects (a type switch's): no branch, a tagged x reads a word of the JitState, which is no class"
+		asm tst: x imm: 7.
+		asm csel: X16 with: x with: X22 cond: COND_EQ.
+		asm ldr: r base: X16 offset: 8.
+		^self def: n from: r].
 	imm := asm newLabel.
 	done := asm newLabel.
 	ch := asm newLabel.
