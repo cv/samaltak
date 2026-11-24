@@ -1,5 +1,5 @@
 SoftwareGPU subclass: #NvComputeGPU
-	instanceVariableNames: 'gpu compute kernels memories fences lastFence scratch starts batch batchStarts batchSlots batchTarget batchClip batchUsed arena arenaOffset stamps stampCount recent blocks cached gpuDirty l2Stale'
+	instanceVariableNames: 'gpu compute kernels memories fences lastFence scratch starts batch batchStarts batchSlots batchTarget batchClip batchUsed arena arenaOffset stamps stampCount recent blocks cached gpuDirty l2Stale fragmentUniforms shaderKernels'
 	classVariableNames: ''
 	package: 'Graphics-NV'!
 
@@ -8,7 +8,9 @@ NvComputeGPU comment: 'I am a GPU device on an NVIDIA GPU (the GB10) without its
 	gpu := NvComputeGPU on: aDisplay.        "opens the GPU; an error where there is none"
 	GPUPlatform display: d device: gpu       "or --gpu nv (SAMALTAK_GPU=nv): GPUPlatform chooses me"
 
-Textures, buffers and back buffers are NvMemory (the addresses SoftwareGPU keeps are their CPU addresses). A clear is a raster_fill, a blit raster_blit. Draws are batched: consecutive draws into one target (a pass''s, or several passes'') collect their RasterDrawParams (the pass''s state), and are launched together as raster_batch_prims then raster_batch_tiles (the params in an arena of GPU memory reused as a ring, one scratch) when anything else comes: another target, a clear, a blit, a CPU access, a submit. Launches are queued in order and run while the CPU goes on. The CPU waits only where it touches memory a queued launch uses: an upload, a download, a present, freeing; each memory remembers the fence of the last launch that used it. Fences are the channel''s: done when the GPU reached them. fenceElapsed is the GPU''s time for the command buffer: the GPU''s clock written (a timestamp release) before its first clear, draw or blit and after its last, in a ring of 256 slots. shaderLanguage is ''raster'': not software (isSoftware is false), and no shader is compiled.
+Textures, buffers and back buffers are NvMemory (the addresses SoftwareGPU keeps are their CPU addresses). A clear is a raster_fill, a blit raster_blit. Draws are batched: consecutive draws into one target (a pass''s, or several passes'') collect their RasterDrawParams (the pass''s state), and are launched together as raster_batch_prims then raster_batch_tiles (the params in an arena of GPU memory reused as a ring, one scratch) when anything else comes: another target, a clear, a blit, a CPU access, a submit. Launches are queued in order and run while the CPU goes on. The CPU waits only where it touches memory a queued launch uses: an upload, a download, a present, freeing; each memory remembers the fence of the last launch that used it. Fences are the channel''s: done when the GPU reached them. fenceElapsed is the GPU''s time for the command buffer: the GPU''s clock written (a timestamp release) before its first clear, draw or blit and after its last, in a ring of 256 slots. shaderLanguage is ''raster'': not software (isSoftware is false); the Renderer''s shader is the raster kernels.
+
+FragmentShaders run too (GPUDevice>>runsFragmentShaders, fragmentShaderLanguage #glsl): a fragment shader with entry main is GLSL (FragmentShader''s prelude and source), which NvShaderCompiler makes a kernel of (precompiled, or by NVRTC; a ShaderError if it does not compile); its pipeline (a triangle over an RGBA8 target, no blending, no vertices) draws by launching that kernel over the pass''s target, a thread a pixel, with the fragment uniforms pushed to slot 0 as its uniform block. A kernel''s GPU memory goes when the last pipeline using it is released.
 
 My display presents the BGRA8 back buffer from its CPU address: hosted a HostFramePresenter (SDL_GPU, the VM''s window), on UEFI it would be FirmwareDisplay (the firmware''s screen) once System-NV runs there. close closes the GPU (everything I made goes with it).'!
 
@@ -26,6 +28,8 @@ setDisplay: aDisplay
 	recent := Array new: 64.
 	cached := Set new.
 	gpuDirty := l2Stale := false.
+	fragmentUniforms := Dictionary new.
+	shaderKernels := Dictionary new.
 	[compute := gpu newCompute.
 	stamps := gpu allocate: 256 * 32.
 	cubin := NvCubin on: NvRasterKernels cubin.
@@ -54,7 +58,9 @@ close
 		self resetBatch.
 		memories := Dictionary new.
 		cached := Set new.
-		fences := Dictionary new]
+		fences := Dictionary new.
+		shaderKernels := Dictionary new.
+		fragmentUniforms := Dictionary new]
 ! !
 
 !NvComputeGPU methodsFor: 'device'!
@@ -67,6 +73,105 @@ waitIdle: dev
 	self device: dev for: 'gpuWaitIdle'.
 	self flush.
 	compute wait: lastFence
+! !
+
+!NvComputeGPU methodsFor: 'fragment shaders'!
+runsFragmentShaders: dev
+	"Whether GLSL fragment shaders run: NVRTC is here, or some are precompiled."
+	self device: dev for: 'gpuRunsFragmentShaders'.
+	^NvShaderCompiler canBuildAny
+!
+canBuildFragmentShader: dev source: aString
+	"Whether the fragment shader aString (FragmentShader's prelude and its source) can be made a kernel here."
+	self device: dev for: 'gpuCanBuildFragmentShader'.
+	^NvShaderCompiler canBuild: aString
+!
+fragmentShaderReady: dev source: aString
+	"Whether the fragment shader aString would be made a kernel at once; if not, NVRTC compiles it in the background now."
+	self device: dev for: 'gpuFragmentShaderReady'.
+	^NvShaderCompiler isReady: aString
+!
+createShader: dev source: source entry: entryName stage: stage samplers: samplers uniformBuffers: uniforms storageBuffers: storageBuffers storageTextures: storageTextures
+	"A GLSL fragment shader (entry main) is compiled to a kernel now (a ShaderError if it does not compile); other shaders are the Renderer's, as on a SoftwareGPU."
+	| h key |
+	(stage = 1 and: [entryName = 'main']) ifFalse: [
+		^super createShader: dev source: source entry: entryName stage: stage samplers: samplers uniformBuffers: uniforms storageBuffers: storageBuffers storageTextures: storageTextures].
+	self device: dev for: 'gpuCreateShader'.
+	key := self kernelKeyFor: source.
+	h := super createShader: dev source: source entry: entryName stage: stage samplers: samplers uniformBuffers: uniforms storageBuffers: storageBuffers storageTextures: storageTextures.
+	(self at: h) command: key; extra: (shaderKernels at: key).
+	^h
+!
+kernelKeyFor: aString
+	"The key of the kernel of the GLSL fragment shader aString, made (once per key) and kept in shaderKernels: (kernel pipelines)."
+	| cubin key |
+	cubin := NvShaderCompiler cubinFor: aString.
+	key := NvShaderCompiler keyFor: aString.
+	shaderKernels at: key ifAbsent: [
+		shaderKernels at: key put: (Array with: ((NvCubin on: cubin) kernelNamed: 'gl_fragment') with: 0 with: (NvShaderCompiler uniformSizeFor: aString))].
+	^key
+!
+createPipeline: dev vertex: vs fragment: fs stride: stride attributes: attributes primitive: primitiveType blend: blend format: targetFormat
+	"A fragment shader's pipeline: one triangle over an RGBA8 target, no vertices, no blending."
+	| f entry |
+	f := self at: fs.
+	(f notNil and: [f kind == #shader and: [f command notNil]]) ifFalse: [
+		^super createPipeline: dev vertex: vs fragment: fs stride: stride attributes: attributes primitive: primitiveType blend: blend format: targetFormat].
+	self device: dev for: 'gpuCreatePipeline'.
+	(stride = 0 and: [attributes isEmpty and: [primitiveType = 0 and: [blend = 0 and: [targetFormat = 2]]]])
+		ifFalse: [^self fail: 'gpuCreatePipeline' because: 'a fragment shader here covers an RGBA8 target with one triangle, unblended'].
+	entry := shaderKernels at: f command ifAbsentPut: [f extra at: 2 put: 0; yourself].
+	entry at: 2 put: (entry at: 2) + 1.
+	^self add: ((SoftwareGPUObject kind: #pipeline) device: dev; format: targetFormat; extra: 0; command: f command; yourself)
+!
+pushUniforms: commandBufferOrPass stage: stage slot: slot bytes: bytes
+	"Fragment slot 0 is a fragment shader's uniform block."
+	| o |
+	super pushUniforms: commandBufferOrPass stage: stage slot: slot bytes: bytes.
+	(stage = 1 and: [slot = 0]) ifTrue: [
+		o := self at: commandBufferOrPass.
+		fragmentUniforms at: (o kind == #pass ifTrue: [o command] ifFalse: [commandBufferOrPass]) put: bytes copy]
+!
+draw: pass count: vertexCount first: firstVertex
+	| p |
+	p := self at: pass kind: #pass for: 'gpuDraw'.
+	(p pipeline notNil and: [p pipeline command notNil]) ifFalse: [^super draw: pass count: vertexCount first: firstVertex].
+	vertexCount < 3 ifTrue: [^self].
+	self shade: p
+!
+shade: aPass
+	"Run the pass's fragment shader over its target: its kernel, a thread a pixel; the parameters the target's address, width and height, and the address of the uniforms (in the arena, the block's size at least, zeroes after what was pushed)."
+	| t entry kernel u params t0 at |
+	(self at: aPass targetHandle) == aPass target ifFalse: [^self].
+	t := aPass target.
+	t format = 2 ifFalse: [^self fail: 'gpuDraw' because: 'a fragment shader draws into RGBA8'].
+	entry := shaderKernels at: aPass pipeline command ifAbsent: [^self fail: 'gpuDraw' because: 'the shader''s kernel is gone'].
+	kernel := entry first.
+	t0 := Time microsecondClockValue.
+	self flush.
+	u := ByteArray new: ((entry at: 3) max: 16).
+	(fragmentUniforms at: aPass command ifAbsent: [#[]]) ifNotNil: [:pushed |
+		u replaceFrom: 1 to: (pushed size min: u size) with: pushed startingAt: 1].
+	at := (self arenaFor: u size + 16) + 15 // 16 * 16.
+	arena bytesAt: at put: u.
+	params := ByteArray new: kernel parameterSize.
+	self put: (self gpuAddress: t address) at: 0 in: params.
+	self put32: t width at: 8 in: params.
+	self put32: t height at: 12 in: params.
+	self put: arena gpuAddress + at at: 16 in: params.
+	self launchKernel: kernel grid: (Array with: t width + 15 // 16 with: t height + 15 // 16) block: 256 parameters: params using: (Array with: t address with: arena cpuAddress).
+	self charge: aPass command since: t0
+!
+releaseKernelOf: aPipeline
+	"aPipeline is released: the kernel's GPU memory goes with the last pipeline using it."
+	| entry |
+	entry := shaderKernels at: aPipeline command ifAbsent: [^self].
+	entry at: 2 put: (entry at: 2) - 1.
+	(entry at: 2) > 0 ifTrue: [^self].
+	shaderKernels removeKey: aPipeline command.
+	compute isNil ifTrue: [^self].
+	self flush.
+	compute forget: entry first
 ! !
 
 !NvComputeGPU methodsFor: 'commands'!
@@ -132,7 +237,11 @@ stamp: offset
 	^stampCount
 !
 drop: h
+	| o |
 	starts removeKey: h ifAbsent: [].
+	fragmentUniforms removeKey: h ifAbsent: [].
+	o := self at: h.
+	(o notNil and: [o kind == #pipeline and: [o command notNil]]) ifTrue: [self releaseKernelOf: o].
 	super drop: h
 !
 launchFor: aFence
@@ -145,13 +254,16 @@ gpuAddress: address
 !
 launch: aName grid: grid parameters: bytes using: addresses
 	"Queue the raster kernel aName (as many threads a block as it is written for) with its parameter struct; the memory at addresses waits for it."
+	^self launchKernel: (kernels at: aName) grid: grid block: (blocks at: aName) parameters: bytes using: addresses
+!
+launchKernel: aKernel grid: grid block: block parameters: bytes using: addresses
 	| fence |
 	l2Stale ifTrue: [
 		compute channel flushAndInvalidateL2.
 		l2Stale := false].
-	fence := compute launch: (kernels at: aName) grid: grid block: (blocks at: aName) parameters: bytes.
+	fence := compute launch: aKernel grid: grid block: block parameters: bytes.
 	gpuDirty := true.
-	recent at: fence \\ 64 + 1 put: (Array with: fence with: aName with: grid with: bytes).
+	recent at: fence \\ 64 + 1 put: (Array with: fence with: aKernel name with: grid with: bytes).
 	addresses do: [:a | fences at: a put: fence].
 	lastFence := fence
 !

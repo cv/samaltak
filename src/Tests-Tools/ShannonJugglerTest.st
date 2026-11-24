@@ -34,7 +34,7 @@ colorsIn: aForm
 
 !ShannonJugglerTest methodsFor: 'tests'!
 testDrawsTheActFlatWhereTheDeviceBuildsNoShaders
-	"On a device that runs only the Renderer's shader (a SoftwareGPU here; an NvComputeGPU answers the same, NvComputeGPUTest) the stage draws the act flat: a picture of some colours that moves, and no shader error."
+	"On a device that runs only the Renderer's shader (a SoftwareGPU) the stage draws the act flat: a picture of some colours that moves, and no shader error. (An NvComputeGPU runs the stage's shader: NvFragmentShaderTest.)"
 	| old device w juggler stage first errors handler |
 	old := GPUPlatform display: GPUPlatform display device: (SoftwareGPU on: nil).
 	[device := GPUDevice new.
@@ -63,7 +63,7 @@ testRendersAndAnimates
 	self assert: (self waitFor: [juggler frame > 5]) description: 'the act does not run'.
 	first := self pictureOf: stage.
 	"The flat picture (a device that builds no shaders) has a few colours, the raymarched scene hundreds."
-	self assert: (self colorsIn: first) > ((Smalltalk at: #GPUDevice) default buildsShaders ifTrue: [200] ifFalse: [8]) description: 'the stage shows no scene'.
+	self assert: (self colorsIn: first) > ((Smalltalk at: #GPUDevice) default runsFragmentShaders ifTrue: [200] ifFalse: [8]) description: 'the stage shows no scene'.
 	self assert: (self waitFor: [(self pictureOf: stage) bits ~= first bits] timeout: 3000) description: 'the picture does not change while the act runs'.
 	self in: w do: [juggler windowClosed].
 	frame := juggler frame.

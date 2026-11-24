@@ -63,6 +63,17 @@ shaderLanguage: dev
 	"'msl' or 'glsl': the source gpuCreateShader takes on device."
 	^self device shaderLanguage: dev
 !
+runsFragmentShaders: dev
+	"Whether a device that builds no shaders runs FragmentShaders still (an NvComputeGPU's kernels)."
+	^(self device respondsTo: #runsFragmentShaders:) and: [self device runsFragmentShaders: dev]
+!
+canBuildFragmentShader: dev source: aString
+	^(self device respondsTo: #canBuildFragmentShader:source:) and: [self device canBuildFragmentShader: dev source: aString]
+!
+fragmentShaderReady: dev source: aString
+	"Whether a pipeline of the fragment shader aString would be built at once (an NvComputeGPU may compile it in the background first)."
+	^(self device respondsTo: #fragmentShaderReady:source:) not or: [self device fragmentShaderReady: dev source: aString]
+!
 claim: dev window: window
 	^self device claim: dev window: window
 !

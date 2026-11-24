@@ -250,7 +250,7 @@ Two ways to get the World onto the Spark's screen:
 | --- | --- | --- |
 | userspace | NVIDIA's Vulkan ICD, EGL and GBM: 116 MB, 39 MB compressed, proprietary (redistributable), version-locked to nvidia.ko | none beyond our VM and SDL |
 | present | VK_KHR_display through SDL's kmsdrm: as in a window | the window surface (this change) needs a GLES driver on KMS (NVIDIA's EGL+GBM again); a KMS dumb-buffer presenter does not |
-| shaders | the Renderer's GLSL via shaderc, as on any Linux | the raster kernels (cubins in the image) |
+| shaders | the Renderer's GLSL via shaderc, as on any Linux | the raster kernels (cubins in the image); FragmentShaders precompiled in the image, live edits only with NVRTC (the CUDA toolkit's, not shipped: docs/nv-shaders.md, Licensing) |
 | works today | yes, on this Spark's userspace (untested on bare KMS: the Spark's display is the desktop's now) | rendering yes; presenting through `KmsDisplay` (section 2), proven on virtio-gpu, untested on nvidia-drm |
 
 The KMS screen and evdev input in the image (section 2) are done, so the Spark's variant is now the right-hand column:

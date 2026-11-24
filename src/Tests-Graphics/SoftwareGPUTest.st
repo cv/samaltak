@@ -764,7 +764,7 @@ testTheGPULayerOnASoftwareDevice
 		ensure: [GPUPlatform display: old first device: old last]
 !
 testTheRendererKeepsItsPipelineHere
-	"A device that runs the Renderer's shader natively builds no shaders: changed shader source (Renderer shaderSourceChanged) rebuilds nothing, reports nothing and draws the same; a FragmentShader gets no pipeline and no error either."
+	"A device that runs the Renderer's shader natively builds no shaders: changed shader source (Renderer shaderSourceChanged) rebuilds nothing, reports nothing and draws the same; a FragmentShader gets no pipeline and no error either (an NvComputeGPU's compiles its GLSL, without an error)."
 	| old device canvas list renderer surface before pipeline errors handler image |
 	old := GPUPlatform display: display device: gpu.
 	handler := Renderer shaderErrorHandler.
@@ -787,7 +787,7 @@ testTheRendererKeepsItsPipelineHere
 	self assert: renderer pipeline == pipeline.
 	self assert: renderer pipelineVersion equals: 1.
 	self deny: renderer updatePipeline.
-	image := (FragmentShader on: device) imageExtent: 2 @ 2 source: 'fragment' uniforms: (ByteArray new: 16).
+	image := (FragmentShader on: device) imageExtent: 2 @ 2 source: 'void main() { fragColor = vec4(1.0); }' uniforms: (ByteArray new: 16).
 	canvas := Canvas extent: 6 @ 4 scale: 1.
 	canvas image: image in: (0 @ 0 extent: 2 @ 2).
 	renderer render: canvas displayList on: surface clear: Color white.

@@ -62,7 +62,8 @@ zeroes) the next launch is preceded by the flush and an L2_SYSMEM_NCOH_INVALIDAT
 buffer: before its first clear, draw or blit and after its last, a semaphore release with RELEASE_TIMESTAMP writes the
 GPU's clock (ns) into a ring of 256 slots (`NvChannel>>timestamp:payload:`); the fence is done once its end stamp is
 there. `shaderLanguage` is `'raster'`: not software, so the Compositor composes
-continuously as on SDL_GPU; FragmentShaders fail as on a SoftwareGPU.
+continuously as on SDL_GPU. FragmentShaders (ShaderViews, Claude's Robot) run as CUDA kernels made from their GLSL,
+precompiled or compiled in the image by NVRTC (docs/nv-shaders.md).
 
 **Presenting.** The device presents the BGRA8 back buffer from its CPU address on its display
 (`presentWindow:pixels:width:height:`). Hosted that is a `HostFramePresenter` (Graphics-GPU): it uploads the frame from

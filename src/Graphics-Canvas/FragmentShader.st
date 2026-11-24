@@ -1,5 +1,5 @@
 Object subclass: #FragmentShader
-	instanceVariableNames: 'device source pipeline failedSource texture rendered renderedGeneration size'
+	instanceVariableNames: 'device source pipeline failedSource texture rendered renderedGeneration size checked runs'
 	classVariableNames: ''
 	package: 'Graphics-Canvas'!
 
@@ -14,7 +14,7 @@ GLSL (Vulkan): main after my glslPrelude (#version 450; the inputs uv, 0..1 from
 	layout(set = 3, binding = 0) uniform U { vec4 tint; };
 	void main() { fragColor = tint; }
 
-Its output is premultiplied RGBA. A new source builds a new pipeline before the next frame; if it does not compile the old one stays and Renderer reportShaderError: gets the error. A device that runs only the Renderer''s shader (GPUDevice>>buildsShaders false: SoftwareGPU, NvComputeGPU) gets no pipeline and draws nothing, without an error: ShaderView draws a plain picture there.'!
+Its output is premultiplied RGBA. A new source builds a new pipeline before the next frame; if it does not compile the old one stays and Renderer reportShaderError: gets the error (its lines are the source''s: the prelude ends with #line 1). An NvComputeGPU runs the GLSL (GPUDevice>>fragmentShaderLanguage) as a CUDA kernel (Graphics-NV, NvShaderCompiler: precompiled, or compiled by NVRTC). A device that runs no fragment shaders (GPUDevice>>runsFragmentShaders false: a SoftwareGPU) gets no pipeline and draws nothing, without an error: ShaderView draws a plain picture there.'!
 
 !FragmentShader methodsFor: 'initialization'!
 setDevice: aDevice
@@ -66,11 +66,24 @@ render: aShaderImage
 ! !
 
 !FragmentShader methodsFor: 'pipeline'!
+runs: aString
+	"Whether a pipeline can be built from aString here (GPUDevice>>runsFragmentShader:; asked again only for another source)."
+	aString == checked ifTrue: [^runs].
+	runs := device runsFragmentShaders and: [device runsFragmentShader: (self fullSource: aString)].
+	checked := aString.
+	^runs
+!
+fullSource: aString
+	"aString after its prelude, as the device compiles it."
+	^(device fragmentShaderLanguage == #glsl ifTrue: [self class glslPrelude] ifFalse: [self class prelude]), aString
+!
 updatePipeline: aString
-	"A device that builds no shaders (GPUDevice>>buildsShaders) gets no pipeline and no error: nothing is drawn."
+	"A device that runs no fragment shaders (GPUDevice>>runsFragmentShaders) gets no pipeline and no error: nothing is drawn."
 	| new |
 	(aString == source or: [aString == failedSource]) ifTrue: [^self].
-	device buildsShaders ifFalse: [^failedSource := aString].
+	device runsFragmentShaders ifFalse: [^failedSource := aString].
+	"While a device compiles a new source in the background (an NvComputeGPU's NVRTC), the old pipeline draws."
+	(pipeline notNil and: [(device fragmentShaderReady: (self fullSource: aString)) not]) ifTrue: [^self].
 	new := [(self pipelineFrom: aString) handle; yourself]
 		on: Error
 		do: [:e | Renderer reportShaderError: e. e return: nil].
@@ -81,7 +94,7 @@ updatePipeline: aString
 !
 pipelineFrom: aString
 	| vs fs |
-	device shaderLanguage == #glsl
+	device fragmentShaderLanguage == #glsl
 		ifTrue: [
 			vs := device shaderSource: self class glslVertexSource entry: 'main' stage: #vertex samplers: 0 uniformBuffers: 1.
 			fs := device shaderSource: self class glslPrelude, aString entry: 'main' stage: #fragment samplers: 0 uniformBuffers: 1]
@@ -113,6 +126,7 @@ glslPrelude
 layout(location = 0) in vec2 uv;
 layout(location = 1) flat in vec2 size;
 layout(location = 0) out vec4 fragColor;
+#line 1
 '
 !
 glslVertexSource

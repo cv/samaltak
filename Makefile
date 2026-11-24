@@ -224,7 +224,7 @@ test-ffi-display: $(TEST_IMAGE)
 # raster kernels (gpu/nv, docs/nv-kernels.md) on the GPU against PlatformRaster (tests/nv/run.sh: needs the driver,
 # not nvcc).
 test-nv: $(TEST_IMAGE)
-	tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvComputeGPUTest NvGspFirmwareFileTest
+	tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvComputeGPUTest NvFragmentShaderTest NvGspFirmwareFileTest
 	tests/nv/run.sh $(OUT)
 # test-tools's parts run at once too (TEST_TOOLS_JOBS, all by default; 1: one after another), the longest first, each
 # holding a test slot and, with SAMALTAK_TEST_XVFB=1 (tests/stages.sh), on an Xvfb of its own (tests/with-display).
@@ -256,6 +256,12 @@ test-tools-part-quit-signal:
 # nvcc and regenerate src/System-Devices/NvRasterKernels.st. Not part of test or CI.
 nv-kernels:
 	tools/nv-kernels.py build
+
+# The image's shipped GLSL fragment shaders (ShaderViews': Claude's Robot) compiled for the GB10 by NVRTC
+# (docs/nv-shaders.md): regenerate src/Graphics-NV/NvPrecompiledShaders.st, then build the image again. Needs NVRTC
+# (the CUDA toolkit), not the GPU. Not part of test or CI; make test-nv fails while they are stale.
+nv-shaders: $(OUT)/samaltak.image
+	tools/nv-shaders.sh $(OUT)
 
 # The VM as a UEFI application for x86-64 or arm64 (UEFI_ARCH, this machine's by default), translated from the
 # same Lowtalk with VM-UEFI in place of the C library (docs/uefi.md): $(UEFI)/esp is a boot volume with it
@@ -696,6 +702,6 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build vm/build/ffi-test-exports vm/build/ffi-no-platform
 
-.PHONY: $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS)) $(addprefix test-core-part-,$(TEST_CORE_PARTS)) $(addprefix test-tools-part-,$(TEST_TOOLS_PARTS)) all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-fat test-uefi-nic usb-image usb-disk usb-run usb-boot test-usb-image test-install test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels test video mindblown-video jit-video clean
+.PHONY: $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS)) $(addprefix test-core-part-,$(TEST_CORE_PARTS)) $(addprefix test-tools-part-,$(TEST_TOOLS_PARTS)) all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-fat test-uefi-nic usb-image usb-disk usb-run usb-boot test-usb-image test-install test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels nv-shaders test video mindblown-video jit-video clean
 
 .PHONY: test-ffi-bigint-owned test-ffi-gpu-paged test-ffi-headless test-ffi-no-platform test-ffi-display

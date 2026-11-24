@@ -25,6 +25,20 @@ timeLimitMilliseconds
 ! !
 
 !NvComputeGPUTest methodsFor: 'tests'!
+testOnlyTheRenderersPipeline
+	"As on a SoftwareGPU, but a fragment shader with entry main is GLSL here (FragmentShader's, NvFragmentShaderTest): it compiles or is a ShaderError, and its pipeline covers an RGBA8 target unblended."
+	| vs fs |
+	self assert: (gpu shaderLanguage: dev) equals: self shaderLanguage.
+	self should: [gpu createShader: dev source: 'f' entry: 'main' stage: 1 samplers: 0 uniformBuffers: 1 storageBuffers: 0 storageTextures: 0] raise: ShaderError.
+	vs := gpu createShader: dev source: 'v' entry: 'main' stage: 0 samplers: 0 uniformBuffers: 0 storageBuffers: 0 storageTextures: 0.
+	fs := gpu createShader: dev source: FragmentShader glslPrelude, 'void main() { fragColor = vec4(1.0); }' entry: 'main' stage: 1 samplers: 0 uniformBuffers: 1 storageBuffers: 0 storageTextures: 0.
+	self assert: (gpu createPipeline: dev vertex: vs fragment: fs stride: 0 attributes: #() primitive: 0 blend: 0 format: 2) > 0.
+	self failure: [gpu createPipeline: dev vertex: vs fragment: fs stride: 0 attributes: #() primitive: 0 blend: 0 format: 3]
+		is: 'a fragment shader here covers an RGBA8 target with one triangle, unblended'.
+	self failure: [gpu createPipeline: dev vertex: fs fragment: vs stride: 40 attributes: #(4 0 7 16 7 20 5 24 7 28 2 32) primitive: 0 blend: 2 format: 2]
+		is: 'the software GPU runs the Renderer''s shader only'.
+	self assert: (self pipelineBlend: 0) > 0
+!
 testTheL2AndTheCPUAgree
 	"Textures are memory the GPU caches: what the CPU uploads over pixels a kernel read before is what the next kernel reads, and what kernels write is what a download reads, round after round."
 	| src dst |

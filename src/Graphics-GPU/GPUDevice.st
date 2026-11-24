@@ -28,6 +28,25 @@ buildsShaders
 	"Whether I build pipelines from shader source (SDL_GPU: #msl, #glsl). A SoftwareGPU or an NvComputeGPU runs the Renderer's shader natively and refuses every other pipeline: the Renderer does not rebuild on them, and FragmentShaders and ShaderViews draw without one."
 	^#(#msl #glsl) includes: self shaderLanguage
 !
+runsFragmentShaders
+	"Whether FragmentShaders run on me (their source in fragmentShaderLanguage): where I build shaders (SDL_GPU), and on an NvComputeGPU that has their compiler (NVRTC) or precompiled kernels; not on a SoftwareGPU."
+	self buildsShaders ifTrue: [^true].
+	^GPUPlatform runsFragmentShaders: self handle
+!
+runsFragmentShader: aString
+	"Whether the fragment shader aString (in fragmentShaderLanguage, its prelude included) can run on me: on an NvComputeGPU without NVRTC only a precompiled one can."
+	self buildsShaders ifTrue: [^true].
+	^GPUPlatform canBuildFragmentShader: self handle source: aString
+!
+fragmentShaderReady: aString
+	"Whether a pipeline of the fragment shader aString (its prelude included) is built at once; if not (an NvComputeGPU compiling it in the background), FragmentShader keeps drawing with its old one meanwhile."
+	self buildsShaders ifTrue: [^true].
+	^GPUPlatform fragmentShaderReady: self handle source: aString
+!
+fragmentShaderLanguage
+	"The language of FragmentShaders' sources: my shaderLanguage, but GLSL on an NvComputeGPU (#raster), which compiles GLSL fragment shaders to kernels."
+	^self shaderLanguage == #raster ifTrue: [#glsl] ifFalse: [self shaderLanguage]
+!
 shaderLanguage
 	"#msl (Metal, macOS), #glsl (Vulkan, Linux: GLSL 450 compiled to SPIR-V with SAMALTAK_VERTEX or SAMALTAK_FRAGMENT defined, so that one source can hold both stages; the entry point is main), #software (SoftwareGPU: the CPU runs the Renderer's shader, and no other) or #raster (NvComputeGPU: the Renderer's shader on the GPU's raster kernels, and no other; buildsShaders). Shader sources are in this language."
 	| h |
