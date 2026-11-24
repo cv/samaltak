@@ -1,17 +1,16 @@
 UefiModule subclass: #UefiImageStore
-	instanceVariableNames: 'blockIo mediaId blockSize slotBytes current sequence buffer used position length writing target bootPath bootPathLength'
+	instanceVariableNames: 'blockIo mediaId blockSize slotBytes current sequence buffer used position length writing target'
 	classVariableNames: 'STORE_BUFFER STORE_DATA STORE_HEADER_BYTES'
 	package: 'VM-UEFI'!
 
-UefiImageStore comment: 'The image on a raw partition (or a whole disk) without a file system: the image path disk: (UefiLibC>>fopen:mode:) reads the newest of two slots and a snapshot writes the other, so a crash while writing leaves the last good image. Found at start among the firmware''s block devices by its superblock: the first on the disk the VM was loaded from (so a machine with Samaltak installed on its disk and the boot stick plugged in uses the store of whichever it booted), else the first.
+UefiImageStore comment: 'The image on a raw partition (or a whole disk) without a file system: the image path disk: (UefiLibC>>fopen:mode:) reads the newest of two slots and a snapshot writes the other, so a crash while writing leaves the last good image. Found at start among the firmware''s block devices by its superblock.
 
 Layout, in bytes: 0 the superblock (SAMSTORE), 4096 and 8192 the headers of slots 0 and 1 (UefiSlotHeader: SAMSLOT1, sequence, length, check), 1 MB slot 0''s image, 1 MB + slotBytes slot 1''s, slotBytes half of what follows the first megabyte. A snapshot writes the image, flushes, then writes its slot''s header with the next sequence number and flushes again: a header is valid (magic and check) only once its image is complete. UefiImageDisk writes a store with the image in slot 0.'!
 
 !UefiImageStore class methodsFor: 'declaring'!
 declarations
 	^#((blockIo 'EfiBlockIo *') (mediaId uint32_t) (blockSize uint64_t) (slotBytes uint64_t) (current int32_t -1) (sequence uint64_t)
-		(buffer 'uint8_t *') (used uint64_t) (position uint64_t) (length uint64_t) (writing bool) (target int32_t)
-		(bootPath 'uint8_t *') (bootPathLength uint64_t))
+		(buffer 'uint8_t *') (used uint64_t) (position uint64_t) (length uint64_t) (writing bool) (target int32_t))
 !
 initialize
 	STORE_HEADER_BYTES := 4096.
@@ -27,9 +26,9 @@ slotCheckOf: sequence length: length
 
 !UefiImageStore methodsFor: 'finding'!
 start
-	"Find the block device whose first bytes are the superblock, on the boot disk if one is; read its slot headers."
+	"Find the block device whose first bytes are the superblock; read its slot headers."
 	<function>
-	| guid count handles bio pages onBootDisk |
+	| guid count handles bio pages |
 	pages := self local: 'uint64_t'.
 	(self efiFailed: (self efi: self boot allocatePages with: EFI_ALLOCATE_ANY_PAGES with: EFI_LOADER_DATA with: STORE_BUFFER >> 12 with: pages)) ifTrue: [^self].
 	buffer := self cCoerce: pages value to: 'uint8_t *'.
@@ -39,16 +38,9 @@ start
 	handles := self local: 'void **'.
 	(self efiFailed: (self efi: self boot locateHandleBuffer with: 2 with: guid with: self null with: count with: handles)) ifTrue: [^self].
 	bio := self local: 'EfiBlockIo *'.
-	self findBootDisk.
-	onBootDisk := false.
 	0 to: (count value asInt64) - 1 do: [:i |
-		(onBootDisk not and: [(self efiFailed: (self efi: self boot handleProtocol with: (handles value at: i) with: guid with: bio)) not]) ifTrue: [
-			(self isStore: bio value) ifTrue: [
-				(self isOnBootDisk: (handles value at: i))
-					ifTrue: [
-						blockIo := bio value.
-						onBootDisk := true]
-					ifFalse: [blockIo isNull ifTrue: [blockIo := bio value]]]]].
+		(blockIo isNull and: [(self efiFailed: (self efi: self boot handleProtocol with: (handles value at: i) with: guid with: bio)) not]) ifTrue: [
+			(self isStore: bio value) ifTrue: [blockIo := bio value]]].
 	self efi: self boot freePool with: handles value.
 	blockIo isNull ifTrue: [^self].
 	mediaId := blockIo media mediaId.
@@ -61,48 +53,6 @@ start
 					current := slot asInt32.
 					sequence := (self cCoerce: buffer to: 'UefiSlotHeader *') sequence.
 					length := (self cCoerce: buffer to: 'UefiSlotHeader *') length]]]]
-!
-findBootDisk
-	"bootPath: the device path of the volume the VM was loaded from, bootPathLength its bytes before the partition node (0 if unknown): the disk's path."
-	<function>
-	| guid image path |
-	bootPathLength := 0.
-	guid := self local: 'EfiGuid'.
-	image := self local: 'EfiLoadedImage *'.
-	firmware guid: guid data1: 16r5B1B31A1 data2: 16r9562 data3: 16r11D2 data4: 16r8E3F00A0C969723B.
-	(self efiFailed: (self efi: self boot handleProtocol with: firmware imageHandle with: guid with: image)) ifTrue: [^self].
-	path := self local: 'uint8_t *'.
-	firmware guid: guid data1: 16r09576E91 data2: 16r6D3F data3: 16r11D2 data4: 16r8E3900A0C969723B.
-	(self efiFailed: (self efi: self boot handleProtocol with: image value deviceHandle with: guid with: path)) ifTrue: [^self].
-	bootPath := path value.
-	bootPathLength := self diskPrefixOf: bootPath
-!
-diskPrefixOf: p
-	"The bytes of the device path p before its first hard drive (partition) node or its end."
-	<function>
-	<var: #p type: 'uint8_t *'>
-	<returns: 'uint64_t'>
-	| i len |
-	i := 0 asUInt64.
-	[(p at: i) ~= 16r7F and: [((p at: i) = 4 and: [(p at: i + 1) = 1]) not]] whileTrue: [
-		len := (p at: i + 2) asUInt64 + ((p at: i + 3) asUInt64 << 8).
-		len < 4 ifTrue: [^i].
-		i := i + len].
-	^i
-!
-isOnBootDisk: handle
-	"Whether the device handle is the boot disk or one of its partitions."
-	<function>
-	<var: #handle type: 'void *'>
-	<returns: 'bool'>
-	| guid path |
-	bootPathLength = 0 ifTrue: [^false].
-	guid := self local: 'EfiGuid'.
-	firmware guid: guid data1: 16r09576E91 data2: 16r6D3F data3: 16r11D2 data4: 16r8E3900A0C969723B.
-	path := self local: 'uint8_t *'.
-	(self efiFailed: (self efi: self boot handleProtocol with: handle with: guid with: path)) ifTrue: [^false].
-	(self diskPrefixOf: path value) = bootPathLength ifFalse: [^false].
-	^(libc memcmp: path value with: bootPath size: bootPathLength) = 0
 !
 isStore: bio
 	"Whether bio's medium starts with the superblock."

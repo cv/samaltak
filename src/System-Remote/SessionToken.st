@@ -140,8 +140,7 @@ takeAnnouncement
 	^t ifNotNil: [:x | self grouped: x]
 !
 show: aLine
-	Smalltalk vm stdoutWrite: aLine, (String with: Character lf).
-	Machine hasFirmware ifTrue: [[FirmwareDiagnostics new echoOnScreen: aLine] on: Error do: [:e | e return: nil]]
+	Smalltalk vm stdoutWrite: aLine, (String with: Character lf)
 ! !
 
 !SessionToken class methodsFor: 'display password'!

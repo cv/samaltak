@@ -294,8 +294,7 @@ configuredPassword
 announcePassword: aString
 	| text |
 	text := 'display: password ', aString, ' (VNC authentication; made at start, shown once)'.
-	Smalltalk vm stdoutWrite: text, (String with: Character lf).
-	Machine hasFirmware ifTrue: [[(Smalltalk at: #FirmwareDiagnostics) new echoOnScreen: text] on: Error do: [:e | e return: nil]]
+	Smalltalk vm stdoutWrite: text, (String with: Character lf)
 !
 priority
 	^45

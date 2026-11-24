@@ -3,7 +3,7 @@ Object subclass: #ToolsMenu
 	classVariableNames: 'Entries'
 	package: 'Tools'!
 
-ToolsMenu comment: 'I build the World menu (a click on the desk). Tools register what they open, sorted by order, in a group: #open (the top section, the default) or the #tools, #apps or #settings submenu (groups). The rest of the menu is mine: in Tools, long computation and user interrupt; in Settings, slow motion (every animation 10× slower); arrange, save; in System, rebuild the VM and reboot and, on UEFI, the firmware''s: install Samaltak onto the machine''s disk, reboot into Ubuntu, Samaltak or the firmware''s setup (FirmwareBoot: BootNext, once), restart, warm restart or power off (Firmware reset:); help, quit.
+ToolsMenu comment: 'I build the World menu (a click on the desk). Tools register what they open, sorted by order, in a group: #open (the top section, the default) or the #tools, #apps or #settings submenu (groups). The rest of the menu is mine: in Tools, long computation and user interrupt; in Settings, slow motion (every animation 10× slower); arrange, save; in System, rebuild the VM and reboot and, on UEFI, the firmware''s: restart, warm restart or power off (Firmware reset:); help, quit.
 
 	ToolsMenu register: ''Profiler'' description: ''samples · frames'' group: #tools order: 60 action: [:aPoint | ...]
 	ToolsMenu unregister: ''Profiler''
@@ -63,13 +63,8 @@ worldMenuAt: aPoint
 	^menu
 !
 addFirmwareItemsTo: aMenu
-	"On UEFI: the installer, the reboots into each system (docs/uefi.md, Installing), and restarting or powering off by the firmware (Firmware reset:)."
+	"On UEFI: restarting or powering off by the firmware (Firmware reset:)."
 	aMenu addSeparator.
-	aMenu add: 'Install Samaltak…' description: 'onto this machine''s disk' action: [self run: [Tools openInstaller]].
-	aMenu addSeparator.
-	aMenu add: 'Reboot into Ubuntu' description: 'BootNext, once' action: [self run: [Tools rebootInto: #ubuntu]].
-	aMenu add: 'Reboot into Samaltak' description: 'from the disk' action: [self run: [Tools rebootInto: #samaltak]].
-	aMenu add: 'Reboot to firmware setup' action: [self run: [Tools rebootToFirmwareSetup]].
 	aMenu add: 'Restart' description: 'firmware reset' action: [self run: [Firmware restart]].
 	aMenu add: 'Warm restart' description: 'firmware warm reset' action: [self run: [Firmware warmRestart]].
 	aMenu add: 'Power off' description: 'firmware shutdown' action: [self run: [Firmware powerOff]]

@@ -48,25 +48,17 @@ lines over TCP, every request with `"auth": "<token>"`.
 - Every command sends the session's token. The samaltak.* pi functions redact it (ctlSession, crashLog), as they redact
   API keys and GitHub tokens.
 
-## A bare-metal machine (the DGX Spark)
+## Another machine (the DGX Spark)
 
-The VM on the Spark (docs/uefi.md, Real hardware) runs no operating system: no sshd, no TLS on the control channel. To
-drive it from another machine:
+The Spark runs the Linux appliance (docs/linux-appliance.md): its `samaltak.args`, on the data volume, start the
+control service and the RFB server on every address, with a control token and a VNC password made for the stick
+(0600; kept as `OUT/linux-appliance/usb-control-token` and `usb-vnc-password`). To drive it from another machine:
 
-1. **The stick.** `make usb-image USB_CONTROL=1` adds `--control --control-host 0.0.0.0 --control-port 7341` to
-   `samaltak.args` (with `USB_ARGS` as before, e.g. `--headless` for no World). Either let the image make the token at
-   each boot (the default), or fix one: `openssl rand -hex 16 > ~/.samaltak-spark-token; chmod 600 ~/.samaltak-spark-token`,
-   then `make usb-image USB_CONTROL=1 USB_CONTROL_TOKEN_FILE=~/.samaltak-spark-token` writes it into `samaltak.args` (never
-   on a command line; the summary line shows `<token>`; `usb.img` is made 0600). Anyone who can read the stick can read
-   that token.
-2. **Boot.** The console shows `control: listening on 0.0.0.0:7341` and, for a token it made, `control: token …`; the
-   World shows that token in a toast. Its address: the DHCP lease (FirmwareDiagnostics' `dhcp` line with
-   `USB_DIAG=1`, or the router's lease table).
-3. **Connect.** Put the token in a file only you can read (`umask 077; cat > ~/.spark-token`, paste, Ctrl-D; the dashes
+1. **Connect.** Put the token in a file only you can read (`umask 077; cat > ~/.spark-token`, paste, Ctrl-D; the dashes
    may stay), then `tools/samaltak-ctl --session spark connect --host <spark-address> --port 7341 --token-file
    ~/.spark-token`, and drive it: `tools/samaltak-ctl --session spark eval 'Smalltalk vmBanner'`, `screenshot`,
    `agent-config --from-pi`, … `close` forgets the session; `close --quit` ends the VM.
-4. **The network.** The token keeps out whoever merely reaches the port, not someone who reads the traffic: requests,
+2. **The network.** The token keeps out whoever merely reaches the port, not someone who reads the traffic: requests,
    the token in each and the answers (an API key sent with `agent-config`) cross the network in clear. Keep the Spark on a
    network you trust (a direct cable, or an isolated VLAN), and reach it from elsewhere through an SSH tunnel to a machine
    beside it: `ssh -N -L 7341:<spark-address>:7341 <jump-host>`, then `connect --port 7341` (host 127.0.0.1); only the hop
@@ -78,8 +70,8 @@ The image can serve its own screen and take input over RFB, the VNC protocol (`R
 the World on a bare-metal machine from another one, and under QEMU an alternative to QEMU's own VNC server. It is
 started by `--display`, listens on `--display-host` (`127.0.0.1` by default, like the control service) and
 `--display-port` (5900); `--display-vnc-auth` offers VNC authentication with the password from
-`--display-password-file`, else one it makes and shows once (`display: password …`, on the console and, on UEFI, on the
-screen). That password is 8 random characters of its own, never derived from the control token.
+`--display-password-file`, else one it makes and shows once (`display: password …`, on the
+console). That password is 8 random characters of its own, never derived from the control token.
 
 **Starting it.**
 
@@ -94,9 +86,8 @@ screen). That password is 8 random characters of its own, never derived from the
   else `~/.samaltak-vnc` where present, else one made for the session in `<session>.vnc-password` (0600); it prints
   the file's name, never the password. `samaltak.vncWorld({ action: "restart" })` opens the operator's World on the
   image's server (`server: "qemu"` for QEMU's).
-- A bare-metal machine: `make usb-image USB_DISPLAY=1 USB_DISPLAY_PASSWORD_FILE=f` listens on every address, port
-  5900, with VNC authentication (never without: without `f` the image makes a password at each boot and shows it on the
-  screen). Anyone who can read the stick can read `f`'s copy on its ESP.
+- The appliance (the Spark): the same flags with `--display-password-file /data/vnc-password` on its data volume
+  (docs/linux-appliance.md).
 
 **Connecting**, through an SSH tunnel to the machine running QEMU (or to a jump host beside a bare-metal one):
 

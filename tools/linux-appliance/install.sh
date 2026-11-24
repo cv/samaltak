@@ -8,7 +8,7 @@
 #     here, 0600, copies in /var/lib/samaltak), unless it is there already;
 #   - a boot option "Samaltak Linux" for the UKI whose load options are its command line plus samaltak.data=UUID=<the
 #     root's>:/var/lib/samaltak/data.img (Secure Boot off: systemd's stub takes them over its built-in one); BootOrder
-#     is put back as it was, so the machine still boots DGX OS unless asked (--bootnext, or tools/reboot-into-samaltak).
+#     is put back as it was, so the machine still boots DGX OS unless asked (--bootnext, or efibootmgr -n).
 #
 # usage: sudo sh install.sh [--uki FILE] [--data-from DIR] [--data-mb N] [--no-old] [--bootnext] [--dry-run]
 #   --no-old   replace the installed UKI without keeping it as .old (DGX OS's 300 MB ESP holds one Spark UKI, 164 MB)
@@ -114,4 +114,4 @@ if [ $bootnext = 1 ] && [ -n "$n" ]; then
 	run efibootmgr -q -n "$n"
 	say "BootNext ${n}: the next boot starts Samaltak, once"
 fi
-say "to boot it once later: sudo efibootmgr -n ${n:-NNNN} && sudo reboot (or tools/reboot-into-samaltak)"
+say "to boot it once later: sudo efibootmgr -n ${n:-NNNN} && sudo reboot"

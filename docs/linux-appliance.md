@@ -127,8 +127,8 @@ Secure Boot is off on this Spark (`mokutil --sb-state`), and its boot options ar
   (`/var/lib/samaltak/data.img`, from the stick's `SAMALTAK-DATA` when it is mounted), and adds a boot option
   "Samaltak Linux" whose load options are the UKI's command line plus `samaltak.data=UUID=<root>:/var/lib/samaltak/data.img`
   (with Secure Boot off systemd's stub uses them; rcS mounts that file system at `/host` and the file as `/data`).
-  BootOrder is put back as it was: DGX OS stays the default, and `--bootnext` (or `efibootmgr -n`,
-  `tools/reboot-into-samaltak`) boots Samaltak once. `--dry-run` shows what it would do (on this Spark: ESP
+  BootOrder is put back as it was: DGX OS stays the default, and `--bootnext` (or `efibootmgr -n`) boots
+  Samaltak once. `--dry-run` shows what it would do (on this Spark: ESP
   `/dev/nvme0n1p1`, 291 MB free).
 - Devices that come after the coldplug (USB keyboards, mice, sticks: xHCI enumerates them later) get their modules
   from the kernel's uevent helper (`/sbin/samaltak-hotplug`: modprobe of the device's alias), so no udevd is needed.

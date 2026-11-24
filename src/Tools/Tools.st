@@ -348,20 +348,6 @@ saveImage
 !
 quit
 	Smalltalk quit: 0
-!
-openInstaller
-	^InstallerView open
-!
-rebootInto: aSymbol
-	"Reboot once into #ubuntu or #samaltak (FirmwareBoot: BootNext); a toast says why not if it cannot."
-	| why |
-	why := FirmwareBoot rebootInto: aSymbol.
-	self toast: 'Cannot reboot into ', aSymbol, ': ', why asString
-!
-rebootToFirmwareSetup
-	| why |
-	why := FirmwareBoot rebootToFirmwareSetup.
-	self toast: 'Cannot reboot to the firmware setup: ', why asString
 ! !
 
 !Tools class methodsFor: 'ui services'!
