@@ -54,8 +54,13 @@ running() { # pid of the process whose command line has $1 (pgrep -f; /proc wher
   for d in /proc/[0-9]*; do case "$(tr '\0' ' ' <"$d/cmdline" 2>/dev/null)" in *"$1"*) echo "${d#/proc/}"; return ;; esac; done
 }
 check "same process" "$pid" "$(running "$SCRATCH/build/vm/samaltak")"
-$CTL wait 'rebooted in' 10000 >/dev/null || fail "the rebuild log says rebooted"
-check "every window back" "$before" "$(windows)"
+$CTL wait 'rebooted in' 10000 >/dev/null || { fail "the rebuild log says rebooted; the session's log ends:"; tail -n 15 "$log" | sed 's/^/    /'; }
+after=$(windows)
+check "every window back" "$before" "$after"
+# a window that is new (an Error notifier): what it says
+for w in $(echo "$after" | sed -n 's/^window \(@w[0-9]*\) .*/\1/p'); do
+  echo "$before" | grep -q "^window $w " || $CTL snapshot "$w" | head -40 | sed 's/^/    /'
+done
 check "top bar shows it" 'topbar @top "reboot.image | Samaltak VM, rebooted"' "$($CTL snapshot --depth 0 | grep '^topbar' | sed 's/ compositor=.*//')"
 [ -x "$SCRATCH/build/vm/samaltak" ] && pass "binary beside the sources" || fail "no $SCRATCH/build/vm/samaltak"
 check "vm/gen untouched" "$gen" "$(cat vm/gen/* | cksum)"
