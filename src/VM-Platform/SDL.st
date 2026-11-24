@@ -14,7 +14,7 @@ typedefs
 		(SDL_Window opaque) (SDL_Cursor opaque) (SDL_DisplayID uint32_t) (SDL_WindowID uint32_t) (SDL_WindowFlags uint64_t)
 		(SDL_InitFlags uint32_t) (SDL_Keymod uint16_t) (SDL_Keycode uint32_t) (SDL_MouseButtonFlags uint32_t)
 		(SDL_MouseWheelDirection uint32_t) (SDL_EventAction uint32_t) (SDL_SystemCursor uint32_t) (SDL_LogPriority uint32_t)
-		(SDL_LogOutputFunction 'void (*)(void *, int, SDL_LogPriority, const char *)'))
+		(SDL_LogOutputFunction 'void (*)(void *, int, SDL_LogPriority, const char *)') (SDL_Surface opaque) (SDL_PixelFormat uint32_t))
 ! !
 
 !SDL methodsFor: 'simulation'!
@@ -250,6 +250,30 @@ setTextInputArea: window rect: rect cursor: cursor
 	<c: 'bool SDL_SetTextInputArea(SDL_Window *window, const SDL_Rect *rect, int cursor)'>
 	^self notSimulated
 !
+getWindowSurface: window
+	<c: 'SDL_Surface *SDL_GetWindowSurface(SDL_Window *window)'>
+	^self notSimulated
+!
+updateWindowSurface: window rects: rects count: n
+	<c: 'bool SDL_UpdateWindowSurfaceRects(SDL_Window *window, const SDL_Rect *rects, int numrects)'>
+	^self notSimulated
+!
+updateWindowSurface: window
+	<c: 'bool SDL_UpdateWindowSurface(SDL_Window *window)'>
+	^self notSimulated
+!
+createSurfaceFrom: w height: h format: format pixels: pixels pitch: pitch
+	<c: 'SDL_Surface *SDL_CreateSurfaceFrom(int width, int height, SDL_PixelFormat format, void *pixels, int pitch)'>
+	^self notSimulated
+!
+blitSurface: src rect: srcRect to: dst rect: dstRect
+	<c: 'bool SDL_BlitSurface(SDL_Surface *src, const SDL_Rect *srcrect, SDL_Surface *dst, const SDL_Rect *dstrect)'>
+	^self notSimulated
+!
+destroySurface: surface
+	<c: 'void SDL_DestroySurface(SDL_Surface *surface)'>
+	^self notSimulated
+!
 getWindowID: window
 	<c: 'SDL_WindowID SDL_GetWindowID(SDL_Window *window)'>
 	^self notSimulated
@@ -304,6 +328,10 @@ getWindowFlags: window
 !
 SDL_WINDOW_HIDDEN
 	<cMacro: 'SDL_WindowFlags SDL_WINDOW_HIDDEN'>
+	^self notSimulated
+!
+SDL_PIXELFORMAT_XRGB8888
+	<cMacro: 'SDL_PixelFormat SDL_PIXELFORMAT_XRGB8888'>
 	^self notSimulated
 !
 SDL_WINDOW_MINIMIZED

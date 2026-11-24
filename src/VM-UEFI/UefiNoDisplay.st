@@ -476,6 +476,22 @@ setPosition: win x: x y: y
 	common setError: 'not on UEFI'.
 	^false
 !
+presentPixels: win address: p width: fw height: fh bytesPerRow: bpr x: x y: y width: w height: h mode: mode
+	<function>
+	<var: #win type: 'int32_t'>
+	<var: #p type: 'uint8_t *'>
+	<var: #fw type: 'int32_t'>
+	<var: #fh type: 'int32_t'>
+	<var: #bpr type: 'int32_t'>
+	<var: #x type: 'int32_t'>
+	<var: #y type: 'int32_t'>
+	<var: #w type: 'int32_t'>
+	<var: #h type: 'int32_t'>
+	<var: #mode type: 'int32_t'>
+	<returns: 'bool'>
+	common setError: 'not on UEFI'.
+	^false
+!
 setTitle: win title: title
 	<function>
 	<var: #win type: 'int32_t'>

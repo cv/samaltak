@@ -156,6 +156,44 @@ setTextInputArea: win x: x y: y width: w height: h cursor: cursor
 	r h: h.
 	^sdl setTextInputArea: sw rect: r cursor: cursor
 !
+presentPixels: win address: p width: fw height: fh bytesPerRow: bpr x: x y: y width: w height: h mode: mode
+	"The rectangle x, y, w, h of a frame of fw x fh BGRA8 pixels at p (rows of bpr bytes), clipped to the frame, in the window's surface (SDL_GetWindowSurface: the video driver's framebuffer, or SDL's emulation of one with a renderer where it has none, as on KMS/DRM): mode bit 1 copies it there, bit 2 shows that rectangle of the surface (one call per damaged rectangle with 1, then their bounds with 2: SDL's emulation draws a frame per show). How a GPU of the image (SoftwareGPU, NvComputeGPU) presents where the VM has no SDL_GPU device: no Vulkan driver that shows on this display (lavapipe on KMS/DRM, QEMU's virtio-gpu; HostFramePresenter)."
+	<export>
+	<var: #p type: 'uint8_t *'>
+	<var: #ok type: 'bool'>
+	| sw dst src r cx cy cw ch ok |
+	sw := self sdlWindow: win.
+	sw isNull ifTrue: [^false].
+	dst := sdl getWindowSurface: sw.
+	dst isNull ifTrue: [
+		common setError: 'SDL_GetWindowSurface: %s' with: sdl getError.
+		^false].
+	cx := x max: 0.
+	cy := y max: 0.
+	cw := (x + w min: fw) - cx.
+	ch := (y + h min: fh) - cy.
+	(cw <= 0 or: [ch <= 0]) ifTrue: [^true].
+	r := self local: 'SDL_Rect'.
+	r x: cx.
+	r y: cy.
+	r w: cw.
+	r h: ch.
+	(mode bitAnd: 1) ~= 0 ifTrue: [
+		src := sdl createSurfaceFrom: cw height: ch format: sdl SDL_PIXELFORMAT_XRGB8888 pixels: p + (cy * bpr) + (cx * 4) pitch: bpr.
+		src isNull ifTrue: [
+			common setError: 'SDL_CreateSurfaceFrom: %s' with: sdl getError.
+			^false].
+		ok := sdl blitSurface: src rect: self null to: dst rect: r.
+		sdl destroySurface: src.
+		ok ifFalse: [
+			common setError: 'SDL_BlitSurface: %s' with: sdl getError.
+			^false]].
+	(mode bitAnd: 2) = 0 ifTrue: [^true].
+	(sdl updateWindowSurface: sw rects: r count: 1) ifFalse: [
+		common setError: 'SDL_UpdateWindowSurfaceRects: %s' with: sdl getError.
+		^false].
+	^true
+!
 show: win visible: show
 	"Showing also raises the window and asks for the focus (the window manager may only mark it urgent)."
 	<export>

@@ -19,7 +19,9 @@ PixelPack 213, ZRLE 214, PixelDiff 215, the byte-range compares 119/122, the dev
 - The one fork change that the FFI cannot carry is uploading a texture from an address outside the heap
   (`HostFramePresenter`, `NvComputeGPU`'s back buffer): the image passes no raw pointers through the FFI, so it is
   a primitive of its own, `gpuUploadTextureAddress` (462), and `GPUPrimitives uploadTexture:bytes:...` sends an
-  Integer there and a byte object to `platform_gpu_upload_texture`.
+  Integer there and a byte object to `platform_gpu_upload_texture`. Its sibling `windowPresentAddress` (463) copies a
+  rectangle of such a frame into the window's SDL surface, for `HostFramePresenter` where no SDL_GPU device can be
+  made (no Vulkan driver that shows on the display: lavapipe on KMS/DRM, docs/linux-appliance.md).
 
 ## Which kernels could be FFI-bound C functions
 

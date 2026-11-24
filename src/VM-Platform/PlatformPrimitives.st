@@ -184,6 +184,26 @@ primGpuUploadTextureAddress
 	p isNull ifTrue: [^self fail].
 	self answerOk: (gpu uploadTexture: t asInt32 data: p length: h asUInt64 * bpr asUInt64 x: x asInt32 y: y asInt32 width: w asInt32 height: h asInt32 bytesPerRow: bpr asInt32)
 !
+primWindowPresentAddress
+	"win address frameWidth frameHeight bytesPerRow x y w h mode: the rectangle x y w h of a BGRA8 frame at address, outside the heap (a SoftwareGPU's or NvComputeGPU's back buffer), copied into the window's surface (mode bit 1) and shown (bit 2) (HostFramePresenter without an SDL_GPU device; PlatformWindows>>presentPixels:...). A primitive, as the image passes no addresses through the FFI (gpuUploadTextureAddress)."
+	<vmPrimitive: 463 name: 'windowPresentAddress'>
+	| win fw fh bpr x y w h mode p |
+	(self args: 10) ifFalse: [^self fail].
+	win := self intArg: 0.
+	fw := self intArg: 2.
+	fh := self intArg: 3.
+	bpr := self intArg: 4.
+	x := self intArg: 5.
+	y := self intArg: 6.
+	w := self intArg: 7.
+	h := self intArg: 8.
+	mode := self intArg: 9.
+	(bad or: [(self isAddressArg: 1) not or: [fw <= 0 or: [fh <= 0 or: [bpr < (fw * 4)]]]]) ifTrue: [^self fail].
+	p := self addressArg: 1.
+	p isNull ifTrue: [^self fail].
+	self answerOk: (windows presentPixels: win asInt32 address: p width: fw asInt32 height: fh asInt32 bytesPerRow: bpr asInt32
+		x: x asInt32 y: y asInt32 width: w asInt32 height: h asInt32 mode: mode asInt32)
+!
 primGpuTextureSize
 	"tex -> {w. h. format}"
 	<vmPrimitive: 457 name: 'gpuTextureSize'>

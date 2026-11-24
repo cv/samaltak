@@ -1731,6 +1731,66 @@ void prim_window_hide(void)
     }
 }
 
+/* PlatformPrimitives>>primWindowPresentAddress */
+void prim_window_present_address(void)
+{
+    bool r_args;
+    int64_t win;
+    int64_t fw;
+    int64_t fh;
+    int64_t bpr;
+    int64_t x;
+    int64_t y;
+    int64_t w;
+    int64_t h;
+    int64_t mode;
+    bool r_is_address_arg;
+    oop o;
+    uint8_t *p;
+    bool a_boolean;
+    oop v;
+    if (!({
+    bad = false;
+    r_args = prim_nargs == 10;
+    r_args; })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    win = int_arg(0);
+    fw = int_arg(2);
+    fh = int_arg(3);
+    bpr = int_arg(4);
+    x = int_arg(5);
+    y = int_arg(6);
+    w = int_arg(7);
+    h = int_arg(8);
+    mode = int_arg(9);
+    if (bad || ((!({
+    o = prim_base[2];
+    r_is_address_arg = ((o & 1) != 0) || (((o & 7) == 0) && (class_of(o) == object_memory_special(SO_LARGEPOS)));
+    r_is_address_arg; })) || ((fw <= 0) || ((fh <= 0) || (bpr < fw * 4))))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    p = address_arg(1);
+    if (p == NULL) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    a_boolean = present_pixels((int32_t)win, p, (int32_t)fw, (int32_t)fh, (int32_t)bpr, (int32_t)x, (int32_t)y, (int32_t)w, (int32_t)h, (int32_t)mode);
+    if (a_boolean) {
+        v = prim_base[0];
+        prim_result = v;
+        prim_status = PS_OK;
+    } else {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+    }
+}
+
 /* PlatformPrimitives>>primWindowRefreshRate */
 void prim_window_refresh_rate(void)
 {

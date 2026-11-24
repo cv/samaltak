@@ -151,6 +151,72 @@ bool pixel_size(int32_t win, int *w, int *h)
     return (sw != NULL) && SDL_GetWindowSizeInPixels(sw, w, h);
 }
 
+/* PlatformWindows>>presentPixels:address:width:height:bytesPerRow:x:y:width:height:mode: */
+bool present_pixels(int32_t win, uint8_t *p, int32_t fw, int32_t fh, int32_t bpr, int32_t x, int32_t y, int32_t w, int32_t h, int32_t mode)
+{
+    bool ok;
+    SDL_Window *sw;
+    SDL_Surface *dst;
+    const char *a;
+    int32_t cx;
+    int32_t cy;
+    int32_t cw;
+    int32_t ch;
+    SDL_Rect local;
+    SDL_Rect *r;
+    SDL_Surface *src;
+    const char *a_2;
+    const char *a_3;
+    const char *a_4;
+    sw = sdl_window(win);
+    if (sw == NULL) {
+        return false;
+    }
+    dst = SDL_GetWindowSurface(sw);
+    if (dst == NULL) {
+        a = SDL_GetError();
+        snprintf(last_error, LAST_ERROR_SIZE, "SDL_GetWindowSurface: %s", a);
+        return false;
+    }
+    cx = x > 0 ? x : 0;
+    cy = y > 0 ? y : 0;
+    cw = (x + w < fw ? x + w : fw) - cx;
+    ch = (y + h < fh ? y + h : fh) - cy;
+    if ((cw <= 0) || (ch <= 0)) {
+        return true;
+    }
+    memset(&local, 0, sizeof local);
+    r = &local;
+    r->x = cx;
+    r->y = cy;
+    r->w = cw;
+    r->h = ch;
+    if ((mode & 1) != 0) {
+        src = SDL_CreateSurfaceFrom(cw, ch, SDL_PIXELFORMAT_XRGB8888, p + cy * bpr + cx * 4, bpr);
+        if (src == NULL) {
+            a_2 = SDL_GetError();
+            snprintf(last_error, LAST_ERROR_SIZE, "SDL_CreateSurfaceFrom: %s", a_2);
+            return false;
+        }
+        ok = SDL_BlitSurface(src, (const SDL_Rect *)NULL, dst, r);
+        SDL_DestroySurface(src);
+        if (!ok) {
+            a_3 = SDL_GetError();
+            snprintf(last_error, LAST_ERROR_SIZE, "SDL_BlitSurface: %s", a_3);
+            return false;
+        }
+    }
+    if ((mode & 2) == 0) {
+        return true;
+    }
+    if (!SDL_UpdateWindowSurfaceRects(sw, r, 1)) {
+        a_4 = SDL_GetError();
+        snprintf(last_error, LAST_ERROR_SIZE, "SDL_UpdateWindowSurfaceRects: %s", a_4);
+        return false;
+    }
+    return true;
+}
+
 /* PlatformWindows>>refreshRate: */
 double refresh_rate(int32_t win)
 {

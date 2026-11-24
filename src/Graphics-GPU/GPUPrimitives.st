@@ -56,6 +56,15 @@ window: window x: x y: y
 	<primitive: 'windowSetPosition'>
 	^false
 !
+presentWindow: window address: address width: w height: h x: x y: y width: rw height: rh mode: mode
+	"The rectangle x y rw rh of a frame of w x h BGRA8 pixels at address (outside the heap) in window's SDL surface: mode 1 copies it there, 2 shows that part of the surface, 3 both (HostFramePresenter without an SDL_GPU device)."
+	^(self primPresentWindow: window address: address width: w height: h bytesPerRow: w * 4 x: x y: y width: rw height: rh mode: mode)
+		ifNil: [self fail: 'windowPresentAddress']
+!
+primPresentWindow: window address: address width: w height: h bytesPerRow: bpr x: x y: y width: rw height: rh mode: mode
+	<primitive: 'windowPresentAddress'>
+	^nil
+!
 window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
 	| binding result |
 	binding := TextInputAreaCall ifNil: [

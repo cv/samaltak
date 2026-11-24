@@ -1,9 +1,9 @@
 Object subclass: #HostFramePresenter
-	instanceVariableNames: 'device frames'
+	instanceVariableNames: 'device frames surface'
 	classVariableNames: ''
 	package: 'Graphics-GPU'!
 
-HostFramePresenter comment: 'I show frames that a GPU of the image rendered into memory (BGRA8 rows at an address: an NvComputeGPU''s back buffer, or a SoftwareGPU''s on a host) in the VM''s windows, as FirmwareDisplay shows them on the firmware''s screen: I am such a GPU''s display where the VM has windows (GPUPlatform, --gpu). presentWindow:pixels:width:height: uploads the frame from its address into a BGRA8 texture of an SDL_GPU device of my own (GPUPrimitives) and blits that onto the window''s swapchain. The windows and events stay GPUPrimitives'' (GPUPlatform''s display).'!
+HostFramePresenter comment: 'I show frames that a GPU of the image rendered into memory (BGRA8 rows at an address: an NvComputeGPU''s back buffer, or a SoftwareGPU''s on a host) in the VM''s windows, as FirmwareDisplay shows them on the firmware''s screen: I am such a GPU''s display where the VM has windows (GPUPlatform, --gpu). presentWindow:pixels:width:height: uploads the frame from its address into a BGRA8 texture of an SDL_GPU device of my own (GPUPrimitives) and blits that onto the window''s swapchain. Where no SDL_GPU device can be made (no Vulkan driver that shows on this display: lavapipe on KMS/DRM, as in the Linux appliance under QEMU, docs/linux-appliance.md), or SAMALTAK_PRESENT=surface asks for it, I copy the frame''s damaged rectangles into the window''s SDL surface instead (windowPresentAddress) and show it. The windows and events stay GPUPrimitives'' (GPUPlatform''s display).'!
 
 !HostFramePresenter methodsFor: 'initialization'!
 initialize
@@ -17,9 +17,39 @@ windowPixelSize: window
 presentWindow: window pixels: address width: w height: h
 	^self presentWindow: window pixels: address width: w height: h rects: nil
 !
+usesSurface
+	"Whether I show frames in the windows' SDL surfaces rather than through an SDL_GPU device: decided on the first frame."
+	surface isNil ifTrue: [
+		surface := (Smalltalk vm getenv: 'SAMALTAK_PRESENT') = 'surface'
+			or: [device isNil and: [[device := GPUPrimitives createDevice: false. false] on: GPUError do: [:e | e return: true]]]].
+	^surface
+!
+presentSurface: window pixels: address width: w height: h rects: scissorsOrNil
+	"Copy the rectangles scissorsOrNil ({x. y. width. height}; nil: the whole frame) into window's surface, then show their bounds once (SDL's surface on KMS/DRM is drawn by a renderer: a frame per show)."
+	| rects s t x0 y0 x1 y1 |
+	s := StageTimes current.
+	s isNil ifFalse: [t := Time microsecondClockValue].
+	scissorsOrNil isNil ifTrue: [
+		GPUPrimitives presentWindow: window address: address width: w height: h x: 0 y: 0 width: w height: h mode: 3.
+		^s isNil ifFalse: [s add: #'host.surface' since: t bytes: w * h * 4]].
+	rects := scissorsOrNil.
+	rects isEmpty ifTrue: [^self].
+	x0 := y0 := SmallInteger maxVal.
+	x1 := y1 := SmallInteger minVal.
+	rects do: [:r |
+		GPUPrimitives presentWindow: window address: address width: w height: h
+			x: (r at: 1) y: (r at: 2) width: (r at: 3) height: (r at: 4) mode: 1.
+		x0 := x0 min: (r at: 1).
+		y0 := y0 min: (r at: 2).
+		x1 := x1 max: (r at: 1) + (r at: 3).
+		y1 := y1 max: (r at: 2) + (r at: 4)].
+	GPUPrimitives presentWindow: window address: address width: w height: h x: x0 y: y0 width: x1 - x0 height: y1 - y0 mode: 2.
+	s isNil ifFalse: [s add: #'host.surface' since: t bytes: 0]
+!
 presentWindow: window pixels: address width: w height: h rects: scissorsOrNil
 	"Upload the frame (only the rectangles scissorsOrNil, {x. y. width. height}, into the texture that holds the last one) and blit the texture onto the window."
 	| f cmd swap s t bytes rects |
+	self usesSurface ifTrue: [^self presentSurface: window pixels: address width: w height: h rects: scissorsOrNil].
 	s := StageTimes current.
 	s isNil ifFalse: [t := Time microsecondClockValue].
 	rects := scissorsOrNil.

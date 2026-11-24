@@ -214,6 +214,9 @@ primitive_entry vm_primitive_table[] = {
     {462, 2, "gpuUploadTextureAddress", prim_gpu_upload_texture_address},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
+    {463, 2, "windowPresentAddress", prim_window_present_address},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
     {470, 2, "machineSystemTable", prim_machine_system_table},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
