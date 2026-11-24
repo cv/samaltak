@@ -96,7 +96,7 @@ modsOf: m
 translate: e
 	"Queue the pf_event of an SDL event (others, the wake event among them, are ignored)."
 	<function>
-	| ev now age t |
+	| ev now age t rec |
 	ev := self local: 'pf_event'.
 	now := sdl getTicksNS.
 	age := now > e common timestamp ifTrue: [now - e common timestamp] ifFalse: [0].
@@ -165,6 +165,16 @@ translate: e
 		^self push: ev].
 	t = sdl SDL_EVENT_QUIT ifTrue: [
 		ev type: PF_EV_QUIT.
+		^self push: ev].
+	(t ~= 0 and: [t = host desktopMovedEvent]) ifTrue: [
+		"Where the system moved a desktop window: {window id. x. y} (int32_t), freed here."
+		rec := self cCoerce: e user data1 to: 'int32_t *'.
+		ev type: PF_EV_WINDOW_MOVED.
+		ev x: (rec at: 1) asFloat.
+		ev y: (rec at: 2) asFloat.
+		ev window: (windows fromSDLId: e user windowID).
+		libc free: rec.
+		ev window = 0 ifTrue: [^self].
 		^self push: ev].
 	(t = sdl SDL_EVENT_WINDOW_RESIZED or: [t = sdl SDL_EVENT_WINDOW_CLOSE_REQUESTED or: [t = sdl SDL_EVENT_WINDOW_FOCUS_GAINED
 		or: [t = sdl SDL_EVENT_WINDOW_FOCUS_LOST or: [t = sdl SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED

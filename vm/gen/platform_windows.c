@@ -6,6 +6,22 @@ static SDL_Cursor *cursors[11];
 static pf_table table[1];
 static bool video_ok;
 
+/* PlatformWindows>>clearSurface: */
+bool clear_surface(int32_t win)
+{
+    SDL_Window *sw;
+    SDL_Surface *surface;
+    sw = sdl_window(win);
+    if (sw == NULL) {
+        return false;
+    }
+    surface = SDL_GetWindowSurface(sw);
+    if (surface == NULL) {
+        return false;
+    }
+    return SDL_FillSurfaceRect(surface, (const SDL_Rect *)NULL, SDL_MapSurfaceRGBA(surface, 0, 0, 0, 0));
+}
+
 /* PlatformWindows>>clipboardData:size: */
 void *clipboard_data(char *mime, size_t *size)
 {
@@ -76,6 +92,30 @@ double display_scale(int32_t win)
     return s > 0.0 ? s : 1.0;
 }
 
+/* PlatformWindows>>fillSurface:x:y:width:height:rgba: */
+bool fill_surface(int32_t win, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rgba)
+{
+    SDL_Window *sw;
+    SDL_Surface *surface;
+    SDL_Rect local;
+    SDL_Rect *r;
+    sw = sdl_window(win);
+    if (sw == NULL) {
+        return false;
+    }
+    surface = SDL_GetWindowSurface(sw);
+    if (surface == NULL) {
+        return false;
+    }
+    memset(&local, 0, sizeof local);
+    r = &local;
+    r->x = x;
+    r->y = y;
+    r->w = w;
+    r->h = h;
+    return SDL_FillSurfaceRect(surface, r, SDL_MapSurfaceRGBA(surface, (uint8_t)((rgba >> 24) & 255), (uint8_t)((rgba >> 16) & 255), (uint8_t)((rgba >> 8) & 255), (uint8_t)(rgba & 255)));
+}
+
 /* PlatformWindows>>freeClipboardData: */
 void free_clipboard_data(void *data)
 {
@@ -128,6 +168,9 @@ int32_t platform_windows_open(int32_t w, int32_t h, char *title, int32_t flags)
     if ((flags & PF_WIN_HIGH_DENSITY) != 0) {
         f = f | SDL_WINDOW_HIGH_PIXEL_DENSITY;
     }
+    if ((flags & PF_WIN_TRANSPARENT) != 0) {
+        f = f | SDL_WINDOW_TRANSPARENT;
+    }
     sw = ((flags & PF_WIN_DESKTOP) != 0) && ((flags & PF_WIN_HIDDEN) == 0) ? open_desktop_window(title != NULL ? title : "", w, h, f) : (SDL_Window *)NULL;
     if (sw == NULL) {
         sw = SDL_CreateWindow(title != NULL ? title : "", w, h, f);
@@ -149,6 +192,17 @@ bool pixel_size(int32_t win, int *w, int *h)
     SDL_Window *sw;
     sw = sdl_window(win);
     return (sw != NULL) && SDL_GetWindowSizeInPixels(sw, w, h);
+}
+
+/* PlatformWindows>>presentSurface: */
+bool present_surface(int32_t win)
+{
+    SDL_Window *sw;
+    sw = sdl_window(win);
+    if (sw == NULL) {
+        return false;
+    }
+    return SDL_UpdateWindowSurface(sw);
 }
 
 /* PlatformWindows>>refreshRate: */
@@ -234,10 +288,26 @@ bool set_cursor(int32_t kind)
     return SDL_SetCursor(cursors[kind]);
 }
 
+/* PlatformWindows>>setOpacity:permille: */
+bool set_opacity(int32_t win, int32_t permille)
+{
+    SDL_Window *sw;
+    sw = sdl_window(win);
+    if (sw == NULL) {
+        return false;
+    }
+    if (set_desktop_window_opacity(sw, permille)) {
+        return true;
+    }
+    return SDL_SetWindowOpacity(sw, (double)((permille > 0 ? permille : 0) < 1000 ? permille > 0 ? permille : 0 : 1000) / 1000.0);
+}
+
 /* PlatformWindows>>setPosition:x:y: */
 bool set_position(int32_t win, int32_t x, int32_t y)
 {
     SDL_Window *sw;
+    pf_event local;
+    pf_event *ev;
     sw = sdl_window(win);
     if (sw == NULL) {
         return false;
@@ -245,7 +315,18 @@ bool set_position(int32_t win, int32_t x, int32_t y)
     if (move_desktop_window(sw, x, y)) {
         return true;
     }
-    return SDL_SetWindowPosition(sw, x, y);
+    if (!SDL_SetWindowPosition(sw, x, y)) {
+        return false;
+    }
+    memset(&local, 0, sizeof local);
+    ev = &local;
+    ev->type = PF_EV_WINDOW_MOVED;
+    ev->time_ms = platform_common_now_ms();
+    ev->x = (double)x;
+    ev->y = (double)y;
+    ev->window = win;
+    platform_events_push(ev);
+    return true;
 }
 
 /* PlatformWindows>>setSize:width:height: */
@@ -299,6 +380,9 @@ bool platform_windows_show(int32_t win, bool show)
     }
     if (!show) {
         return SDL_HideWindow(sw);
+    }
+    if (raise_desktop_window(sw)) {
+        return true;
     }
     if (!SDL_ShowWindow(sw)) {
         return false;

@@ -159,7 +159,9 @@ dropClosing: aWindow
 	"Called by the compositor when the close animation ended."
 	lock critical: [closingWindows := closingWindows copyWithout: aWindow].
 	closingFrontWindows isNil ifFalse: [closingFrontWindows removeKey: aWindow ifAbsent: []].
-	aWindow layer release
+	aWindow layer release.
+	"An on-demand compositor must present the frame without the closed layer."
+	self changed
 !
 raise: aWindow
 	(windows notEmpty and: [windows first == aWindow]) ifTrue: [^self].

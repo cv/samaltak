@@ -73,8 +73,16 @@ textInputArea: aRectangle cursor: x
 
 !HostWindow methodsFor: 'showing'!
 show
-	"Show me, raised to the front with the focus (as far as the window manager lets an application)."
+	"Show me, raised to the front with the focus (as far as the window manager lets an application); on the desktop (flag 8), above the other desktop windows."
 	GPUPlatform showWindow: self handle
+!
+fillRects: anArray
+	"Show rectangles over a transparent background, drawn without the GPU (a window of flag 16, which the GPU does not draw): anArray holds x y w h rgba for each (pixels; rgba 16rRRGGBBAA, premultiplied). Answer whether it was shown."
+	^(GPUPlatform window: self handle fillRects: anArray) ~~ false
+!
+opacity: aNumber
+	"Show me at aNumber (0 to 1) opacity, where the system can; answer whether it did."
+	^self isOpen and: [(GPUPlatform window: handle opacity: (aNumber * 1000) rounded) ~~ false]
 !
 hide
 	GPUPlatform hideWindow: self handle
@@ -90,7 +98,7 @@ width: w height: h title: aString
 	^self width: w height: h title: aString flags: 6
 !
 width: w height: h title: aString flags: anInteger
-	"flags: 1 hidden, 2 resizable, 4 highDensity, 8 desktop (above the wallpaper, below every window, never focused: a Wayland layer surface where the compositor has the layer shell, else an ordinary window)."
+	"flags: 1 hidden, 2 resizable, 4 highDensity, 8 desktop (above the wallpaper, below every window, never focused: a Wayland layer surface where the compositor has the layer shell, else an ordinary window), 16 transparent (drawn without the GPU, which does not draw transparent windows: fillRects:; on the desktop the pointer passes through it)."
 	^self new setWidth: w height: h title: aString flags: anInteger
 ! !
 

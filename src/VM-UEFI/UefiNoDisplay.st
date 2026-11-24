@@ -476,6 +476,40 @@ setPosition: win x: x y: y
 	common setError: 'not on UEFI'.
 	^false
 !
+fillSurface: win x: x y: y width: w height: h rgba: rgba
+	<function>
+	<var: #win type: 'int32_t'>
+	<var: #x type: 'int32_t'>
+	<var: #y type: 'int32_t'>
+	<var: #w type: 'int32_t'>
+	<var: #h type: 'int32_t'>
+	<var: #rgba type: 'uint32_t'>
+	<returns: 'bool'>
+	common setError: 'not on UEFI'.
+	^false
+!
+clearSurface: win
+	<function>
+	<var: #win type: 'int32_t'>
+	<returns: 'bool'>
+	common setError: 'not on UEFI'.
+	^false
+!
+presentSurface: win
+	<function>
+	<var: #win type: 'int32_t'>
+	<returns: 'bool'>
+	common setError: 'not on UEFI'.
+	^false
+!
+setOpacity: win permille: permille
+	<function>
+	<var: #win type: 'int32_t'>
+	<var: #permille type: 'int32_t'>
+	<returns: 'bool'>
+	common setError: 'not on UEFI'.
+	^false
+!
 setTitle: win title: title
 	<function>
 	<var: #win type: 'int32_t'>

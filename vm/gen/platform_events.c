@@ -135,6 +135,7 @@ static void translate(SDL_Event *e)
     Uint64 now;
     Uint64 age;
     Uint32 t;
+    int32_t *rec;
     memset(&local, 0, sizeof local);
     ev = &local;
     now = SDL_GetTicksNS();
@@ -217,6 +218,19 @@ static void translate(SDL_Event *e)
     }
     if (t == SDL_EVENT_QUIT) {
         ev->type = PF_EV_QUIT;
+        platform_events_push(ev);
+        return;
+    }
+    if ((t != 0) && (t == desktop_moved_event())) {
+        rec = (int32_t *)e->user.data1;
+        ev->type = PF_EV_WINDOW_MOVED;
+        ev->x = (double)rec[1];
+        ev->y = (double)rec[2];
+        ev->window = from_sdl_id(e->user.windowID);
+        free(rec);
+        if (ev->window == 0) {
+            return;
+        }
         platform_events_push(ev);
         return;
     }

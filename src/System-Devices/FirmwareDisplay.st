@@ -102,6 +102,16 @@ window: window x: x y: y
 	self check: window.
 	^false
 !
+window: window fillRects: anArray
+	"Nothing is drawn beside the screen."
+	self check: window.
+	^false
+!
+window: window opacity: permille
+	"The screen stays opaque."
+	self check: window.
+	^false
+!
 window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
 	self check: window
 !

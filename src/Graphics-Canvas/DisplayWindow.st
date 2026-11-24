@@ -15,6 +15,16 @@ setWindow: aHostWindow
 	swapchain := renderer device swapchainFor: aHostWindow
 ! !
 
+!DisplayWindow methodsFor: 'glass'!
+setGlassWindow: aHostWindow
+	"No swapchain: the GPU does not draw a transparent window (flag 16); it shows rectangles (fillRects:)."
+	window := aHostWindow
+!
+fillRects: anArray
+	"A glass window: show these rectangles (x y w h rgba groups, pixels, rgba premultiplied) over a transparent background (HostWindow>>fillRects:)."
+	^window fillRects: anArray
+! !
+
 !DisplayWindow methodsFor: 'accessing'!
 hostWindow
 	^window
@@ -82,6 +92,10 @@ width: w height: h title: aString hidden: aBoolean
 width: w height: h title: aString flags: anInteger
 	"flags: 1 hidden, 2 resizable, 4 highDensity, 8 desktop (HostWindow)."
 	^self new setWindow: (HostWindow width: w height: h title: aString flags: anInteger)
+!
+glassWidth: w height: h title: aString flags: anInteger
+	"A transparent window (flag 16 added), which the GPU does not draw: it shows rectangles (fillRects:). flags as for width:height:title:flags:."
+	^self new setGlassWindow: (HostWindow width: w height: h title: aString flags: (anInteger bitOr: 16))
 !
 on: aHostWindow
 	^self new setWindow: aHostWindow

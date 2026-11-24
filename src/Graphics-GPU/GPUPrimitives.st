@@ -52,6 +52,23 @@ window: window x: x y: y
 	<primitive: 'windowSetPosition'>
 	^false
 !
+window: window fillRects: anArray
+	"Clear window's own pixels (it is drawn without the GPU), fill rectangles (x y w h rgba groups: pixels, 16rRRGGBBAA premultiplied) and show them; false where the VM cannot."
+	| binding bytes |
+	binding := WindowPlatformFFI fillRectsCall.
+	binding isNil ifTrue: [^false].
+	(anArray size \\ 5 = 0 and: [anArray allSatisfy: [:each | each isInteger]]) ifFalse: [^false].
+	bytes := ByteArray new: anArray size * 4.
+	anArray doWithIndex: [:v :i | bytes uint32At: i - 1 * 4 + 1 put: (v bitAnd: 16rFFFFFFFF)].
+	^(binding tryInvoke2: window with: {bytes. 1. bytes size}) = 1
+!
+window: window opacity: permille
+	"Show window at permille / 1000 opacity; false where the VM or the system cannot."
+	| binding |
+	binding := WindowPlatformFFI opacityCall.
+	binding isNil ifTrue: [^false].
+	^(binding tryInvoke2: window with: ((permille max: 0) min: 1000)) = 1
+!
 window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
 	| binding result |
 	binding := TextInputAreaCall ifNil: [

@@ -55,6 +55,7 @@ open: w height: h title: title flags: flags
 	(flags bitAnd: PF_WIN_HIDDEN) ~= 0 ifTrue: [f := f bitOr: sdl SDL_WINDOW_HIDDEN].
 	(flags bitAnd: PF_WIN_RESIZABLE) ~= 0 ifTrue: [f := f bitOr: sdl SDL_WINDOW_RESIZABLE].
 	(flags bitAnd: PF_WIN_HIGH_DENSITY) ~= 0 ifTrue: [f := f bitOr: sdl SDL_WINDOW_HIGH_PIXEL_DENSITY].
+	(flags bitAnd: PF_WIN_TRANSPARENT) ~= 0 ifTrue: [f := f bitOr: sdl SDL_WINDOW_TRANSPARENT].
 	"A desktop window, unless hidden (offscreen) or the system has none: then an ordinary one."
 	sw := ((flags bitAnd: PF_WIN_DESKTOP) ~= 0 and: [(flags bitAnd: PF_WIN_HIDDEN) = 0])
 		ifTrue: [host openDesktopWindow: (title notNull ifTrue: [title] ifFalse: ['']) width: w height: h flags: f]
@@ -133,13 +134,65 @@ setSize: win width: w height: h
 	^sdl setWindowSize: sw w: w h: h
 !
 setPosition: win x: x y: y
-	"Move to x @ y points: a desktop window from the top left of the area the bar leaves free, another from the screen's (where the window manager lets an application place its windows)."
+	"Move to x @ y points: a desktop window from the top left of the area the bar leaves free, another from the screen's (where the window manager lets an application place its windows). A PF_EV_WINDOW_MOVED event follows: for a desktop window once the system applied the move (between the pointer events relative to the old place and those relative to the new one), for another one at once."
+	<export>
+	| sw ev |
+	sw := self sdlWindow: win.
+	sw isNull ifTrue: [^false].
+	(host moveDesktopWindow: sw x: x y: y) ifTrue: [^true].
+	(sdl setWindowPosition: sw x: x y: y) ifFalse: [^false].
+	ev := self local: 'pf_event'.
+	ev type: PF_EV_WINDOW_MOVED.
+	ev timeMs: common nowMs.
+	ev x: x asFloat.
+	ev y: y asFloat.
+	ev window: win.
+	events push: ev.
+	^true
+!
+fillSurface: win x: x y: y width: w height: h rgba: rgba
+	"Fill a rectangle of the window's own pixels (SDL_GetWindowSurface: a window drawn without the GPU; x, y, w, h in pixels) with rgba (16rRRGGBBAA, premultiplied by AA), shown by presentSurface:."
+	<export>
+	<var: #rgba type: 'uint32_t'>
+	| sw surface r |
+	sw := self sdlWindow: win.
+	sw isNull ifTrue: [^false].
+	surface := sdl getWindowSurface: sw.
+	surface isNull ifTrue: [^false].
+	r := self local: 'SDL_Rect'.
+	r x: x.
+	r y: y.
+	r w: w.
+	r h: h.
+	^sdl fillSurfaceRect: surface rect: r color: (sdl mapSurfaceRGBA: surface
+		r: ((rgba >> 24) bitAnd: 255) asUInt8 g: ((rgba >> 16) bitAnd: 255) asUInt8 b: ((rgba >> 8) bitAnd: 255) asUInt8 a: (rgba bitAnd: 255) asUInt8)
+!
+clearSurface: win
+	"Make the window's own pixels transparent black."
+	<export>
+	| sw surface |
+	sw := self sdlWindow: win.
+	sw isNull ifTrue: [^false].
+	surface := sdl getWindowSurface: sw.
+	surface isNull ifTrue: [^false].
+	^sdl fillSurfaceRect: surface rect: self null color: (sdl mapSurfaceRGBA: surface r: 0 g: 0 b: 0 a: 0)
+!
+presentSurface: win
+	"Show the window's own pixels."
 	<export>
 	| sw |
 	sw := self sdlWindow: win.
 	sw isNull ifTrue: [^false].
-	(host moveDesktopWindow: sw x: x y: y) ifTrue: [^true].
-	^sdl setWindowPosition: sw x: x y: y
+	^sdl updateWindowSurface: sw
+!
+setOpacity: win permille: permille
+	"Show the window at permille / 1000 opacity (where the system can)."
+	<export>
+	| sw |
+	sw := self sdlWindow: win.
+	sw isNull ifTrue: [^false].
+	(host setDesktopWindowOpacity: sw permille: permille) ifTrue: [^true].
+	^sdl setWindowOpacity: sw opacity: ((permille max: 0) min: 1000) asFloat / 1000.0
 !
 setTextInputArea: win x: x y: y width: w height: h cursor: cursor
 	"Where the text being typed is (points): the input method puts its candidates next to it."
@@ -161,6 +214,8 @@ show: win visible: show
 	sw := self sdlWindow: win.
 	sw isNull ifTrue: [^false].
 	show ifFalse: [^sdl hideWindow: sw].
+	"a desktop window is only raised above the other desktop windows"
+	(host raiseDesktopWindow: sw) ifTrue: [^true].
 	(sdl showWindow: sw) ifFalse: [^false].
 	sdl raiseWindow: sw.
 	^true

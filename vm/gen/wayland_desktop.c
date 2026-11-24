@@ -4,15 +4,22 @@
 
 #ifdef __linux__
 
+static struct wl_interface *alpha_interface;
+static void *alpha_modifier;
+static struct wl_interface *alpha_surface_interface;
+static void *compositor;
+static struct wl_interface *compositor_interface;
 static void *display;
 static void *layer_shell;
 static bool looked;
+static Uint32 moved_event;
 static void *registry;
 static void **registry_listener;
 static struct wl_interface *shell_interface;
 static uint32_t shell_version;
 static struct wl_interface *surface_interface;
 static void **surface_listener;
+static void **sync_listener;
 static const struct wl_interface **types;
 
 static void describe_protocol(void);
@@ -23,6 +30,7 @@ static void registry_global_remove(void *data, void *a_registry, uint32_t name);
 static void surface_closed(void *data, void *surface);
 static void surface_configure(void *data, void *surface, uint32_t serial, uint32_t w, uint32_t h);
 static void *surface_of(SDL_Window *sw);
+static void sync_done(void *data, void *callback, uint32_t serial);
 
 /* WaylandDesktop>>describeProtocol */
 static void describe_protocol(void)
@@ -30,6 +38,19 @@ static void describe_protocol(void)
     struct wl_message *shell_requests;
     struct wl_message *surface_requests;
     struct wl_message *surface_events;
+    struct wl_message *compositor_requests;
+    struct wl_message *alpha_requests;
+    struct wl_message *alpha_surface_requests;
+    struct wl_interface *r_new_interface;
+    struct wl_interface *i;
+    struct wl_interface *r_new_interface_2;
+    struct wl_interface *i_2;
+    struct wl_interface *r_new_interface_3;
+    struct wl_interface *i_3;
+    struct wl_interface *r_new_interface_4;
+    struct wl_interface *i_4;
+    struct wl_interface *r_new_interface_5;
+    struct wl_interface *i_5;
     struct wl_message *m;
     struct wl_message *m_2;
     const struct wl_interface **message_types;
@@ -55,13 +76,77 @@ static void describe_protocol(void)
     const struct wl_interface **message_types_11;
     struct wl_message *m_13;
     const struct wl_interface **message_types_12;
+    struct wl_message *m_14;
+    const struct wl_interface **message_types_13;
+    struct wl_message *m_15;
+    const struct wl_interface **message_types_14;
+    struct wl_message *m_16;
+    const struct wl_interface **message_types_15;
+    struct wl_message *m_17;
+    const struct wl_interface **message_types_16;
+    struct wl_message *m_18;
+    const struct wl_interface **message_types_17;
+    struct wl_message *m_19;
+    const struct wl_interface **message_types_18;
     types = (const struct wl_interface **)calloc(8, sizeof(void *));
-    shell_interface = (struct wl_interface *)calloc(1, sizeof(struct wl_interface));
-    surface_interface = (struct wl_interface *)calloc(1, sizeof(struct wl_interface));
     shell_requests = (struct wl_message *)calloc(2, sizeof(struct wl_message));
     surface_requests = (struct wl_message *)calloc(9, sizeof(struct wl_message));
     surface_events = (struct wl_message *)calloc(2, sizeof(struct wl_message));
+    compositor_requests = (struct wl_message *)calloc(2, sizeof(struct wl_message));
+    alpha_requests = (struct wl_message *)calloc(2, sizeof(struct wl_message));
+    alpha_surface_requests = (struct wl_message *)calloc(2, sizeof(struct wl_message));
+    surface_interface = ({
+    i = (struct wl_interface *)calloc(1, sizeof(struct wl_interface));
+    i->name = "zwlr_layer_surface_v1";
+    i->version = 4;
+    i->method_count = 9;
+    i->methods = surface_requests;
+    i->event_count = 2;
+    i->events = surface_events;
+    r_new_interface = i;
+    r_new_interface; });
+    shell_interface = ({
+    i_2 = (struct wl_interface *)calloc(1, sizeof(struct wl_interface));
+    i_2->name = "zwlr_layer_shell_v1";
+    i_2->version = 4;
+    i_2->method_count = 2;
+    i_2->methods = shell_requests;
+    i_2->event_count = 0;
+    i_2->events = (const struct wl_message *)NULL;
+    r_new_interface_2 = i_2;
+    r_new_interface_2; });
+    compositor_interface = ({
+    i_3 = (struct wl_interface *)calloc(1, sizeof(struct wl_interface));
+    i_3->name = "wl_compositor";
+    i_3->version = 4;
+    i_3->method_count = 2;
+    i_3->methods = compositor_requests;
+    i_3->event_count = 0;
+    i_3->events = (const struct wl_message *)NULL;
+    r_new_interface_3 = i_3;
+    r_new_interface_3; });
+    alpha_surface_interface = ({
+    i_4 = (struct wl_interface *)calloc(1, sizeof(struct wl_interface));
+    i_4->name = "wp_alpha_modifier_surface_v1";
+    i_4->version = 1;
+    i_4->method_count = 2;
+    i_4->methods = alpha_surface_requests;
+    i_4->event_count = 0;
+    i_4->events = (const struct wl_message *)NULL;
+    r_new_interface_4 = i_4;
+    r_new_interface_4; });
+    alpha_interface = ({
+    i_5 = (struct wl_interface *)calloc(1, sizeof(struct wl_interface));
+    i_5->name = "wp_alpha_modifier_v1";
+    i_5->version = 1;
+    i_5->method_count = 2;
+    i_5->methods = alpha_requests;
+    i_5->event_count = 0;
+    i_5->events = (const struct wl_message *)NULL;
+    r_new_interface_5 = i_5;
+    r_new_interface_5; });
     types[0] = surface_interface;
+    types[5] = alpha_surface_interface;
     m = shell_requests + 0;
     m->name = "get_layer_surface";
     m->signature = "no?ous";
@@ -126,33 +211,59 @@ static void describe_protocol(void)
     m_13->name = "closed";
     m_13->signature = "";
     m_13->types = message_types_12;
-    shell_interface->name = "zwlr_layer_shell_v1";
-    shell_interface->version = 4;
-    shell_interface->method_count = 2;
-    shell_interface->methods = shell_requests;
-    shell_interface->event_count = 0;
-    shell_interface->events = (const struct wl_message *)NULL;
-    surface_interface->name = "zwlr_layer_surface_v1";
-    surface_interface->version = 4;
-    surface_interface->method_count = 9;
-    surface_interface->methods = surface_requests;
-    surface_interface->event_count = 2;
-    surface_interface->events = surface_events;
+    m_14 = compositor_requests + 0;
+    message_types_13 = types + 1;
+    m_14->name = "create_surface";
+    m_14->signature = "n";
+    m_14->types = message_types_13;
+    m_15 = compositor_requests + 1;
+    message_types_14 = types + 1;
+    m_15->name = "create_region";
+    m_15->signature = "n";
+    m_15->types = message_types_14;
+    m_16 = alpha_requests + 0;
+    message_types_15 = types + 1;
+    m_16->name = "destroy";
+    m_16->signature = "";
+    m_16->types = message_types_15;
+    m_17 = alpha_requests + 1;
+    message_types_16 = types + 5;
+    m_17->name = "get_surface";
+    m_17->signature = "no";
+    m_17->types = message_types_16;
+    m_18 = alpha_surface_requests + 0;
+    message_types_17 = types + 1;
+    m_18->name = "destroy";
+    m_18->signature = "";
+    m_18->types = message_types_17;
+    m_19 = alpha_surface_requests + 1;
+    message_types_18 = types + 1;
+    m_19->name = "set_multiplier";
+    m_19->signature = "u";
+    m_19->types = message_types_18;
     registry_listener = (void **)calloc(2, sizeof(void *));
     registry_listener[0] = (void *)registry_global;
     registry_listener[1] = (void *)registry_global_remove;
     surface_listener = (void **)calloc(2, sizeof(void *));
     surface_listener[0] = (void *)surface_configure;
     surface_listener[1] = (void *)surface_closed;
+    sync_listener = (void **)calloc(1, sizeof(void *));
+    sync_listener[0] = (void *)sync_done;
 }
 
 /* WaylandDesktop>>destroySurface: */
 void destroy_surface(SDL_Window *sw)
 {
     void *layer;
+    void *alpha;
     layer = layer_of(sw);
     if (layer == NULL) {
         return;
+    }
+    alpha = SDL_GetPointerProperty(SDL_GetWindowProperties(sw), "samaltak.alpha_surface", NULL);
+    if (!(alpha == NULL)) {
+        wl_proxy_marshal_flags(alpha, 0, (const struct wl_interface *)NULL, 1, WL_MARSHAL_FLAG_DESTROY);
+        SDL_SetPointerProperty(SDL_GetWindowProperties(sw), "samaltak.alpha_surface", NULL);
     }
     wl_proxy_marshal_flags(layer, SURFACE_DESTROY, (const struct wl_interface *)NULL, shell_version, WL_MARSHAL_FLAG_DESTROY);
     SDL_SetPointerProperty(SDL_GetWindowProperties(sw), "samaltak.layer_surface", NULL);
@@ -162,6 +273,7 @@ void destroy_surface(SDL_Window *sw)
 static bool is_available(void)
 {
     const char *driver;
+    Uint32 t;
     if (looked) {
         return layer_shell != NULL;
     }
@@ -181,6 +293,8 @@ static bool is_available(void)
     }
     wl_proxy_add_listener(registry, (void (**)(void))registry_listener, NULL);
     wl_display_roundtrip(display);
+    t = SDL_RegisterEvents(1);
+    moved_event = t == 0xFFFFFFFFLL ? 0 : t;
     return layer_shell != NULL;
 }
 
@@ -193,6 +307,12 @@ static void *layer_of(SDL_Window *sw)
     return SDL_GetPointerProperty(SDL_GetWindowProperties(sw), "samaltak.layer_surface", NULL);
 }
 
+/* WaylandDesktop>>movedEventType */
+Uint32 moved_event_type(void)
+{
+    return moved_event;
+}
+
 /* WaylandDesktop>>openSurface:width:height:flags: */
 SDL_Window *open_surface(char *title, int32_t w, int32_t h, SDL_WindowFlags flags)
 {
@@ -200,6 +320,7 @@ SDL_Window *open_surface(char *title, int32_t w, int32_t h, SDL_WindowFlags flag
     SDL_Window *sw;
     void *surface;
     void *layer;
+    void *region;
     if (!is_available()) {
         return (SDL_Window *)NULL;
     }
@@ -214,7 +335,7 @@ SDL_Window *open_surface(char *title, int32_t w, int32_t h, SDL_WindowFlags flag
     if (sw == NULL) {
         return (SDL_Window *)NULL;
     }
-    surface = SDL_GetPointerProperty(SDL_GetWindowProperties(sw), SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, NULL);
+    surface = surface_of(sw);
     if (surface == NULL) {
         SDL_DestroyWindow(sw);
         return (SDL_Window *)NULL;
@@ -228,6 +349,13 @@ SDL_Window *open_surface(char *title, int32_t w, int32_t h, SDL_WindowFlags flag
     wl_proxy_marshal_flags(layer, SURFACE_SET_SIZE, (const struct wl_interface *)NULL, shell_version, 0, (uint32_t)w, (uint32_t)h);
     wl_proxy_marshal_flags(layer, SURFACE_SET_ANCHOR, (const struct wl_interface *)NULL, shell_version, 0, 5U);
     SDL_SetPointerProperty(SDL_GetWindowProperties(sw), "samaltak.layer_surface", layer);
+    if (((flags & SDL_WINDOW_TRANSPARENT) != 0) && (compositor != NULL)) {
+        region = wl_compositor_create_region(compositor);
+        if (!(region == NULL)) {
+            wl_surface_set_input_region(surface, region);
+            wl_region_destroy(region);
+        }
+    }
     wl_surface_commit(surface);
     wl_display_roundtrip(display);
     return sw;
@@ -237,12 +365,49 @@ SDL_Window *open_surface(char *title, int32_t w, int32_t h, SDL_WindowFlags flag
 bool place_surface(SDL_Window *sw, int32_t x, int32_t y)
 {
     void *layer;
+    int32_t *rec;
+    void *callback;
     layer = layer_of(sw);
     if (layer == NULL) {
         return false;
     }
     wl_proxy_marshal_flags(layer, SURFACE_SET_MARGIN, (const struct wl_interface *)NULL, shell_version, 0, y, 0, 0, x);
     wl_surface_commit(surface_of(sw));
+    if (moved_event != 0) {
+        rec = (int32_t *)calloc(3, sizeof(int32_t));
+        if (rec != NULL) {
+            rec[0] = (int32_t)SDL_GetWindowID(sw);
+            rec[1] = x;
+            rec[2] = y;
+            callback = wl_display_sync(display);
+            if (callback == NULL) {
+                free(rec);
+            } else {
+                wl_proxy_add_listener(callback, (void (**)(void))sync_listener, rec);
+            }
+        }
+    }
+    wl_display_flush(display);
+    return true;
+}
+
+/* WaylandDesktop>>raiseSurface: */
+bool raise_surface(SDL_Window *sw)
+{
+    void *layer;
+    void *surface;
+    layer = layer_of(sw);
+    if (layer == NULL) {
+        return false;
+    }
+    if (shell_version < 2) {
+        return true;
+    }
+    surface = surface_of(sw);
+    wl_proxy_marshal_flags(layer, SURFACE_SET_LAYER, (const struct wl_interface *)NULL, shell_version, 0, 0U);
+    wl_surface_commit(surface);
+    wl_proxy_marshal_flags(layer, SURFACE_SET_LAYER, (const struct wl_interface *)NULL, shell_version, 0, 1U);
+    wl_surface_commit(surface);
     return true;
 }
 
@@ -252,6 +417,12 @@ static void registry_global(void *data, void *a_registry, uint32_t name, const c
     if ((layer_shell == NULL) && (strcmp(interface, "zwlr_layer_shell_v1") == 0)) {
         shell_version = version < 4 ? version : 4;
         layer_shell = wl_registry_bind(a_registry, name, shell_interface, shell_version);
+    }
+    if ((compositor == NULL) && (strcmp(interface, "wl_compositor") == 0)) {
+        compositor = wl_registry_bind(a_registry, name, compositor_interface, 1);
+    }
+    if ((alpha_modifier == NULL) && (strcmp(interface, "wp_alpha_modifier_v1") == 0)) {
+        alpha_modifier = wl_registry_bind(a_registry, name, alpha_interface, 1);
     }
 }
 
@@ -274,6 +445,28 @@ bool resize_surface(SDL_Window *sw, int32_t w, int32_t h)
     return true;
 }
 
+/* WaylandDesktop>>setSurfaceOpacity:permille: */
+bool set_surface_opacity(SDL_Window *sw, int32_t permille)
+{
+    void *layer;
+    void *alpha;
+    layer = layer_of(sw);
+    if ((layer == NULL) || (alpha_modifier == NULL)) {
+        return false;
+    }
+    alpha = SDL_GetPointerProperty(SDL_GetWindowProperties(sw), "samaltak.alpha_surface", NULL);
+    if (alpha == NULL) {
+        alpha = wl_proxy_marshal_flags(alpha_modifier, 1, alpha_surface_interface, 1, 0, NULL, surface_of(sw));
+        if (alpha == NULL) {
+            return false;
+        }
+        SDL_SetPointerProperty(SDL_GetWindowProperties(sw), "samaltak.alpha_surface", alpha);
+    }
+    wl_proxy_marshal_flags(alpha, 1, (const struct wl_interface *)NULL, 1, 0, (uint32_t)((uint64_t)((permille > 0 ? permille : 0) < 1000 ? permille > 0 ? permille : 0 : 1000) * 4294967295LL / 1000));
+    wl_surface_commit(surface_of(sw));
+    return true;
+}
+
 /* WaylandDesktop>>surfaceClosed:surface: */
 static void surface_closed(void *data, void *surface)
 {
@@ -292,6 +485,22 @@ static void surface_configure(void *data, void *surface, uint32_t serial, uint32
 static void *surface_of(SDL_Window *sw)
 {
     return SDL_GetPointerProperty(SDL_GetWindowProperties(sw), SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, NULL);
+}
+
+/* WaylandDesktop>>syncDone:callback:serial: */
+static void sync_done(void *data, void *callback, uint32_t serial)
+{
+    SDL_Event local;
+    SDL_Event *e;
+    wl_proxy_destroy(callback);
+    memset(&local, 0, sizeof local);
+    e = &local;
+    e->type = moved_event;
+    e->user.windowID = (uint32_t)((int32_t *)data)[0];
+    e->user.data1 = data;
+    if (!SDL_PushEvent(e)) {
+        free(data);
+    }
 }
 
 #endif

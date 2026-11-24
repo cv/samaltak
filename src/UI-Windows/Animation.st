@@ -11,7 +11,7 @@ Run me with aWindow animate: (stepped in the window''s Process, the window redra
 
 The clock is real time slowed down by timeScale (Animation timeScale: 10 is slow motion for every animation, the compositor''s included; 1 is normal speed); changing the scale never makes the clock jump.
 
-Easings: #linear #easeInQuad #easeOutQuad #easeInOutQuad #easeInCubic #easeOutCubic #easeInOutCubic #spring (critically damped, no overshoot).'!
+Easings: #linear #easeInQuad #easeOutQuad #easeInOutQuad #easeInCubic #easeOutCubic #easeInOutCubic #spring (critically damped, no overshoot), or a cubic Bézier curve from 0 @ 0 to 1 @ 1 given by its control points, #(x1 y1 x2 y2) (CSS''s cubic-bezier(), QML''s Easing.Bezier).'!
 
 !Animation methodsFor: 'initialization'!
 setFrom: a to: b duration: ms easing: aSymbol action: aBlock
@@ -133,6 +133,7 @@ easings
 ease: aSymbol at: t
 	"Map t in [0, 1] through the easing aSymbol (f(0) = 0, f(1) = 1)."
 	| u |
+	aSymbol isArray ifTrue: [^self cubicBezier: aSymbol at: t].
 	aSymbol == #linear ifTrue: [^t].
 	aSymbol == #easeOutCubic ifTrue: [u := 1 - t. ^1 - (u * u * u)].
 	aSymbol == #easeInCubic ifTrue: [^t * t * t].
@@ -146,6 +147,26 @@ ease: aSymbol at: t
 		"Critically damped spring, normalized so that f(1) = 1."
 		^(1 - ((1 + (8 * t)) * (-8 * t) exp)) / (1 - (9 * -8 exp))].
 	^self error: 'Unknown easing ', aSymbol printString
+!
+cubicBezier: controlPoints at: t
+	"The curve's y where its x is t: x1 y1 x2 y2 are its control points (x1 and x2 within [0, 1], so x grows with the parameter), found by bisection to 1e-6."
+	| x1 y1 x2 y2 lo hi s x |
+	t <= 0 ifTrue: [^0].
+	t >= 1 ifTrue: [^1].
+	x1 := controlPoints at: 1. y1 := controlPoints at: 2. x2 := controlPoints at: 3. y2 := controlPoints at: 4.
+	lo := 0.0. hi := 1.0. s := t asFloat.
+	40 timesRepeat: [
+		x := self bezier: x1 and: x2 at: s.
+		(x - t) abs < 1.0e-6 ifFalse: [
+			x < t ifTrue: [lo := s] ifFalse: [hi := s].
+			s := lo + hi / 2]].
+	^self bezier: y1 and: y2 at: s
+!
+bezier: p1 and: p2 at: s
+	"One coordinate of the cubic Bézier curve from 0 to 1 with control points p1 and p2, at parameter s."
+	| u |
+	u := 1 - s.
+	^(3 * u * u * s * p1) + (3 * u * s * s * p2) + (s * s * s)
 !
 interpolate: a to: b at: e
 	"The value e of the way from a to b (Numbers, Points, Rectangles, Colors; other objects jump to b at the end): a interpolateTo: b at: e."

@@ -63,6 +63,18 @@ moveDesktopWindow: sw x: x y: y
 	"Place desktop window sw x @ y points from the top left of the area the bar and docks leave free; false if sw is no desktop window."
 	self subclassResponsibility
 !
+raiseDesktopWindow: sw
+	"Put desktop window sw above the other desktop windows; false if it is none."
+	self subclassResponsibility
+!
+setDesktopWindowOpacity: sw permille: permille
+	"Show desktop window sw at permille / 1000 opacity; false if it is none or the system cannot."
+	self subclassResponsibility
+!
+desktopMovedEvent
+	"The SDL event type that reports where a desktop window was moved (data1: its window id, x and y as int32_t, malloc'd), once the system applied the move; 0 if none."
+	self subclassResponsibility
+!
 closingDesktopWindow: sw
 	"SDL window sw is about to be destroyed."
 	self subclassResponsibility
@@ -166,6 +178,21 @@ moveDesktopWindow: sw x: x y: y
 	<export>
 	<var: #sw type: 'SDL_Window *'>
 	^false
+!
+raiseDesktopWindow: sw
+	<export>
+	<var: #sw type: 'SDL_Window *'>
+	^false
+!
+setDesktopWindowOpacity: sw permille: permille
+	<export>
+	<var: #sw type: 'SDL_Window *'>
+	^false
+!
+desktopMovedEvent
+	<export>
+	<returns: 'Uint32'>
+	^0
 !
 closingDesktopWindow: sw
 	<export>
@@ -339,6 +366,21 @@ moveDesktopWindow: sw x: x y: y
 	<export>
 	<var: #sw type: 'SDL_Window *'>
 	^desktop placeSurface: sw x: x y: y
+!
+raiseDesktopWindow: sw
+	<export>
+	<var: #sw type: 'SDL_Window *'>
+	^desktop raiseSurface: sw
+!
+setDesktopWindowOpacity: sw permille: permille
+	<export>
+	<var: #sw type: 'SDL_Window *'>
+	^desktop setSurfaceOpacity: sw permille: permille
+!
+desktopMovedEvent
+	<export>
+	<returns: 'Uint32'>
+	^desktop movedEventType
 !
 closingDesktopWindow: sw
 	<export>

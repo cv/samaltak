@@ -16,6 +16,17 @@ testEasingsMapEndpoints
 	"the spring never overshoots"
 	self assert: ((0 to: 20) allSatisfy: [:i | (Animation ease: #spring at: i / 20) <= 1.0001])
 !
+testCubicBezierEasing
+	"cubic-bezier(x1, y1, x2, y2): the straight one is linear; Omarchy's Style.easeOut starts at once and settles."
+	#(0 0.1 0.25 0.5 0.9 1) do: [:t |
+		self assert: ((Animation ease: #(0 0 1 1) at: t) - t) abs < 0.0001].
+	self assert: (Animation ease: #(0.23 1.0 0.32 1.0) at: 0) equals: 0.
+	self assert: (Animation ease: #(0.23 1.0 0.32 1.0) at: 1) equals: 1.
+	self assert: (Animation ease: #(0.23 1.0 0.32 1.0) at: 0.25) > 0.75.
+	self assert: ((0 to: 20) allSatisfy: [:i | (Animation ease: #(0.23 1.0 0.32 1.0) at: i / 20) <= 1.0001]).
+	"CSS's ease, cubic-bezier(0.25, 0.1, 0.25, 1), is 0.8024 at 0.5"
+	self assert: ((Animation ease: #(0.25 0.1 0.25 1.0) at: 0.5) - 0.8024) abs < 0.001
+!
 testSteppingOnAClock
 	| values anim done |
 	values := OrderedCollection new.

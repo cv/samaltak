@@ -1,9 +1,9 @@
 UIEvent subclass: #PointerEvent
-	instanceVariableNames: 'position globalPosition button buttons clickCount delta'
+	instanceVariableNames: 'position globalPosition screenPosition button buttons clickCount delta'
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
-PointerEvent comment: 'I am a pointer event: type #down #up #move #wheel #enter #leave; position (a Point local to the View receiving me; the Window re-localizes me as I bubble), globalPosition (screen points), button (1 left, 2 right — also ctrl-click —, 3 middle; 0 for moves), buttons (held during a move: 1 left, 2 middle, 4 right, as the platform reports), clickCount (of a press: 2, 3 … for a further click of a multi-click, InputDispatcher>>countClick:on:), delta (wheel: Point, +y = scroll up), modifiers.'!
+PointerEvent comment: 'I am a pointer event: type #down #up #move #wheel #enter #leave; position (a Point local to the View receiving me; the Window re-localizes me as I bubble), globalPosition (points in the World: its host window''s), screenPosition (where on the screen: globalPosition plus where the host window is, HostMovedEvent; a desktop window''s from the top left of the area the bar leaves free), button (1 left, 2 right — also ctrl-click —, 3 middle; 0 for moves), buttons (held during a move: 1 left, 2 middle, 4 right, as the platform reports), clickCount (of a press: 2, 3 … for a further click of a multi-click, InputDispatcher>>countClick:on:), delta (wheel: Point, +y = scroll up), modifiers.'!
 
 !PointerEvent methodsFor: 'accessing'!
 position
@@ -17,6 +17,13 @@ globalPosition
 !
 globalPosition: aPoint
 	globalPosition := aPoint
+!
+screenPosition
+	"Where on the screen: my globalPosition plus the host window's place when I happened (InputDispatcher>>handlePointer:); it does not move with a host window moved under the pointer."
+	^screenPosition ifNil: [globalPosition]
+!
+screenPosition: aPoint
+	screenPosition := aPoint
 !
 button
 	^button

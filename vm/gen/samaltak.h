@@ -353,6 +353,7 @@ typedef bool (*prim_try_guard)(oop);
 #define K_TEX 4
 #define K_WINDOW 1
 #define LAST_ERROR_SIZE 1024
+#define LAYER_BACKGROUND 0
 #define LAYER_BOTTOM 1
 #define LEDGER_SIZE 16
 #define LL_FIRST 0
@@ -548,6 +549,7 @@ typedef bool (*prim_try_guard)(oop);
 #define PF_EV_WHEEL 4
 #define PF_EV_WINDOW_CLOSE_REQUEST 9
 #define PF_EV_WINDOW_EXPOSED 15
+#define PF_EV_WINDOW_MOVED 17
 #define PF_EV_WINDOW_RESIZED 8
 #define PF_FD_PTY 2
 #define PF_FD_SOCKET 1
@@ -588,6 +590,7 @@ typedef bool (*prim_try_guard)(oop);
 #define PF_WIN_HIDDEN 1
 #define PF_WIN_HIGH_DENSITY 4
 #define PF_WIN_RESIZABLE 2
+#define PF_WIN_TRANSPARENT 16
 #define PF_X_BOOL 2
 #define PF_X_INT 1
 #define PF_X_NIL 0
@@ -730,6 +733,7 @@ typedef bool (*prim_try_guard)(oop);
 #define SURFACE_ACK_CONFIGURE 6
 #define SURFACE_DESTROY 7
 #define SURFACE_SET_ANCHOR 1
+#define SURFACE_SET_LAYER 8
 #define SURFACE_SET_MARGIN 3
 #define SURFACE_SET_SIZE 0
 #define TENURE_AGE 2
@@ -2460,20 +2464,24 @@ void platform_vsync_poll(void);
 void platform_vsync_refreshed(void);
 bool semaphore(int32_t index);
 void signal_notifications(void);
+bool clear_surface(int32_t win);
 void *clipboard_data(char *mime, size_t *size);
 char *clipboard_get(void);
 bool clipboard_set(char *s);
 bool platform_windows_close(int32_t win);
 double display_scale(int32_t win);
+bool fill_surface(int32_t win, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rgba);
 void free_clipboard_data(void *data);
 int32_t from_sdl_id(SDL_WindowID id);
 int32_t platform_windows_handle_count(void);
 bool is_hidden(int32_t win);
 int32_t platform_windows_open(int32_t w, int32_t h, char *title, int32_t flags);
 bool pixel_size(int32_t win, int *w, int *h);
+bool present_surface(int32_t win);
 double refresh_rate(int32_t win);
 SDL_Window *sdl_window(int32_t win);
 bool set_cursor(int32_t kind);
+bool set_opacity(int32_t win, int32_t permille);
 bool set_position(int32_t win, int32_t x, int32_t y);
 bool set_size(int32_t win, int32_t w, int32_t h);
 bool set_text_input_area(int32_t win, int32_t x, int32_t y, int32_t w, int32_t h, int32_t cursor);
@@ -2495,10 +2503,13 @@ SDL_Keymod alt_keymod(void);
 void closing_desktop_window(SDL_Window *sw);
 SDL_Keymod cmd_keymod(void);
 void *platform_host_compile_shader(char *source, int32_t stage, size_t *size_out);
+Uint32 desktop_moved_event(void);
 char **environment(void);
 bool move_desktop_window(SDL_Window *sw, int32_t x, int32_t y);
 SDL_Window *open_desktop_window(char *title, int32_t w, int32_t h, SDL_WindowFlags flags);
+bool raise_desktop_window(SDL_Window *sw);
 bool resize_desktop_window(SDL_Window *sw, int32_t w, int32_t h);
+bool set_desktop_window_opacity(SDL_Window *sw, int32_t permille);
 SDL_GPUShaderFormat shader_formats(void);
 void socket_opened(int fd);
 char *utf8_ctype(void);
@@ -2510,19 +2521,25 @@ SDL_Keymod alt_keymod(void);
 void closing_desktop_window(SDL_Window *sw);
 SDL_Keymod cmd_keymod(void);
 void *platform_host_compile_shader(char *source, int32_t stage, size_t *size_out);
+Uint32 desktop_moved_event(void);
 char **environment(void);
 bool move_desktop_window(SDL_Window *sw, int32_t x, int32_t y);
 SDL_Window *open_desktop_window(char *title, int32_t w, int32_t h, SDL_WindowFlags flags);
+bool raise_desktop_window(SDL_Window *sw);
 bool resize_desktop_window(SDL_Window *sw, int32_t w, int32_t h);
+bool set_desktop_window_opacity(SDL_Window *sw, int32_t permille);
 SDL_GPUShaderFormat shader_formats(void);
 void socket_opened(int fd);
 char *utf8_ctype(void);
 bool vsync_start(void);
 void vsync_stop(void);
 void destroy_surface(SDL_Window *sw);
+Uint32 moved_event_type(void);
 SDL_Window *open_surface(char *title, int32_t w, int32_t h, SDL_WindowFlags flags);
 bool place_surface(SDL_Window *sw, int32_t x, int32_t y);
+bool raise_surface(SDL_Window *sw);
 bool resize_surface(SDL_Window *sw, int32_t w, int32_t h);
+bool set_surface_opacity(SDL_Window *sw, int32_t permille);
 #endif
 #endif
 

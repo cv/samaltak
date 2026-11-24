@@ -1,5 +1,5 @@
 Object subclass: #InputDispatcher
-	instanceVariableNames: 'world displayWindow process running semaphore semaphoreIndex buffer pointer modifiers gesture pressed captureWindow hoverWindow cursor idle lastMove tooltipAsked services standIn lastPress inbox'
+	instanceVariableNames: 'world displayWindow process running semaphore semaphoreIndex buffer pointer modifiers gesture pressed captureWindow hoverWindow cursor idle lastMove tooltipAsked services standIn lastPress inbox hostOrigin'
 	classVariableNames: 'Running Routing'
 	package: 'UI-Windows'!
 
@@ -13,6 +13,7 @@ setWorld: aWorld
 	idle := true.
 	buffer := Array new: 8.
 	pointer := 0 @ 0.
+	hostOrigin := 0 @ 0.
 	modifiers := Modifiers none.
 	cursor := #arrow.
 	lastMove := 0.
@@ -193,6 +194,14 @@ handle: anArray
 hostResized: aPoint
 	world hostResized: aPoint
 !
+hostMoved: aPoint
+	"The host window is now at aPoint: the pointer events after this are relative to it there."
+	hostOrigin := aPoint
+!
+hostOrigin
+	"Where the host window is, as the events so far have it (HostMovedEvent)."
+	^hostOrigin
+!
 quitRequested
 	world quitRequested
 !
@@ -210,6 +219,7 @@ exposed
 handlePointer: anEvent
 	modifiers := anEvent modifiers.
 	pointer := anEvent globalPosition.
+	anEvent screenPosition: pointer + hostOrigin.
 	anEvent isMove ifTrue: [^self pointerMoved: anEvent].
 	anEvent isDown ifTrue: [^self pointerDown: anEvent].
 	anEvent isUp ifTrue: [^self pointerUp: anEvent].

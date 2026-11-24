@@ -1,9 +1,9 @@
 Widget subclass: #OmarchyCard
-	instanceVariableNames: 'onActivate onRefresh scrollOffset maxHeight pills columnWidth framed'
+	instanceVariableNames: 'onActivate onRefresh onDrag press pressButton moved scrollOffset maxHeight pills columnWidth framed'
 	classVariableNames: ''
 	package: 'UI-Omarchy'!
 
-OmarchyCard comment: 'I am a card of the Omarchy desktop (the desktop-cards plugin''s CardFrame) as a widget: the popup surface, the card''s padding, its column''s width, and the shell''s typeface, type scale, spacing and colors (OmarchyTheme; under another theme its paper, ink and code face). A click runs onActivate, a middle click onRefresh. Subclasses answer contentHeight and draw drawContentOn:width: in content coordinates.
+OmarchyCard comment: 'I am a card of the Omarchy desktop (the desktop-cards plugin''s CardFrame) as a widget: the popup surface, the card''s padding, its column''s width, and the shell''s typeface, type scale, spacing and colors (OmarchyTheme; under another theme its paper, ink and code face). A click runs onActivate, a middle click onRefresh, when the button is released without the pointer having moved more than space: 6 (|dx| + |dy|, CardFrame''s threshold); a press of the left button that moves further drags the card instead (onDrag: OmarchyDesk moves it). Subclasses answer contentHeight and draw drawContentOn:width: in content coordinates.
 
 Content taller than maxHeight (points, the card''s padding included; nil: no limit) scrolls with the wheel, with a thin indicator at the right, as CardFrame does.
 
@@ -24,6 +24,14 @@ onActivate: aBlock
 onRefresh: aBlock
 	"A middle click."
 	onRefresh := aBlock
+!
+onDrag: aBlock
+	"[:phase :screenPoint | ...] for a drag with the left button: phase #start (once the pointer moved past the threshold), #move, #end (released, or the press was taken away); screenPoint is the pointer on the screen (PointerEvent>>screenPosition), which stays put while my host window moves under it."
+	onDrag := aBlock
+!
+isDragged
+	"Whether a press of mine is dragging me."
+	^moved == true and: [press notNil]
 !
 maxHeight
 	^maxHeight
@@ -164,11 +172,6 @@ scrollOffset: points
 !
 clampScroll
 	scrollOffset := (scrollOffset min: self maxScroll) max: 0
-!
-wheel: anEvent
-	self maxScroll > 0 ifFalse: [^false].
-	self scrollOffset: scrollOffset - (anEvent delta y * 40).
-	^true
 ! !
 
 !OmarchyCard methodsFor: 'drawing'!
@@ -219,20 +222,8 @@ drawMeterOn: aCanvas in: aRectangle value: aFraction marker: markerFraction alar
 !
 drawPillOn: aCanvas in: aRectangle color: aColor
 	"A rectangle with fully rounded ends (radius half its smaller side), antialiased."
-	| s w h form key |
-	s := aCanvas scale.
-	w := (aRectangle width * s) rounded max: 1.
-	h := (aRectangle height * s) rounded max: 1.
-	key := Array with: w with: h with: aColor.
-	form := pills at: key ifAbsent: [
-		| f r |
-		pills size > 64 ifTrue: [pills := Dictionary new].
-		f := Form width: w height: h.
-		r := (w min: h) / 2.0.
-		(VectorPainter on: f)
-			fill: (VectorPath rectX: 0 y: 0 width: w height: h rx: r ry: r) color: aColor rule: #nonzero.
-		pills at: key put: f].
-	aCanvas image: form in: (aRectangle origin extent: (w / s) @ (h / s))
+	pills size > 64 ifTrue: [pills := Dictionary new].
+	self class drawPillOn: aCanvas in: aRectangle color: aColor cache: pills
 ! !
 
 !OmarchyCard methodsFor: 'text'!
@@ -259,17 +250,71 @@ drawLines: lines on: aCanvas at: aPoint font: aFont color: aColor lineHeight: po
 
 !OmarchyCard methodsFor: 'events'!
 mouseDown: anEvent
-	anEvent button = 1 ifTrue: [onActivate isNil ifFalse: [onActivate value]. ^true].
-	anEvent button = 3 ifTrue: [onRefresh isNil ifFalse: [onRefresh value]. ^true].
-	^false
+	"The left or the middle button: a click or (left) a drag, as the release and the moves before it tell."
+	(anEvent button = 1 or: [anEvent button = 3]) ifFalse: [^false].
+	press := anEvent screenPosition.
+	pressButton := anEvent button.
+	moved := false.
+	^true
+!
+mouseMove: anEvent
+	| p |
+	press isNil ifTrue: [^false].
+	(pressButton = 1 and: [anEvent isDragging]) ifFalse: [^true].
+	p := anEvent screenPosition.
+	moved ifFalse: [
+		(p x - press x) abs + (p y - press y) abs <= (self space: 6) ifTrue: [^true].
+		moved := true.
+		onDrag isNil ifFalse: [onDrag value: #start value: press]].
+	onDrag isNil ifFalse: [onDrag value: #move value: p].
+	^true
+!
+mouseUp: anEvent
+	| wasMoved button |
+	press isNil ifTrue: [^false].
+	wasMoved := moved.
+	button := pressButton.
+	press := nil.
+	moved := false.
+	wasMoved ifTrue: [
+		onDrag isNil ifFalse: [onDrag value: #end value: anEvent screenPosition].
+		^true].
+	button = 3 ifTrue: [onRefresh isNil ifFalse: [onRefresh value]. ^true].
+	onActivate isNil ifFalse: [onActivate value].
+	^true
+!
+wheel: anEvent
+	"Not while I am dragged."
+	self isDragged ifTrue: [^true].
+	self maxScroll > 0 ifFalse: [^false].
+	self scrollOffset: scrollOffset - (anEvent delta y * 40).
+	^true
 !
 cursorAt: aPoint
-	^#hand
+	^self isDragged ifTrue: [#move] ifFalse: [#hand]
 ! !
 
 !OmarchyCard methodsFor: 'remote control'!
 remoteRole
 	^#card
+! !
+
+!OmarchyCard class methodsFor: 'drawing'!
+drawPillOn: aCanvas in: aRectangle color: aColor cache: aDictionary
+	"A rectangle with fully rounded ends (radius half its smaller side), antialiased; its Form kept in aDictionary."
+	| s w h form key |
+	s := aCanvas scale.
+	w := (aRectangle width * s) rounded max: 1.
+	h := (aRectangle height * s) rounded max: 1.
+	key := Array with: w with: h with: aColor.
+	form := aDictionary at: key ifAbsent: [
+		| f r |
+		f := Form width: w height: h.
+		r := (w min: h) / 2.0.
+		(VectorPainter on: f)
+			fill: (VectorPath rectX: 0 y: 0 width: w height: h rx: r ry: r) color: aColor rule: #nonzero.
+		aDictionary at: key put: f].
+	aCanvas image: form in: (aRectangle origin extent: (w / s) @ (h / s))
 ! !
 
 !OmarchyCard class methodsFor: 'text'!

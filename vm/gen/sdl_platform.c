@@ -111,6 +111,8 @@ static int64_t ffi_tls_recv(int64_t h, uint8_t *buf, uint64_t n);
 static int32_t ffi_tls_semaphore(int64_t h, int64_t r, int64_t w);
 static int64_t ffi_tls_send(int64_t h, const uint8_t *buf, uint64_t n);
 static int32_t ffi_tls_start(int64_t h, const uint8_t *name, uint64_t n);
+static int32_t sdl_platform_ffi_window_fill_rects_size(int64_t win, const uint8_t *bytes, uint64_t n);
+static int32_t sdl_platform_ffi_window_opacity(int64_t win, int64_t permille);
 static int32_t sdl_platform_ffi_window_show(int64_t w, int32_t flag);
 static int32_t sdl_platform_ffi_window_title_size(int64_t win, const uint8_t *bytes, uint64_t n);
 static int32_t sdl_platform_ffi_window_width_height(int64_t win, int64_t w, int64_t h);
@@ -253,6 +255,14 @@ static int32_t ffi_clipboard_data_entry_witness(const uint8_t *a1, uint64_t a2, 
 static int32_t sdl_platform_ffi_window_width_height_entry_witness(int64_t a1, int64_t a2, int64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1445\n");
     return sdl_platform_ffi_window_width_height(a1, a2, a3);
+}
+static int32_t sdl_platform_ffi_window_opacity_entry_witness(int64_t a1, int64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1447\n");
+    return sdl_platform_ffi_window_opacity(a1, a2);
+}
+static int32_t sdl_platform_ffi_window_fill_rects_size_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1448\n");
+    return sdl_platform_ffi_window_fill_rects_size(a1, a2, a3);
 }
 static int32_t ffi_gpu_create_device_entry_witness(int32_t a1) {
     fprintf(stderr, "\nffi-native-entry 1454\n");
@@ -649,6 +659,18 @@ int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signatu
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) sdl_platform_ffi_window_width_height_entry_witness;
         return 1445;
+    }
+    if (packed_signature == 817 && strcmp(approved_name, "platform_windows_set_opacity") == 0) {
+        *target_out = (uint64_t) sdl_platform_ffi_window_opacity;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) sdl_platform_ffi_window_opacity_entry_witness;
+        return 1447;
+    }
+    if (packed_signature == 897 && strcmp(approved_name, "platform_windows_fill_rects") == 0) {
+        *target_out = (uint64_t) sdl_platform_ffi_window_fill_rects_size;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) sdl_platform_ffi_window_fill_rects_size_entry_witness;
+        return 1448;
     }
     if (packed_signature == 17 && strcmp(approved_name, "platform_gpu_create_device") == 0) {
         *target_out = (uint64_t) ffi_gpu_create_device;
@@ -2463,6 +2485,37 @@ uint64_t ffi_target(int32_t stable_id)
         break;
     }
     return v;
+}
+
+/* SDLPlatform>>ffiWindow:fillRects:size: */
+static int32_t sdl_platform_ffi_window_fill_rects_size(int64_t win, const uint8_t *bytes, uint64_t n)
+{
+    int32_t w;
+    int64_t count;
+    int64_t i;
+    int32_t o;
+    if (!(n % 20 == 0)) {
+        return 0;
+    }
+    w = (int32_t)win;
+    if (!clear_surface(w)) {
+        return 0;
+    }
+    count = (int64_t)(n / 20);
+    for (i = 0; i <= count - 1; i++) {
+        o = (int32_t)(i * 20);
+        fill_surface(w, (int32_t)sdl_platform_window_wire_at_count(bytes, o, 4), (int32_t)sdl_platform_window_wire_at_count(bytes, o + 4, 4), (int32_t)sdl_platform_window_wire_at_count(bytes, o + 8, 4), (int32_t)sdl_platform_window_wire_at_count(bytes, o + 12, 4), (uint32_t)sdl_platform_window_wire_at_count(bytes, o + 16, 4));
+    }
+    return present_surface(w) ? 1 : 0;
+}
+
+/* SDLPlatform>>ffiWindow:opacity: */
+static int32_t sdl_platform_ffi_window_opacity(int64_t win, int64_t permille)
+{
+    if ((permille < 0) || (permille > 1000)) {
+        return 0;
+    }
+    return set_opacity((int32_t)win, (int32_t)permille) ? 1 : 0;
 }
 
 /* SDLPlatform>>ffiWindow:show: */

@@ -68,6 +68,12 @@ void *platform_host_compile_shader(char *source, int32_t stage, size_t *size_out
     return NULL;
 }
 
+/* DarwinPlatformHost>>desktopMovedEvent */
+Uint32 desktop_moved_event(void)
+{
+    return 0;
+}
+
 /* DarwinPlatformHost>>environment */
 char **environment(void)
 {
@@ -93,8 +99,20 @@ SDL_Window *open_desktop_window(char *title, int32_t w, int32_t h, SDL_WindowFla
     return (SDL_Window *)NULL;
 }
 
+/* DarwinPlatformHost>>raiseDesktopWindow: */
+bool raise_desktop_window(SDL_Window *sw)
+{
+    return false;
+}
+
 /* DarwinPlatformHost>>resizeDesktopWindow:width:height: */
 bool resize_desktop_window(SDL_Window *sw, int32_t w, int32_t h)
+{
+    return false;
+}
+
+/* DarwinPlatformHost>>setDesktopWindowOpacity:permille: */
+bool set_desktop_window_opacity(SDL_Window *sw, int32_t permille)
 {
     return false;
 }
