@@ -101,18 +101,19 @@ preferredExtent
 
 !ToggleGroup methodsFor: 'drawing'!
 drawSelfOn: aCanvas
-	| rects ink paper |
+	| rects ink paper on |
 	ink := self theme ink.
 	paper := self theme paper.
+	on := self theme isBevelled ifTrue: [self theme color: #pressed] ifFalse: [ink].
 	aCanvas fillRect: self localBounds color: paper.
 	self framed ifTrue: [aCanvas fillRect: (0 @ 0 extent: self width @ 1) color: self theme rule].
 	rects := self segmentRects.
 	rects doWithIndex: [:r :i |
-		| amount bg fg |
+		| amount fg |
 		amount := self onAmountAt: i.
-		amount > 0 ifTrue: [aCanvas fillRect: r color: (ink alpha: amount)].
+		amount > 0 ifTrue: [aCanvas fillRect: r color: (on alpha: amount)].
 		aCanvas strokeRect: r color: ink width: 1.
-		fg := ink mixed: amount with: paper.
+		fg := on == ink ifTrue: [ink mixed: amount with: paper] ifFalse: [ink].
 		aCanvas drawString: (self labelAt: i) in: r
 			font: (self theme font: (amount > 0.5 ifTrue: [#buttonBold] ifFalse: [#button]))
 			color: fg align: #center]

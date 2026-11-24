@@ -1,7 +1,9 @@
 Object subclass: #Window
 	instanceVariableNames: 'title bounds content world layer process queue state invalid fullRedraw redrawQueued resizePending busy busyLabel collapsed expandedExtent keyboardFocus capture hover contentCursor remoteName focusAmount minExtent animations tickPending handlingSince lastInputTime closeActions drawError showsSuspended shownChip lastClick'
-	classVariableNames: 'ErrorHandler'
+	classVariableNames: 'ChromeStyle ErrorHandler'
 	package: 'UI-Windows'!
+
+x!
 
 Window comment: 'I am an overlapping window of the World: a Blue Book frame (title bar with stripes and the black title tab when focused, close and collapse boxes, the process chip, a resize grip) around a content View, with my own Process (priority 40, named after my title) running an event loop over a SharedQueue.
 
@@ -679,19 +681,6 @@ chromeKey
 	"What my chrome depends on; the compositor re-renders my layer when it changes."
 	^Array with: bounds extent with: (focusAmount * 50) rounded with: title with: collapsed
 !
-drawChromeOn: c
-	"Frame, title bar and grip in my coordinates (the content was drawn below)."
-	| w h bar |
-	w := bounds width.
-	h := bounds height.
-	c strokeRect: (0 @ 0 extent: w @ h) color: Color ink width: 1.
-	bar := 1 @ 1 extent: (w - 2) @ self titleBarHeight.
-	c fillRect: bar color: Color paper.
-	c fillRect: (1 @ (bar bottom) extent: (w - 2) @ 1) color: Color ink.
-	self drawTitleOn: c in: bar.
-	self drawBoxesOn: c.
-	collapsed ifFalse: [self drawGripOn: c]
-!
 drawTitleOn: c in: bar
 	"The title tab between the close box and the chip; when focused (f: focus amount) black, with stripes on both sides."
 	| f titleFont leftEnd rightStart label tabWidth tab |
@@ -865,4 +854,67 @@ screenshotContent
 	"Capture my visible content, excluding window chrome."
 	self isOpen ifFalse: [self error: 'Cannot capture a closed window'].
 	^world screenshot: self contentBounds
+! !
+
+!Window class methodsFor: 'chrome'!
+chromeStyle
+	"#classic (Blue Book stripes) or #tab (a BeOS-like tab, colored by Color tab and tabShade)."
+	^ChromeStyle ifNil: [#classic]
+!
+chromeStyle: aSymbol
+	ChromeStyle := aSymbol
+! !
+
+!Window methodsFor: 'drawing'!
+drawChromeOn: c
+	"Frame, title bar and grip in my coordinates (the content was drawn below)."
+	| w h bar |
+	self class chromeStyle == #tab ifTrue: [^self drawTabChromeOn: c].
+	w := bounds width.
+	h := bounds height.
+	c strokeRect: (0 @ 0 extent: w @ h) color: Color ink width: 1.
+	bar := 1 @ 1 extent: (w - 2) @ self titleBarHeight.
+	c fillRect: bar color: Color paper.
+	c fillRect: (1 @ (bar bottom) extent: (w - 2) @ 1) color: Color ink.
+	self drawTitleOn: c in: bar.
+	self drawBoxesOn: c.
+	collapsed ifFalse: [self drawGripOn: c]
+!
+drawTabChromeOn: c
+	"The BeOS-like chrome: a gray bevelled frame and bar, the title on a shaded tab that holds the close box; the tab is Color tab when focused, gray when not."
+	| w h bar f titleFont label tab top bottom box |
+	w := bounds width.
+	h := bounds height.
+	f := focusAmount.
+	bar := 1 @ 1 extent: (w - 2) @ self titleBarHeight.
+	c fillRect: bar color: Color paper.
+	titleFont := Font title.
+	label := self class truncate: title to: self chipRectStatic left - self closeBoxRect right - 40 font: titleFont.
+	tab := bar origin extent: ((self closeBoxRect right + 8 + (titleFont widthOf: label) + 12) min: self chipRectStatic left - 8) rounded @ bar height.
+	top := (Color named: #hair) mixed: f with: (Color named: #tab).
+	bottom := (Color named: #ink4) mixed: f with: (Color named: #tabShade).
+	0 to: tab height - 1 do: [:y |
+		c fillRect: (tab left @ (tab top + y) extent: tab width @ 1)
+			color: (top mixed: y / (tab height - 1) with: bottom)].
+	c fillRect: (tab origin extent: tab width @ 1) color: (Color white alpha: 0.8).
+	c fillRect: (tab topRight - (1 @ 0) extent: 1 @ tab height) color: (Color named: #ink3).
+	box := self closeBoxRect.
+	c fillRect: box color: (Color white alpha: 0.55).
+	c fillRect: (box origin + 1 extent: box extent - 2 // 2) color: (Color white alpha: 0.6).
+	c strokeRect: box color: (Color named: #ink3) width: 1.
+	c drawString: label at: (box right + 8) @ (bar top + 3) font: titleFont color: ((Color named: #ink3) mixed: f with: Color ink).
+	self drawTabBoxesOn: c.
+	c fillRect: (1 @ (bar bottom) extent: (w - 2) @ 1) color: (Color named: #ink3).
+	c strokeRect: (0 @ 0 extent: w @ h) color: (Color named: #ink3) width: 1.
+	c fillRect: (1 @ 1 extent: 1 @ (h - 2)) color: (Color white alpha: 0.7).
+	collapsed ifFalse: [self drawGripOn: c]
+!
+drawTabBoxesOn: c
+	"The collapse box and the chip's dot, bevelled like the close box."
+	| ink |
+	ink := (Color named: #ink3).
+	{self collapseBoxRect. self chipRectStatic} do: [:box |
+		c fillRect: box color: (Color white alpha: 0.55).
+		c strokeRect: box color: ink width: 1].
+	c strokeRect: self dotRect color: ink width: 1
 ! !

@@ -83,22 +83,6 @@ initializeBlueBook
 		at: #flashMs put: 90
 ! !
 
-!Theme methodsFor: 'refreshing'!
-refresh
-	"My definition changed: define my colors and metrics again (fonts are kept), forget the syntax styles and publish the palette."
-	self initializeBlueBook.
-	syntax := nil.
-	terminal := nil.
-	self publishPalette
-!
-publishPalette
-	"Make my colors Color's named colors where both have the name (the window system's chrome draws with those)."
-	| named |
-	named := Color namedColors.
-	colors keysAndValuesDo: [:key :color |
-		(named includesKey: key) ifTrue: [Color named: key put: color]]
-! !
-
 !Theme methodsFor: 'accessing'!
 name
 	^name
@@ -155,6 +139,13 @@ prepareFonts
 	chars := Font prerasterizedCharacters.
 	self extraFontSpecs do: [:spec | (self font: spec first) prerasterize: chars].
 	self buildSyntaxStyles
+!
+isBevelled
+	"Do buttons draw raised bevels (the be-gold theme) instead of Blue Book rules?"
+	^(metrics at: #bevel ifAbsent: [0]) > 0
+!
+chromeStyle
+	^self isBevelled ifTrue: [#tab] ifFalse: [#classic]
 ! !
 
 !Theme methodsFor: 'colors'!
@@ -211,6 +202,10 @@ buildSyntaxStyles
 !Theme class methodsFor: 'instance creation'!
 blueBook
 	^self new setName: 'blue-book'; initializeBlueBook; yourself
+!
+beGold
+	"BeOS-like: gray bevelled panels, gold window tabs, NVIDIA green for accent and desk."
+	^BeGoldTheme new setName: 'be-gold'; initializeBeGold; yourself
 ! !
 
 !Theme class methodsFor: 'class initialization'!
@@ -236,4 +231,33 @@ themeChanged
 !
 reset
 	Current isNil ifFalse: [Current reset]
+! !
+
+!Theme class methodsFor: 'accessing'!
+use: aTheme
+	"Make aTheme current and redraw everything in it."
+	Current := aTheme.
+	aTheme publishPalette.
+	World restyleAll
+!
+toggle
+	"Switch between the Blue Book and the be-gold theme."
+	self use: (self current isBevelled ifTrue: [self blueBook] ifFalse: [self beGold])
+! !
+
+!Theme methodsFor: 'refreshing'!
+refresh
+	"My definition changed: define my colors and metrics again (fonts are kept), forget the syntax styles and publish the palette."
+	self initializeBlueBook.
+	syntax := nil.
+	terminal := nil.
+	self publishPalette
+!
+publishPalette
+	"Make my colors Color's named colors where both have the name, and my tab colors and chrome style the windows's (the window system's chrome draws with those)."
+	| named |
+	named := Color namedColors.
+	colors keysAndValuesDo: [:key :color |
+		((named includesKey: key) or: [#(#tab #tabShade) includes: key]) ifTrue: [Color named: key put: color]].
+	Window chromeStyle: self chromeStyle
 ! !
