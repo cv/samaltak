@@ -75,6 +75,7 @@ static bool loop_ranges(void);
 static bool memory_kept_from(int32_t d, int32_t b, int32_t k);
 static void mutability_out_of(int32_t h, int64_t entry, int64_t index);
 static void outer_slots_out_of(int32_t h, int64_t entry);
+static void polls_at_heads(void);
 static void promote_outer_temps_of(int32_t h, int64_t entry, int64_t index, int64_t latch);
 static void range_bounds_out_of(int32_t h, int64_t entry, int64_t index);
 static void range_of(int32_t v, int32_t h, int d);
@@ -742,6 +743,9 @@ void cleanup(int32_t entry)
     }
     if (opt_full) {
         return;
+    }
+    if ((jit_flags & JIT_FLAG_HOIST) != 0) {
+        polls_at_heads();
     }
     unbox_states();
     count_uses();
@@ -3391,6 +3395,53 @@ exit_is_before:;
                     }
                 }
                 n = (opt_nodes + n)->next;
+            }
+        }
+    }
+}
+
+/* OptPasses>>pollsAtHeads */
+static void polls_at_heads(void)
+{
+    int32_t i;
+    int32_t h;
+    opt_block *hb;
+    int64_t latch;
+    int32_t e;
+    int32_t p;
+    opt_block *lb;
+    int32_t m;
+    int32_t n;
+    int32_t f;
+    for (i = 0; i <= ps_order_count - 1; i++) {
+        h = ps_order[i];
+        hb = opt_blocks + h;
+        if (((hb->flags & BF_LOOP) != 0) && ((hb->npreds == 2) && (hb->entry_state >= 0))) {
+            latch = -1;
+            e = hb->preds;
+            while (e >= 0) {
+                p = (opt_edges + e)->from;
+                if ((opt_blocks + p)->rpo >= hb->rpo) {
+                    latch = p;
+                }
+                e = (opt_edges + e)->next;
+            }
+            if ((latch >= 0) && (latch != h)) {
+                lb = opt_blocks + latch;
+                m = lb->first;
+                if ((m >= 0) && (((int32_t)(opt_nodes + m)->op == O_CHECKINT) && (((opt_nodes + m)->next == lb->last) && ({
+    n = lb->last;
+    (int32_t)(opt_nodes + n)->op == O_GOTO; })))) {
+                    f = hb->first;
+                    while ((f >= 0) && ((int32_t)(opt_nodes + f)->op == O_PHI)) {
+                        f = (opt_nodes + f)->next;
+                    }
+                    if (f >= 0) {
+                        opt_ir_unlink(m);
+                        insert(m, f);
+                        (opt_nodes + m)->state = hb->entry_state;
+                    }
+                }
             }
         }
     }

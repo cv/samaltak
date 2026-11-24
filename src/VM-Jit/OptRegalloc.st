@@ -480,20 +480,26 @@ crossesCall: v
 	^(self isSafepoint: v) and: [nd lend > nd pos and: [nd op asInt32 ~= O_CHECKINT and: [nd op asInt32 ~= O_MKARRAY]]]
 !
 coalescePhis
-	"A phi's operand defined within the phi's interval (a loop's value made on its back edge), in a register of the same kind, takes the phi's register if the phi is dead from where the operand is defined on and no other value has that register over the operand's interval: no move on that edge. One operand per phi."
+	"A phi's operand defined within the phi's interval (a loop's value made on its back edge), in a register of the same kind, takes the phi's register if the phi is dead from where the operand is defined on and no other value has that register over the operand's interval: no move on that edge. One operand per phi, one phi per operand (a loop's head's before the others)."
 	<function>
-	| p v pd vd |
-	0 to: ir nodeCount - 1 do: [:n |
+	| n p v pd vd taken |
+	taken := self local: 'uint8_t[OPT_MAX_NODES]'.
+	0 to: ir nodeCount - 1 do: [:k | taken at: k put: 0].
+	"loops' heads first: their moves run every turn, the others' once"
+	0 to: 2 * ir nodeCount - 1 do: [:i |
+		n := i rem: ir nodeCount.
 		pd := ir node: n.
-		(pd op asInt32 = O_PHI and: [(self isValue: n) and: [pd reg >= 0]]) ifTrue: [
+		(pd op asInt32 = O_PHI and: [(self isValue: n) and: [pd reg >= 0 and: [(((ir block: pd block) flags bitAnd: BF_LOOP) ~= 0) = (i < ir nodeCount)]]]) ifTrue: [
 			v := -1.
 			0 to: pd nargs asInt32 - 1 do: [:k |
 				p := ir operand: pd args + k.
-				(v < 0 and: [(self isValue: p) and: [p ~= n]]) ifTrue: [
+				(v < 0 and: [(self isValue: p) and: [p ~= n and: [(taken at: p) = 0]]]) ifTrue: [
 					vd := ir node: p.
 					(vd op asInt32 ~= O_PHI and: [vd reg >= 0 and: [vd reg ~= pd reg and: [vd rep = pd rep and: [
 						vd lstart >= pd lstart and: [(self is: n liveAfter: p) not and: [(self reg: pd reg asInt32 isFreeFor: p but: n)]]]]]]) ifTrue: [v := p]]].
-			v >= 0 ifTrue: [(ir node: v) reg: pd reg]]]
+			v >= 0 ifTrue: [
+				(ir node: v) reg: pd reg.
+				taken at: v put: 1]]]
 !
 writesLast: v
 	"v's code reads its inputs (and leaves by its guard) before it writes its result."

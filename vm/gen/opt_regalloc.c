@@ -1133,19 +1133,24 @@ exit_is_value_11:;
 /* OptRegalloc>>coalescePhis */
 static void coalesce_phis(void)
 {
+    uint8_t local[16384];
+    uint8_t *taken;
+    int32_t k;
+    int32_t i;
     int32_t n;
     opt_node *pd;
     bool r_is_value;
     opt_node *nd;
+    int32_t b;
     int64_t v;
-    int32_t k;
-    int32_t i;
+    int32_t k_2;
+    int32_t i_2;
     int32_t p;
     bool r_is_value_2;
     opt_node *nd_2;
     opt_node *vd;
     bool r_is;
-    int32_t b;
+    int32_t b_2;
     int32_t set;
     int32_t w;
     int32_t m;
@@ -1159,15 +1164,15 @@ static void coalesce_phis(void)
     int32_t v_4;
     bool r_is_value_5;
     opt_node *nd_6;
-    int32_t i_2;
     int32_t i_3;
+    int32_t i_4;
     int32_t v_5;
     bool r_is_value_6;
     opt_node *nd_7;
     int32_t s;
     opt_state *st;
-    int32_t i_4;
     int32_t i_5;
+    int32_t i_6;
     int32_t v_6;
     bool r_is_value_7;
     opt_node *nd_8;
@@ -1189,15 +1194,15 @@ static void coalesce_phis(void)
     int32_t v_10;
     bool r_is_value_11;
     opt_node *nd_13;
-    int32_t i_6;
     int32_t i_7;
+    int32_t i_8;
     int32_t v_11;
     bool r_is_value_12;
     opt_node *nd_14;
     int32_t s_2;
     opt_state *st_2;
-    int32_t i_8;
     int32_t i_9;
+    int32_t i_10;
     int32_t v_12;
     bool r_is_value_13;
     opt_node *nd_15;
@@ -1214,7 +1219,13 @@ static void coalesce_phis(void)
     opt_node *nd_17;
     bool r_is_value_15;
     opt_node *nd_18;
-    for (n = 0; n <= opt_node_count - 1; n++) {
+    memset(&local, 0, sizeof local);
+    taken = local;
+    for (k = 0; k <= opt_node_count - 1; k++) {
+        taken[k] = 0;
+    }
+    for (i = 0; i <= 2 * opt_node_count - 1; i++) {
+        n = i % opt_node_count;
         pd = opt_nodes + n;
         if (((int32_t)pd->op == O_PHI) && (({
     if (n < 0) {
@@ -1224,11 +1235,13 @@ static void coalesce_phis(void)
     nd = opt_nodes + n;
     r_is_value = (nd->block >= 0) && (((int32_t)nd->rep != R_NONE) && (((int32_t)nd->op != O_CONST) && (((int32_t)nd->op != O_CLOSURE) && (((int32_t)nd->op != O_HOMESLOT) && ((nd->flags & NF_DEAD) == 0)))));
 exit_is_value:;
-    r_is_value; }) && (pd->reg >= 0))) {
+    r_is_value; }) && ((pd->reg >= 0) && ({
+    b = pd->block;
+    ((opt_blocks + b)->flags & BF_LOOP) != 0 == i < opt_node_count; })))) {
             v = -1;
-            for (k = 0; k <= (int32_t)pd->nargs - 1; k++) {
-                i = pd->args + k;
-                p = opt_operands[i];
+            for (k_2 = 0; k_2 <= (int32_t)pd->nargs - 1; k_2++) {
+                i_2 = pd->args + k_2;
+                p = opt_operands[i_2];
                 if ((v < 0) && (({
     if (p < 0) {
         r_is_value_2 = false;
@@ -1237,15 +1250,15 @@ exit_is_value:;
     nd_2 = opt_nodes + p;
     r_is_value_2 = (nd_2->block >= 0) && (((int32_t)nd_2->rep != R_NONE) && (((int32_t)nd_2->op != O_CONST) && (((int32_t)nd_2->op != O_CLOSURE) && (((int32_t)nd_2->op != O_HOMESLOT) && ((nd_2->flags & NF_DEAD) == 0)))));
 exit_is_value_2:;
-    r_is_value_2; }) && (p != n))) {
+    r_is_value_2; }) && ((p != n) && (taken[p] == 0)))) {
                     vd = opt_nodes + p;
                     if (((int32_t)vd->op != O_PHI) && ((vd->reg >= 0) && ((vd->reg != pd->reg) && ((vd->rep == pd->rep) && ((vd->lstart >= pd->lstart) && ((!({
-    b = (opt_nodes + p)->block;
+    b_2 = (opt_nodes + p)->block;
     set = 2 * opt_block_count * ra_live_words;
     for (w = 0; w <= ra_live_words - 1; w++) {
-        ra_live_arena[set + w] = ra_live_arena[ra_live_out + b * ra_live_words + w];
+        ra_live_arena[set + w] = ra_live_arena[ra_live_out + b_2 * ra_live_words + w];
     }
-    m = (opt_blocks + b)->last;
+    m = (opt_blocks + b_2)->last;
     while ((m >= 0) && (m != p)) {
         ra_live_arena[set + (m >> 6)] = ra_live_arena[set + (m >> 6)] & (~(1LL << (m & 63)));
         if ((int32_t)(opt_nodes + m)->op != O_PHI) {
@@ -1293,9 +1306,9 @@ exit_is_value_5:;
                 }
             }
             if ((int32_t)nd_3->op != O_PHI) {
-                for (i_2 = 0; i_2 <= (int32_t)nd_3->nargs - 1; i_2++) {
-                    i_3 = nd_3->args + i_2;
-                    v_5 = opt_operands[i_3];
+                for (i_3 = 0; i_3 <= (int32_t)nd_3->nargs - 1; i_3++) {
+                    i_4 = nd_3->args + i_3;
+                    v_5 = opt_operands[i_4];
                     if (({
     if (v_5 < 0) {
         r_is_value_6 = false;
@@ -1312,9 +1325,9 @@ exit_is_value_6:;
             s = nd_3->state;
             while (s >= 0) {
                 st = opt_states + s;
-                for (i_4 = 0; i_4 <= st->depth; i_4++) {
-                    i_5 = st->vals + i_4;
-                    v_6 = opt_operands[i_5];
+                for (i_5 = 0; i_5 <= st->depth; i_5++) {
+                    i_6 = st->vals + i_5;
+                    v_6 = opt_operands[i_6];
                     if (({
     if (v_6 < 0) {
         r_is_value_7 = false;
@@ -1405,9 +1418,9 @@ exit_is_value_11:;
             }
         }
         if ((int32_t)nd_10->op != O_PHI) {
-            for (i_6 = 0; i_6 <= (int32_t)nd_10->nargs - 1; i_6++) {
-                i_7 = nd_10->args + i_6;
-                v_11 = opt_operands[i_7];
+            for (i_7 = 0; i_7 <= (int32_t)nd_10->nargs - 1; i_7++) {
+                i_8 = nd_10->args + i_7;
+                v_11 = opt_operands[i_8];
                 if (({
     if (v_11 < 0) {
         r_is_value_12 = false;
@@ -1424,9 +1437,9 @@ exit_is_value_12:;
         s_2 = nd_10->state;
         while (s_2 >= 0) {
             st_2 = opt_states + s_2;
-            for (i_8 = 0; i_8 <= st_2->depth; i_8++) {
-                i_9 = st_2->vals + i_8;
-                v_12 = opt_operands[i_9];
+            for (i_9 = 0; i_9 <= st_2->depth; i_9++) {
+                i_10 = st_2->vals + i_9;
+                v_12 = opt_operands[i_10];
                 if (({
     if (v_12 < 0) {
         r_is_value_13 = false;
@@ -1496,6 +1509,7 @@ exit_reg:;
             }
             if (v >= 0) {
                 (opt_nodes + v)->reg = pd->reg;
+                taken[v] = 1;
             }
         }
     }

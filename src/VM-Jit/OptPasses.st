@@ -81,6 +81,7 @@ cleanup: entry
 			self dropIntChecks.
 			self resolveOperands]].
 	ir full ifTrue: [^self].
+	(runtime flag: runtime hoistFlag) ifTrue: [self pollsAtHeads].
 	self unboxStates.
 	self countUses.
 	self removeDead.
@@ -1903,6 +1904,32 @@ constantInt: k in: entry
 	nd hi: k.
 	ir insert: n before: (ir block: entry) last.
 	^n
+!
+pollsAtHeads
+	"A loop with one edge in and one around, whose way around holds its interrupt check and nothing else, checks at its head instead (after its phis, at the head's frame state: the frame as a turn starts), so that the way around is only a jump, which the branch before it takes past it to the head when it moves nothing (OptCodegen>>jumpTargetOf:): a bottom-tested loop ends in one compare and branch."
+	<function>
+	| h hb e p latch lb m f |
+	0 to: psOrderCount - 1 do: [:i |
+		h := psOrder at: i.
+		hb := ir block: h.
+		((hb flags bitAnd: BF_LOOP) ~= 0 and: [hb npreds = 2 and: [hb entryState >= 0]]) ifTrue: [
+			latch := -1.
+			e := hb preds.
+			[e >= 0] whileTrue: [
+				p := (ir edge: e) from.
+				(ir block: p) rpo >= hb rpo ifTrue: [latch := p].
+				e := (ir edge: e) next].
+			"a loop of one block checks where it is already"
+			(latch >= 0 and: [latch ~= h]) ifTrue: [
+				lb := ir block: latch.
+				m := lb first.
+				(m >= 0 and: [(ir node: m) op asInt32 = O_CHECKINT and: [(ir node: m) next = lb last and: [(ir node: lb last) op asInt32 = O_GOTO]]]) ifTrue: [
+					f := hb first.
+					[f >= 0 and: [(ir node: f) op asInt32 = O_PHI]] whileTrue: [f := (ir node: f) next].
+					f >= 0 ifTrue: [
+						ir unlink: m.
+						ir insert: m before: f.
+						(ir node: m) state: hb entryState]]]]]
 !
 allBefore: n
 	"Every operand of phi n comes from a block before its own in order (none from a loop's back edge)."

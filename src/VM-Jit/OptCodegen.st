@@ -331,7 +331,7 @@ is: s backEdgeFrom: b
 	| sb |
 	sb := ir block: s.
 	^sb npreds = 1 and: [sb succ1 < 0 and: [sb succ0 >= 0 and: [(ir block: sb succ0) rpo <= (ir block: b) rpo and: [
-		sb last >= 0 and: [(ir node: sb last) op asInt32 = O_GOTO]]]]]
+		sb last >= 0 and: [(ir node: sb last) op asInt32 = O_GOTO and: [(self jumpTargetOf: s) = s]]]]]]
 !
 nextWithCode: i
 	"The first block from order position i on that emits code (blocks with no nodes but phis and constants fall through), -1 if none."
@@ -353,14 +353,14 @@ isEmpty: b
 	^true
 !
 jumpTargetOf: t
-	"The block a branch to t ends up in: past blocks that only jump on, with no phi moves on the way."
+	"The block a branch to t ends up in: past blocks that only jump on, with no phi moves on the way (noMovesFrom:to:)."
 	<function>
 	| b nd hops |
 	b := t.
 	hops := 0.
 	[nd := ir block: b.
 	 hops < 16 and: [nd first >= 0 and: [nd first = nd last and: [(ir node: nd first) op asInt32 = O_GOTO and: [
-		nd succ0 >= 0 and: [(ir block: nd succ0) first < 0 or: [(ir node: (ir block: nd succ0) first) op asInt32 ~= O_PHI]]]]]]] whileTrue: [
+		nd succ0 >= 0 and: [self noMovesFrom: b to: nd succ0]]]]]] whileTrue: [
 			b := nd succ0.
 			hops := hops + 1].
 	^b
@@ -1093,16 +1093,15 @@ emitSizeOf: x kind: ek fixed: fixed
 	asm sub: X16 with: X16 with: X17
 !
 emitIndexCheck: n
-	"X17 := the 0-based element index of n's index operand (a SmallInteger) in its object (1-based on x86 where no bounds are checked), deoptimizing if it is out of bounds; answer the object's register."
+	"X17 := the 0-based element index of n's index operand (a SmallInteger) in its object (1-based where no bounds are checked), deoptimizing if it is out of bounds; answer the object's register."
 	| nd x i s |
 	nd := ir node: n.
 	(nd flags bitAnd: NF_NOBOUNDS) ~= 0 ifTrue: [
 		x := self src: nd a into: self scratchA.
 		asm comment: 'within bounds: checked once before the loop'.
 		i := self src: nd b into: self scratchB.
+		"the 1-based index, the element's address one displacement less an element (indexDisplacementOf:)"
 		asm asr: X17 with: i imm: 1.
-		"x86: the 1-based index, the element's address one displacement (indexDisplacementOf:)"
-		asm isX64 ifFalse: [asm sub: X17 with: X17 imm: 1].
 		^x].
 	s := self deoptLabelFor: n.
 	x := self src: nd a into: self scratchA.
@@ -1119,7 +1118,7 @@ emitIndexCheck: n
 	^x
 !
 indexDisplacementOf: n
-	"x86: the element's address is the object's plus X17 times the element size plus this (emitIndexCheck: leaves a 1-based index where no bounds are checked)."
+	"The element's address is the object's plus X17 times the element size plus this (emitIndexCheck: leaves a 1-based index where no bounds are checked)."
 	| nd size |
 	nd := ir node: n.
 	size := self elementBytes: nd aux asInt32.
@@ -1166,7 +1165,7 @@ emitIndexLoad: n
 			(ek = E_W32 or: [ek = E_U32 or: [ek = E_U32BE]]) ifTrue: [asm ldr: W16 base: x index: X17 shift: (ek = E_W32 ifTrue: [2] ifFalse: [0]) offset: disp].
 			(ek = E_BYTE or: [ek = E_CHAR]) ifTrue: [asm ldrb: W16 base: x index: X17 offset: disp]]
 		ifFalse: [
-			asm add: X16 with: x imm: 16 + (8 * nd aux2).
+			asm add: X16 with: x imm: (self indexDisplacementOf: n).
 			ek = E_PTR ifTrue: [
 				r := self dst: n.
 				asm ldr: r base: X16 index: X17 extend: EXT_LSL shift: 3.
@@ -1181,6 +1180,7 @@ emitIndexLoad: n
 		asm rev: W16 with: W16.
 		ek = E_U16BE ifTrue: [asm lsr: W16 with: W16 imm: 16].
 		ek = E_I16BE ifTrue: [asm sbfx: X16 with: X16 lsb: 16 width: 16]].
+	(self isFusedLoad: n) ifTrue: [^asm comment: 'untagged: the sum after it adds it shifted'].
 	r := self dst: n.
 	ek = E_CHAR
 		ifTrue: [
@@ -1207,7 +1207,17 @@ emitWordStore: n object: x label: s
 	asm lsr: X16 with: v imm: 1.
 	asm isX64 ifTrue: [^asm str: W16 base: x index: X17 shift: (nd aux = E_W32 ifTrue: [2] ifFalse: [0]) offset: (self indexDisplacementOf: n)].
 	asm add: X17 with: x with: X17 shift: SHIFT_LSL amount: (nd aux = E_W32 ifTrue: [2] ifFalse: [0]).
-	asm str: W16 base: X17 offset: 16 + (8 * nd aux2)
+	asm str: W16 base: X17 offset: (self indexDisplacementOf: n)
+!
+isFusedLoad: v
+	"v is an indexed load of a SmallInteger element (not a pointer, not a Character) that only the unchecked sum or difference right after it reads (arm64): it leaves the element untagged in X16, which that adds or subtracts shifted (emitAddSub:)."
+	| nd md |
+	nd := ir node: v.
+	(asm isX64 not and: [nd op asInt32 = O_INDEXLOAD and: [nd aux ~= E_PTR and: [nd aux ~= E_CHAR and: [nd uses = 1 and: [nd slot < 0 and: [nd next >= 0]]]]]]) ifFalse: [^false].
+	md := ir node: nd next.
+	((md op asInt32 = O_IADD or: [md op asInt32 = O_ISUB]) and: [(md flags bitAnd: NF_INRANGE) ~= 0 and: [md a ~= md b]]) ifFalse: [^false].
+	md b = v ifTrue: [^true].
+	^md op asInt32 = O_IADD and: [md a = v]
 !
 emitIndexStore: n
 	"The value: a SmallInteger 0-255 into bytes, a Character below 256 into a string, any oop into pointers (with the store barrier); an immutable object deoptimizes."
@@ -1223,7 +1233,7 @@ emitIndexStore: n
 	(ek = E_W32 or: [ek = E_U32]) ifTrue: [^self emitWordStore: n object: x label: s].
 	(asm isX64 and: [ek ~= E_PTR]) ifTrue: [^self emitByteStoreX64: n object: x label: s].
 	asm isX64 ifFalse: [
-		asm add: X16 with: x imm: 16 + (8 * nd aux2).
+		asm add: X16 with: x imm: (self indexDisplacementOf: n).
 		asm add: X16 with: X16 with: X17 shift: SHIFT_LSL amount: (ek = E_PTR ifTrue: [3] ifFalse: [0])].
 	v := self src: nd c into: self scratchB.
 	ek ~= E_PTR ifTrue: [
@@ -1337,6 +1347,15 @@ emitAddSub: n
 		ifTrue: [s := self deoptLabelFor: n]
 		ifFalse: [r := self dst: n].
 	isAdd := nd op asInt32 = O_IADD.
+	"an element loaded right before, untagged in X16: added shifted (its tag and ours cancel)"
+	(checked not and: [(self isFusedLoad: nd b) or: [isAdd and: [self isFusedLoad: nd a]]]) ifTrue: [
+		(self isFusedLoad: nd b)
+			ifTrue: [x := self src: nd a into: self scratchA]
+			ifFalse: [x := self src: nd b into: self scratchA].
+		isAdd
+			ifTrue: [asm add: r with: x with: X16 shift: SHIFT_LSL amount: 1]
+			ifFalse: [asm sub: r with: x with: X16 shift: SHIFT_LSL amount: 1].
+		^self def: n from: r].
 	x := self src: nd a into: self scratchA.
 	((ir node: nd b) op asInt32 = O_CONST and: [((ir node: nd b) aux asUInt64 - 1) asInt64 between: -4095 and: 4095])
 		ifTrue: [
@@ -2357,6 +2376,21 @@ reloadDoublesAcross: n
 ! !
 
 !OptCodegen methodsFor: 'phi moves'!
+noMovesFrom: b to: s
+	"Moving into s's phis from b emits nothing (emitMovesFrom:to:): each operand is its phi, or in its phi's register and the phi stored into no home slot on the way."
+	| k n nd v l |
+	k := regalloc predIndexOf: b in: s.
+	k < 0 ifTrue: [^true].
+	n := (ir block: s) first.
+	[n >= 0 and: [(ir node: n) op asInt32 = O_PHI]] whileTrue: [
+		nd := ir node: n.
+		(regalloc isValue: n) ifTrue: [
+			v := ir operand: nd args + k.
+			l := self locOf: n.
+			(v = n or: [(self locOf: v) = l and: [l >= 0 and: [l < 1000 and: [nd slot < 0 or: [(nd flags bitAnd: NF_LAZY) ~= 0]]]]]) ifFalse: [^false]].
+		n := nd next].
+	^true
+!
 emitMovesFrom: b to: s
 	"Parallel moves into s's phis of their operands from b."
 	| k n nd |
