@@ -65,8 +65,10 @@ fileNamesIn: aPath
 		collect: [:p | p copyFrom: prefix size + 1 to: p size]) asSortedCollection asArray
 !
 at: aPath putBytes: aByteArray
-	"A binary file (a font in fonts/): committed byte for byte."
-	self at: aPath putText: aByteArray
+	"A binary file (a font in fonts/): committed byte for byte; its base is not read."
+	self isStarted ifFalse: [self start].
+	(originals includesKey: aPath) ifFalse: [originals at: aPath put: nil].
+	texts at: aPath put: aByteArray
 ! !
 
 !GitHubSourceStore methodsFor: 'changes'!
