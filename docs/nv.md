@@ -237,6 +237,9 @@ tinygrad f0b80032 (`DEV=NV`; `NV=1` is refused now) fails on GB10 with `rm_alloc
 
 ## Phase B: GSP from UEFI
 
+**Paused** (cv/samaltak#20): the Spark runs Samaltak as a Linux appliance where `nvidia.ko` is the RM and Phase A is
+what runs (docs/linux-appliance.md); docs/nv-gsp.md says what of Phase B stays useful.
+
 On Linux the kernel module is only half of RM: since Turing the other half, GSP-RM, runs on the GPU's GSP (a RISC-V core) and the kernel's "client RM" forwards most calls to it as RPCs over two queues in system memory. Without an OS, Samaltak must be that client RM: load and boot GSP-RM, then send it the same allocations and controls as in Phase A, wrapped as RPCs, and do itself the parts the kernel module does on the CPU (page tables, the memory descriptors of channels, a few engine buffers). This chapter is what the 580.178.04 sources say about that path on GB10; none of it has run yet.
 
 ### Which HAL

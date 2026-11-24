@@ -43,8 +43,8 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - [FFI](docs/ffi.md) — native call descriptors and launcher grants
 - [FFI and the fork's primitives](docs/ffi-fork.md) — which kernels could be typed exports, and why the keep/retire split stands
 - `docs/apps.md` — applications as Linux windows, run from source (AppWorld, Application, OmarchyTheme, apps/Weather)
-- `docs/uefi.md` — the headless VM as a UEFI application (bare metal, QEMU)
-- `docs/linux-appliance.md` — the hosted VM on a minimal Linux (Ubuntu's NVIDIA kernel, busybox, SDL3 on KMS/DRM): the DGX Spark without a desktop, and what it means for the GB10 work (#20)
+- `docs/uefi.md` — the VM as a UEFI application (QEMU, other machines, firmware exploration; the Spark uses the appliance)
+- `docs/linux-appliance.md` — how the DGX Spark runs Samaltak: the hosted VM on a minimal Linux (Ubuntu's NVIDIA kernel, busybox), the World on the image's own KMS screen and evdev input, NvComputeGPU on nvidia.ko, a USB stick (UKI) and an installer next to DGX OS, the first-boot checklist
 - `docs/remote.md` — the control service's token: samaltak-ctl open and connect, a bare-metal machine from another one; the remote display (VNC): starting it, connecting from Screen Sharing and TigerVNC, security, measurements against QEMU's VNC
 - `docs/nv-gpu.md` — NvComputeGPU (`--gpu nv`): the World rendered on the NVIDIA GB10 by the raster kernels through System-NV, presented through SDL_GPU; tests and frame times
 - `docs/nv-kernels.md` — the Renderer's raster work as CUDA kernels for the NVIDIA GB10, their ABI, make test-nv
@@ -57,6 +57,6 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - `docs/nv-rm.md` — System-NV: compute kernels on an NVIDIA GPU (the GB10) through the open kernel module's RM ioctls, from Smalltalk
 - `docs/files.md` — files on UEFI: the firmware's block devices, ext4 volumes mounted read-only under `/` and `/mnt`
 - `docs/nv.md` — the NVIDIA GB10 through the open kernel module's RM ioctls, without NVIDIA's libraries: objects, structs, memory, channels, QMDs, cubins (`tools/nv-probe.py` runs it)
-- `docs/nv-gsp.md` — how the open kernel module boots GB10's GSP through SEC2 and talks to GSP-RM: firmware, register sequence, RPC queues, the plan for driving it from UEFI
-- `docs/nv-dayone.md` — the runbook for the dedicated DGX Spark: safety, handing the GPU to VFIO (`tools/nv-vfio.sh`), recovery, logs, and the first GSP experiments hosted and bare metal
+- `docs/nv-gsp.md` — how the open kernel module boots GB10's GSP through SEC2 and talks to GSP-RM: firmware, register sequence, RPC queues, the plan for driving it from UEFI (paused: the Spark uses the appliance)
+- `docs/nv-dayone.md` — the runbook for the dedicated DGX Spark: safety, handing the GPU to VFIO (`tools/nv-vfio.sh`), recovery, logs, and the first GSP experiments hosted and bare metal (paused with Phase B)
 - `prototypes/` — the HTML prototypes the UI started from

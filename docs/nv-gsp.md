@@ -1,5 +1,16 @@
 # GSP on GB10: how nvidia.ko boots and drives GSP-RM
 
+**Status: paused** (the operator's decision on cv/samaltak#20). The DGX Spark runs Samaltak as a minimal Linux
+appliance (docs/linux-appliance.md): `nvidia.ko` boots GSP and is the RM, System-NV (Phase A, RM ioctls) and
+NvComputeGPU run as hosted, and the World presents on the image's own KMS screen without NVIDIA userspace. Phase B
+(steps 3-6 below: GSP boot from UEFI, the fake GSP's growth, the VFIO loop) is not being worked on. What stays useful:
+
+- the probe (step 1, section 8) as a UEFI diagnostic of the GB10's state after the firmware;
+- the transport seam (`NvTransport`, `NvIoctlTransport`) and the fakes (`NvFakeTransport`, `NvFakeGb10`, `NvFakeGsp`) as
+  tests of System-NV without a GPU, and the struct layouts with their byte-level tests (step 2, section 9);
+- this document as the record of how GB10 boots, with source references, should Phase B come back (the product then
+  being the UEFI app owning the GPU: a driver's worth of work, nvidia.ko and nova-core the references).
+
 Step 0 of cv/samaltak#20 (drive the DGX Spark's GB10 from the UEFI image, without Linux): what the open kernel module
 does on this Spark to boot the GPU's RISC-V core (GSP) with NVIDIA's resource manager (GSP-RM) and to talk to it, as
 facts with source references, plus this Spark's hardware facts, what nova-core covers, the development loop and the plan

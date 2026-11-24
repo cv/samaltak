@@ -1,5 +1,7 @@
 # Day one on the dedicated DGX Spark: GSP from the hosted image, then bare metal
 
+**Status: paused** with Phase B (docs/nv-gsp.md, cv/samaltak#20): the Spark runs the Linux appliance (docs/linux-appliance.md, its first boot in section 7). The safety and recovery notes here still hold for any experiment that hands the GPU to VFIO.
+
 The runbook for cv/samaltak#20 on a Spark nobody else uses. Everything before this was built and tested against fakes
 (docs/nv-gsp.md 10-14). Each step here is the first contact with the real GB10. Its order goes from read-only to
 writing: probe, dry run, boot, then the RM objects, memory and channels of steps 4-6. First hosted (Linux on the
