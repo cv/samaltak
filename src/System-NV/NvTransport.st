@@ -3,7 +3,7 @@ Object subclass: #NvTransport
 	classVariableNames: ''
 	package: 'System-NV'!
 
-NvTransport comment: 'I am how an NvDevice reaches the NVIDIA resource manager (RM): everything RM-specific NvDevice does goes through me, so the same NvDevice (and NvMemory, NvChannel, NvCompute above it) can run on the open kernel module''s ioctls (NvIoctlTransport, hosted Linux) or on GSP-RM over its message queues (NvGspTransport: docs/nv-gsp.md, the UEFI driver of cv/samaltak#20). Parameter blocks are NvStructs as NvRm builds them; a status other than NV_OK signals an NvError.
+NvTransport comment: 'I am how an NvDevice reaches the NVIDIA resource manager (RM): everything RM-specific NvDevice does goes through me, so the same NvDevice (and NvMemory, NvChannel, NvCompute above it) runs on the open kernel module''s ioctls (NvIoctlTransport, hosted Linux) and, in the tests, on a fake that logs the calls without a GPU (NvFakeTransport, NvTransportTest). Parameter blocks are NvStructs as NvRm builds them; a status other than NV_OK signals an NvError.
 
 	open				before anything else
 	attachGpu: index			the index-th GPU''s id (after the root client exists)

@@ -8,7 +8,7 @@ PosixDevice comment: 'I am the devices of a POSIX host (Linux, macOS) for driver
 	open: path flags: anInteger	-> fd (flags: my O_ constants, or-ed; nothing is added, so pass O_CLOEXEC)
 	close: fd
 	ioctl: fd request: anInteger argument: anInteger	-> ioctl''s result (argument: an Integer, or the address of memory outside the heap, Machine allocate:, that the call reads or fills)
-	read: fd at: offset into: address count: n	-> pread''s result: bytes of fd at offset into Machine memory (a VFIO device''s configuration region)
+	read: fd at: offset into: address count: n	-> pread''s result: bytes of fd at offset into Machine memory
 	write: fd at: offset from: address count: n	-> pwrite''s result
 	read: fd into: address count: n	-> read(2)''s result, at the descriptor''s position, or nil where an O_NONBLOCK descriptor has nothing (EAGAIN): a device that refuses pread (evdev: its input_events), a pipe
 	write: fd from: address count: n	-> write(2)''s result

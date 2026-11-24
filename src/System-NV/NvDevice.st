@@ -3,7 +3,7 @@ Object subclass: #NvDevice
 	classVariableNames: ''
 	package: 'System-NV'!
 
-NvDevice comment: 'I am an NVIDIA GPU driven from Smalltalk through the resource manager (RM) API, with parameter blocks NvRm builds (docs/nv.md), over an NvTransport: by default NvIoctlTransport, the open kernel module''s ioctls on /dev/nvidiactl and /dev/nvidiaN (PosixDevice; hosted Linux: without devices (UEFI, macOS) or a GPU, open signals an error); NvGspTransport is GSP-RM over its message queues (docs/nv-gsp.md).
+NvDevice comment: 'I am an NVIDIA GPU driven from Smalltalk through the resource manager (RM) API, with parameter blocks NvRm builds (docs/nv.md), over an NvTransport: by default NvIoctlTransport, the open kernel module''s ioctls on /dev/nvidiactl and /dev/nvidiaN (PosixDevice; hosted Linux: without devices (UEFI, macOS) or a GPU, open signals an error); tests use a fake (NvFakeTransport).
 
 	NvDevice during: [:gpu | | m |
 		m := gpu allocate: 4096.            "an NvMemory: system memory the GPU and the CPU both reach"
@@ -206,7 +206,7 @@ open: index
 	^self open: index over: NvIoctlTransport new
 !
 open: index over: anNvTransport
-	"The index-th GPU, opened through anNvTransport (NvIoctlTransport, NvGspTransport)."
+	"The index-th GPU, opened through anNvTransport (NvIoctlTransport, or a fake in the tests)."
 	| d |
 	d := self new.
 	[d open: index over: anNvTransport] ifCurtailed: [d close].

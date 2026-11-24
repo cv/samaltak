@@ -3,7 +3,7 @@ NvTransport subclass: #NvIoctlTransport
 	classVariableNames: ''
 	package: 'System-NV'!
 
-NvIoctlTransport comment: 'I reach RM through the open kernel module: ioctls on /dev/nvidiactl and /dev/nvidiaN (PosixDevice; hosted Linux), the escapes and parameter blocks of docs/nv.md (NvRm). Memory maps to the CPU by an RM map call on a new file then mmap. The kernel module forwards what GSP-RM must do as RPCs and does the rest itself (docs/nv-gsp.md, 3.3).'!
+NvIoctlTransport comment: 'I reach RM through the open kernel module: ioctls on /dev/nvidiactl and /dev/nvidiaN (PosixDevice; hosted Linux), the escapes and parameter blocks of docs/nv.md (NvRm). Memory maps to the CPU by an RM map call on a new file then mmap. The kernel module forwards what GSP-RM must do as RPCs and does the rest itself.'!
 
 !NvIoctlTransport class methodsFor: 'testing'!
 isAvailable

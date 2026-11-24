@@ -219,12 +219,11 @@ test-ffi-display: $(TEST_IMAGE)
 			--logs "$$logs" --display-ci --proof-only
 
 # System-NV on a real NVIDIA GPU (hosted Linux, /dev/nvidiactl; the GB10): not part of make test, which runs where
-# there is none. Fails, saying so, without a GPU. NvGspFirmwareFileTest reads the driver's installed gsp_ga10x.bin
-# (docs/nv-gsp.md 11). NvGpuMeasure reports launch latency and copy bandwidth. Then the
+# there is none. Fails, saying so, without a GPU. NvGpuMeasure reports launch latency and copy bandwidth. Then the
 # raster kernels (gpu/nv, docs/nv-kernels.md) on the GPU against PlatformRaster (tests/nv/run.sh: needs the driver,
 # not nvcc).
 test-nv: $(TEST_IMAGE)
-	tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvComputeGPUTest NvFragmentShaderTest NvGspFirmwareFileTest
+	tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvComputeGPUTest NvFragmentShaderTest
 	tests/nv/run.sh $(OUT)
 # test-tools's parts run at once too (TEST_TOOLS_JOBS, all by default; 1: one after another), the longest first, each
 # holding a test slot and, with SAMALTAK_TEST_XVFB=1 (tests/stages.sh), on an Xvfb of its own (tests/with-display).
@@ -429,9 +428,7 @@ UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest Conte
 	SHA256Test SHA384Test SHA512Test HMACTest HKDFTest ChaCha20Test ChaCha20Poly1305Test AesGcmTest SecureRandomTest WycheproofAeadTest \
 	X25519Test RsaPublicKeyTest EcPublicKeyTest HmacHkdfWycheproofTest Asn1DerTest X509CertificateTest TrustStoreTest \
 	MountTableTest FirmwareVolumesTest GitHubClientTest SourceFilerGitHubTest SourceUpdateTest PosixDeviceTest ZLibTest PNGCodecTest AgentImageTest \
-	SoftwareGPUTest SoftwareGPUBandsTest JitOptBackgroundTest FrameTapTest PixelPackTest NvProbeTest \
-	NvTransportTest NvGspLayoutTest NvGspTest NvGspTransportTest NvGspBootTest NvGspFirmwareTest NvGspSequencerTest \
-	VfioLayoutTest VfioPciDeviceTest NvVfioTest NvGspClientTest
+	SoftwareGPUTest SoftwareGPUBandsTest JitOptBackgroundTest FrameTapTest PixelPackTest NvProbeTest
 UEFI_WORLD := | w t | w := UIWindows startUp. RemoteInputDevice default inject: {1. nil. 123. 45. 0. 0. nil. w displayWindow windowId}. t := Time millisecondClockValue. [w dispatcher pointer = (123 @ 45) or: [Time millisecondClockValue - t > 20000]] whileFalse: [(Delay forMilliseconds: 50) wait]. Smalltalk vm stderrWrite: 'world ', w extent printString, ' ', Renderer default device isSoftware printString, ' ', w dispatcher pointer rounded printString, (String with: Character lf)
 UEFI_NET := | s buf n | s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: '{\"cmd\": \"ping\", \"auth\": \"', ControlServer current token, '\"}', (String with: Character lf). buf := ByteArray new: 200. n := s receiveInto: buf timeout: 20000. s close. (buf copyFrom: 1 to: n) asString
 UEFI_NET_BULK := | src req s buf n chunk out t ms resp ok more | src := String new: 1000000. 1 to: src size do: [:i | src at: i put: (Character value: 97 + (i * 7 rem: 26))]. req := '{\"cmd\": \"eval\", \"auth\": \"', ControlServer current token, '\", \"source\": \"''', src, ''' reverse\"}', (String with: Character lf). t := Time millisecondClockValue. s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: req. out := WriteStream on: (String new: 1100000). buf := ByteArray new: 65536. more := true. [more] whileTrue: [n := s receiveInto: buf timeout: 60000. chunk := (buf copyFrom: 1 to: n) asString. out nextPutAll: chunk. more := n > 0 and: [(chunk includes: Character lf) not]]. ms := Time millisecondClockValue - t. s close. resp := out contents. ok := (resp includesSubstring: '\"ok\":true') and: [resp includesSubstring: src reverse]. 'bulk ', ok printString, ' ', (req size + resp size) printString, ' bytes in ', ms printString, ' ms'
