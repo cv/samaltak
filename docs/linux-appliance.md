@@ -28,7 +28,7 @@ uevent helper `samaltak-hotplug`, the DHCP hook). The variables are in each scri
 | artifacts | kernel 20 MB + initramfs 30 MB (QEMU, the image's KMS screen; 89 MB with Mesa for SDL's) or 97 MB (Spark, `LINUX_GPU=nvidia`: GSP firmware 60 MB, no NVIDIA userspace; 136 MB with it, `nvidia-vulkan`) | 1.06 MB EFI application + the image on a disk |
 | GPU on the Spark | `nvidia.ko` boots GSP; System-NV, NvComputeGPU, CUDA, Vulkan as hosted | none (#20's GSP boot was dropped) |
 | NICs, Wi-Fi, NVMe, USB | Linux's (r8127 for the Spark's 10 GbE, mt7925e, nvme, xhci) | virtio, e1000e, the firmware's SNP and Block I/O |
-| TCP/TLS | Linux, OpenSSL: an HTTPS GET of example.com from the guest in 68-284 ms | our NetworkStack, mbedTLS (the VM's TLS engine) |
+| TCP/TLS | Linux, OpenSSL: an HTTPS GET of example.com from the guest in 68-284 ms | our NetworkStack; no TLS (no HTTPS) |
 | control, RFB, agent | as hosted, on every address (token, VNC password on the data volume) | as on UEFI |
 | what you give up | owning the machine, self-containedness, a small TCB of our own | the Spark's GPU, its 10 GbE, Wi-Fi, and Linux's drivers generally |
 
@@ -153,7 +153,7 @@ shipped image is only a fallback. Kernel and NVIDIA module updates are Ubuntu's 
 | remote control | `--control --control-host 0.0.0.0`, token in `samaltak.args` or shown at boot | the same flags; `--control-token-file /data/control-token` (0600 on the data volume), or `LINUX_CONTROL_TOKEN_FILE` into the root (readable to anyone who can read the initramfs) |
 | RFB server | `--display --display-host 0.0.0.0 --display-vnc-auth` | the same, `--display-password-file /data/vnc-password` |
 | agent, GitHub | as on UEFI (`samaltak-ctl agent-config`, `github-config`) | as hosted: HTTPS through OpenSSL |
-| TLS | mbedTLS (the VM's TLS engine) | OpenSSL (`platform_tls_*`), CA bundle in `/etc/ssl` |
+| TLS | none (no HTTPS) | OpenSSL (`platform_tls_*`), CA bundle in `/etc/ssl` |
 | files, volumes | none from Smalltalk | Linux's file systems, mounted by `rcS`; System-Files' POSIX side |
 | time | RTC (UEFI GetTime) | the RTC through Linux; no NTP in Ubuntu's busybox-static: SNTP in the image (planned for UEFI anyway) or a static `ntpd` |
 | randomness | EFI_RNG, RNDR | `getrandom` |
@@ -306,7 +306,7 @@ nothing in the design is arm64-specific (Ubuntu's generic or nvidia kernel for a
 | GPU | System-NV, NvComputeGPU, CUDA, Vulkan as hosted | none: a driver's worth of work (#20, dropped) |
 | explorable to the metal | no: below the syscall line is Linux | yes: PCI, firmware tables, MMIO from the Debugger |
 | licensing | the kernel is GPLv2, the VM a separate program over syscalls (fine); shipping the kernel means pointing at Ubuntu's source; NVIDIA's userspace is proprietary but redistributable, the open modules MIT/GPL | our code plus the firmware's |
-| attack surface | Linux's (well patched, large), OpenSSL; only what we run listens: control (token), RFB (VNC auth) | our NetworkStack and TLS, young and small |
+| attack surface | Linux's (well patched, large), OpenSSL; only what we run listens: control (token), RFB (VNC auth) | our NetworkStack, young and small |
 | updates | Ubuntu's kernel and modules rebuilt into a UKI, A/B slots | one EFI binary plus the image |
 | debugging | a shell on tty2, dmesg, the VM's log, gdb | the console log, QEMU |
 
@@ -393,6 +393,5 @@ volume is copied from the stick), take the stick out (its `SAMALTAK-DATA` would 
 ## 9. The UEFI work: keep it for
 
 QEMU and machines without a usable Linux, the firmware World (PCI, ACPI, the memory map, live), a system whose every
-layer is Smalltalk, and the tests that run the image without an operating system. mbedTLS (tls-mbedtls) and the
-other library work there still pay off. What stops is adding hardware drivers to it: the Spark's GPU, its 10 GbE
+layer is Smalltalk, and the tests that run the image without an operating system. What stops is adding hardware drivers to it: the Spark's GPU, its 10 GbE
 and Wi-Fi are the appliance's.

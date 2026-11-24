@@ -3,7 +3,7 @@ CryptoAead subclass: #AesGcm
 	classVariableNames: ''
 	package: 'System-Crypto'!
 
-AesGcm comment: 'I am AES in Galois/Counter Mode (NIST SP 800-38D), TLS''s AES-GCM suites: (AesGcm key: k) with a 16-, 24- or 32-byte key; encrypt:nonce:aad: and decrypt:nonce:aad: as CryptoAead. The nonce is 12 bytes in TLS; any other size up to 128 bytes (OpenSSL''s limit, so both backends'') is hashed into the first counter block, as the standard says; a longer one is a CryptoError. The VM does it (CryptoExports: libcrypto hosted, mbedTLS on UEFI; the CPU''s AES and carry-less multiplication instructions).'!
+AesGcm comment: 'I am AES in Galois/Counter Mode (NIST SP 800-38D), TLS''s AES-GCM suites: (AesGcm key: k) with a 16-, 24- or 32-byte key; encrypt:nonce:aad: and decrypt:nonce:aad: as CryptoAead. The nonce is 12 bytes in TLS; any other size up to 128 bytes (OpenSSL''s limit) is hashed into the first counter block, as the standard says; a longer one is a CryptoError. The VM does it (CryptoExports: libcrypto, hosted; none on UEFI; the CPU''s AES and carry-less multiplication instructions).'!
 
 !AesGcm class methodsFor: 'accessing'!
 algorithm

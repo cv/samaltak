@@ -9,7 +9,7 @@ EcPublicKey comment: 'I am an elliptic-curve public key, a point on an EcCurve (
 	key verify: derSignature message: bytes hash: SHA256.
 	key verify: derSignature digest: digestBytes.
 
-The VM verifies (CryptoExports: libcrypto hosted, mbedTLS on UEFI), from my DER SubjectPublicKeyInfo, under a handle it keeps; the signature''s DER and the range of r and s are checked here first, the same for both.'!
+The VM verifies (CryptoExports: libcrypto, hosted; none on UEFI), from my DER SubjectPublicKeyInfo, under a handle it keeps; the signature''s DER and the range of r and s are checked here first, the same for both.'!
 
 !EcPublicKey methodsFor: 'accessing'!
 curve

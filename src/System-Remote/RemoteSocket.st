@@ -85,30 +85,22 @@ receiveInto: aByteArray
 !
 receiveInto: aByteArray timeout: milliseconds
 	"Like receiveInto:, but answer nil if nothing arrived within milliseconds (nil: wait forever)."
-	^self receiveInto: aByteArray start: 1 count: aByteArray size timeout: milliseconds
-!
-receiveInto: aByteArray start: start count: count timeout: milliseconds
-	"Like receiveInto:timeout:, into at most count bytes of aByteArray from start."
-	| n |
+	| count |
 	[handle isNil ifTrue: [^0].
-	 n := self class primRecv: handle into: aByteArray start: start count: count.
-	 n isNil] whileTrue: [
+	 count := self class primRecv: handle into: aByteArray start: 1 count: aByteArray size.
+	 count isNil] whileTrue: [
 		milliseconds isNil
 			ifTrue: [readSemaphore wait]
 			ifFalse: [(readSemaphore waitTimeoutMSecs: milliseconds) ifTrue: [^nil]]].
-	^n max: 0
+	^count max: 0
 !
 sendAll: bytes
 	"Send all of bytes (a ByteArray or ByteString), waiting while the socket is full. Answer false if the connection is gone."
-	^self sendAll: bytes from: 1 to: bytes size
-!
-sendAll: bytes from: first to: last
-	"Send bytes from first to last, as sendAll:."
 	| start sent |
-	start := first.
-	[start <= last] whileTrue: [
+	start := 1.
+	[start <= bytes size] whileTrue: [
 		handle isNil ifTrue: [^false].
-		sent := self class primSend: handle from: bytes start: start count: last - start + 1.
+		sent := self class primSend: handle from: bytes start: start count: bytes size - start + 1.
 		sent isNil
 			ifTrue: [writeSemaphore wait]
 			ifFalse: [

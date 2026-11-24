@@ -73,7 +73,7 @@ else ifeq ($(and $(wildcard $(PGO_PROFILE)),$(if $(NO_PGO),,yes)),yes)
   PGO_DEP := $(PGO_PROFILE)
 endif
 include gen/sources.mk
-# The C that is not translated from Lowtalk (native/native.mk): mbedTLS and the TLS engine, with flags of their own.
+# The C that is not translated from Lowtalk (native/native.mk), with flags of its own.
 # They are beside this Makefile, also when make runs elsewhere with a gen/ of its own (VMRebuilder: make -C dir -f vm/Makefile).
 # Relative when make runs here, so the dependency files of a cached build (tests/build-cache.sh) hold no absolute paths.
 VM_ABS_DIR := $(patsubst %/,%,$(dir $(abspath $(firstword $(MAKEFILE_LIST)))))
@@ -129,10 +129,6 @@ $(STAMP):
 	@mkdir -p $(BUILD)
 	@rm -f $(BUILD)/.variant-* $(BUILD)/samaltak
 	@touch $@
-
-$(OBJDIR)/third_party/%.o: $(VM_DIR)/third_party/%.c
-	@mkdir -p $(dir $@)
-	$(if $(BRIEF),@echo "cc   $<";) $(CC) $(NATIVE_CFLAGS) -c -o $@ $<
 
 $(OBJDIR)/native/%.o: $(VM_DIR)/native/%.c
 	@mkdir -p $(dir $@)

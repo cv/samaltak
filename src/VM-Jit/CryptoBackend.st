@@ -3,7 +3,7 @@ CLibrary subclass: #CryptoBackend
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-CryptoBackend comment: 'The cryptography of vm/native/crypto.h: libcrypto hosted (crypto_openssl.c), mbedTLS on UEFI (crypto_mbedtls.c). FFIPrimitives exports it to the image as core_crypto_* (FFIPrimitives-crypto). docs/crypto.md. Not simulated.'!
+CryptoBackend comment: 'The cryptography of vm/native/crypto.h: libcrypto hosted (crypto_openssl.c), none on UEFI (crypto_none.c: every call fails). FFIPrimitives exports it to the image as core_crypto_* (FFIPrimitives-crypto). docs/crypto.md. Not simulated.'!
 
 !CryptoBackend class methodsFor: 'declaring'!
 headers

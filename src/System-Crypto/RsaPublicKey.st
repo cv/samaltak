@@ -10,7 +10,7 @@ RsaPublicKey comment: 'I am an RSA public key (RFC 8017): a modulus and a public
 	key verifyPss: signature message: bytes hash: SHA256.	"salt length = 32"
 	key verifyPss: signature message: bytes hash: SHA256 saltLength: nil.	"any salt length"
 
-The VM verifies (CryptoExports: libcrypto hosted, mbedTLS on UEFI), from my DER SubjectPublicKeyInfo, under a handle it keeps. Moduli of 1024 to 8192 bits are accepted (TLS uses 2048 to 4096).'!
+The VM verifies (CryptoExports: libcrypto, hosted; none on UEFI), from my DER SubjectPublicKeyInfo, under a handle it keeps. Moduli of 1024 to 8192 bits are accepted (TLS uses 2048 to 4096).'!
 
 !RsaPublicKey methodsFor: 'accessing'!
 modulus

@@ -1,53 +1,11 @@
 RemoteSocket subclass: #TLSSocket
-	instanceVariableNames: 'connection'
-	classVariableNames: 'Roots Engine TLSStartCall TLSRecvCall TLSSendCall TLSCloseCall TLSSemaphoreCall TLSHandshakeCall'
+	instanceVariableNames: ''
+	classVariableNames: 'TLSStartCall TLSRecvCall TLSSendCall TLSCloseCall TLSSemaphoreCall TLSHandshakeCall'
 	package: 'System-Net'!
 
-TLSSocket comment: 'I am a TLS client connection: over the platform''s TLS primitives (OpenSSL, docs/platform.md), or over the VM''s TLS engine (mbedTLS: an MbedTLSConnection on a RemoteSocket; docs/tls.md) where those fail, as on UEFI, where the socket is the image''s own TCP (NetworkStack), or when forced (TLSSocket engine: #mbedtls). Connecting is a RemoteSocket''s connect, then the handshake, which verifies the server''s certificate for the host name: against the system''s trust store with OpenSSL, against trustStore (TrustStore default''s roots unless set) with the engine. Each waits on Semaphores, and the whole connect gives up after connectTimeout, so the VM never blocks and terminating the connecting Process cancels it. Receiving and sending wait on Semaphores like a RemoteSocket''s; a connection that fails reads as ended (receiving answers 0, sending false).
+TLSSocket comment: 'I am a TLS client connection over the platform''s TLS primitives (docs/platform.md). Connecting is a RemoteSocket''s connect, then the handshake, which verifies the server''s certificate against the system''s trust store and for the host name; each waits on Semaphores, and the whole connect gives up after connectTimeout, so the VM never blocks and terminating the connecting Process cancels it. Receiving and sending wait on Semaphores like a RemoteSocket''s.
 
-	(TLSSocket connectTo: ''example.com'' port: 443) sendAll: ...
-	TLSSocket trustStore: (TrustStore new add: testCA; yourself).	"for tests: the engine trusts just that"'!
-
-!TLSSocket methodsFor: 'initialization'!
-setConnection: anMbedTLSConnection
-	connection := anMbedTLSConnection
-! !
-
-!TLSSocket methodsFor: 'accessing'!
-connection
-	"The MbedTLSConnection under me, or nil over OpenSSL."
-	^connection
-!
-isOpen
-	connection isNil ifTrue: [^super isOpen].
-	^connection isOpen
-!
-localPort
-	connection isNil ifTrue: [^super localPort].
-	^connection socket localPort
-! !
-
-!TLSSocket methodsFor: 'operations'!
-receiveNowInto: aByteArray
-	connection isNil ifTrue: [^super receiveNowInto: aByteArray].
-	^[connection receiveInto: aByteArray timeout: 0] on: TLSError do: [:e | e return: 0]
-!
-receiveInto: aByteArray timeout: milliseconds
-	connection isNil ifTrue: [^super receiveInto: aByteArray timeout: milliseconds].
-	^[connection receiveInto: aByteArray timeout: milliseconds] on: TLSError do: [:e | e return: 0]
-!
-sendAll: bytes
-	connection isNil ifTrue: [^super sendAll: bytes].
-	^[connection sendAll: bytes] on: TLSError do: [:e | e return: false]
-!
-close
-	connection isNil ifTrue: [^super close].
-	connection close
-!
-forget
-	connection isNil ifTrue: [^super forget].
-	connection forget
-! !
+	(TLSSocket connectTo: ''example.com'' port: 443) sendAll: ...'!
 
 !TLSSocket methodsFor: 'private'!
 handshakeUntil: deadline
@@ -64,10 +22,6 @@ handshakeUntil: deadline
 !TLSSocket methodsFor: 'printing'!
 printOn: aStream
 	aStream nextPutAll: 'a TLSSocket'.
-	connection isNil ifFalse: [
-		aStream nextPutAll: ' (mbedTLS'.
-		connection isOpen ifFalse: [aStream nextPutAll: ', closed'].
-		^aStream nextPut: $)].
 	handle isNil ifTrue: [^aStream nextPutAll: ' (closed)'].
 	aStream nextPutAll: ' #'; print: handle
 ! !
@@ -77,52 +31,19 @@ connectTo: hostString port: port until: deadline
 	"A connection to port of the host named hostString, its certificate verified for hostString, by deadline (a millisecondClockValue)."
 	| plain h socket reason |
 	plain := RemoteSocket connectTo: hostString port: port until: deadline.
-	(self engine == #platform and: [plain handle >= 0]) ifTrue: [
-		h := [self primStart: plain handle host: hostString] ifCurtailed: [plain close]].
-	h isNil ifTrue: [^self engineOver: plain host: hostString port: port until: deadline].
 	"the handle passes from plain to me"
-	[plain forget.
+	[h := self primStart: plain handle host: hostString.
+	 h isNil ifTrue: [^RemoteError signal: 'cannot connect to ', hostString, ':', port printString, ': ', self lastError].
+	 plain forget.
 	 socket := self onHandle: h] ifCurtailed: [
-		socket isNil ifTrue: [self primClose: h]].
+		socket isNil ifTrue: [
+			h isNil ifTrue: [plain close] ifFalse: [
+				plain forget.
+				self primClose: h]]].
 	reason := [socket handshakeUntil: deadline] ifCurtailed: [socket close].
 	reason isNil ifTrue: [^socket].
 	socket close.
 	^RemoteError signal: 'cannot connect to ', hostString, ':', port printString, ': ', reason
-!
-engineOver: plain host: hostString port: port until: deadline
-	"The VM's TLS engine over the connected RemoteSocket plain."
-	| connection reason |
-	MbedTLSConnection isAvailable ifFalse: [
-		plain close.
-		^RemoteError signal: 'cannot connect to ', hostString, ':', port printString, ': TLS handshake: this VM has no TLS here'].
-	connection := MbedTLSConnection on: plain host: hostString.
-	Roots isNil ifFalse: [connection trustStore: Roots].
-	reason := [[connection handshakeUntil: deadline. nil] on: TLSError do: [:e | e return: e messageText]]
-		ifCurtailed: [connection close].
-	reason isNil ifTrue: [^self new setConnection: connection].
-	connection close.
-	^RemoteError signal: 'cannot connect to ', hostString, ':', port printString, ': TLS handshake: ', reason
-! !
-
-!TLSSocket class methodsFor: 'configuring'!
-engine
-	"What makes my connections: #platform (OpenSSL's primitives where they work, else the VM's engine) or #mbedtls (the VM's engine, mbedTLS, even where the platform's works)."
-	^Engine ifNil: [#platform]
-!
-engine: aSymbol
-	Engine := aSymbol
-!
-trustStore
-	"The roots the engine trusts."
-	^Roots ifNil: [TrustStore default]
-!
-trustStore: aTrustStoreOrNil
-	"Trust just these roots with the engine (nil: TrustStore default's again)."
-	Roots := aTrustStoreOrNil
-!
-trustStoreSetting
-	"What trustStore: set: a TrustStore, or nil for TrustStore default (tests put it back)."
-	^Roots
 ! !
 
 !TLSSocket class methodsFor: 'primitives'!

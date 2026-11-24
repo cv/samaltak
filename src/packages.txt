@@ -41,7 +41,6 @@ Tests-VM 0
 Tests-Devices 0
 System-Remote 0
 System-Crypto 0
-System-TLS 0
 System-Net 0
 System-Agent 0
 System-NV 0
@@ -49,7 +48,6 @@ Tests-Remote 0
 Tests-Net 0
 Tests-Network 0
 Tests-Crypto 0
-Tests-TLS 0
 Tests-Agent 0
 Tests-NV 0
 Graphics-GPU 1

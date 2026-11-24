@@ -18,7 +18,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "tls.h"
 #if !defined(__x86_64__)
 #include <arm_neon.h>
 #endif

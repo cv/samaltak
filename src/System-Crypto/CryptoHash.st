@@ -3,7 +3,7 @@ Object subclass: #CryptoHash
 	classVariableNames: ''
 	package: 'System-Crypto'!
 
-CryptoHash comment: 'I am the abstract hash function of FIPS 180-4 (SHA256, SHA384, SHA512), computed by the VM (CryptoExports: libcrypto hosted, mbedTLS on UEFI). Class side: hash: bytes (the digest, a ByteArray), digestSize and blockSize in bytes. Instance side: new, update: (a ByteArray, or a String as UTF-8; also update:from:to:), digest. digest finishes a copy, so the receiver goes on: more update:s, then digest again (the running hash of a transcript); copy forks the state, which is the VM''s, in a ByteArray of mine: a hash cannot go on in another session of the image (CryptoError). A subclass says its algorithm (CryptoExports'' number), digestSize and blockSize.'!
+CryptoHash comment: 'I am the abstract hash function of FIPS 180-4 (SHA256, SHA384, SHA512), computed by the VM (CryptoExports: libcrypto, hosted; none on UEFI). Class side: hash: bytes (the digest, a ByteArray), digestSize and blockSize in bytes. Instance side: new, update: (a ByteArray, or a String as UTF-8; also update:from:to:), digest. digest finishes a copy, so the receiver goes on: more update:s, then digest again (the running hash of a transcript); copy forks the state, which is the VM''s, in a ByteArray of mine: a hash cannot go on in another session of the image (CryptoError). A subclass says its algorithm (CryptoExports'' number), digestSize and blockSize.'!
 
 !CryptoHash class methodsFor: 'hashing'!
 hash: bytes

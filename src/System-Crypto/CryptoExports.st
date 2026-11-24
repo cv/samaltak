@@ -3,16 +3,20 @@ Object subclass: #CryptoExports
 	classVariableNames: ''
 	package: 'System-Crypto'!
 
-CryptoExports comment: 'I am the VM''s cryptography, the core_crypto_* exports (vm/native/crypto.h; docs/crypto.md): libcrypto (OpenSSL 3) hosted, mbedTLS on UEFI. My class side calls them for System-Crypto''s classes: hashes (one-shot, and incremental on a state in the caller''s ByteArray), AEADs sealing and opening in place under a key handle, X25519, ECDSA and RSA verification under a public key''s handle, ChaCha20''s key stream. A VM without them makes every call a CryptoError. Key handles are the VM''s, a table of its own: one whose key the table dropped, or one from another session of the image, is made again (withKey:make:do:).'!
+CryptoExports comment: 'I am the VM''s cryptography, the core_crypto_* exports (vm/native/crypto.h; docs/crypto.md): libcrypto (OpenSSL 3), hosted; none on UEFI, where every call is a CryptoError (''no crypto on UEFI''). My class side calls them for System-Crypto''s classes: hashes (one-shot, and incremental on a state in the caller''s ByteArray), AEADs sealing and opening in place under a key handle, X25519, ECDSA and RSA verification under a public key''s handle, ChaCha20''s key stream. A VM without them makes every call a CryptoError. Key handles are the VM''s, a table of its own: one whose key the table dropped, or one from another session of the image, is made again (withKey:make:do:).'!
 
 !CryptoExports class methodsFor: 'accessing'!
 backend
-	"The library the VM's cryptography is, with its version (e.g. 'OpenSSL 3.0.13 30 Jan 2024', 'mbedTLS 3.6.8'); nil without it."
+	"The library the VM's cryptography is, with its version (e.g. 'OpenSSL 3.0.13 30 Jan 2024'); nil without it (UEFI)."
 	| b n |
 	b := ByteArray new: 128.
 	n := self ffiBackend: {b. 1. b size}.
 	(n == false or: [n < 0]) ifTrue: [^nil].
 	^(b copyFrom: 1 to: n) asString
+!
+isAvailable
+	"Whether this VM has the cryptography exports: hosted, not on UEFI."
+	^Firmware current isNil and: [self backend notNil]
 !
 stateSize
 	"The bytes of a hash's state."
@@ -80,7 +84,9 @@ chacha20: keyNonce counter: counter xor: bytes from: start count: n
 !CryptoExports class methodsFor: 'private'!
 check: r
 	"r of an export: a CryptoError if the VM has none, or if r says the arguments were refused or the call failed."
-	r == false ifTrue: [^CryptoError signal: 'this VM has no cryptography exports'].
+	r == false ifTrue: [
+		Firmware current isNil ifFalse: [^CryptoError signal: 'no crypto on UEFI'].
+		^CryptoError signal: 'this VM has no cryptography exports'].
 	r = -3 ifTrue: [^CryptoError signal: 'the VM''s cryptography refused the arguments'].
 	r = -1 ifTrue: [^CryptoError signal: 'the VM''s cryptography failed'].
 	^r

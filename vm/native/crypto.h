@@ -1,6 +1,6 @@
 /* Samaltak's cryptography exports (core_crypto_*, FFIPrimitives-crypto): hashes, AEADs, X25519, signature
-   verification and ChaCha20's key stream, on libcrypto hosted (crypto_openssl.c) and on mbedTLS on UEFI
-   (crypto_mbedtls.c). Buffers are the image's, borrowed for the call: a hash's state, an AEAD's text (sealed and
+   verification and ChaCha20's key stream, on libcrypto hosted (crypto_openssl.c); none on UEFI
+   (crypto_none.c). Buffers are the image's, borrowed for the call: a hash's state, an AEAD's text (sealed and
    opened in place). Keys (AEAD and public) are handles into a table of SAMALTAK_CRYPTO_KEYS: the least recently used
    goes when it is full, and its handle (slot and generation) then answers SAMALTAK_CRYPTO_STALE, so the image makes it
    again. docs/crypto.md. */

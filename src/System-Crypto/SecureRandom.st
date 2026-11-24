@@ -1,5 +1,5 @@
 Object subclass: #SecureRandom
-	instanceVariableNames: 'key session output lock source last'
+	instanceVariableNames: 'key session output lock source last direct'
 	classVariableNames: 'Default'
 	package: 'System-Crypto'!
 
@@ -7,7 +7,7 @@ SecureRandom comment: 'I am a cryptographically secure random generator: SecureR
 
 A snapshot holds every generator''s key, so each run of the image reseeds before it answers again: the key belongs to the image''s session (Smalltalk session), which the image renews when it starts, before any startUp: method (those make secrets too: SessionToken for ControlServer and RfbServer), so no order of the startup list can replay a stream.
 
-Entropy: the firmware''s EFI_RNG_PROTOCOL where there is a firmware (UEFI; Firmware, System-Devices), else /dev/urandom (File''s FileStream). Where there is neither, nextBytes: signals CryptoError: never weaker randomness. Each block from the source is checked (entropy): one with fewer than 8 different byte values, or the same as the block before it, is a stuck source, and nextBytes: signals CryptoError until the source answers sound blocks again (a sound source fails either check once in 10^36 blocks). Requests are serialized (a Semaphore), so Processes may share one generator. SecureRandom new is a generator of its own; source: lets a test give it an entropy block. docs/crypto.md, Randomness.'!
+Entropy: the firmware''s EFI_RNG_PROTOCOL where there is a firmware (UEFI; Firmware, System-Devices), else /dev/urandom (File''s FileStream). Where there is neither, nextBytes: signals CryptoError: never weaker randomness. Each block from the source is checked (entropy): one with fewer than 8 different byte values, or the same as the block before it, is a stuck source, and nextBytes: signals CryptoError until the source answers sound blocks again (a sound source fails either check once in 10^36 blocks). Where the VM has no cryptography (UEFI: CryptoExports isAvailable is false) there is no ChaCha20 or SHA-256 to run: nextBytes: then answers the source''s bytes as they come (EFI_RNG_PROTOCOL''s, which the firmware already conditions or which are the host''s /dev/urandom under QEMU), with the same checks of each block, and one block more drawn for the check of the next request, never answered. Requests are serialized (a Semaphore), so Processes may share one generator. SecureRandom new is a generator of its own; source: lets a test give it an entropy block. docs/crypto.md, Randomness.'!
 
 !SecureRandom class methodsFor: 'accessing'!
 default
@@ -52,6 +52,13 @@ source: aBlock
 	lock critical: [
 		source := aBlock.
 		key := last := nil]
+!
+direct: aBoolean
+	"Answer the source's bytes as they come (true), as where the VM has no cryptography, or run the generator (false), for this run of the image (tests)."
+	lock critical: [
+		direct := aBoolean.
+		session := Smalltalk session.
+		key := last := nil]
 ! !
 
 !SecureRandom methodsFor: 'accessing'!
@@ -60,7 +67,12 @@ nextBytes: n
 	| stream |
 	n < 0 ifTrue: [^CryptoError signal: 'SecureRandom: a negative count'].
 	^lock critical: [
-		(key isNil or: [session ~~ Smalltalk session]) ifTrue: [self seed].
+		(direct isNil or: [session ~~ Smalltalk session]) ifTrue: [
+			key := last := nil.
+			direct := CryptoExports isAvailable not.
+			session := Smalltalk session].
+		direct ifTrue: [^self directBytes: n].
+		key isNil ifTrue: [self seed].
 		output >= 16r100000 ifTrue: [self reseed].
 		stream := (ChaCha20 key: key nonce: (ByteArray new: 12)) xor: (ByteArray new: n + 32).
 		key := stream copyFrom: 1 to: 32.
@@ -75,7 +87,6 @@ seed
 	key := nil.
 	first := self entropy.
 	key := SHA256 new update: first; update: self entropy; digest.
-	session := Smalltalk session.
 	output := 0
 !
 reseed
@@ -90,5 +101,23 @@ entropy
 	fingerprint := (SHA256 hash: bytes) copyFrom: 1 to: 16.
 	(bytes asSet size < 8 or: [fingerprint = last]) ifTrue: [^CryptoError signal: 'SecureRandom: the entropy source is stuck'].
 	last := fingerprint.
+	^bytes
+!
+directBytes: n
+	"n bytes of the source's, in blocks of 32 checked as entropy checks them, each against the one before; the block drawn last is kept for the check of the next request and never answered."
+	| out block previous |
+	out := ByteArray new: n.
+	previous := last.
+	last := nil.
+	1 to: n by: 32 do: [:i |
+		block := self checked: (source value: 32) after: previous.
+		out replaceFrom: i to: (i + 31 min: n) with: block startingAt: 1.
+		previous := block].
+	last := self checked: (source value: 32) after: previous.
+	^out
+!
+checked: bytes after: previous
+	(bytes isNil or: [bytes size ~= 32]) ifTrue: [^CryptoError signal: 'SecureRandom: no source of entropy'].
+	(bytes asSet size < 8 or: [bytes = previous]) ifTrue: [^CryptoError signal: 'SecureRandom: the entropy source is stuck'].
 	^bytes
 ! !

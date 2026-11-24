@@ -3,7 +3,7 @@ Object subclass: #X25519
 	classVariableNames: ''
 	package: 'System-Crypto'!
 
-X25519 comment: 'I am the X25519 Diffie-Hellman function of RFC 7748, computed by the VM (CryptoExports: libcrypto hosted, mbedTLS on UEFI). Keys and shared secrets are 32-byte ByteArrays, little-endian as the RFC encodes them. My class side is the API:
+X25519 comment: 'I am the X25519 Diffie-Hellman function of RFC 7748, computed by the VM (CryptoExports: libcrypto, hosted; none on UEFI). Keys and shared secrets are 32-byte ByteArrays, little-endian as the RFC encodes them. My class side is the API:
 
 	priv := X25519 newPrivateKey.	"32 bytes of SecureRandom"
 	pub := X25519 publicKeyFor: priv.

@@ -13,8 +13,6 @@ PixelPack 213, ZRLE 214, PixelDiff 215, the byte-range compares 119/122, the dev
 - The fork's numbered primitives keep their numbers: none collides with upstream's (its new ones are 250–265; the
   retired numbers stay reserved, and the fork's 207–215 sit after the reserved guest display 200–206).
   `tests/vm/ffi_cutover.py check` passes with them in the table.
-- Where upstream moved a facade the fork had changed, the fork's change follows upstream's FFI version: `TLSSocket`
-  falls back to the VM's TLS engine (mbedTLS; the Smalltalk TLS before it) when `platform_tls_start` is unavailable (UEFI has no platform exports).
 - The one fork change that the FFI cannot carry is uploading a texture from an address outside the heap
   (`HostFramePresenter`, `NvComputeGPU`'s back buffer): the image passes no raw pointers through the FFI, so it is
   a primitive of its own, `gpuUploadTextureAddress` (462), and `GPUPrimitives uploadTexture:bytes:...` sends an

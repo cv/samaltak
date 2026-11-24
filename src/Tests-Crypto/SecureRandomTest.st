@@ -39,6 +39,17 @@ testDefault
 	self assert: (SecureRandom default nextBytes: 0) equals: #[].
 	self assert: (SecureRandom default nextBytes: 1000) size equals: 1000
 !
+testDirectWithoutCryptography
+	"Without the VM's cryptography (UEFI) the source's blocks are answered as they come, checked, one block more drawn for the next check."
+	| r stuck |
+	r := SecureRandom new source: self counterSource; direct: true; yourself.
+	self assert: (r nextBytes: 40) equals: ((0 to: 39) collect: [:i | i \\ 256]) asByteArray.
+	self assert: (r nextBytes: 4) equals: #[96 97 98 99].
+	stuck := SecureRandom new source: [:n | ByteArray new: n withAll: 7]; direct: true; yourself.
+	self should: [stuck nextBytes: 8] raise: CryptoError.
+	stuck := SecureRandom new source: [:n | (1 to: n) asByteArray]; direct: true; yourself.
+	self should: [stuck nextBytes: 8] raise: CryptoError
+!
 testKnownAnswers
 	"The key is SHA-256 of the source's first two blocks; each request answers ChaCha20's stream after its first 32 bytes, which are the next key; after a MB the key is SHA-256 of the key and a third block."
 	| r |
