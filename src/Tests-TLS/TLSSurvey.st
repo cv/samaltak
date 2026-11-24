@@ -1,16 +1,16 @@
 Object subclass: #TLSSurvey
-	instanceVariableNames: 'trustStore timeout parallel lock'
+	instanceVariableNames: 'trustStore timeout parallel lock engine'
 	classVariableNames: ''
 	package: 'Tests-TLS'!
 
-TLSSurvey comment: 'I try the Smalltalk TLS client on real servers, for tools/tls-survey (which compares my verdicts with OpenSSL''s) and by hand; nothing in the test suite uses me, as I need the internet.
+TLSSurvey comment: 'I try the VM''s TLS engine (MbedTLSConnection; engine: #smalltalk the Smalltalk TLS client) on real servers, for tools/tls-survey (which compares my verdicts with OpenSSL''s) and by hand; nothing in the test suite uses me, as I need the internet.
 
 	TLSSurvey new probe: ''github.com''.	"a line: host, ok or fail, details"
 	TLSSurvey new run: #(''github.com'' ''example.com:443'') parallel: 8.	"a line each on the Transcript, as they finish"
-	TLSSurvey new download: ''https://speed.cloudflare.com/__down?bytes=100000000''.	"throughput, the Smalltalk TLS and OpenSSL''s"
+	TLSSurvey new download: ''https://speed.cloudflare.com/__down?bytes=100000000''.	"throughput, the engine and OpenSSL''s"
 	TLSSurvey new repeat: 50 host: ''example.com''.	"sequential connections: handshake times"
 
-probe: connects (the Smalltalk TLS, trusting trustStore, TrustStore default unless set), does the handshake, sends HEAD / with Connection: close and reads until the server closes. Its line is tab-separated: host, ok or fail, handshake ms, cipher suite, key exchange group (with +HRR after a HelloRetryRequest), ALPN, the number of certificates sent, the leaf''s key, the response''s status line, bytes received, and for a failure why.'!
+probe: connects (trusting trustStore, the default roots unless set), does the handshake, sends HEAD / with Connection: close and reads until the server closes. Its line is tab-separated: host, ok or fail, handshake ms, cipher suite, the version (the Smalltalk TLS: the key exchange group, with +HRR after a HelloRetryRequest), ALPN, (the Smalltalk TLS: the number of certificates sent, the leaf''s key), the response''s status line, bytes received, and for a failure why.'!
 
 !TLSSurvey methodsFor: 'accessing'!
 trustStore: aTrustStore
@@ -22,11 +22,18 @@ timeout
 !
 timeout: milliseconds
 	timeout := milliseconds
+!
+engine
+	"#mbedtls (the VM's engine) or #smalltalk."
+	^engine ifNil: [#mbedtls]
+!
+engine: aSymbol
+	engine := aSymbol
 ! !
 
 !TLSSurvey methodsFor: 'probing'!
 probe: hostSpec
-	"A tab-separated line about the Smalltalk TLS's connection to hostSpec (host or host:port)."
+	"A tab-separated line about a TLS connection to hostSpec (host or host:port)."
 	| host port deadline plain connection fields response received |
 	host := hostSpec copyUpTo: $:.
 	port := (hostSpec includes: $:) ifTrue: [(hostSpec copyAfter: $:) asNumber] ifFalse: [443].
@@ -34,15 +41,21 @@ probe: hostSpec
 	deadline := Time millisecondClockValue + self timeout.
 	plain := [RemoteSocket connectTo: host port: port until: deadline] on: Error do: [:e |
 		^self line: (fields add: 'fail'; add: 'connect: ', e messageText asString; yourself)].
-	connection := TLSClientConnection on: plain host: host.
+	connection := self engine == #smalltalk
+		ifTrue: [TLSClientConnection on: plain host: host]
+		ifFalse: [MbedTLSConnection on: plain host: host].
 	trustStore isNil ifFalse: [connection trustStore: trustStore].
 	[connection handshakeUntil: deadline] on: TLSError do: [:e |
 		connection close.
 		^self line: (fields add: 'fail'; add: (self alertOf: e), e messageText asString; yourself)].
-	fields add: 'ok'; add: connection handshakeMilliseconds printString; add: connection cipherSuite name;
-		add: (self class groupName: connection keyExchangeGroup), (connection wasRetried ifTrue: ['+HRR'] ifFalse: ['']);
-		add: (connection protocol ifNil: ['-']); add: connection peerCertificates size printString;
-		add: (self class describeKey: connection peerCertificates first publicKey).
+	fields add: 'ok'; add: connection handshakeMilliseconds printString.
+	(connection isKindOf: MbedTLSConnection)
+		ifTrue: [fields add: connection cipherSuite; add: connection version; add: (connection protocol ifNil: ['-'])]
+		ifFalse: [
+			fields add: connection cipherSuite name;
+				add: (self class groupName: connection keyExchangeGroup), (connection wasRetried ifTrue: ['+HRR'] ifFalse: ['']);
+				add: (connection protocol ifNil: ['-']); add: connection peerCertificates size printString;
+				add: (self class describeKey: connection peerCertificates first publicKey)].
 	[response := self head: host over: connection] on: Error do: [:e |
 		connection close.
 		^self line: (fields add: 'after the handshake: ', (self alertOf: e), e messageText asString; yourself)].
@@ -99,19 +112,19 @@ runFile: path parallel: count
 
 !TLSSurvey methodsFor: 'load'!
 download: url
-	"Get url with the Smalltalk TLS and then with OpenSSL's (where there is one), reading and dropping the body: a line each with the bytes, the milliseconds and the MB/s."
+	"Get url with my engine and then with OpenSSL's (where there is one), reading and dropping the body: a line each with the bytes, the milliseconds and the MB/s."
 	| results |
 	results := OrderedCollection new.
-	results add: (self download: url smalltalk: true).
-	results add: (self download: url smalltalk: false).
+	results add: (self download: url engine: self engine).
+	results add: (self download: url engine: #platform).
 	^results
 !
-download: url smalltalk: aBoolean
+download: url engine: aSymbol
 	"GET url with Connection: close over a TLSSocket, counting what comes until the server closes."
 	| old target start socket buffer n bytes ms status first |
 	target := HTTPClient parse: url.
-	old := TLSSocket useSmalltalkTLS.
-	TLSSocket useSmalltalkTLS: aBoolean.
+	old := TLSSocket engine.
+	TLSSocket engine: aSymbol.
 	bytes := 0.
 	start := Time millisecondClockValue.
 	status := [socket := TLSSocket connectTo: (target at: 2) port: (target at: 3) timeout: self timeout.
@@ -124,9 +137,9 @@ download: url smalltalk: aBoolean
 		socket close.
 		n isNil ifTrue: ['stalled after ', bytes printString] ifFalse: [first]]
 			on: Error do: [:e | e messageText asString].
-	TLSSocket useSmalltalkTLS: old.
+	TLSSocket engine: old.
 	ms := Time millisecondClockValue - start max: 1.
-	^(aBoolean ifTrue: ['smalltalk'] ifFalse: ['openssl']), '	', status asString, '	', bytes printString, ' bytes	', ms printString, ' ms	',
+	^(aSymbol == #platform ifTrue: ['openssl'] ifFalse: [aSymbol]), '	', status asString, '	', bytes printString, ' bytes	', ms printString, ' ms	',
 		(bytes / 1000.0 / ms roundTo: 0.01) printString, ' MB/s'
 !
 repeat: count host: hostSpec

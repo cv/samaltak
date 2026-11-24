@@ -73,6 +73,15 @@ else ifeq ($(and $(wildcard $(PGO_PROFILE)),$(if $(NO_PGO),,yes)),yes)
   PGO_DEP := $(PGO_PROFILE)
 endif
 include gen/sources.mk
+# The C that is not translated from Lowtalk (native/native.mk): mbedTLS and the TLS engine, with flags of their own.
+# They are beside this Makefile, also when make runs elsewhere with a gen/ of its own (VMRebuilder: make -C dir -f vm/Makefile).
+# Relative when make runs here, so the dependency files of a cached build (tests/build-cache.sh) hold no absolute paths.
+VM_ABS_DIR := $(patsubst %/,%,$(dir $(abspath $(firstword $(MAKEFILE_LIST)))))
+VM_DIR := $(if $(filter $(CURDIR),$(VM_ABS_DIR)),.,$(VM_ABS_DIR))
+NATIVE_DIR := $(VM_DIR)
+include $(VM_DIR)/native/native.mk
+NATIVE_CFLAGS := -O2 -g -std=gnu11 $(NATIVE_CPPFLAGS) -MMD -MP
+CFLAGS += -I$(VM_DIR)/native
 CORE_SRCS := $(addprefix gen/,$(VM_CORE_SOURCES) $(VM_CORE_SOURCES_$(OS)) $(VM_CORE_SOURCES_$(ARCH)))
 HEADLESS_SRCS := $(addprefix gen/,$(VM_HEADLESS_SOURCES) $(VM_HEADLESS_SOURCES_$(OS)) $(VM_HEADLESS_SOURCES_$(ARCH)))
 PLATFORM_SRCS := $(addprefix gen/,$(VM_PLATFORM_SOURCES) $(VM_PLATFORM_SOURCES_$(OS)) $(VM_PLATFORM_SOURCES_$(ARCH)))
@@ -107,7 +116,7 @@ else
 endif
 
 OBJDIR := $(BUILD)/obj-$(VARIANT)
-OBJS := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
+OBJS := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS)) $(patsubst $(VM_DIR)/%.c,$(OBJDIR)/%.o,$(NATIVE_SRCS))
 STAMP := $(BUILD)/.variant-$(VARIANT)
 
 $(BUILD)/samaltak: $(OBJS) $(STAMP)
@@ -121,6 +130,14 @@ $(STAMP):
 $(OBJDIR)/%.o: %.c $(PGO_DEP)
 	@mkdir -p $(dir $@)
 	$(if $(BRIEF),@echo "cc   $<";) $(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+
+$(OBJDIR)/third_party/%.o: $(VM_DIR)/third_party/%.c
+	@mkdir -p $(dir $@)
+	$(if $(BRIEF),@echo "cc   $<";) $(CC) $(NATIVE_CFLAGS) -c -o $@ $<
+
+$(OBJDIR)/native/%.o: $(VM_DIR)/native/%.c
+	@mkdir -p $(dir $@)
+	$(if $(BRIEF),@echo "cc   $<";) $(CC) $(NATIVE_CFLAGS) -c -o $@ $<
 
 # Retrain the profile: an instrumented VM runs the benchmarks (also under the baseline JIT) and the kernel/compiler tests on IMAGE.
 pgo:

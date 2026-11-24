@@ -1,6 +1,6 @@
 # GitHub
 
-The image turns its own source changes into a branch, a commit and a pull request on GitHub through the REST API, with no files, processes or git: hosted, and on UEFI over the Smalltalk TLS client (docs/tls.md). The in-image agent (docs/agent.md) uses it: it changes code, runs the tests in the image, commits, and reports the pull request's URL; a person reviews and merges, and nothing in the image updates the base branch. The other way, a running image updates itself to the base branch after merges, without a restart (below: Updating a running image).
+The image turns its own source changes into a branch, a commit and a pull request on GitHub through the REST API, with no files, processes or git: hosted, and on UEFI over the VM's TLS engine (docs/tls.md). The in-image agent (docs/agent.md) uses it: it changes code, runs the tests in the image, commits, and reports the pull request's URL; a person reviews and merges, and nothing in the image updates the base branch. The other way, a running image updates itself to the base branch after merges, without a restart (below: Updating a running image).
 
 ## Flow
 

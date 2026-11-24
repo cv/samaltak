@@ -70,6 +70,19 @@ static void native_text_getenv(const char *key, uint64_t n, ffi_text_buffer *out
 static void native_text_stderr(const uint8_t *bytes, uint64_t n);
 static void native_text_stdout(const uint8_t *bytes, uint64_t n);
 static int64_t native_thread_cpu_microseconds(void);
+static int64_t native_tls_close(int64_t h, uint8_t *out, uint64_t out_len);
+static int64_t native_tls_handshake(int64_t h, const uint8_t *in, uint64_t in_len, uint8_t *out, uint64_t out_len);
+static int64_t native_tls_info(int64_t h, int64_t what, uint8_t *out, uint64_t out_len);
+static int64_t native_tls_open(int64_t store_id, const uint8_t *host, uint64_t host_len);
+static int64_t native_tls_read(int64_t h, uint8_t *plain, uint64_t plain_len, const uint8_t *in, uint64_t in_len);
+static int64_t native_tls_release(int64_t h);
+static int64_t native_tls_seed(const uint8_t *bytes, uint64_t bytes_len);
+static int64_t native_tls_set_time(int64_t seconds);
+static int64_t native_tls_store_add(int64_t store_id, const uint8_t *der, uint64_t der_len);
+static int64_t native_tls_store_free(int64_t store_id);
+static int64_t native_tls_store_new(void);
+static int64_t native_tls_take(int64_t h, uint8_t *out, uint64_t out_len);
+static int64_t native_tls_write(int64_t h, const uint8_t *plain, uint64_t plain_len, uint8_t *out, uint64_t out_len);
 static double native_trunc(double x);
 static int64_t native_utc_microseconds(void);
 static void native_write_stderr(const void *bytes, uint64_t n);
@@ -601,6 +614,58 @@ static int32_t native_getenv_entry_witness(const void *a1, uint64_t a2, uint64_t
     fprintf(stderr, "\nffi-native-entry 1196\n");
     return native_getenv(a1, a2, a3);
 }
+static int64_t native_tls_seed_entry_witness(const uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1724\n");
+    return native_tls_seed(a1, a2);
+}
+static int64_t native_tls_set_time_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1725\n");
+    return native_tls_set_time(a1);
+}
+static int64_t native_tls_store_new_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 1726\n");
+    return native_tls_store_new();
+}
+static int64_t native_tls_store_add_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1727\n");
+    return native_tls_store_add(a1, a2, a3);
+}
+static int64_t native_tls_store_free_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1728\n");
+    return native_tls_store_free(a1);
+}
+static int64_t native_tls_open_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1729\n");
+    return native_tls_open(a1, a2, a3);
+}
+static int64_t native_tls_handshake_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3, uint8_t *a4, uint64_t a5) {
+    fprintf(stderr, "\nffi-native-entry 1730\n");
+    return native_tls_handshake(a1, a2, a3, a4, a5);
+}
+static int64_t native_tls_read_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3, const uint8_t *a4, uint64_t a5) {
+    fprintf(stderr, "\nffi-native-entry 1731\n");
+    return native_tls_read(a1, a2, a3, a4, a5);
+}
+static int64_t native_tls_write_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3, uint8_t *a4, uint64_t a5) {
+    fprintf(stderr, "\nffi-native-entry 1732\n");
+    return native_tls_write(a1, a2, a3, a4, a5);
+}
+static int64_t native_tls_take_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1733\n");
+    return native_tls_take(a1, a2, a3);
+}
+static int64_t native_tls_close_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1734\n");
+    return native_tls_close(a1, a2, a3);
+}
+static int64_t native_tls_info_entry_witness(int64_t a1, int64_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1735\n");
+    return native_tls_info(a1, a2, a3, a4);
+}
+static int64_t native_tls_release_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1736\n");
+    return native_tls_release(a1);
+}
 static void native_text_stdout_entry_witness(const uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 2193\n");
     native_text_stdout(a1, a2);
@@ -764,6 +829,84 @@ static int32_t ffi_approved_core(const char *approved_name, uint32_t packed_sign
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_getenv_entry_witness;
         return 1196;
+    }
+    if (packed_signature == 131 && strcmp(approved_name, "core_tls_seed") == 0) {
+        *target_out = (uint64_t) native_tls_seed;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_tls_seed_entry_witness;
+        return 1724;
+    }
+    if (packed_signature == 51 && strcmp(approved_name, "core_tls_set_time") == 0) {
+        *target_out = (uint64_t) native_tls_set_time;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_tls_set_time_entry_witness;
+        return 1725;
+    }
+    if (packed_signature == 3 && strcmp(approved_name, "core_tls_store_new") == 0) {
+        *target_out = (uint64_t) native_tls_store_new;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_tls_store_new_entry_witness;
+        return 1726;
+    }
+    if (packed_signature == 899 && strcmp(approved_name, "core_tls_store_add") == 0) {
+        *target_out = (uint64_t) native_tls_store_add;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_tls_store_add_entry_witness;
+        return 1727;
+    }
+    if (packed_signature == 51 && strcmp(approved_name, "core_tls_store_free") == 0) {
+        *target_out = (uint64_t) native_tls_store_free;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_tls_store_free_entry_witness;
+        return 1728;
+    }
+    if (packed_signature == 899 && strcmp(approved_name, "core_tls_new") == 0) {
+        *target_out = (uint64_t) native_tls_open;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_tls_open_entry_witness;
+        return 1729;
+    }
+    if (packed_signature == 14483 && strcmp(approved_name, "core_tls_handshake") == 0) {
+        *target_out = (uint64_t) native_tls_handshake;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_tls_handshake_entry_witness;
+        return 1730;
+    }
+    if (packed_signature == 14723 && strcmp(approved_name, "core_tls_read") == 0) {
+        *target_out = (uint64_t) native_tls_read;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_tls_read_entry_witness;
+        return 1731;
+    }
+    if (packed_signature == 14483 && strcmp(approved_name, "core_tls_write") == 0) {
+        *target_out = (uint64_t) native_tls_write;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_tls_write_entry_witness;
+        return 1732;
+    }
+    if (packed_signature == 915 && strcmp(approved_name, "core_tls_take") == 0) {
+        *target_out = (uint64_t) native_tls_take;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_tls_take_entry_witness;
+        return 1733;
+    }
+    if (packed_signature == 915 && strcmp(approved_name, "core_tls_close") == 0) {
+        *target_out = (uint64_t) native_tls_close;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_tls_close_entry_witness;
+        return 1734;
+    }
+    if (packed_signature == 13203 && strcmp(approved_name, "core_tls_info") == 0) {
+        *target_out = (uint64_t) native_tls_info;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_tls_info_entry_witness;
+        return 1735;
+    }
+    if (packed_signature == 51 && strcmp(approved_name, "core_tls_free") == 0) {
+        *target_out = (uint64_t) native_tls_release;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_tls_release_entry_witness;
+        return 1736;
     }
     if (packed_signature == 215 && strcmp(approved_name, "core_stdout_text") == 0) {
         *target_out = (uint64_t) native_text_stdout;
@@ -1470,6 +1613,84 @@ static int64_t native_thread_cpu_microseconds(void)
     r_checked_microseconds = (us >= VM_INT_MIN) && (us <= VM_INT_MAX) ? us : VM_INT_MIN;
 exit_checked_microseconds:;
     r_checked_microseconds; });
+}
+
+/* FFIPrimitives>>nativeTlsClose:out:length: */
+static int64_t native_tls_close(int64_t h, uint8_t *out, uint64_t out_len)
+{
+    return samaltak_tls_close(h, out, out_len);
+}
+
+/* FFIPrimitives>>nativeTlsHandshake:in:length:out:length: */
+static int64_t native_tls_handshake(int64_t h, const uint8_t *in, uint64_t in_len, uint8_t *out, uint64_t out_len)
+{
+    return samaltak_tls_handshake(h, in, in_len, out, out_len);
+}
+
+/* FFIPrimitives>>nativeTlsInfo:what:into:length: */
+static int64_t native_tls_info(int64_t h, int64_t what, uint8_t *out, uint64_t out_len)
+{
+    return samaltak_tls_info(h, what, out, out_len);
+}
+
+/* FFIPrimitives>>nativeTlsOpen:host:length: */
+static int64_t native_tls_open(int64_t store_id, const uint8_t *host, uint64_t host_len)
+{
+    return samaltak_tls_new(store_id, host, host_len);
+}
+
+/* FFIPrimitives>>nativeTlsRead:into:length:in:length: */
+static int64_t native_tls_read(int64_t h, uint8_t *plain, uint64_t plain_len, const uint8_t *in, uint64_t in_len)
+{
+    return samaltak_tls_read(h, plain, plain_len, in, in_len);
+}
+
+/* FFIPrimitives>>nativeTlsRelease: */
+static int64_t native_tls_release(int64_t h)
+{
+    return samaltak_tls_free(h);
+}
+
+/* FFIPrimitives>>nativeTlsSeed:length: */
+static int64_t native_tls_seed(const uint8_t *bytes, uint64_t bytes_len)
+{
+    return samaltak_tls_seed(bytes, bytes_len);
+}
+
+/* FFIPrimitives>>nativeTlsSetTime: */
+static int64_t native_tls_set_time(int64_t seconds)
+{
+    return samaltak_tls_set_time(seconds);
+}
+
+/* FFIPrimitives>>nativeTlsStoreAdd:der:length: */
+static int64_t native_tls_store_add(int64_t store_id, const uint8_t *der, uint64_t der_len)
+{
+    return samaltak_tls_store_add(store_id, der, der_len);
+}
+
+/* FFIPrimitives>>nativeTlsStoreFree: */
+static int64_t native_tls_store_free(int64_t store_id)
+{
+    return samaltak_tls_store_free(store_id);
+}
+
+/* FFIPrimitives>>nativeTlsStoreNew */
+static int64_t native_tls_store_new(void)
+{
+    return samaltak_tls_store_new();
+}
+
+/* FFIPrimitives>>nativeTlsTake:out:length: */
+static int64_t native_tls_take(int64_t h, uint8_t *out, uint64_t out_len)
+{
+    return samaltak_tls_take(h, out, out_len);
+}
+
+/* FFIPrimitives>>nativeTlsWrite:bytes:length:out:length: */
+static int64_t native_tls_write(int64_t h, const uint8_t *plain, uint64_t plain_len, uint8_t *out, uint64_t out_len)
+{
+    return samaltak_tls_write(h, plain, plain_len, out, out_len);
 }
 
 /* FFIPrimitives>>nativeTrunc: */

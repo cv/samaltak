@@ -37,7 +37,7 @@ test: $(BUILD)/gpu_test
 # but keep the native helpers used by the standalone harness (e.g. vsync and shader logging).
 $(BUILD)/gpu_test: tests/gpu_test.c $(INTERNALS) $(GEN)/samaltak.h $(GEN)/sources.mk Makefile
 	@mkdir -p $(BUILD)
-	$(CC) $(CFLAGS) $(OS_CFLAGS) -ffunction-sections -fdata-sections -I$(GEN) $(SDL_CFLAGS) $(SSL_CFLAGS) -o $@ tests/gpu_test.c $(INTERNALS) $(DEAD_STRIP) $(SDL_LIBS) $(SSL_LIBS) $(OS_LIBS) -lpthread
+	$(CC) $(CFLAGS) $(OS_CFLAGS) -ffunction-sections -fdata-sections -I$(GEN) -I../native $(SDL_CFLAGS) $(SSL_CFLAGS) -o $@ tests/gpu_test.c $(INTERNALS) $(DEAD_STRIP) $(SDL_LIBS) $(SSL_LIBS) $(OS_LIBS) -lpthread
 
 # Through the real VM (built into its own directory so it never clobbers vm/build/samaltak).
 st-test:

@@ -17,5 +17,5 @@ REC=$OUT/raster/world.nvrec
 if [ ! -f "$REC" ] || [ "$OUT/samaltak.image" -nt "$REC" ]; then
 	NV_RECORD="$REC" NV_FRAMES="${NV_FRAMES:-6}" vm/build/samaltak "$OUT/samaltak.image" --headless --eval "$(cat tests/nv/record.st)"
 fi
-$CC $CFLAGS -std=gnu11 -D_GNU_SOURCE -fsigned-char -Ivm/gen -o "$OUT/raster/replay" tests/raster/replay.c vm/gen/platform_raster.c -lm
+$CC $CFLAGS -std=gnu11 -D_GNU_SOURCE -fsigned-char -Ivm/gen -Ivm/native -o "$OUT/raster/replay" tests/raster/replay.c vm/gen/platform_raster.c -lm
 "$OUT/raster/replay" "$REC" "$PASSES"

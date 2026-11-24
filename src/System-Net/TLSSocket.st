@@ -1,12 +1,12 @@
 RemoteSocket subclass: #TLSSocket
 	instanceVariableNames: 'connection'
-	classVariableNames: 'Roots UseSmalltalkTLS TLSStartCall TLSRecvCall TLSSendCall TLSCloseCall TLSSemaphoreCall TLSHandshakeCall'
+	classVariableNames: 'Roots Engine TLSStartCall TLSRecvCall TLSSendCall TLSCloseCall TLSSemaphoreCall TLSHandshakeCall'
 	package: 'System-Net'!
 
-TLSSocket comment: 'I am a TLS client connection: over the platform''s TLS primitives (OpenSSL, docs/platform.md), or over the Smalltalk TLS 1.3 client (a TLSClientConnection on a RemoteSocket; docs/tls.md) where those fail, as on UEFI, where the socket is the image''s own TCP (NetworkStack), or when forced (TLSSocket useSmalltalkTLS: true). Connecting is a RemoteSocket''s connect, then the handshake, which verifies the server''s certificate for the host name: against the system''s trust store with OpenSSL, against trustStore (TrustStore default unless set) with the Smalltalk TLS. Each waits on Semaphores, and the whole connect gives up after connectTimeout, so the VM never blocks and terminating the connecting Process cancels it. Receiving and sending wait on Semaphores like a RemoteSocket''s; a connection that fails reads as ended (receiving answers 0, sending false).
+TLSSocket comment: 'I am a TLS client connection: over the platform''s TLS primitives (OpenSSL, docs/platform.md), or over the VM''s TLS engine (mbedTLS: an MbedTLSConnection on a RemoteSocket; docs/tls.md) where those fail, as on UEFI, where the socket is the image''s own TCP (NetworkStack), or when forced (TLSSocket engine: #mbedtls); the Smalltalk TLS 1.3 client (a TLSClientConnection) where the VM has no engine, or when forced (engine: #smalltalk). Connecting is a RemoteSocket''s connect, then the handshake, which verifies the server''s certificate for the host name: against the system''s trust store with OpenSSL, against trustStore (TrustStore default unless set) with the engine or the Smalltalk TLS. Each waits on Semaphores, and the whole connect gives up after connectTimeout, so the VM never blocks and terminating the connecting Process cancels it. Receiving and sending wait on Semaphores like a RemoteSocket''s; a connection that fails reads as ended (receiving answers 0, sending false).
 
 	(TLSSocket connectTo: ''example.com'' port: 443) sendAll: ...
-	TLSSocket trustStore: (TrustStore new add: testCA; yourself).	"for tests: the Smalltalk TLS trusts just that"'!
+	TLSSocket trustStore: (TrustStore new add: testCA; yourself).	"for tests: the engine trusts just that"'!
 
 !TLSSocket methodsFor: 'initialization'!
 setConnection: aTLSClientConnection
@@ -15,7 +15,7 @@ setConnection: aTLSClientConnection
 
 !TLSSocket methodsFor: 'accessing'!
 connection
-	"The TLSClientConnection under me, or nil over OpenSSL."
+	"The MbedTLSConnection or TLSClientConnection under me, or nil over OpenSSL."
 	^connection
 !
 isOpen
@@ -65,7 +65,7 @@ handshakeUntil: deadline
 printOn: aStream
 	aStream nextPutAll: 'a TLSSocket'.
 	connection isNil ifFalse: [
-		aStream nextPutAll: ' (Smalltalk TLS'.
+		aStream nextPutAll: ((connection isKindOf: MbedTLSConnection) ifTrue: [' (mbedTLS'] ifFalse: [' (Smalltalk TLS']).
 		connection isOpen ifFalse: [aStream nextPutAll: ', closed'].
 		^aStream nextPut: $)].
 	handle isNil ifTrue: [^aStream nextPutAll: ' (closed)'].
@@ -77,9 +77,9 @@ connectTo: hostString port: port until: deadline
 	"A connection to port of the host named hostString, its certificate verified for hostString, by deadline (a millisecondClockValue)."
 	| plain h socket reason |
 	plain := RemoteSocket connectTo: hostString port: port until: deadline.
-	(self useSmalltalkTLS or: [plain handle < 0]) ifFalse: [
+	(self engine == #platform and: [plain handle >= 0]) ifTrue: [
 		h := [self primStart: plain handle host: hostString] ifCurtailed: [plain close]].
-	h isNil ifTrue: [^self smalltalkTLSOver: plain host: hostString port: port until: deadline].
+	h isNil ifTrue: [^self engineOver: plain host: hostString port: port until: deadline].
 	"the handle passes from plain to me"
 	[plain forget.
 	 socket := self onHandle: h] ifCurtailed: [
@@ -89,10 +89,12 @@ connectTo: hostString port: port until: deadline
 	socket close.
 	^RemoteError signal: 'cannot connect to ', hostString, ':', port printString, ': ', reason
 !
-smalltalkTLSOver: plain host: hostString port: port until: deadline
-	"The Smalltalk TLS client over the connected RemoteSocket plain."
+engineOver: plain host: hostString port: port until: deadline
+	"The VM's TLS engine over the connected RemoteSocket plain, or the Smalltalk TLS client where there is none (or engine: #smalltalk)."
 	| connection reason |
-	connection := TLSClientConnection on: plain host: hostString.
+	connection := (self engine ~~ #smalltalk and: [MbedTLSConnection isAvailable])
+		ifTrue: [MbedTLSConnection on: plain host: hostString]
+		ifFalse: [TLSClientConnection on: plain host: hostString].
 	Roots isNil ifFalse: [connection trustStore: Roots].
 	reason := [[connection handshakeUntil: deadline. nil] on: TLSError do: [:e | e return: e messageText]]
 		ifCurtailed: [connection close].
@@ -102,19 +104,26 @@ smalltalkTLSOver: plain host: hostString port: port until: deadline
 ! !
 
 !TLSSocket class methodsFor: 'configuring'!
+engine
+	"What makes my connections: #platform (OpenSSL's primitives where they work, else the VM's engine), #mbedtls (the VM's engine, mbedTLS, even where the platform's works) or #smalltalk (the Smalltalk TLS client)."
+	^Engine ifNil: [#platform]
+!
+engine: aSymbol
+	Engine := aSymbol
+!
 useSmalltalkTLS
-	"Is the Smalltalk TLS forced, even where the platform's works?"
-	^UseSmalltalkTLS == true
+	"Is the Smalltalk TLS forced, even where the platform's or the engine works?"
+	^self engine == #smalltalk
 !
 useSmalltalkTLS: aBoolean
-	UseSmalltalkTLS := aBoolean
+	Engine := aBoolean == true ifTrue: [#smalltalk] ifFalse: [nil]
 !
 trustStore
-	"The roots the Smalltalk TLS trusts."
+	"The roots the engine and the Smalltalk TLS trust."
 	^Roots ifNil: [TrustStore default]
 !
 trustStore: aTrustStoreOrNil
-	"Trust just these roots with the Smalltalk TLS (nil: TrustStore default again)."
+	"Trust just these roots with the engine and the Smalltalk TLS (nil: TrustStore default again)."
 	Roots := aTrustStoreOrNil
 !
 trustStoreSetting

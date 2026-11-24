@@ -41,7 +41,7 @@ staticCoreEntry: name signature: signature
 			^self cCoerce: (self functionPointer: #staticStdout:) to: 'uint64_t'].
 		(libc strcmp: name with: 'core_stderr_text') = 0 ifTrue: [
 			^self cCoerce: (self functionPointer: #staticStderr:) to: 'uint64_t']].
-	^0
+	^self staticTlsEntry: name signature: signature
 ! !
 
 !UefiFFIStubMemory methodsFor: 'static core wrappers'!
