@@ -7,7 +7,7 @@ Posix comment: 'The POSIX calls of the VM core: memory mappings, clocks, threads
 
 !Posix class methodsFor: 'declaring'!
 headers
-	^#('<sys/mman.h>' '<sys/time.h>' '<time.h>' '<pthread.h>' '<unistd.h>' '<stdlib.h>' '<limits.h>')
+	^#('<sys/mman.h>' '<sys/time.h>' '<sys/random.h>' '<time.h>' '<pthread.h>' '<unistd.h>' '<stdlib.h>' '<limits.h>')
 !
 typedefs
 	^#((pthread_t uintptr_t) (pthread_attr_t opaque) (clockid_t int32_t) (useconds_t uint32_t))
