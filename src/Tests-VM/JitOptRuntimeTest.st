@@ -955,6 +955,68 @@ testCountedLoopsCheckBoundsOnce
 		self assert: (o back: a to: 100) equals: ((1 to: 100) inject: 0 into: [:s :i | s + (101 - i * i)]).
 		self should: [o back: a to: 101] raise: Error]
 !
+testAffineIndicesCheckBoundsOnce
+	"A counted loop checks once, where it is entered, the bounds of the indexed accesses at indices affine in its counter or in an induction variable of it (b + c * i + k, b from before the loop): each one's index on the first and on the last turn, of every object it reads or writes; counting down, by more than one (the last turn's counter exactly), and variables a constant is added to on every turn (s := s + 4) too. Out of bounds on the last turn only, the check fails before the loop: the lower tier runs it and fails at that element, and the code compiled next checks every access. A limit that is no SmallInteger, a counter that overflows, an object become in the loop and one replaced by a bigger one stay correct."
+	| o a b c sum32 |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'offSum: x off: k to: n | s | s := 0. 1 to: n do: [:i | s := s + (x at: k + i)]. ^s'.
+	self define: 'mismatch: x at: i0 with: y at: j0 count: n 1 to: n do: [:i | (x at: i0 + i - 1) = (y at: j0 + i - 1) ifFalse: [^i]]. ^0'.
+	self define: 'pack: x into: y count: n | s d | s := 1. d := 1. 1 to: n do: [:i | y at: d put: (x at: s). y at: d + 1 put: (x at: s + 1). y at: d + 2 put: (x at: s + 2). s := s + 4. d := d + 3]. ^y'.
+	self define: 'by4: x to: n | s | s := 0. 1 to: n by: 4 do: [:i | s := s + (x at: i + 3)]. ^s'.
+	self define: 'evens: x to: n | s | s := 0. n to: 1 by: -1 do: [:i | s := s + (x at: i * 2)]. ^s'.
+	self define: 'words: x count: n | s k | s := 0. k := 4 * n - 3. 1 to: n do: [:i | s := s + (x uint32At: k). k := k - 4]. ^s'.
+	self define: 'top: x | s m | s := 0. m := SmallInteger maxVal. m - 10 to: m by: 4 do: [:i | s := s + (x at: i - (m - 11))]. ^s'.
+	self define: 'becomeSum: x to: n at: k with: y | s | s := 0. 1 to: n do: [:i | i = k ifTrue: [x becomeForward: y]. s := s + (x at: i)]. ^s'.
+	self define: 'grow: x to: n | s y | s := 0. y := x. 1 to: n do: [:i | i = 100 ifTrue: [y := y , y]. s := s + (y at: i)]. ^s'.
+	o := JitRuntimeTestSubject new.
+	a := ByteArray new: 4000.
+	1 to: a size do: [:i | a at: i put: i * 7 \\ 256].
+	b := a copy.
+	b at: 3000 put: (b at: 3000) + 1 \\ 256.
+	c := (ByteArray new: 10) , a.
+	sum32 := [:n | (1 to: n) inject: 0 into: [:s :i | s + (a uint32At: i - 1 * 4 + 1)]].
+	4 timesRepeat: [
+		self assert: (o offSum: a off: 5 to: 3995) equals: ((6 to: 4000) inject: 0 into: [:s :i | s + (a at: i)]).
+		self assert: (o mismatch: a at: 1 with: b at: 1 count: 4000) equals: 3000.
+		self assert: (o mismatch: c at: 11 with: a at: 1 count: 4000) equals: 0.
+		self assert: (o pack: a into: (ByteArray new: 3000) count: 1000) equals: ((1 to: 3000) collect: [:i | a at: i - 1 // 3 * 4 + (i - 1 \\ 3) + 1]) asByteArray.
+		self assert: (o by4: a to: 4000) equals: ((4 to: 4000 by: 4) inject: 0 into: [:s :i | s + (a at: i)]).
+		self assert: (o evens: a to: 2000) equals: ((2 to: 4000 by: 2) inject: 0 into: [:s :i | s + (a at: i)]).
+		self assert: (o words: a count: 1000) equals: (sum32 value: 1000).
+		1 to: 300 do: [:k | self assert: (o top: a) equals: (a at: 1) + (a at: 5) + (a at: 9)].
+		self assert: (o becomeSum: a copy to: 4000 at: 0 with: nil) equals: (a inject: 0 into: [:s :x | s + x]).
+		self assert: (o grow: a to: 8000) equals: 2 * (a inject: 0 into: [:s :x | s + x])].
+	self stressed ifFalse: [
+		#(#offSum:off:to: #mismatch:at:with:at:count: #pack:into:count: #by4:to: #evens:to: #words:count:) do: [:each |
+			self assert: ((self listingOf: each) includesSubstring: 'within bounds: checked once before the loop') description: each]].
+	"not a SmallInteger limit: counted in the lower tier, or with a check at each access"
+	3 timesRepeat: [
+		self assert: (o offSum: a off: 5 to: 100.5) equals: ((6 to: 105) inject: 0 into: [:s :i | s + (a at: i)]).
+		self should: [o offSum: a off: 5 to: SmallInteger maxVal + 1] raise: Error].
+	3 timesRepeat: [
+		self should: [o offSum: a off: 6 to: 3995] raise: Error.
+		self should: [o mismatch: a at: 2 with: a at: 2 count: 4000] raise: Error.
+		self should: [o pack: a into: (ByteArray new: 2999) count: 1000] raise: Error.
+		self should: [o by4: a to: 4001] raise: Error.
+		self should: [o evens: a to: 2001] raise: Error.
+		self should: [o words: a count: 1001] raise: Error].
+	self stressed ifFalse: [
+		#(#offSum:off:to: #mismatch:at:with:at:count: #by4:to: #evens:to: #words:count:) do: [:each |
+			self deny: ((self listingOf: each) includesSubstring: 'within bounds: checked once before the loop')]].
+	3 timesRepeat: [
+		self assert: (o offSum: a off: 5 to: 3995) equals: ((6 to: 4000) inject: 0 into: [:s :i | s + (a at: i)]).
+		self assert: (o mismatch: a at: 1 with: b at: 1 count: 4000) equals: 3000.
+		self assert: (o by4: a to: 4000) equals: ((4 to: 4000 by: 4) inject: 0 into: [:s :i | s + (a at: i)]).
+		self assert: (o evens: a to: 2000) equals: ((2 to: 4000 by: 2) inject: 0 into: [:s :i | s + (a at: i)]).
+		self assert: (o words: a count: 1000) equals: (sum32 value: 1000).
+		self should: [o offSum: a off: 6 to: 3995] raise: Error.
+		self should: [o words: a count: 1001] raise: Error].
+	"become in the loop (a call, after it ran): all optimized code is invalidated, the loop goes on in the lower tier"
+	3 timesRepeat: [
+		self assert: (o becomeSum: a copy to: 4000 at: 10 with: a copy) equals: (a inject: 0 into: [:s :x | s + x]).
+		self should: [o becomeSum: a copy to: 4000 at: 10 with: (ByteArray new: 20)] raise: Error]
+!
+
 testOuterTempsOfAClosureInlinedInALoop
 	"A loop's unit that inlines a closure another frame made guards it once, where the loop is entered; an outer temp the loop only reads is loaded there, one it stores into is stored into each time, in the frame its Context is married to or in the Context (the adder's home method has returned): what follows the loop sees the stores. A method's first long loop runs in such a unit: one method for each case."
 	| o a adder |

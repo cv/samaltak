@@ -1,5 +1,5 @@
 OptModule subclass: #OptPasses
-	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter psMemEnd psMemMark psMemKill'
+	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter psMemEnd psMemMark psMemKill psCounted psAffine'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -12,7 +12,7 @@ declarations
 	^#((ir OptIR) (psOrder 'int32_t[OPT_MAX_BLOCKS]') (psOrderCount int32_t) (psVisitMark 'uint8_t[OPT_MAX_BLOCKS]') (psWorkList 'int32_t[OPT_MAX_NODES]')
 		(psIdom 'int32_t[OPT_MAX_BLOCKS]') (psPre 'int32_t[OPT_MAX_BLOCKS]') (psPost 'int32_t[OPT_MAX_BLOCKS]') (psChild 'int32_t[OPT_MAX_BLOCKS]') (psSibling 'int32_t[OPT_MAX_BLOCKS]')
 		(psHeads 'int32_t[4096]') (psChain 'int32_t[OPT_MAX_NODES]') (psUnboxOff bool) (psUnboxed bool)
-		(psTwin 'int32_t[OPT_MAX_NODES]') (psLoopOuter 'int32_t[OPT_MAX_BLOCKS]') (psMemEnd 'int32_t[OPT_MAX_BLOCKS]') (psMemMark 'int32_t[OPT_MAX_BLOCKS]') (psMemKill 'uint8_t[OPT_MAX_BLOCKS]'))
+		(psTwin 'int32_t[OPT_MAX_NODES]') (psLoopOuter 'int32_t[OPT_MAX_BLOCKS]') (psMemEnd 'int32_t[OPT_MAX_BLOCKS]') (psMemMark 'int32_t[OPT_MAX_BLOCKS]') (psMemKill 'uint8_t[OPT_MAX_BLOCKS]') (psCounted 'int64_t[4]') (psAffine 'int64_t[8]'))
 ! !
 
 !OptPasses methodsFor: 'accessing'!
@@ -122,9 +122,9 @@ simplifyPhis
 					changed := true]]]]
 !
 typePhis
-	"A phi of SmallIntegers (every operand one, or such a phi: a loop's counter, a running sum) is a SmallInteger, to a fixed point from all of them. An operand counts only from where control can come (neverRuns:); a frame slot a loop's unit takes for a SmallInteger is one, guarded where a phi rests on it."
+	"A phi of SmallIntegers (every operand one, or such a phi: a loop's counter, a running sum) is a SmallInteger, to a fixed point from all of them. An operand counts only from where control can come (neverRuns:); one that a guard took for a SmallInteger on every way to its edge is that guard (n to: 1 by: -1 counts down from an argument that its first test guarded); a frame slot a loop's unit takes for a SmallInteger is one, guarded where a phi rests on it."
 	<function>
-	| changed nd v count e |
+	| changed nd v count e g |
 	count := 0.
 	0 to: ir nodeCount - 1 do: [:n |
 		nd := ir node: n.
@@ -132,6 +132,15 @@ typePhis
 			nd tkind: T_SMI.
 			psWorkList at: count put: n.
 			count := count + 1]].
+	0 to: count - 1 do: [:k |
+		nd := ir node: (psWorkList at: k).
+		e := (ir block: nd block) preds.
+		0 to: nd nargs asInt32 - 1 do: [:i |
+			v := ir resolve: (ir operand: nd args + i).
+			(e >= 0 and: [(self isSmallInt: v) not]) ifTrue: [
+				g := self intGuardOf: v before: (ir edge: e) from.
+				g >= 0 ifTrue: [ir operand: nd args + i put: g]].
+			e >= 0 ifTrue: [e := (ir edge: e) next]]].
 	changed := true.
 	[changed] whileTrue: [
 		changed := false.
@@ -149,6 +158,23 @@ typePhis
 		nd := ir node: (psWorkList at: k).
 		nd tkind asInt32 = T_SMI ifTrue: [
 			0 to: nd nargs asInt32 - 1 do: [:i | self guardFrameInt: (ir resolve: (ir operand: nd args + i))]]]
+!
+intGuardOf: v before: p
+	"A guard that v is a SmallInteger in block p or in a block every way to p passes (a chain of single predecessors up from p), else -1."
+	<function>
+	| chain k b nd |
+	chain := self local: 'int32_t[8]'.
+	k := 0.
+	b := p.
+	[b >= 0 and: [k < 8]] whileTrue: [
+		chain at: k put: b.
+		k := k + 1.
+		b := (ir block: b) npreds = 1 ifTrue: [(ir edge: (ir block: b) preds) from] ifFalse: [-1]].
+	0 to: ir nodeCount - 1 do: [:n |
+		nd := ir node: n.
+		(nd op asInt32 = O_GUARDINT and: [nd block >= 0 and: [nd fwd < 0 and: [(ir resolve: nd a) = v]]]) ifTrue: [
+			0 to: k - 1 do: [:j | (chain at: j) = nd block ifTrue: [^n]]]].
+	^-1
 !
 dropIntChecks
 	"A guard that a SmallInteger is one goes, and its cast to one (a type switch's: arithmetic then sees a constant behind it); not the guard at a loop unit's entry that makes a frame's slot one (guardFrameInt:)."
@@ -1151,12 +1177,83 @@ outerSlotsOutOf: h entry: entry
 				n := (ir node: n) next]]]
 !
 boundsOutOf: h entry: entry index: index
-	"Loop h, entered from block entry alone (h's predecessor index), counts a SmallInteger phi up by a constant and goes around again while the phi's next value is at most a limit from before the loop: wherever the phi is read it is between its start and that limit. An indexed load or store that takes it as the index of an object from before the loop (its class known there) checks no bounds if, once in entry, the start is at least 1 and at most the limit (the loop's head is reached so) and the limit at most the object's size; one at c - phi, c from before the loop, if c - limit is at least 1 and c - start at most the size. A check that fails there leaves at the loop's head and marks the access's send: it checks every time from then on."
+	"Loop h, entered from block entry alone (h's predecessor index), is counted (countedLoop:index:): on its turn t, 0 to T = (limit - start) // step, its counter is start + step * t, and so is every induction variable of it (a phi of h that a constant is added to on every way around, inductionStep:of:index:: PixelPack's s := s + 4) its start plus its step times t. An indexed load or store in the loop, of an object from before the loop (its class known there), at an index affine in one of them (b + c * v + k: affine:of:) has its least and its greatest index on the first and the last turn: it checks no bounds if, once in entry, the loop is entered with the counter within its limit, the least index is at least 1 and the greatest at most the object's size (as reversed's n + 1 - i, the mismatch loop's start + i - 1 of two objects, a loop by 4's i + 3). A check that fails there, or arithmetic of it that overflows, leaves at the loop's head and marks the access's send: it checks every time from then on."
 	<function>
-	| hb e c prev steps cond limit phi n nd i0 i1 x s size d rc |
+	| phi i0 step limit s t nd x q e q0 qT v0 vT lo hi size c |
+	phi := self countedLoop: h index: index.
+	phi < 0 ifTrue: [^self].
+	i0 := psCounted at: 1.
+	step := psCounted at: 2.
+	limit := psCounted at: 3.
+	s := -1.
+	t := -1.
+	0 to: ir nodeCount - 1 do: [:m |
+		nd := ir node: m.
+		((nd op asInt32 = O_INDEXLOAD or: [nd op asInt32 = O_INDEXSTORE]) and: [nd block >= 0 and: [(nd flags bitAnd: NF_NOBOUNDS) = 0 and: [self block: nd block isIn: h]]]) ifTrue: [
+			x := ir resolve: nd a.
+			((self isBefore: x loop: h) and: [(ir node: x) tkind asInt32 = T_OBJ and: [((ir flagsAtAct: nd bcact pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0 and: [self affine: (ir resolve: nd b) of: h]]]) ifTrue: [
+				q := psAffine at: 0.
+				c := psAffine at: 1.
+				e := q = phi ifTrue: [step] ifFalse: [self inductionStep: q of: h index: index].
+				e ~= 0 ifTrue: [
+					s < 0 ifTrue: [
+						s := self state: (ir block: h) entryState enteredFrom: index of: h.
+						ir full ifTrue: [^self].
+						step > 0
+							ifTrue: [self guard: i0 atMost: limit for: m in: entry state: s]
+							ifFalse: [self guard: limit atMost: i0 for: m in: entry state: s].
+						ir full ifTrue: [^self]].
+					q0 := ir resolve: (ir operand: (ir node: q) args + index).
+					"its value on the last turn"
+					(q = phi and: [step = 1 or: [step = -1]])
+						ifTrue: [qT := limit]
+						ifFalse: [
+							t < 0 ifTrue: [
+								t := step > 0
+									ifTrue: [self hoisted: O_ISUB a: limit b: i0 for: m in: entry state: s]
+									ifFalse: [self hoisted: O_ISUB a: i0 b: limit for: m in: entry state: s].
+								(step = 1 or: [step = -1]) ifFalse: [t := self hoisted: O_IDIV a: t b: (self smallInteger: (step > 0 ifTrue: [step] ifFalse: [step negated]) in: entry) for: m in: entry state: s].
+								ir full ifTrue: [^self]].
+							qT := e = 1
+								ifTrue: [self hoisted: O_IADD a: q0 b: t for: m in: entry state: s]
+								ifFalse: [
+									e = -1
+										ifTrue: [self hoisted: O_ISUB a: q0 b: t for: m in: entry state: s]
+										ifFalse: [self hoisted: O_IADD a: q0 b: (self hoisted: O_IMUL a: t b: (self smallInteger: e in: entry) for: m in: entry state: s) for: m in: entry state: s]]].
+					v0 := self affineAt: q0 for: m in: entry state: s.
+					vT := self affineAt: qT for: m in: entry state: s.
+					ir full ifTrue: [^self].
+					c * e > 0
+						ifTrue: [
+							lo := v0.
+							hi := vT]
+						ifFalse: [
+							lo := vT.
+							hi := v0].
+					"a least index that is a constant below 1 would fail every time"
+					((self isIntConst: lo) and: [(self intVal: (ir node: lo) aux asUInt64) < 1]) ifFalse: [
+						(self isIntConst: lo) ifFalse: [self guard: -1 atMost: lo for: m in: entry state: s].
+						size := ir newNode: O_SIZE rep: R_OOP.
+						ir full ifTrue: [^self].
+						nd := ir node: m.
+						(ir node: size) a: x.
+						(ir node: size) aux: nd aux.
+						(ir node: size) aux2: nd aux2.
+						(ir node: size) tkind: T_SMI.
+						(ir node: size) bcact: nd bcact.
+						(ir node: size) bcpc: nd bcpc.
+						ir insert: size before: (ir block: entry) last.
+						self guard: hi atMost: size for: m in: entry state: s.
+						ir full ifTrue: [^self].
+						(ir node: m) flags: ((ir node: m) flags bitOr: NF_NOBOUNDS)]]]]]
+!
+countedLoop: h index: index
+	"Loop h, entered from its predecessor index alone, counts a SmallInteger phi by a constant step and goes around again while the phi's next value is at most (counting down: at least) a SmallInteger limit from before the loop, the branch on every way back (to:do:, to:by:do:): answer the phi, its start, step and limit in psCounted; else -1. Wherever the loop reads the phi, it is between its start and the limit if the loop was entered so."
+	<function>
+	| hb e c prev steps cond limit phi n nd i0 i1 step |
 	hb := ir block: h.
-	hb npreds = 2 ifFalse: [^self].
-	"the branch every way back passes: on the phi's next value <= limit, true to go around"
+	hb npreds = 2 ifFalse: [^-1].
+	"the branch every way back passes: on the phi's next value <= limit (>=), true to go around"
 	e := hb preds.
 	index = 0 ifTrue: [e := (ir edge: e) next].
 	c := (ir edge: e) from.
@@ -1166,73 +1263,162 @@ boundsOutOf: h entry: entry index: index
 		prev := c.
 		c := (ir edge: (ir block: c) preds) from.
 		steps := steps + 1].
-	((ir block: c) succ1 >= 0 and: [(ir block: c) succ0 = prev and: [(ir block: c) last >= 0]]) ifFalse: [^self].
+	((ir block: c) succ1 >= 0 and: [(ir block: c) succ0 = prev and: [(ir block: c) last >= 0]]) ifFalse: [^-1].
 	cond := ir node: (ir resolve: (ir node: (ir block: c) last) a).
-	(cond op asInt32 = O_ICMP and: [cond aux = 4]) ifFalse: [^self].
+	(cond op asInt32 = O_ICMP and: [cond aux = 4 or: [cond aux = 5]]) ifFalse: [^-1].
 	limit := ir resolve: cond b.
-	((ir node: limit) tkind asInt32 = T_SMI and: [self isBefore: limit loop: h]) ifFalse: [^self].
+	((ir node: limit) tkind asInt32 = T_SMI and: [self isBefore: limit loop: h]) ifFalse: [^-1].
 	phi := -1.
 	n := hb first.
 	[n >= 0 and: [(ir node: n) op asInt32 = O_PHI]] whileTrue: [
 		nd := ir node: n.
 		(nd fwd < 0 and: [nd tkind asInt32 = T_SMI and: [nd nargs asInt32 = 2 and: [(ir resolve: (ir operand: nd args + (1 - index))) = (ir resolve: cond a)]]]) ifTrue: [phi := n].
 		n := nd next].
-	phi < 0 ifTrue: [^self].
+	phi < 0 ifTrue: [^-1].
 	i0 := ir resolve: (ir operand: (ir node: phi) args + index).
+	(ir node: i0) tkind asInt32 = T_SMI ifFalse: [^-1].
 	i1 := ir node: (ir resolve: cond a).
-	nd := ir node: (ir resolve: i1 b).
-	(i1 op asInt32 = O_IADD and: [(ir resolve: i1 a) = phi and: [nd op asInt32 = O_CONST and: [(nd aux bitAnd: 1) = 1 and: [nd aux >= 3]]]]) ifFalse: [^self].
-	nd := ir node: i0.
-	(nd tkind asInt32 = T_SMI and: [nd op asInt32 ~= O_CONST or: [nd aux >= 3]]) ifFalse: [^self].
-	s := -1.
-	0 to: ir nodeCount - 1 do: [:m |
-		nd := ir node: m.
-		((nd op asInt32 = O_INDEXLOAD or: [nd op asInt32 = O_INDEXSTORE]) and: [nd block >= 0 and: [(nd flags bitAnd: NF_NOBOUNDS) = 0 and: [(ir resolve: nd b) = phi or: [(rc := self reverseIndexOf: (ir resolve: nd b) phi: phi loop: h) >= 0]]]]) ifTrue: [
-			(ir resolve: nd b) = phi ifTrue: [rc := -1].
-			x := ir resolve: nd a.
-			((self isBefore: x loop: h) and: [(ir node: x) tkind asInt32 = T_OBJ and: [((ir flagsAtAct: nd bcact pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0]]) ifTrue: [
-				s < 0 ifTrue: [
-					s := self state: hb entryState enteredFrom: index of: h.
-					ir full ifTrue: [^self].
-					(ir node: i0) op asInt32 = O_CONST ifFalse: [self guard: -1 atMost: i0 for: m in: entry state: s].
-					self guard: i0 atMost: limit for: m in: entry state: s].
-				size := ir newNode: O_SIZE rep: R_OOP.
-				ir full ifTrue: [^self].
-				nd := ir node: m.
-				(ir node: size) a: x.
-				(ir node: size) aux: nd aux.
-				(ir node: size) aux2: nd aux2.
-				(ir node: size) tkind: T_SMI.
-				(ir node: size) bcact: nd bcact.
-				(ir node: size) bcpc: nd bcpc.
-				ir insert: size before: (ir block: entry) last.
-				rc < 0
-					ifTrue: [self guard: limit atMost: size for: m in: entry state: s]
-					ifFalse: [
-						"rc - phi: rc - limit at least 1, rc - start at most the size"
-						self guard: limit below: rc for: m in: entry state: s.
-						d := ir newNode: O_ISUB rep: R_OOP.
-						ir full ifTrue: [^self].
-						(ir node: d) a: rc.
-						(ir node: d) b: i0.
-						(ir node: d) tkind: T_SMI.
-						(ir node: d) state: s.
-						(ir node: d) flags: (NF_GUARD bitOr: NF_HOISTED).
-						(ir node: d) bcact: (ir node: m) bcact.
-						(ir node: d) bcpc: (ir node: m) bcpc.
-						ir insert: d before: (ir block: entry) last.
-						self guard: d atMost: size for: m in: entry state: s].
-				ir full ifTrue: [^self].
-				(ir node: m) flags: ((ir node: m) flags bitOr: NF_NOBOUNDS)]]]
+	(i1 op asInt32 = O_IADD and: [(ir resolve: i1 a) = phi and: [self isIntConst: (ir resolve: i1 b)]]) ifFalse: [^-1].
+	step := self intVal: (ir node: (ir resolve: i1 b)) aux asUInt64.
+	((cond aux = 4 and: [step between: 1 and: 16r10000]) or: [cond aux = 5 and: [step between: -16r10000 and: -1]]) ifFalse: [^-1].
+	psCounted at: 0 put: phi.
+	psCounted at: 1 put: i0.
+	psCounted at: 2 put: step.
+	psCounted at: 3 put: limit.
+	^phi
 !
-reverseIndexOf: v phi: phi loop: h
-	"If v is c - phi, c a SmallInteger from before loop h: c; else -1."
-	| nd c |
+inductionStep: q of: h index: index
+	"If q is a SmallInteger phi of loop h (entered from its predecessor index) that a constant is added to on every way around (the value it takes back is q plus or minus the constant): that constant, else 0."
+	| nd back y k |
+	nd := ir node: q.
+	(nd op asInt32 = O_PHI and: [nd block = h and: [nd nargs asInt32 = 2 and: [nd tkind asInt32 = T_SMI and: [nd fwd < 0]]]]) ifFalse: [^0].
+	(ir node: (ir resolve: (ir operand: nd args + index))) tkind asInt32 = T_SMI ifFalse: [^0].
+	back := ir node: (ir resolve: (ir operand: nd args + (1 - index))).
+	(back op asInt32 = O_IADD or: [back op asInt32 = O_ISUB]) ifFalse: [^0].
+	y := -1.
+	(self intValueOf: back a) = q ifTrue: [y := ir resolve: back b].
+	(y < 0 and: [back op asInt32 = O_IADD and: [(self intValueOf: back b) = q]]) ifTrue: [y := ir resolve: back a].
+	(y >= 0 and: [self isIntConst: y]) ifFalse: [^0].
+	k := self intVal: (ir node: y) aux asUInt64.
+	(k between: -16r10000 and: 16r10000) ifFalse: [^0].
+	^back op asInt32 = O_IADD ifTrue: [k] ifFalse: [k negated]
+!
+affine: v of: h
+	"Index v is affine in a phi of loop h: b + c * phi + k, b a sum or difference of at most two SmallIntegers from before the loop, c (not 0) and k constants; into psAffine: the phi, c, k, the number of b's terms, then each term and its sign."
+	psAffine at: 0 put: -1.
+	psAffine at: 1 put: 0.
+	psAffine at: 2 put: 0.
+	psAffine at: 3 put: 0.
+	(self affine: v of: h times: 1 depth: 0) ifFalse: [^false].
+	^(psAffine at: 0) >= 0 and: [(psAffine at: 1) ~= 0 and: [((psAffine at: 1) between: -16r100000 and: 16r100000) and: [(psAffine at: 2) between: -16r10000000000 and: 16r10000000000]]]
+!
+affine: v of: h times: f depth: d
+	"affine:of:, v counted f times."
+	<function>
+	| n nd op y k |
+	n := self intValueOf: v.
+	nd := ir node: n.
+	op := nd op asInt32.
+	(self isIntConst: n) ifTrue: [
+		k := self intVal: nd aux asUInt64.
+		(k between: -16r40000000 and: 16r40000000) ifFalse: [^false].
+		psAffine at: 2 put: (psAffine at: 2) + (f * k).
+		^true].
+	nd tkind asInt32 = T_SMI ifFalse: [^false].
+	(self isBefore: n loop: h) ifTrue: [
+		((f = 1 or: [f = -1]) and: [(psAffine at: 3) < 2]) ifFalse: [^false].
+		psAffine at: 4 + (2 * (psAffine at: 3)) put: n.
+		psAffine at: 5 + (2 * (psAffine at: 3)) put: f.
+		psAffine at: 3 put: (psAffine at: 3) + 1.
+		^true].
+	(op = O_PHI and: [nd block = h]) ifTrue: [
+		((psAffine at: 0) >= 0 and: [(psAffine at: 0) ~= n]) ifTrue: [^false].
+		psAffine at: 0 put: n.
+		psAffine at: 1 put: (psAffine at: 1) + f.
+		^true].
+	d >= 6 ifTrue: [^false].
+	(op = O_IADD or: [op = O_ISUB]) ifTrue: [
+		^(self affine: nd a of: h times: f depth: d + 1) and: [self affine: nd b of: h times: (op = O_IADD ifTrue: [f] ifFalse: [f negated]) depth: d + 1]].
+	op = O_IMUL ifFalse: [^false].
+	(self isIntConst: (ir resolve: nd b))
+		ifTrue: [
+			y := nd a.
+			k := self intVal: (ir node: (ir resolve: nd b)) aux asUInt64]
+		ifFalse: [
+			(self isIntConst: (ir resolve: nd a)) ifFalse: [^false].
+			y := nd b.
+			k := self intVal: (ir node: (ir resolve: nd a)) aux asUInt64].
+	((k between: -16r10000 and: 16r10000) and: [(f * k) between: -16r100000 and: 16r100000]) ifFalse: [^false].
+	^self affine: y of: h times: f * k depth: d + 1
+!
+affineAt: q0 for: m in: entry state: s
+	"At the end of block entry: the index psAffine describes (affine:of:) with its phi's value q0; for the bounds of indexed access m (hoisted:a:b:for:in:state:)."
+	<function>
+	| c acc b sg k |
+	c := psAffine at: 1.
+	acc := -1.
+	c = 1 ifTrue: [acc := q0].
+	(c = 1 or: [c = -1]) ifFalse: [acc := self hoisted: O_IMUL a: q0 b: (self smallInteger: c in: entry) for: m in: entry state: s].
+	0 to: (psAffine at: 3) - 1 do: [:j |
+		b := psAffine at: 4 + (2 * j).
+		sg := psAffine at: 5 + (2 * j).
+		acc := acc < 0
+			ifTrue: [sg > 0 ifTrue: [b] ifFalse: [self hoisted: O_ISUB a: (self smallInteger: 0 in: entry) b: b for: m in: entry state: s]]
+			ifFalse: [self hoisted: (sg > 0 ifTrue: [O_IADD] ifFalse: [O_ISUB]) a: acc b: b for: m in: entry state: s]].
+	c = -1 ifTrue: [acc := self hoisted: O_ISUB a: (acc < 0 ifTrue: [self smallInteger: 0 in: entry] ifFalse: [acc]) b: q0 for: m in: entry state: s].
+	k := psAffine at: 2.
+	k ~= 0 ifTrue: [acc := self hoisted: O_IADD a: acc b: (self smallInteger: k in: entry) for: m in: entry state: s].
+	^acc
+!
+hoisted: op a: a b: b for: m in: entry state: s
+	"At the end of block entry: SmallIntegers a op b (O_IADD, O_ISUB, O_IMUL, O_IDIV floored), of constants a constant; one that overflows leaves at state s, for the bounds of indexed access m, whose send a failure marks."
+	<function>
+	| n nd x y v |
+	(a < 0 or: [b < 0 or: [ir full]]) ifTrue: [^-1].
+	((self isIntConst: a) and: [self isIntConst: b]) ifTrue: [
+		x := self intVal: (ir node: a) aux asUInt64.
+		y := self intVal: (ir node: b) aux asUInt64.
+		((x between: -16r40000000 and: 16r40000000) and: [(y between: -16r40000000 and: 16r40000000) and: [op ~= O_IDIV or: [x >= 0 and: [y > 0]]]]) ifTrue: [
+			v := op = O_IADD
+				ifTrue: [x + y]
+				ifFalse: [
+					op = O_ISUB
+						ifTrue: [x - y]
+						ifFalse: [op = O_IMUL ifTrue: [x * y] ifFalse: [x quo: y]]].
+			^self smallInteger: v in: entry]].
+	n := ir newNode: op rep: R_OOP.
+	ir full ifTrue: [^-1].
+	nd := ir node: n.
+	nd a: a.
+	nd b: b.
+	nd tkind: T_SMI.
+	nd state: s.
+	nd flags: (NF_GUARD bitOr: NF_HOISTED).
+	nd bcact: (ir node: m) bcact.
+	nd bcpc: (ir node: m) bcpc.
+	ir insert: n before: (ir block: entry) last.
+	^n
+!
+smallInteger: v in: entry
+	"A SmallInteger constant v at the end of block entry."
+	<function>
+	| n nd |
+	n := ir newNode: O_CONST rep: R_OOP.
+	ir full ifTrue: [^-1].
+	nd := ir node: n.
+	nd aux: (self intOop: v) asInt64.
+	nd flags: NF_PURE.
+	nd tkind: T_SMI.
+	nd lo: v.
+	nd hi: v.
+	ir insert: n before: (ir block: entry) last.
+	^n
+!
+isIntConst: v
+	"v is a SmallInteger constant."
+	| nd |
 	nd := ir node: v.
-	(nd op asInt32 = O_ISUB and: [(ir resolve: nd b) = phi]) ifFalse: [^-1].
-	c := ir resolve: nd a.
-	((ir node: c) tkind asInt32 = T_SMI and: [self isBefore: c loop: h]) ifFalse: [^-1].
-	^c
+	^nd op asInt32 = O_CONST and: [nd rep asInt32 = R_OOP and: [self isInt: nd aux asUInt64]]
 !
 isBefore: v loop: h
 	"Value v is from before loop h: a constant, or defined in a block h does not dominate."
