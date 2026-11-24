@@ -1250,7 +1250,7 @@ profileActsOf: f into: meths pcs: pcs at: start max: max
 	<var: #start type: 'int64_t'>
 	<var: #max type: 'int64_t'>
 	<returns: 'int64_t'>
-	| h k rec p nacts ps offs n loc kind cl spc |
+	| h k rec p nacts ps n loc kind cl spc |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	k := f pc - h bcSize asInt32.
 	n := start.
@@ -1260,16 +1260,15 @@ profileActsOf: f into: meths pcs: pcs at: start max: max
 		^n + 1].
 	rec := self recordOf: h index: k.
 	nacts := rec at: 4.
-	offs := self local: 'int64_t[OPT_MAX_DEOPT_ACTS]'.
 	p := 5.
-	0 to: nacts - 1 do: [:j |
-		offs at: j put: p.
-		p := p + 5 + (rec at: p + 4)].
+	0 to: nacts - 1 do: [:j | p := p + 5 + (rec at: p + 4)].
 	"the closures never made: their count, then (activation, startpc, info) each"
 	ps := p + 1.
-	nacts - 1 to: 0 by: -1 do: [:j |
+	"activation j (outermost first) goes to start + nacts - 1 - j; the outermost ones past max are left out"
+	p := 5.
+	0 to: nacts - 1 do: [:j |
+		n := start + nacts - 1 - j.
 		n < max ifTrue: [
-			p := offs at: j.
 			meths at: n put: (self poolAt: (rec at: p) of: h).
 			loc := rec at: p + 1.
 			cl := memory nilOop.
@@ -1282,9 +1281,10 @@ profileActsOf: f into: meths pcs: pcs at: start max: max
 				kind = LOC_CONST ifTrue: [cl := self poolAt: loc asInt64 >> 3 of: h]].
 			((self isPtr: cl) and: [cl ~= memory nilOop and: [(self rawClass: cl) = memory clsBlock]]) ifTrue: [
 				spc := self intVal: (self loadRef: cl at: BC_STARTPC)].
-			pcs at: n put: spc.
-			n := n + 1]].
-	^n
+			pcs at: n put: spc].
+		p := p + 5 + (rec at: p + 4)].
+	n := start + nacts.
+	^n < max ifTrue: [n] ifFalse: [max]
 !
 decode: h index: k frame: f regs: regs mode: mode
 	"Read safepoint k's record into the activation arrays, the values into deoptVals (GC roots), the closures never made into the sunk arrays (in the order of the activations that make them), the doubles that are no SmallFloat64s into the float arrays (nil in deoptVals until boxFloats). mode 1 pushes the send's receiver and arguments (and goes back to the send), 2 its result."

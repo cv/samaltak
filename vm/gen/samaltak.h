@@ -2349,7 +2349,7 @@ void request_interrupt_check(void);
 void request_periodic_poll(int64_t interval_us);
 int64_t resume_charging(void);
 void resume_process(oop proc);
-void sampler_buffer(int64_t index, int64_t depth, bool cpu);
+void sampler_buffer(int64_t index, int64_t depth, bool cpu, bool share);
 void scheduler_semaphore_signal(oop sem);
 void scheduler_semaphore_wait(oop sem);
 void set_sampler(int64_t interval_us, int32_t sema);

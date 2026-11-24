@@ -188,11 +188,11 @@ primSamplerInterval
 	self answer: self receiver
 !
 primSamplerBuffer
-	"(index, depth[, cpu]) Allocation samples (and with cpu true CPU samples) go into the Array at index (1-based) of the external objects, at most depth (1 to 255) frames each, recorded where the sampled Process runs (Scheduler>>recordSample:): no process switch, no frames flushed. 0: none (a sampler tick or an allocation sample signals its semaphore)."
+	"(index, depth[, cpu[, share]]) Allocation samples (and with cpu true CPU samples) go into the Array at index (1-based) of the external objects, at most depth (1 to 255) frames each, recorded where the sampled Process runs (Scheduler>>recordSample:at:): no process switch, no frames flushed; with share true a record leaves out the bottom frames the previous one has too. 0: none (a sampler tick or an allocation sample signals its semaphore)."
 	<vmPrimitive: 147 name: 'samplerBuffer'>
 	(self argCount < 2 or: [(self isInt: (self arg: 0)) not or: [(self isInt: (self arg: 1)) not]]) ifTrue: [^self fail].
 	((self intVal: (self arg: 0)) < 0 or: [(self intVal: (self arg: 1)) < 1 or: [(self intVal: (self arg: 1)) > 255]]) ifTrue: [^self fail].
-	scheduler samplerBuffer: (self intVal: (self arg: 0)) depth: (self intVal: (self arg: 1)) cpu: (self argCount > 2 and: [(self arg: 2) = memory trueOop]).
+	scheduler samplerBuffer: (self intVal: (self arg: 0)) depth: (self intVal: (self arg: 1)) cpu: (self argCount > 2 and: [(self arg: 2) = memory trueOop]) share: (self argCount > 3 and: [(self arg: 3) = memory trueOop]).
 	self answer: self receiver
 !
 primAllocationSampling

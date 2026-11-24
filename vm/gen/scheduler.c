@@ -50,6 +50,13 @@ static bool sample_cpu;
 static int64_t sample_cpu_since;
 static int64_t sample_depth;
 static bool sample_drain_due;
+static uint64_t sample_last_epoch;
+static oop sample_last_meths[255];
+static int64_t sample_last_n;
+static int64_t sample_last_pcs[255];
+static oop sample_meths[255];
+static int64_t sample_pcs[255];
+static bool sample_share;
 static int64_t sampler_interval_us;
 static int64_t sampler_next_us;
 static int32_t sampler_sema;
@@ -93,7 +100,7 @@ static int64_t priority_of(oop p);
 static int64_t raw_now_ns(void);
 static int64_t raw_now_us(void);
 static int64_t reconcile(void);
-static bool record_sample(bool is_alloc);
+static bool record_sample(bool is_alloc, int64_t now);
 static oop remove_first_link(oop list);
 static void signal_index(int32_t index);
 static void slice_check(void);
@@ -203,14 +210,14 @@ void handle_interrupts(void)
         if (sampler_next_us <= now) {
             sampler_next_us = now + sampler_interval_us;
         }
-        if (!(sample_cpu && record_sample(false))) {
+        if (!(sample_cpu && record_sample(false, now))) {
             sampler_tick_unread = true;
             signal_index(sampler_sema);
         }
     }
     if (alloc_sample_pending) {
         alloc_sample_pending = false;
-        if (record_sample(true)) {
+        if (record_sample(true, now)) {
             alloc_sample_unread = false;
         } else {
             signal_index(alloc_sample_sema);
@@ -704,8 +711,8 @@ exit_ledger_add:;
     return cpu;
 }
 
-/* Scheduler>>recordSample: */
-static bool record_sample(bool is_alloc)
+/* Scheduler>>recordSample:at: */
+static bool record_sample(bool is_alloc, int64_t now)
 {
     oop r_sample_buffer;
     oop ext;
@@ -715,33 +722,32 @@ static bool record_sample(bool is_alloc)
     int64_t cap;
     uint64_t slot0;
     int64_t fill;
-    oop local[255];
     oop *meths;
-    int64_t local_2[255];
     int64_t *pcs;
     int64_t n;
+    int64_t k;
     int64_t flags;
     oop proc;
     int64_t r;
+    int64_t m;
     int64_t len;
     int64_t v;
     uint64_t v_2;
     int64_t i_2;
     int64_t i_3;
-    int64_t v_3;
-    uint64_t v_4;
+    uint64_t v_3;
     int64_t i_4;
-    oop v_5;
+    oop v_4;
     int64_t i_5;
-    int64_t v_6;
-    uint64_t v_7;
+    int64_t v_5;
+    uint64_t v_6;
     int64_t j;
     int64_t i_6;
-    oop v_8;
+    oop v_7;
     int64_t i_7;
-    int64_t v_9;
+    int64_t v_8;
+    uint64_t v_9;
     uint64_t v_10;
-    uint64_t v_11;
     buf = ({
     if (sample_buf_index < 1) {
         r_sample_buffer = nil_oop;
@@ -770,11 +776,10 @@ exit_sample_buffer:;
     if ((fill < 1) || (fill > cap)) {
         fill = 1;
     }
-    memset(&local, 0, sizeof local);
-    meths = local;
-    memset(&local_2, 0, sizeof local_2);
-    pcs = local_2;
+    meths = sample_meths;
+    pcs = sample_pcs;
     n = 0;
+    k = 0;
     flags = 0;
     proc = nil_oop;
     if (in_idle) {
@@ -795,11 +800,17 @@ exit_sample_buffer:;
     if (is_alloc) {
         flags = flags | 16;
     }
-    len = 5 + 2 * n;
+    if (sample_share && (sample_last_epoch == gc_epoch)) {
+        m = n < sample_last_n ? n : sample_last_n;
+        while ((k < m) && ((sample_last_meths[k] == meths[n - 1 - k]) && (sample_last_pcs[k] == pcs[n - 1 - k]))) {
+            k = k + 1;
+        }
+    }
+    len = 5 + 2 * (n - k);
     if (fill + len > cap) {
         return true;
     }
-    v = n | (flags << 8);
+    v = n | (flags << 8) | (k << 16);
     v_2 = (uint64_t)((v << 1) | 1);
     *(uint64_t *)(buf + 16 + 8 * fill) = v_2;
     if (((v_2 & 7) == 0) && ((v_2 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
@@ -811,47 +822,50 @@ exit_sample_buffer:;
         remember(buf);
     }
     i_3 = fill + 2;
-    v_3 = now_us();
-    v_4 = (uint64_t)((v_3 << 1) | 1);
-    *(uint64_t *)(buf + 16 + 8 * i_3) = v_4;
-    if (((v_4 & 7) == 0) && ((v_4 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+    v_3 = (uint64_t)((now << 1) | 1);
+    *(uint64_t *)(buf + 16 + 8 * i_3) = v_3;
+    if (((v_3 & 7) == 0) && ((v_3 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
         remember(buf);
     }
     i_4 = fill + 3;
-    v_5 = is_alloc ? alloc_sample_class : nil_oop;
-    *(uint64_t *)(buf + 16 + 8 * i_4) = v_5;
-    if (((v_5 & 7) == 0) && (((uint64_t)(v_5 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+    v_4 = is_alloc ? alloc_sample_class : nil_oop;
+    *(uint64_t *)(buf + 16 + 8 * i_4) = v_4;
+    if (((v_4 & 7) == 0) && (((uint64_t)(v_4 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
         remember(buf);
     }
     i_5 = fill + 4;
-    v_6 = is_alloc ? alloc_sample_size : 0;
-    v_7 = (uint64_t)((v_6 << 1) | 1);
-    *(uint64_t *)(buf + 16 + 8 * i_5) = v_7;
-    if (((v_7 & 7) == 0) && ((v_7 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+    v_5 = is_alloc ? alloc_sample_size : 0;
+    v_6 = (uint64_t)((v_5 << 1) | 1);
+    *(uint64_t *)(buf + 16 + 8 * i_5) = v_6;
+    if (((v_6 & 7) == 0) && ((v_6 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
         remember(buf);
     }
-    for (j = 0; j <= n - 1; j++) {
-        i_6 = fill + 5 + 2 * j;
-        v_8 = meths[n - 1 - j];
-        *(uint64_t *)(buf + 16 + 8 * i_6) = v_8;
-        if (((v_8 & 7) == 0) && (((uint64_t)(v_8 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+    for (j = k; j <= n - 1; j++) {
+        i_6 = fill + 5 + 2 * (j - k);
+        v_7 = meths[n - 1 - j];
+        *(uint64_t *)(buf + 16 + 8 * i_6) = v_7;
+        if (((v_7 & 7) == 0) && (((uint64_t)(v_7 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
             remember(buf);
         }
-        i_7 = fill + 6 + 2 * j;
-        v_9 = pcs[n - 1 - j];
-        v_10 = (uint64_t)((v_9 << 1) | 1);
-        *(uint64_t *)(buf + 16 + 8 * i_7) = v_10;
-        if (((v_10 & 7) == 0) && ((v_10 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+        i_7 = fill + 6 + 2 * (j - k);
+        v_8 = pcs[n - 1 - j];
+        v_9 = (uint64_t)((v_8 << 1) | 1);
+        *(uint64_t *)(buf + 16 + 8 * i_7) = v_9;
+        if (((v_9 & 7) == 0) && ((v_9 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
             remember(buf);
         }
+        sample_last_meths[j] = meths[n - 1 - j];
+        sample_last_pcs[j] = pcs[n - 1 - j];
     }
+    sample_last_n = n;
+    sample_last_epoch = gc_epoch;
     if ((fill * 4 <= cap * 3) && ((fill + len) * 4 > cap * 3)) {
         sample_drain_due = true;
     }
     fill = fill + len;
-    v_11 = (uint64_t)((fill << 1) | 1);
-    *(uint64_t *)(buf + 16 + 0) = v_11;
-    if (((v_11 & 7) == 0) && ((v_11 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+    v_10 = (uint64_t)((fill << 1) | 1);
+    *(uint64_t *)(buf + 16 + 0) = v_10;
+    if (((v_10 & 7) == 0) && ((v_10 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
         remember(buf);
     }
     if (!is_alloc) {
@@ -1140,11 +1154,13 @@ void resume_process(oop proc)
     }
 }
 
-/* Scheduler>>samplerBuffer:depth:cpu: */
-void sampler_buffer(int64_t index, int64_t depth, bool cpu)
+/* Scheduler>>samplerBuffer:depth:cpu:share: */
+void sampler_buffer(int64_t index, int64_t depth, bool cpu, bool share)
 {
     sample_buf_index = index;
     sample_cpu = cpu;
+    sample_share = share;
+    sample_last_n = 0;
     sample_depth = depth < 1 ? 1 : depth > 255 ? 255 : depth;
     sample_cpu_since = 0;
     sample_drain_due = false;
