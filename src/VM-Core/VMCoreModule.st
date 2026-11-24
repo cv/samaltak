@@ -75,7 +75,10 @@ formatOf: o
 	^(((self header: o) >> H_FMT_SHIFT) bitAnd: H_FMT_MASK) asInt32
 !
 hashOf: o
-	^(((self header: o) >> H_HASH_SHIFT) bitAnd: H_HASH_MASK) asUInt32
+	"The identity hash. Objects are made without one (0 in the header): the first use assigns it (ObjectMemory>>assignHashOf:)."
+	| h |
+	h := (((self header: o) >> H_HASH_SHIFT) bitAnd: H_HASH_MASK) asUInt32.
+	^h ~= 0 ifTrue: [h] ifFalse: [memory assignHashOf: o]
 !
 isImmutable: o
 	^((self header: o) bitAnd: H_IMMUTABLE) ~= 0

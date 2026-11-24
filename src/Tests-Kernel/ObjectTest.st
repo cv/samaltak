@@ -16,6 +16,20 @@ testIdentityAndEquality
 	self assert: (o ~= Object new).
 	self assert: (3 ~~ 4)
 !
+testIdentityHashAcrossCollections
+	| keys hashes table delayed |
+	keys := {Object basicNew. Array basicNew: 3. ByteArray basicNew: 9. {1. 2}}.
+	hashes := keys collect: [:key | key identityHash].
+	hashes do: [:hash | self assert: (hash between: 1 and: 16r3FFFFF)].
+	table := IdentityDictionary new.
+	keys withIndexDo: [:key :i | table at: key put: i].
+	delayed := Object basicNew.
+	Smalltalk vm scavenge; garbageCollect.
+	keys withIndexDo: [:key :i |
+		self assert: key identityHash equals: (hashes at: i).
+		self assert: (table at: key) equals: i].
+	self assert: (delayed identityHash between: 1 and: 16r3FFFFF)
+!
 testCopy
 	| a b |
 	a := OrderedCollection with: 1 with: 2.

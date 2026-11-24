@@ -1068,6 +1068,8 @@ void prim_identical(void)
 void prim_identity_hash(void)
 {
     oop r;
+    uint32_t r_hash_of;
+    uint32_t h;
     uint32_t v;
     uint64_t v_2;
     uint32_t v_3;
@@ -1076,7 +1078,10 @@ void prim_identity_hash(void)
     uint64_t v_6;
     r = prim_base[0];
     if ((r & 7) == 0) {
-        v = (uint32_t)(((*(uint64_t *)r) >> H_HASH_SHIFT) & H_HASH_MASK);
+        v = ({
+    h = (uint32_t)(((*(uint64_t *)r) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h != 0 ? h : assign_hash_of(r);
+    r_hash_of; });
         v_2 = (uint64_t)((((int64_t)v) << 1) | 1);
         prim_result = v_2;
         prim_status = PS_OK;

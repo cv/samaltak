@@ -623,9 +623,6 @@ stackLimitNormalOffset
 dumpOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #dump) to: 'int64_t'
 !
-hashBoxOffset
-	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #hashBox) to: 'int64_t'
-!
 boxedFloatClassOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #boxedFloatClass) to: 'int64_t'
 !
@@ -2143,7 +2140,7 @@ baseValueOf: v
 	^r
 !
 emitAllocate: n slow: slow done: done
-	"basicNew(:) in eden: header (slots, format, a hash from the JitState's seed), class, nil fields (bytes and 32-bit words zeroed, their slots and format from the size); no room, the sample's limit or more than 4096 slots: the send (slow)."
+	"basicNew(:) in eden: header (slots and format), class, nil fields (bytes and 32-bit words zeroed, their slots and format from the size); no room, the sample's limit or more than 4096 slots: the send (slow)."
 	| nd fmt isize k e sz r loop fill even v shift max fused |
 	nd := ir node: n.
 	fmt := (nd c bitAnd: 255) asInt32.
@@ -2163,7 +2160,7 @@ emitAllocate: n slow: slow done: done
 				shift > 0 ifTrue: [fmt := (fmt + ((k << shift) - e)) asInt32]]].
 	k >= 0
 		ifTrue: [
-			asm comment: 'header: slots, format, a hash (the VM''s generator)'.
+			asm comment: 'header: slots, format, no identity hash'.
 			asm mov: self scratchB imm: (k asInt64 bitOr: fmt asInt64 << H_FMT_SHIFT)]
 		ifFalse: [
 			r := self src: (ir operand: nd args + 1) into: self scratchB.
@@ -2182,7 +2179,7 @@ emitAllocate: n slow: slow done: done
 					asm add: X17 with: X17 imm: fmt.
 					asm orr: self scratchB with: X16 with: X17 shift: SHIFT_LSL amount: H_FMT_SHIFT]
 				ifFalse: [asm orr: self scratchB with: self scratchB imm: fmt asUInt64 << H_FMT_SHIFT].
-			asm comment: 'header: slots, format, a hash (the VM''s generator)'].
+			asm comment: 'header: slots, format, no identity hash'].
 	self emitEdenObject: nd tcls slow: slow.
 	(shift > 0 and: [(fused := self fusedReplaceOf: n) >= 0]) ifTrue: [
 		self emitFill: n upTo: (ir operand: (ir node: fused) args + 2).
@@ -2216,19 +2213,7 @@ emitAllocate: n slow: slow done: done
 	asm b: done
 !
 emitEdenObject: cls slow: slow
-	"x16 := a new object of class cls in eden, its header the slots and format in scratchB with a hash (the VM's generator); no room, or the allocation sample's limit: slow. Uses scratchA, scratchB, x17."
-	asm ldr: X16 base: X22 offset: self hashBoxOffset.
-	asm ldr: X17 base: X16 offset: 0.
-	asm mov: self scratchA imm: 6364136223846793005.
-	asm mul: X17 with: X17 with: self scratchA.
-	asm mov: self scratchA imm: 1442695040888963407.
-	asm add: X17 with: X17 with: self scratchA.
-	asm str: X17 base: X16 offset: 0.
-	asm lsr: X17 with: X17 imm: 40.
-	asm and: X17 with: X17 imm: H_HASH_MASK.
-	asm cmp: X17 imm: 0.
-	asm csinc: X17 with: X17 with: XZR cond: COND_NE.
-	asm orr: self scratchB with: self scratchB with: X17 shift: SHIFT_LSL amount: H_HASH_SHIFT.
+	"x16 := a new object of class cls in eden, its header the slots and format in scratchB (hash assigned on first use); no room, or the allocation sample's limit: slow. Uses scratchA, x17."
 	asm comment: 'room in eden'.
 	asm ubfx: self scratchA with: self scratchB lsb: 0 width: 32.
 	asm lsl: self scratchA with: self scratchA imm: 3.

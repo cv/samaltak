@@ -85,10 +85,6 @@ wordHash
 wordHash: aBoolean
 	wordHash := aBoolean
 !
-hashBoxAddress
-	"Where the identity hash generator's state is (machine code allocates too)."
-	^self cCoerce: hashBox to: 'uint64_t'
-!
 rootCount
 	^rootCount
 !
@@ -330,8 +326,19 @@ allocObj: cls format: fmt slots: n
 	^p
 !
 initHeaderAt: p class: cls format: fmt slots: n
-	self uint64At: p put: ((n asUInt64 bitOr: fmt asUInt64 << H_FMT_SHIFT) bitOr: self nextHash asUInt64 << H_HASH_SHIFT).
+	"Slots and format, no identity hash (0: assignHashOf: gives one when it is first asked for), and the class. Machine code makes the same headers."
+	self uint64At: p put: (n asUInt64 bitOr: fmt asUInt64 << H_FMT_SHIFT).
 	self uint64At: p + 8 put: cls
+!
+assignHashOf: o
+	"Assign a nonzero identity hash to an object whose header has none. Preserve the other header bits."
+	<function>
+	<var: #o type: 'oop'>
+	<returns: 'uint32_t'>
+	| h |
+	h := self nextHash.
+	self uint64At: o put: ((self uint64At: o) bitOr: h asUInt64 << H_HASH_SHIFT).
+	^h
 !
 allocUnfilledTry: cls format: fmt slots: n
 	"allocObjTry: of an object without pointers (fmt) whose slots the caller writes, every one, before anything else runs: in eden its header and class only, not zeroed (the collector never reads such slots); large ones as allocObjTry: makes them. 0 if it can never fit in the heap."

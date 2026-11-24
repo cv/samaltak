@@ -760,12 +760,6 @@ contextClassOffset
 edenBoxOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #edenBox) to: 'int64_t'
 !
-hashBoxOffset
-	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #hashBox) to: 'int64_t'
-!
-lcgOffset
-	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #lcgMul) to: 'int64_t'
-!
 ecodeOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #ecode) to: 'int64_t'
 !
@@ -1680,6 +1674,8 @@ emitHashPrimitive: fail
 	asm b: fail if: COND_NE.
 	asm ldr: X16 base: X0 offset: 0.
 	asm ubfx: X16 with: X16 lsb: H_HASH_SHIFT width: 22.
+	asm comment: 'none yet: the C primitive assigns it'.
+	asm cbz: X16 to: fail.
 	asm lsl: X0 with: X16 imm: 1.
 	asm orr: X0 with: X0 imm: 1.
 	asm ret
@@ -1755,7 +1751,7 @@ emitClosureValuePrimitive: fail
 	asm b: blockLabel
 !
 emitAllocDynamic: bytesReg fail: fail
-	"x9 := a new object of bytesReg bytes in eden (bytesReg preserved); its header word without the hash and its class were pushed on the native stack and are popped here. Uses x11, x12, x16, x17."
+	"x9 := a new object of bytesReg bytes in eden (bytesReg preserved); its header word (no identity hash: assigned at its first use, ObjectMemory>>assignHashOf:) and its class were pushed on the native stack and are popped here. Uses x11, x12, x16, x17."
 	| full after |
 	full := asm newLabel.
 	after := asm newLabel.
@@ -1766,18 +1762,8 @@ emitAllocDynamic: bytesReg fail: fail
 	asm cmp: X11 with: X17.
 	asm b: full if: COND_HI.
 	asm str: X11 base: X16 offset: 0.
-	asm comment: 'the identity hash: the next value of the VM''s generator (never 0)'.
-	asm ldr: X16 base: X22 offset: self hashBoxOffset.
-	asm ldr: X11 base: X16 offset: 0.
-	asm ldp: X12 with: X17 base: X22 offset: self lcgOffset.
-	asm madd: X11 with: X11 with: X12 add: X17.
-	asm str: X11 base: X16 offset: 0.
-	asm ubfx: X11 with: X11 lsb: 40 width: 22.
-	asm cmp: X11 imm: 0.
-	asm csinc: X11 with: X11 with: XZR cond: COND_NE.
-	asm comment: 'header (with the hash) and class'.
+	asm comment: 'header (no hash yet) and class'.
 	asm ldp: X12 with: X17 base: SP postIndex: 16.
-	asm orr: X12 with: X12 with: X11 shift: SHIFT_LSL amount: H_HASH_SHIFT.
 	asm stp: X12 with: X17 base: X9 offset: 0.
 	asm b: after.
 	asm bind: full.

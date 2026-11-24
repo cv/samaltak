@@ -178,7 +178,10 @@ beImmutable: anOop
 	sim memory uint64At: anOop put: ((sim memory uint64At: anOop) bitOr: H_IMMUTABLE)
 !
 hashOf: anOop
-	^((sim memory uint64At: anOop) >> H_HASH_SHIFT) bitAnd: H_HASH_MASK
+	"The identity hash, assigned at its first use as the VM does (ObjectMemory>>assignHashOf:)."
+	| h |
+	h := ((sim memory uint64At: anOop) >> H_HASH_SHIFT) bitAnd: H_HASH_MASK.
+	^h ~= 0 ifTrue: [h] ifFalse: [memory assignHashOf: anOop]
 !
 writeBytes: aByteArray at: anAddress
 	sim memory bytesAt: anAddress put: aByteArray

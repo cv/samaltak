@@ -431,9 +431,6 @@ refreshState
 	stateBlock stackLimitNormal: interpreter cstackEnd - (8 * (analysis maxDepthLimit + CTX_SLACK + 1)) asUInt64.
 	stateBlock interrupt = 0 ifTrue: [stateBlock stackLimit: stateBlock stackLimitNormal].
 	stateBlock edenBox: gc edenBoxAddress.
-	stateBlock hashBox: memory hashBoxAddress.
-	stateBlock lcgMul: 6364136223846793005.
-	stateBlock lcgAdd: 1442695040888963407.
 	0 to: 7 do: [:t | stateBlock tagClasses at: t put: ((t bitAnd: 1) ~= 0
 		ifTrue: [memory clsSmallint]
 		ifFalse: [t = 2 ifTrue: [memory clsChar] ifFalse: [t = 4 ifTrue: [memory clsSmallfloat] ifFalse: [memory nilOop]]])].
@@ -1620,14 +1617,14 @@ VMStruct subclass: #JitState
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-JitState comment: 'What machine code reads through x22: nil, true and false and the classes inline paths check (refreshed after every GC; tagClasses by the low 3 bits of an immediate), the interrupt flag (set with the scheduler''s, cleared by the runtime''s interrupt check), the frames array, the native stack pointer jit_enter left (exits reset it), the young space''s bounds (the store barrier). Baseline code also uses: stackLimit (a callee''s fp at or above it takes the entry''s slow path: the C stack is nearly full, or an interrupt is pending, which sets it to 0; stackLimitNormal is its value otherwise), baseFrame and baseRecord (the first Frame and native frame record of the activations since jit_enter: frame f''s record is baseRecord - (f - baseFrame) / 4), the addresses of eden''s top and limit (edenBox) and of the identity hash generator (hashBox, with its multiplier and increment), the megamorphic and block caches (JitBaselineRuntime), and words the runtime answers through (result, ecode) or reads (primRet: where a C primitive returns to). Optimized code also uses: cstackLimit (the highest slot address a frame may use), the deoptimization stress counter, where a guard that fails saves the registers (dump: x0-x31, then d0-d31).'!
+JitState comment: 'What machine code reads through x22: nil, true and false and the classes inline paths check (refreshed after every GC; tagClasses by the low 3 bits of an immediate), the interrupt flag (set with the scheduler''s, cleared by the runtime''s interrupt check), the frames array, the native stack pointer jit_enter left (exits reset it), the young space''s bounds (the store barrier). Baseline code also uses: stackLimit (a callee''s fp at or above it takes the entry''s slow path: the C stack is nearly full, or an interrupt is pending, which sets it to 0; stackLimitNormal is its value otherwise), baseFrame and baseRecord (the first Frame and native frame record of the activations since jit_enter: frame f''s record is baseRecord - (f - baseFrame) / 4), the address of eden''s top and limit (edenBox), the megamorphic and block caches (JitBaselineRuntime), and words the runtime answers through (result, ecode) or reads (primRet: where a C primitive returns to). Optimized code also uses: cstackLimit (the highest slot address a frame may use), the deoptimization stress counter, where a guard that fails saves the registers (dump: x0-x31, then d0-d31).'!
 
 !JitState class methodsFor: 'declaring'!
 fields
 	^#((nilOop oop) (trueOop oop) (falseOop oop) (interrupt int32_t) (pad int32_t) (frames uint64_t) (exitSp uint64_t) (youngLo uint64_t) (youngHi uint64_t)
 		(arrayClass oop) (pointClass oop)
 		(stackLimit uint64_t) (stackLimitNormal uint64_t) (baseFrame uint64_t) (baseRecord uint64_t)
-		(edenBox uint64_t) (hashBox uint64_t) (lcgMul uint64_t) (lcgAdd uint64_t)
+		(edenBox uint64_t)
 		(tagClasses 'oop[8]') (blockClass oop) (byteStringClass oop) (byteArrayClass oop) (boxedFloatClass oop) (wordArrayClass oop) (byteSymbolClass oop) (contextClass oop)
 		(megaCache uint64_t) (blockCache uint64_t) (result oop) (ecode int64_t) (primRet uint64_t)
 		(cstackLimit uint64_t) (stress int64_t) (dump 'uint64_t[64]') (pendingBoundFrame uint64_t))

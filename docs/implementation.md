@@ -51,7 +51,7 @@ word 0:
 |---|---|
 | 0–31 | `numSlots`: body size in 8-byte words |
 | 32–36 | `format` |
-| 37–58 | `identityHash` (22 bits, assigned at allocation, never 0, never derived from the address) |
+| 37–58 | `identityHash` (22 bits, never derived from the address; 0 until it is first asked for, when `ObjectMemory>>assignHashOf:`, the one place that writes it, gives the generator's next value, never 0: allocation, inline in machine code too, stores no hash) |
 | 59 | immutable |
 | 60–62 | GC private (marks, age, remembered) |
 | 63 | forwarded (GC private) |
@@ -98,6 +98,8 @@ offset  size  field
 ```
 
 The loader places the heap in old space and adds `(newBase - B)` to every pointer oop (class words and pointer-format slots). The image builder writes with B = where the simulated old space was. The VM hashes Strings for an image as its String hash field says (`ObjectMemory>>wordHash`), and saves it so: an image from before the word hash keeps FNV-1a (its optimized code calls the primitive for `hash`); the image builder writes 1.
+
+**Identity hash compatibility.** VMs with lazy identity hashes read older images and preserve assigned hashes. Do not open or re-save an image written by a lazy-hash VM in an older VM: it treats an unassigned hash as zero and can save keys in buckets that the newer VM cannot find. Keep a pre-upgrade image for rollback.
 
 ## Special objects array
 
