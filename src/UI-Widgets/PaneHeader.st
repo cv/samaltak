@@ -39,7 +39,7 @@ drawSelfOn: aCanvas
 	rightText isBlock ifTrue: [aCanvas noteVolatile].
 	pad := self theme metric: #paneHeaderPaddingX.
 	r := 0 @ 0 corner: self width @ (self height - 1).
-	aCanvas fillRect: r color: self theme paper.
+	self theme drawBar: r on: aCanvas.
 	aCanvas fillRect: (0 @ (self height - 1) corner: self width @ self height) color: self theme rule.
 	right := self rightText.
 	rw := 0.

@@ -76,7 +76,7 @@ drawSelfOn: aCanvas
 	| pad x right gap |
 	pad := self theme metric: #statusBarPaddingX.
 	gap := 8.
-	aCanvas fillRect: self localBounds color: self theme paper.
+	aCanvas fillRect: self localBounds color: self theme panel.
 	aCanvas fillRect: (0 @ 0 corner: self width @ 1) color: self theme rule.
 	right := self width - pad.
 	(items select: [:each | each last]) reverseDo: [:each |

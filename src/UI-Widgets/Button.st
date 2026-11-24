@@ -113,6 +113,7 @@ cursorAt: aPoint
 !Button methodsFor: 'drawing'!
 drawSelfOn: aCanvas
 	| r ink paper frame textColor |
+	self theme isBevelled ifTrue: [^self drawBevelledOn: aCanvas].
 	r := self localBounds.
 	ink := self theme ink.
 	paper := self theme paper.
@@ -125,6 +126,19 @@ drawSelfOn: aCanvas
 	(hover == true and: [self isEnabled and: [self isInverted not]]) ifTrue: [
 		aCanvas strokeRect: (r insetBy: 1) color: ink width: 1].
 	textColor := self isInverted ifTrue: [paper] ifFalse: [frame].
+	aCanvas drawString: self label in: r font: self font color: textColor align: #center
+!
+drawBevelledOn: aCanvas
+	"Haiku's button (Theme>>drawRaised:pressed:hover:on:); the default button has a darker outline."
+	| t r textColor |
+	t := self theme.
+	r := self localBounds.
+	aCanvas fillRect: r color: t panel.
+	self isDefault ifTrue: [
+		aCanvas strokeRect: r color: (t color: #bevelDark) width: 1.
+		r := r insetBy: 2].
+	t drawRaised: r pressed: self isInverted hover: (hover == true and: [self isEnabled]) on: aCanvas.
+	textColor := self isEnabled ifTrue: [t ink] ifFalse: [t color: #ink4].
 	aCanvas drawString: self label in: r font: self font color: textColor align: #center
 ! !
 

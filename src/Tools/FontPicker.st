@@ -185,9 +185,6 @@ standardSizes
 ! !
 
 !FontPicker class methodsFor: 'opening'!
-initialize
-	ToolsMenu register: 'Fonts' description: 'family · typeface · size' order: 47 action: [:point | self openAt: point]
-!
 open
 	^self openAt: nil
 !
@@ -213,4 +210,10 @@ openAt: aPoint for: aWidget
 !
 openFor: aWidget
 	^self openAt: nil for: aWidget
+! !
+
+!FontPicker class methodsFor: 'class initialization'!
+initialize
+	ToolsMenu register: 'Fonts' description: 'family · typeface · size' order: 47 action: [:point | self openAt: point].
+	ToolsMenu register: 'Theme' description: 'Blue Book or be-gold (Haiku)' order: 48 action: [:point | Theme toggle]
 ! !

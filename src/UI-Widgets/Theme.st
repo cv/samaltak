@@ -30,6 +30,7 @@ initializeBlueBook
 		at: #ink4 put: (Color hex: 16rA6A6A6);
 		at: #hair put: (Color hex: 16rC9C9C9);
 		at: #paper put: Color white;
+		at: #panel put: Color white;
 		at: #rule put: Color black;
 		at: #ultramarine put: ultra;
 		at: #accentSoft put: (ultra alpha: 0.12);
@@ -92,11 +93,12 @@ refresh
 	self publishPalette
 !
 publishPalette
-	"Make my colors Color's named colors where both have the name (the window system's chrome draws with those)."
+	"Make my colors Color's named colors where both have the name, and my window chrome colors (#tab ...) and chrome style the windows's (the window system's chrome draws with those)."
 	| named |
 	named := Color namedColors.
 	colors keysAndValuesDo: [:key :color |
-		(named includesKey: key) ifTrue: [Color named: key put: color]]
+		((named includesKey: key) or: [self class chromeColorNames includes: key]) ifTrue: [Color named: key put: color]].
+	Window chromeStyle: self chromeStyle
 ! !
 
 !Theme methodsFor: 'accessing'!
@@ -155,6 +157,32 @@ prepareFonts
 	chars := Font prerasterizedCharacters.
 	self extraFontSpecs do: [:spec | (self font: spec first) prerasterize: chars].
 	self buildSyntaxStyles
+!
+invertsSelection
+	"Is a selected row drawn inverted on the ink (Blue Book), or as it is on selectionColor (Haiku's gray bar)?"
+	^(colors includesKey: #selection) not
+!
+applyFonts
+	"Draw the standard faces in themselves (a theme may draw them in its own: BeGoldTheme); when that changes them, rasterize the standard fonts' ASCII again."
+	| substituted |
+	substituted := Font standardSpecs select: [:spec | Font substitutes includesKey: (spec at: 2)].
+	substituted do: [:spec | Font substituteFace: (spec at: 2) with: nil].
+	fonts := IdentityDictionary new.
+	syntax := nil.
+	substituted isEmpty ifFalse: [self prerasterizeStandardFonts]
+!
+prerasterizeStandardFonts
+	"Put the standard fonts' ASCII glyphs into the atlas again (their faces changed), so the first redraw does not stall."
+	| chars |
+	chars := Font prerasterizedCharacters.
+	Font standardFonts do: [:font | font prerasterize: chars]
+!
+isBevelled
+	"Do buttons draw raised bevels (the be-gold theme) instead of Blue Book rules?"
+	^(metrics at: #bevel ifAbsent: [0]) > 0
+!
+chromeStyle
+	^self isBevelled ifTrue: [#tab] ifFalse: [#classic]
 ! !
 
 !Theme methodsFor: 'colors'!
@@ -184,6 +212,14 @@ terminalPalette
 	"The 16 ANSI colors: tuned for black on white with ultramarine as blue."
 	^#(16r000000 16rB3261E 16r2E7D32 16r8A6A00 16r1B3A8C 16r8E3B8E 16r1E7A84 16rB8B8B8
 		16r6B6B6B 16rD7372C 16r3C9A46 16rB08A00 16r4A63A6 16rB052B0 16r2A9AA8 16rFFFFFF) collect: [:hex | Color hex: hex]
+!
+panel
+	"The background of controls and bars (pane headers, status bars, menus, buttons); paper where a theme has none."
+	^colors at: #panel ifAbsent: [self paper]
+!
+selectionColor
+	"The bar under a list's selected row: the ink (its row drawn inverted), or a theme's #selection."
+	^colors at: #selection ifAbsent: [self ink]
 ! !
 
 !Theme methodsFor: 'syntax'!
@@ -211,6 +247,10 @@ buildSyntaxStyles
 !Theme class methodsFor: 'instance creation'!
 blueBook
 	^self new setName: 'blue-book'; initializeBlueBook; yourself
+!
+beGold
+	"Haiku's look (BeOS's heir): gray bevelled panels, the gold window tab, the blue desk, Noto Sans."
+	^BeGoldTheme new setName: 'be-gold'; initializeBeGold; yourself
 ! !
 
 !Theme class methodsFor: 'class initialization'!
@@ -236,4 +276,59 @@ themeChanged
 !
 reset
 	Current isNil ifFalse: [Current reset]
+! !
+
+!Theme methodsFor: 'drawing'!
+shade: aRectangle from: topColor to: bottomColor on: aCanvas
+	"Fill aRectangle shading down from topColor to bottomColor, a row at a time."
+	| h |
+	h := aRectangle height ceiling.
+	h <= 1 ifTrue: [^aCanvas fillRect: aRectangle color: topColor].
+	0 to: h - 1 do: [:y |
+		aCanvas fillRect: (aRectangle left @ (aRectangle top + y) extent: aRectangle width @ 1)
+			color: (topColor mixed: y / (h - 1) with: bottomColor)]
+!
+drawBar: aRectangle on: aCanvas
+	"A bar of controls (pane header, menu bar): the panel, or Haiku's menu-bar shading when bevelled."
+	self isBevelled ifFalse: [^aCanvas fillRect: aRectangle color: self panel].
+	self shade: aRectangle from: (self color: #buttonTop) to: (self color: #buttonBottom) on: aCanvas.
+	aCanvas fillRect: (aRectangle origin extent: aRectangle width @ 1) color: (self color: #bevelLight)
+!
+drawRaised: aRectangle pressed: pressed hover: hover on: aCanvas
+	"Haiku's button: a soft outline, a gray border, a light top edge over shading that darkens downwards; pressed, darker and lit from below."
+	| r top bottom |
+	r := aRectangle.
+	aCanvas fillRect: r color: (self panel mixed: 0.5 with: (self color: #bevelDark)).
+	aCanvas fillRect: (r left @ (r bottom - 1) extent: r width @ 1) color: (self panel mixed: 0.6 with: Color white).
+	r := r insetBy: 1.
+	aCanvas strokeRect: r color: (self color: #bevelDark) width: 1.
+	r := r insetBy: 1.
+	top := self color: #buttonTop.
+	bottom := self color: #buttonBottom.
+	pressed ifTrue: [top := self color: #pressed. bottom := (self color: #pressed) mixed: 0.6 with: top].
+	(hover and: [pressed not]) ifTrue: [top := top mixed: 0.5 with: Color white. bottom := bottom mixed: 0.4 with: Color white].
+	self shade: r from: top to: bottom on: aCanvas.
+	pressed ifFalse: [
+		aCanvas fillRect: (r origin extent: r width @ 1) color: (self color: #bevelLight).
+		aCanvas fillRect: (r origin extent: 1 @ r height) color: (self color: #bevelLight).
+		aCanvas fillRect: (r left @ (r bottom - 1) extent: r width @ 1) color: (bottom mixed: 0.25 with: (self color: #bevelDark))]
+! !
+
+!Theme class methodsFor: 'accessing'!
+use: aTheme
+	"Make aTheme current and redraw everything in it."
+	Current := aTheme.
+	aTheme applyFonts.
+	aTheme publishPalette.
+	World restyleAll
+!
+toggle
+	"Switch between the Blue Book and the be-gold theme."
+	self use: (self current isBevelled ifTrue: [self blueBook] ifFalse: [self beGold])
+! !
+
+!Theme class methodsFor: 'palette'!
+chromeColorNames
+	"The colors of the window chrome a theme may define, published for the window system (Window draws its tab with them)."
+	^#(#tab #tabLight #tabEdge #tabInactive #tabInactiveLight #tabInactiveEdge)
 ! !
