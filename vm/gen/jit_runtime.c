@@ -593,6 +593,8 @@ jit_method *code_of(oop m, bool counting)
     jit_method *h;
     jit_method *r_best;
     jit_method *o;
+    uint32_t r_hash_of;
+    uint32_t h_2;
     uint32_t i;
     int64_t c;
     if (jit_mode == JIT_NONE) {
@@ -617,7 +619,10 @@ exit_best:;
     if (!counting) {
         return (jit_method *)NULL;
     }
-    i = ((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535;
+    i = ({
+    h_2 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m);
+    r_hash_of; }) & 65535;
     c = (int64_t)method_counts[i];
     if (c >= jit_threshold) {
         return compile_and_install(m);
@@ -777,8 +782,12 @@ jit_method *compile_and_install(oop m)
     jit_method *h;
     bool r_insert;
     oop o;
+    uint32_t r_hash_of;
+    uint32_t h_2;
     uint32_t i;
     oop o_2;
+    uint32_t r_hash_of_2;
+    uint32_t h_3;
     h = jit_runtime_compile(m, jit_mode == JIT_OPT ? JIT_BASELINE : jit_mode, (jit_flags & JIT_FLAG_NOTES) != 0);
     if (h == NULL) {
         return (jit_method *)NULL;
@@ -790,7 +799,10 @@ jit_method *compile_and_install(oop m)
         goto exit_insert;
     }
     o = h->method;
-    i = ((uint32_t)(((*(uint64_t *)o) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535;
+    i = ({
+    h_2 = (uint32_t)(((*(uint64_t *)o) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(o);
+    r_hash_of; }) & 65535;
     while (method_table[i] != NULL) {
         i = (i + 1) & 65535;
     }
@@ -814,7 +826,10 @@ exit_insert:;
         return (jit_method *)NULL;
     }
     if (jit_mode == JIT_OPT) {
-        opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = initial_count(m);
+        opt_counts[({
+    h_3 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_2 = h_3 != 0 ? h_3 : assign_hash_of(m);
+    r_hash_of_2; }) & 65535] = initial_count(m);
     }
     return h;
 }
@@ -826,6 +841,8 @@ static uint64_t context_entry(bool looping)
     uint64_t m;
     uint64_t pc;
     jit_method *h;
+    uint32_t r_hash_of;
+    uint32_t h_2;
     uint32_t i;
     int64_t n;
     int64_t off;
@@ -837,7 +854,10 @@ static uint64_t context_entry(bool looping)
     }
     h = jit_runtime_lookup(m);
     if ((h == NULL) && looping) {
-        i = ((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535;
+        i = ({
+    h_2 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m);
+    r_hash_of; }) & 65535;
         n = (int64_t)method_counts[i];
         if (n >= jit_osr_threshold) {
             h = compile_and_install(m);
@@ -2022,9 +2042,14 @@ uint64_t jit_runtime_leave(frame *f, int64_t pc, int64_t n)
 /* JitRuntime>>lookup: */
 jit_method *jit_runtime_lookup(oop m)
 {
+    uint32_t r_hash_of;
+    uint32_t h_2;
     uint32_t i;
     jit_method *h;
-    i = ((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535;
+    i = ({
+    h_2 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m);
+    r_hash_of; }) & 65535;
     while ((h = method_table[i]) != NULL) {
         if (h->method == m) {
             return h;
@@ -2701,9 +2726,6 @@ static void refresh_state(void)
         state_block->stack_limit = state_block->stack_limit_normal;
     }
     state_block->eden_box = (uint64_t)eden_box;
-    state_block->hash_box = (uint64_t)hash_box;
-    state_block->lcg_mul = 6364136223846793005LL;
-    state_block->lcg_add = 1442695040888963407LL;
     for (t = 0; t <= 7; t++) {
         state_block->tag_classes[t] = (t & 1) != 0 ? cls_smallint : t == 2 ? cls_char : t == 4 ? cls_smallfloat : nil_oop;
     }
@@ -2913,9 +2935,14 @@ bool set_mode(int32_t m)
 /* JitRuntime>>slotOf: */
 static int64_t slot_of(oop m)
 {
+    uint32_t r_hash_of;
+    uint32_t h_2;
     uint32_t i;
     jit_method *h;
-    i = ((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535;
+    i = ({
+    h_2 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m);
+    r_hash_of; }) & 65535;
     while ((h = method_table[i]) != NULL) {
         if (h->method == m) {
             return i;

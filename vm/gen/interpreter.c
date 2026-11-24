@@ -12318,8 +12318,12 @@ send_special:;
 void interrupt_safepoint(void)
 {
     uint64_t o;
+    uint32_t r_hash_of;
+    uint32_t h;
     int64_t depth;
     uint64_t o_2;
+    uint32_t r_hash_of_2;
+    uint32_t h_2;
     oop sel;
     uint64_t m;
     int64_t r_method_prim;
@@ -12333,10 +12337,16 @@ void interrupt_safepoint(void)
     int64_t v;
     depth = stack_check_due && ({
     o = active_process();
-    (uint32_t)(((*(uint64_t *)o) >> H_HASH_SHIFT) & H_HASH_MASK) == stack_check_hash; }) ? stack_overflow_depth() : 0;
+    ({
+    h = (uint32_t)(((*(uint64_t *)o) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h != 0 ? h : assign_hash_of(o);
+    r_hash_of; }) == stack_check_hash; }) ? stack_overflow_depth() : 0;
     if (low_space_pending && ({
     o_2 = active_process();
-    (uint32_t)(((*(uint64_t *)o_2) >> H_HASH_SHIFT) & H_HASH_MASK) == low_space_hash; })) {
+    ({
+    h_2 = (uint32_t)(((*(uint64_t *)o_2) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_2 = h_2 != 0 ? h_2 : assign_hash_of(o_2);
+    r_hash_of_2; }) == low_space_hash; })) {
         low_space_pending = false;
         depth = active_depth();
         if (depth < 1) {
@@ -12392,6 +12402,8 @@ bool is_married(oop o)
 /* Interpreter>>lookupMethod:selector: */
 uint64_t lookup_method(oop a_class, oop a_selector)
 {
+    uint32_t r_hash_of;
+    uint32_t h_2;
     uint32_t h;
     oop c;
     uint64_t md;
@@ -12402,7 +12414,10 @@ uint64_t lookup_method(oop a_class, oop a_selector)
     uint32_t i;
     int64_t n;
     uint64_t k;
-    h = (uint32_t)(((*(uint64_t *)a_selector) >> H_HASH_SHIFT) & H_HASH_MASK);
+    h = ({
+    h_2 = (uint32_t)(((*(uint64_t *)a_selector) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(a_selector);
+    r_hash_of; });
     c = a_class;
     while (((c & 7) == 0) && (c != nil_oop)) {
         md = *(uint64_t *)(c + 16 + 8);
@@ -12478,6 +12493,8 @@ void materialize_all(void)
     uint64_t n_2;
     int64_t by_heap;
     uint64_t o_2;
+    uint32_t r_hash_of;
+    uint32_t h;
     if (nframes != 0) {
         stat_flushes = stat_flushes + 1;
         frame_epoch = frame_epoch + 1;
@@ -12525,7 +12542,10 @@ void materialize_all(void)
         stack_check_at = stat_materialized + (uint64_t)(stack_limit < by_heap ? stack_limit : by_heap) / 8 + 1;
         stack_check_due = true;
         o_2 = active_process();
-        stack_check_hash = (uint32_t)(((*(uint64_t *)o_2) >> H_HASH_SHIFT) & H_HASH_MASK);
+        stack_check_hash = ({
+    h = (uint32_t)(((*(uint64_t *)o_2) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h != 0 ? h : assign_hash_of(o_2);
+    r_hash_of; });
         request_interrupt_check();
     }
 }

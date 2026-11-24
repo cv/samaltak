@@ -517,6 +517,8 @@ static void mark_starts_from(uint64_t lo, uint64_t hi)
 static void note_live(uint64_t live)
 {
     uint64_t o;
+    uint32_t r_hash_of;
+    uint32_t h;
     if (live <= low_space_limit(0)) {
         low_space_level = 0;
         low_space_pending = false;
@@ -525,7 +527,10 @@ static void note_live(uint64_t live)
             low_space_level = low_space_level + 1;
             low_space_pending = true;
             o = active_process();
-            low_space_hash = (uint32_t)(((*(uint64_t *)o) >> H_HASH_SHIFT) & H_HASH_MASK);
+            low_space_hash = ({
+    h = (uint32_t)(((*(uint64_t *)o) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h != 0 ? h : assign_hash_of(o);
+    r_hash_of; });
         }
         if (low_space_pending) {
             request_interrupt_check();

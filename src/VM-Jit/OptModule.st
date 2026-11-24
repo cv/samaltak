@@ -195,7 +195,10 @@ formatOf: o
 	^(((self header: o) >> H_FMT_SHIFT) bitAnd: H_FMT_MASK) asInt32
 !
 hashOf: o
-	^(((self header: o) >> H_HASH_SHIFT) bitAnd: H_HASH_MASK) asUInt32
+	"The identity hash, assigned at its first use (ObjectMemory>>assignHashOf:; the VM's thread only)."
+	| h |
+	h := (((self header: o) >> H_HASH_SHIFT) bitAnd: H_HASH_MASK) asUInt32.
+	^h ~= 0 ifTrue: [h] ifFalse: [memory assignHashOf: o]
 !
 rawClass: o
 	^self uint64At: o + 8

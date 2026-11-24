@@ -76,7 +76,7 @@ uint64_t alloc_obj(oop cls, int32_t fmt, uint32_t n)
         *cls_root = cls;
         p = alloc_slow(cls_root, bytes);
         cls_2 = *cls_root;
-        *(uint64_t *)p = ((uint64_t)n) | (((uint64_t)fmt) << H_FMT_SHIFT) | (((uint64_t)next_hash()) << H_HASH_SHIFT);
+        *(uint64_t *)p = ((uint64_t)n) | (((uint64_t)fmt) << H_FMT_SHIFT);
         *(uint64_t *)(p + 8) = cls_2;
         if ((fmt >= 1) && (fmt <= 4)) {
             s = (oop *)(p + 16);
@@ -91,7 +91,7 @@ uint64_t alloc_obj(oop cls, int32_t fmt, uint32_t n)
     } else {
         a = p + bytes;
         eden_box[0] = a;
-        *(uint64_t *)p = ((uint64_t)n) | (((uint64_t)fmt) << H_FMT_SHIFT) | (((uint64_t)next_hash()) << H_HASH_SHIFT);
+        *(uint64_t *)p = ((uint64_t)n) | (((uint64_t)fmt) << H_FMT_SHIFT);
         *(uint64_t *)(p + 8) = cls;
         if ((fmt >= 1) && (fmt <= 4)) {
             s_2 = (oop *)(p + 16);
@@ -163,7 +163,7 @@ static uint64_t object_memory_alloc_old_format_slots_limit(oop cls, int32_t fmt,
         return 0;
     }
     cls_2 = *cls_root;
-    *(uint64_t *)p = ((uint64_t)n) | (((uint64_t)fmt) << H_FMT_SHIFT) | (((uint64_t)next_hash()) << H_HASH_SHIFT);
+    *(uint64_t *)p = ((uint64_t)n) | (((uint64_t)fmt) << H_FMT_SHIFT);
     *(uint64_t *)(p + 8) = cls_2;
     if ((fmt >= 1) && (fmt <= 4)) {
         s = (oop *)(p + 16);
@@ -264,13 +264,13 @@ uint64_t alloc_unfilled_try(oop cls, int32_t fmt, uint64_t n)
         p = alloc_slow(cls_root, bytes);
         cls_2 = *cls_root;
         n_2 = (uint32_t)n;
-        *(uint64_t *)p = ((uint64_t)n_2) | (((uint64_t)fmt) << H_FMT_SHIFT) | (((uint64_t)next_hash()) << H_HASH_SHIFT);
+        *(uint64_t *)p = ((uint64_t)n_2) | (((uint64_t)fmt) << H_FMT_SHIFT);
         *(uint64_t *)(p + 8) = cls_2;
     } else {
         a = p + bytes;
         eden_box[0] = a;
         n_3 = (uint32_t)n;
-        *(uint64_t *)p = ((uint64_t)n_3) | (((uint64_t)fmt) << H_FMT_SHIFT) | (((uint64_t)next_hash()) << H_HASH_SHIFT);
+        *(uint64_t *)p = ((uint64_t)n_3) | (((uint64_t)fmt) << H_FMT_SHIFT);
         *(uint64_t *)(p + 8) = cls;
     }
     return p;
@@ -280,6 +280,15 @@ uint64_t alloc_unfilled_try(oop cls, int32_t fmt, uint64_t n)
 static oop alloc_words32(oop cls, uint64_t n)
 {
     return alloc_obj(cls, F_W32 + (int32_t)(n & 1), (uint32_t)((n + 1) / 2));
+}
+
+/* ObjectMemory>>assignHashOf: */
+uint32_t assign_hash_of(oop o)
+{
+    uint32_t h;
+    h = next_hash();
+    *(uint64_t *)o = (*(uint64_t *)o) | (((uint64_t)h) << H_HASH_SHIFT);
+    return h;
 }
 
 /* ObjectMemory>>byteSize: */

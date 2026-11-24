@@ -167,14 +167,20 @@ static void bg_optimize(oop m, int32_t s, int32_t t, int32_t d, jit_method *h, j
     int32_t r_bg_retry_count;
     int32_t n;
     int32_t n_2;
+    uint32_t r_hash_of;
+    uint32_t h_2;
     bool r_over_limit;
     char *limit;
     int64_t t0;
     bool ok;
+    uint32_t r_hash_of_2;
+    uint32_t h_3;
     uint64_t k;
     uint64_t key;
     int32_t i;
     int64_t n_3;
+    uint32_t r_hash_of_3;
+    uint32_t h_4;
     bool r_bg_mentions_young;
     int32_t n_4;
     opt_node *nd;
@@ -199,13 +205,18 @@ static void bg_optimize(oop m, int32_t s, int32_t t, int32_t d, jit_method *h, j
     int32_t r_bg_retry_count_2;
     int32_t n_5;
     int32_t n_6;
+    uint32_t r_hash_of_4;
+    uint32_t h_5;
     if (!(atomic_load_explicit(&rt_bg_state, memory_order_relaxed) == BG_IDLE)) {
         rt_stat_bg_deferred = rt_stat_bg_deferred + 1;
         n_2 = ({
     n = initial_count(m);
     r_bg_retry_count = n < 64 ? n : 64;
     r_bg_retry_count; });
-        opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_2;
+        opt_counts[({
+    h_2 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m);
+    r_hash_of; }) & 65535] = n_2;
         return;
     }
     if (((s != 0) || (t != 0)) && (rt_unit_count >= 6144)) {
@@ -230,7 +241,10 @@ static void bg_optimize(oop m, int32_t s, int32_t t, int32_t d, jit_method *h, j
             fprintf(stderr, "opt bg: build failed (block %d, loop %d)\n", s, t);
         }
         rt_stat_opt_failed = rt_stat_opt_failed + 1;
-        k = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF);
+        k = ((((uint64_t)({
+    h_3 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_2 = h_3 != 0 ? h_3 : assign_hash_of(m);
+    r_hash_of_2; })) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF);
         key = k | 9223372036854775808ULL;
         i = (int32_t)((key ^ (key >> 29)) & 8191);
         n_3 = 0;
@@ -253,7 +267,10 @@ static void bg_optimize(oop m, int32_t s, int32_t t, int32_t d, jit_method *h, j
     rt_bg_depth = d;
     rt_bg_signature = rt_unit_signature;
     rt_bg_stamp = rt_stamp;
-    rt_bg_key = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF);
+    rt_bg_key = ((((uint64_t)({
+    h_4 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_3 = h_4 != 0 ? h_4 : assign_hash_of(m);
+    r_hash_of_3; })) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF);
     rt_bg_stale = false;
     rt_bg_gc_stale = false;
     rt_bg_flushed = false;
@@ -342,7 +359,10 @@ exit_bg_mentions_young:;
     n_5 = initial_count(m);
     r_bg_retry_count_2 = n_5 < 64 ? n_5 : 64;
     r_bg_retry_count_2; });
-    opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_6;
+    opt_counts[({
+    h_5 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_4 = h_5 != 0 ? h_5 : assign_hash_of(m);
+    r_hash_of_4; }) & 65535] = n_6;
     if (getenv("SAMALTAK_OPT_BG_INLINE") != NULL) {
         rt_bg_ok = back_end(false);
         rt_bg_unboxed = ps_unboxed;
@@ -1228,13 +1248,17 @@ uint64_t deopt_guard(frame *f, int64_t k)
     oop m_4;
     int32_t s_3;
     int32_t t;
+    uint32_t r_hash_of;
+    uint32_t h_2;
     uint64_t k_3;
     uint64_t key;
     int32_t i_4;
     int64_t n_3;
     oop m_5;
     int32_t n_4;
-    jit_method *h_2;
+    uint32_t r_hash_of_2;
+    uint32_t h_4;
+    jit_method *h_3;
     oop m_6;
     int32_t pc_3;
     int64_t r_operand_flags_at;
@@ -1282,9 +1306,13 @@ uint64_t deopt_guard(frame *f, int64_t k)
     int32_t full;
     oop m_7;
     int64_t n_7;
+    uint32_t r_hash_of_3;
+    uint32_t h_5;
     oop m_8;
     int32_t n_8;
-    jit_method *h_3;
+    uint32_t r_hash_of_4;
+    uint32_t h_7;
+    jit_method *h_6;
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         canonicalize_below(f);
     }
@@ -1421,7 +1449,10 @@ exit_signature_at_2:;
             m_4 = h->method;
             s_3 = (int32_t)h->block_start;
             t = (int32_t)h->osr_pc;
-            k_3 = ((((uint64_t)(uint32_t)(((*(uint64_t *)m_4) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s_3) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF);
+            k_3 = ((((uint64_t)({
+    h_2 = (uint32_t)(((*(uint64_t *)m_4) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m_4);
+    r_hash_of; })) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s_3) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF);
             key = k_3 | 9223372036854775808ULL;
             i_4 = (int32_t)((key ^ (key >> 29)) & 8191);
             n_3 = 0;
@@ -1441,10 +1472,13 @@ exit_signature_at_2:;
             if ((h->block_start == 0) && (h->osr_pc == 0)) {
                 m_5 = h->method;
                 n_4 = initial_count(h->method);
-                opt_counts[((uint32_t)(((*(uint64_t *)m_5) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_4;
-                h_2 = (jit_method *)h->lower;
+                opt_counts[({
+    h_4 = (uint32_t)(((*(uint64_t *)m_5) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_2 = h_4 != 0 ? h_4 : assign_hash_of(m_5);
+    r_hash_of_2; }) & 65535] = n_4;
+                h_3 = (jit_method *)h->lower;
                 begin_writing();
-                h_2->opt = 0;
+                h_3->opt = 0;
                 end_writing();
                 code_changed(h->method);
             }
@@ -1619,7 +1653,10 @@ exit_signature_at_4:;
             full = initial_count(rt_act_method[0]);
             m_7 = rt_act_method[0];
             n_7 = osr < full ? osr : full;
-            opt_counts[((uint32_t)(((*(uint64_t *)m_7) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = (int32_t)n_7;
+            opt_counts[({
+    h_5 = (uint32_t)(((*(uint64_t *)m_7) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_3 = h_5 != 0 ? h_5 : assign_hash_of(m_7);
+    r_hash_of_3; }) & 65535] = (int32_t)n_7;
         }
         if ((!cold) && ((!fresh) && ((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0)))) {
             if (site_at(m, pc)->stamp > h->stamp) {
@@ -1649,10 +1686,13 @@ exit_signature_at_4:;
         if ((h->block_start == 0) && (h->osr_pc == 0)) {
             m_8 = h->method;
             n_8 = initial_count(h->method);
-            opt_counts[((uint32_t)(((*(uint64_t *)m_8) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n_8;
-            h_3 = (jit_method *)h->lower;
+            opt_counts[({
+    h_7 = (uint32_t)(((*(uint64_t *)m_8) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_4 = h_7 != 0 ? h_7 : assign_hash_of(m_8);
+    r_hash_of_4; }) & 65535] = n_8;
+            h_6 = (jit_method *)h->lower;
             begin_writing();
-            h_3->opt = 0;
+            h_6->opt = 0;
             end_writing();
             code_changed(h->method);
         }
@@ -1669,6 +1709,8 @@ uint64_t deopt_return(frame *f, int64_t k, int64_t not_made)
     uint64_t r;
     oop m;
     int32_t n;
+    uint32_t r_hash_of;
+    uint32_t h_3;
     jit_method *h_2;
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
         canonicalize_below(f);
@@ -1684,7 +1726,10 @@ uint64_t deopt_return(frame *f, int64_t k, int64_t not_made)
         if ((h->block_start == 0) && (h->osr_pc == 0)) {
             m = h->method;
             n = initial_count(h->method);
-            opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
+            opt_counts[({
+    h_3 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_3 != 0 ? h_3 : assign_hash_of(m);
+    r_hash_of; }) & 65535] = n;
             h_2 = (jit_method *)h->lower;
             begin_writing();
             h_2->opt = 0;
@@ -1798,6 +1843,8 @@ void invalidate_all(void)
     jit_method *o;
     oop m;
     int32_t n;
+    uint32_t r_hash_of;
+    uint32_t h_2;
     jit_method *h;
     if (!(atomic_load_explicit(&rt_bg_state, memory_order_relaxed) == BG_IDLE)) {
         rt_bg_stale = true;
@@ -1811,7 +1858,10 @@ void invalidate_all(void)
         if ((o->block_start == 0) && (o->osr_pc == 0)) {
             m = o->method;
             n = initial_count(o->method);
-            opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
+            opt_counts[({
+    h_2 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m);
+    r_hash_of; }) & 65535] = n;
             h = (jit_method *)o->lower;
             begin_writing();
             h->opt = 0;
@@ -1832,6 +1882,8 @@ void invalidate_selector(oop sel)
     int32_t i_2;
     oop m;
     int32_t n;
+    uint32_t r_hash_of;
+    uint32_t h_2;
     jit_method *h;
     if (!(atomic_load_explicit(&rt_bg_state, memory_order_relaxed) == BG_IDLE)) {
         rt_bg_stale = true;
@@ -1848,7 +1900,10 @@ void invalidate_selector(oop sel)
                 if ((o->block_start == 0) && (o->osr_pc == 0)) {
                     m = o->method;
                     n = initial_count(o->method);
-                    opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
+                    opt_counts[({
+    h_2 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m);
+    r_hash_of; }) & 65535] = n;
                     h = (jit_method *)o->lower;
                     begin_writing();
                     h->opt = 0;
@@ -1943,6 +1998,8 @@ void materialize(frame *f)
     int32_t full;
     oop m;
     int64_t n_2;
+    uint32_t r_hash_of;
+    uint32_t h_2;
     int32_t i;
     int32_t i_2;
     oop v;
@@ -1977,7 +2034,10 @@ void materialize(frame *f)
     full = initial_count(rt_act_method[0]);
     m = rt_act_method[0];
     n_2 = (count > 1 ? count : 1) < full ? count > 1 ? count : 1 : full;
-    opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = (int32_t)n_2;
+    opt_counts[({
+    h_2 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m);
+    r_hash_of; }) & 65535] = (int32_t)n_2;
     if (rt_trace) {
         fprintf(stderr, "materialize top %d sp %d: ", top ? 1 : 0, f->sp);
         trace_deopt(h, k, mode);
@@ -2076,6 +2136,8 @@ static uint64_t mix(uint64_t h0, oop c, int32_t i, int d, oop fc)
     uint64_t r;
     uint64_t h;
     uint64_t o;
+    uint32_t r_hash_of;
+    uint32_t h_2;
     uint64_t x_2;
     uint64_t r_mix_2;
     uint64_t r_2;
@@ -2110,7 +2172,10 @@ static uint64_t mix(uint64_t h0, oop c, int32_t i, int d, oop fc)
     r_mix = r ^ (r >> 29);
     r_mix; });
     o = *(uint64_t *)(ctx + 16 + 24);
-    x_2 = (uint64_t)(uint32_t)(((*(uint64_t *)o) >> H_HASH_SHIFT) & H_HASH_MASK);
+    x_2 = (uint64_t)({
+    h_2 = (uint32_t)(((*(uint64_t *)o) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(o);
+    r_hash_of; });
     h = ({
     r_2 = (h ^ x_2) * 6364136223846793005ULL;
     r_mix_2 = r_2 ^ (r_2 >> 29);
@@ -2254,17 +2319,26 @@ static void optimize_block(oop m, int32_t s, jit_method *h)
 {
     jit_method *o;
     bool r_failed;
+    uint32_t r_hash_of;
+    uint32_t h_2;
     uint64_t key;
     int32_t i;
     int64_t n;
     bool r_bg_redo;
+    uint32_t r_hash_of_2;
+    uint32_t h_3;
+    uint32_t r_hash_of_3;
+    uint32_t h_4;
     uint64_t k;
     uint64_t key_2;
     int32_t i_2;
     int64_t n_2;
     o = unit_of(m, s, 0);
     if (!(((o == NULL) || ((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0))) && (o->generation < OPT_MAX_GENERATIONS)))) && (!({
-    key = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ 0ULL) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | 0ULL | 9223372036854775808ULL;
+    key = ((((uint64_t)({
+    h_2 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m);
+    r_hash_of; })) ^ 0ULL) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | 0ULL | 9223372036854775808ULL;
     i = (int32_t)((key ^ (key >> 29)) & 8191);
     n = 0;
     while ((rt_failed[i] != 0) && (n < 4096)) {
@@ -2285,7 +2359,10 @@ exit_failed:;
         r_bg_redo = false;
         goto exit_bg_redo;
     }
-    if (!(rt_bg_redo_key == (((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ 0ULL) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | 0ULL))) {
+    if (!(rt_bg_redo_key == (((((uint64_t)({
+    h_3 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_2 = h_3 != 0 ? h_3 : assign_hash_of(m);
+    r_hash_of_2; })) ^ 0ULL) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | 0ULL))) {
         r_bg_redo = false;
         goto exit_bg_redo;
     }
@@ -2302,7 +2379,10 @@ exit_bg_redo:;
     }
     o = optimize_unit(m, s, 0, 0, h, o);
     if (o == NULL) {
-        k = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ 0ULL) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | 0ULL;
+        k = ((((uint64_t)({
+    h_4 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_3 = h_4 != 0 ? h_4 : assign_hash_of(m);
+    r_hash_of_3; })) ^ 0ULL) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | 0ULL;
         key_2 = k | 9223372036854775808ULL;
         i_2 = (int32_t)((key_2 ^ (key_2 >> 29)) & 8191);
         n_2 = 0;
@@ -2324,11 +2404,15 @@ static jit_method *optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_met
     int64_t t0;
     jit_method *o;
     uint32_t r_compile_stamp;
+    uint32_t r_hash_of;
+    uint32_t h_2;
     oop o_2;
     bool young;
     int64_t i_2;
     oop o_3;
     oop o_4;
+    uint32_t r_hash_of_2;
+    uint32_t h_3;
     uint64_t i;
     if (rt_unit_count >= 6144) {
         return (jit_method *)NULL;
@@ -2368,7 +2452,10 @@ exit_compile_stamp:;
     if (p != NULL) {
         o->generation = p->generation + 1;
     }
-    o->method_hash = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    o->method_hash = ({
+    h_2 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m);
+    r_hash_of; });
     o->signature = rt_unit_signature;
     end_writing();
     o_2 = o->method;
@@ -2391,7 +2478,10 @@ exit_compile_stamp:;
         rt_opt_young_overflow = true;
     }
 exit_note_young:;
-    i = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)s) * 31 + (uint64_t)t + (((uint64_t)t) >> 17) * 2654435761LL) & 8191;
+    i = (((uint64_t)({
+    h_3 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_2 = h_3 != 0 ? h_3 : assign_hash_of(m);
+    r_hash_of_2; }) * 31 + (uint64_t)s) * 31 + (uint64_t)t + (((uint64_t)t) >> 17) * 2654435761LL) & 8191;
     while ((rt_units[i] != NULL) && (rt_units[i] != p)) {
         i = (i + 1) & 8191;
     }
@@ -2896,16 +2986,24 @@ uint64_t opt_runtime_tier_up(frame *f, int64_t loop)
     jit_method *o;
     oop m;
     int32_t n;
+    uint32_t r_hash_of;
+    uint32_t h_2;
     jit_method *h;
     oop o_2;
     uint64_t o_3;
     int32_t v;
     int32_t s;
     bool r_failed;
+    uint32_t r_hash_of_2;
+    uint32_t h_3;
     uint64_t key;
     int32_t i;
     int64_t n_2;
     bool r_bg_redo;
+    uint32_t r_hash_of_3;
+    uint32_t h_4;
+    uint32_t r_hash_of_4;
+    uint32_t h_5;
     uint64_t k_2;
     uint64_t key_2;
     int32_t i_2;
@@ -2923,17 +3021,26 @@ uint64_t opt_runtime_tier_up(frame *f, int64_t loop)
     void *r_opt_of;
     jit_method *o_5;
     bool r_failed_2;
+    uint32_t r_hash_of_5;
+    uint32_t h_6;
     uint64_t key_3;
     int32_t i_3;
     int64_t n_4;
     bool r_bg_redo_2;
+    uint32_t r_hash_of_6;
+    uint32_t h_7;
+    uint32_t r_hash_of_7;
+    uint32_t h_8;
     uint64_t k_3;
     uint64_t key_4;
     int32_t i_4;
     int64_t n_5;
     m = f->method;
     n = initial_count(m);
-    opt_counts[((uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) & 65535] = n;
+    opt_counts[({
+    h_2 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m);
+    r_hash_of; }) & 65535] = n;
     bg_poll();
     h = jit_runtime_lookup(m);
     if (!((h != NULL) && ((h->flags & JM_FAILED) == 0))) {
@@ -2952,7 +3059,10 @@ uint64_t opt_runtime_tier_up(frame *f, int64_t loop)
     }
     v; });
     if ((s == 0) && ((h->opt == 0) && (!({
-    key = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ 0ULL) << 32) | 0ULL | 0ULL | 9223372036854775808ULL;
+    key = ((((uint64_t)({
+    h_3 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_2 = h_3 != 0 ? h_3 : assign_hash_of(m);
+    r_hash_of_2; })) ^ 0ULL) << 32) | 0ULL | 0ULL | 9223372036854775808ULL;
     i = (int32_t)((key ^ (key >> 29)) & 8191);
     n_2 = 0;
     while ((rt_failed[i] != 0) && (n_2 < 4096)) {
@@ -2971,7 +3081,10 @@ exit_failed:;
         r_bg_redo = false;
         goto exit_bg_redo;
     }
-    if (!(rt_bg_redo_key == (((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ 0ULL) << 32) | 0ULL | 0ULL))) {
+    if (!(rt_bg_redo_key == (((((uint64_t)({
+    h_4 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_3 = h_4 != 0 ? h_4 : assign_hash_of(m);
+    r_hash_of_3; })) ^ 0ULL) << 32) | 0ULL | 0ULL))) {
         r_bg_redo = false;
         goto exit_bg_redo;
     }
@@ -2985,7 +3098,10 @@ exit_bg_redo:;
     r_bg_redo; }))) {
             bg_optimize(m, 0, 0, 0, h, (jit_method *)NULL);
         } else if (optimize(m, h) == NULL) {
-            k_2 = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ 0ULL) << 32) | 0ULL | 0ULL;
+            k_2 = ((((uint64_t)({
+    h_5 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_4 = h_5 != 0 ? h_5 : assign_hash_of(m);
+    r_hash_of_4; })) ^ 0ULL) << 32) | 0ULL | 0ULL;
             key_2 = k_2 | 9223372036854775808ULL;
             i_2 = (int32_t)((key_2 ^ (key_2 >> 29)) & 8191);
             n_3 = 0;
@@ -3108,7 +3224,10 @@ exit_opt_of:;
     } else {
         o = unit_of(m, s, k);
         if (((o == NULL) || ((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0))) && (o->generation < OPT_MAX_GENERATIONS)))) && (!({
-    key_3 = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)k) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)k) & 0xFFFF) | 9223372036854775808ULL;
+    key_3 = ((((uint64_t)({
+    h_6 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_5 = h_6 != 0 ? h_6 : assign_hash_of(m);
+    r_hash_of_5; })) ^ (((uint64_t)k) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)k) & 0xFFFF) | 9223372036854775808ULL;
     i_3 = (int32_t)((key_3 ^ (key_3 >> 29)) & 8191);
     n_4 = 0;
     while ((rt_failed[i_3] != 0) && (n_4 < 4096)) {
@@ -3130,7 +3249,10 @@ exit_failed_2:;
         r_bg_redo_2 = false;
         goto exit_bg_redo_2;
     }
-    if (!(rt_bg_redo_key == (((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)k) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)k) & 0xFFFF)))) {
+    if (!(rt_bg_redo_key == (((((uint64_t)({
+    h_7 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_6 = h_7 != 0 ? h_7 : assign_hash_of(m);
+    r_hash_of_6; })) ^ (((uint64_t)k) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)k) & 0xFFFF)))) {
         r_bg_redo_2 = false;
         goto exit_bg_redo_2;
     }
@@ -3147,7 +3269,10 @@ exit_bg_redo_2:;
             } else {
                 o = optimize_unit(m, s, k, f->sp, h, o);
                 if (o == NULL) {
-                    k_3 = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)k) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)k) & 0xFFFF);
+                    k_3 = ((((uint64_t)({
+    h_8 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_7 = h_8 != 0 ? h_8 : assign_hash_of(m);
+    r_hash_of_7; })) ^ (((uint64_t)k) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)k) & 0xFFFF);
                     key_4 = k_3 | 9223372036854775808ULL;
                     i_4 = (int32_t)((key_4 ^ (key_4 >> 29)) & 8191);
                     n_5 = 0;
@@ -3198,11 +3323,21 @@ uint64_t unit_entry_of(uint64_t m, int64_t s)
 /* OptRuntime>>unitOf:start:osr: */
 static jit_method *unit_of(oop m, int32_t s, int32_t t)
 {
+    uint32_t r_hash_of;
+    uint32_t h_2;
     uint64_t i;
     jit_method *h;
-    i = (((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK) * 31 + (uint64_t)s) * 31 + (uint64_t)t + (((uint64_t)t) >> 17) * 2654435761LL) & 8191;
+    uint32_t r_hash_of_2;
+    uint32_t h_3;
+    i = (((uint64_t)({
+    h_2 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m);
+    r_hash_of; }) * 31 + (uint64_t)s) * 31 + (uint64_t)t + (((uint64_t)t) >> 17) * 2654435761LL) & 8191;
     while ((h = rt_units[i]) != NULL) {
-        if ((h->method_hash == (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) && ((h->block_start == (uint32_t)s) && ((h->osr_pc == (uint32_t)t) && ((h->method == m) || (!((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0))))))) {
+        if ((h->method_hash == ({
+    h_3 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_2 = h_3 != 0 ? h_3 : assign_hash_of(m);
+    r_hash_of_2; })) && ((h->block_start == (uint32_t)s) && ((h->osr_pc == (uint32_t)t) && ((h->method == m) || (!((h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0))))))) {
             return h;
         }
         i = (i + 1) & 8191;
@@ -3219,6 +3354,8 @@ static int32_t variant_of(frame *f, oop m, int32_t s, int32_t g)
     oop r;
     oop c;
     uint64_t h;
+    uint32_t r_hash_of;
+    uint32_t h_2;
     uint64_t x;
     uint64_t r_mix;
     uint64_t r_2;
@@ -3226,10 +3363,14 @@ static int32_t variant_of(frame *f, oop m, int32_t s, int32_t g)
     int v;
     int32_t t;
     bool r_failed;
+    uint32_t r_hash_of_2;
+    uint32_t h_3;
     uint64_t key;
     int32_t i;
     int64_t n;
     bool r_failed_2;
+    uint32_t r_hash_of_3;
+    uint32_t h_4;
     uint64_t key_2;
     int32_t i_2;
     int64_t n_2;
@@ -3243,7 +3384,10 @@ static int32_t variant_of(frame *f, oop m, int32_t s, int32_t g)
         goto exit_signature_of;
     }
     h = (uint64_t)w_2;
-    x = (uint64_t)(uint32_t)(((*(uint64_t *)c) >> H_HASH_SHIFT) & H_HASH_MASK) + 1;
+    x = (uint64_t)({
+    h_2 = (uint32_t)(((*(uint64_t *)c) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(c);
+    r_hash_of; }) + 1;
     w_2 = (uint32_t)(({
     r_2 = (h ^ x) * 6364136223846793005ULL;
     r_mix = r_2 ^ (r_2 >> 29);
@@ -3263,7 +3407,10 @@ exit_signature_of:;
         o = unit_of(m, s, t);
         if (o == NULL) {
             if (({
-    key = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF) | 9223372036854775808ULL;
+    key = ((((uint64_t)({
+    h_3 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_2 = h_3 != 0 ? h_3 : assign_hash_of(m);
+    r_hash_of_2; })) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF) | 9223372036854775808ULL;
     i = (int32_t)((key ^ (key >> 29)) & 8191);
     n = 0;
     while ((rt_failed[i] != 0) && (n < 4096)) {
@@ -3283,7 +3430,10 @@ exit_failed:;
             return t;
         } else if (o->signature == w) {
             if (!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((!({
-    key_2 = ((((uint64_t)(uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK)) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF) | 9223372036854775808ULL;
+    key_2 = ((((uint64_t)({
+    h_4 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_3 = h_4 != 0 ? h_4 : assign_hash_of(m);
+    r_hash_of_3; })) ^ (((uint64_t)t) >> 16)) << 32) | ((((uint64_t)s) & 0xFFFF) << 16) | (((uint64_t)t) & 0xFFFF) | 9223372036854775808ULL;
     i_2 = (int32_t)((key_2 ^ (key_2 >> 29)) & 8191);
     n_2 = 0;
     while ((rt_failed[i_2] != 0) && (n_2 < 4096)) {

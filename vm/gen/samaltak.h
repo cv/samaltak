@@ -1117,9 +1117,6 @@ struct jit_state {
     uint64_t base_frame;
     uint64_t base_record;
     uint64_t eden_box;
-    uint64_t hash_box;
-    uint64_t lcg_mul;
-    uint64_t lcg_add;
     oop tag_classes[8];
     oop block_class;
     oop byte_string_class;
@@ -1139,7 +1136,7 @@ struct jit_state {
     uint64_t pending_bound_frame;
     oop oop_table[2048];
 };
-_Static_assert(sizeof(jit_state) == 17224, "the simulator lays out JitState as C does");
+_Static_assert(sizeof(jit_state) == 17200, "the simulator lays out JitState as C does");
 
 struct large_operand {
     const uint64_t *limbs;
@@ -2193,6 +2190,7 @@ uint64_t alloc_obj_try(oop cls, int32_t fmt, uint64_t n);
 uint64_t object_memory_alloc_old_format_slots(oop cls, int32_t fmt, uint32_t n);
 oop alloc_slots(oop cls, uint32_t n);
 uint64_t alloc_unfilled_try(oop cls, int32_t fmt, uint64_t n);
+uint32_t assign_hash_of(oop o);
 size_t byte_size(oop o);
 oop class_of(oop o);
 uint32_t fixed_fields(oop o);

@@ -55,7 +55,7 @@ word 0:
 |---|---|
 | 0–31 | `numSlots`: body size in 8-byte words |
 | 32–36 | `format` |
-| 37–58 | `identityHash` (22 bits, assigned at allocation, never 0, never derived from the address) |
+| 37–58 | `identityHash` (22 bits, never derived from the address; 0 until it is first asked for, when `ObjectMemory>>assignHashOf:`, the one place that writes it, gives the generator's next value, never 0: allocation, inline in machine code too, stores no hash) |
 | 59 | immutable |
 | 60–62 | GC private (marks, age, remembered) |
 | 63 | forwarded (GC private) |

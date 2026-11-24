@@ -668,9 +668,6 @@ stackLimitNormalOffset
 dumpOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #dump) to: 'int64_t'
 !
-hashBoxOffset
-	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #hashBox) to: 'int64_t'
-!
 boxedFloatClassOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #boxedFloatClass) to: 'int64_t'
 !
@@ -2342,7 +2339,7 @@ emitAllocate: n slow: slow done: done
 				shift > 0 ifTrue: [fmt := (fmt + ((k << shift) - e)) asInt32]]].
 	k >= 0
 		ifTrue: [
-			asm comment: 'header: slots, format, a hash (the VM''s generator)'.
+			asm comment: 'header: slots and format (the identity hash comes at its first use)'.
 			asm mov: self scratchB imm: (k asInt64 bitOr: fmt asInt64 << H_FMT_SHIFT)]
 		ifFalse: [
 			r := self src: (ir operand: nd args + 1) into: self scratchB.
@@ -2361,8 +2358,8 @@ emitAllocate: n slow: slow done: done
 					asm add: X17 with: X17 imm: fmt.
 					asm orr: self scratchB with: X16 with: X17 shift: SHIFT_LSL amount: H_FMT_SHIFT]
 				ifFalse: [asm orr: self scratchB with: self scratchB imm: fmt asUInt64 << H_FMT_SHIFT].
-			asm comment: 'header: slots, format, a hash (the VM''s generator)'].
-	self emitEdenObject: nd tcls slow: slow.
+			asm comment: 'header: slots and format (the identity hash comes at its first use)'].
+	self emitEdenObject: nd tcls bytes: (k >= 0 ifTrue: [16 + (8 * k)] ifFalse: [-1]) slow: slow.
 	(shift > 0 and: [(fused := self fusedReplaceOf: n) >= 0]) ifTrue: [
 		self emitFill: n upTo: (ir operand: (ir node: fused) args + 2).
 		r := self dst: n.
@@ -2372,7 +2369,11 @@ emitAllocate: n slow: slow done: done
 	asm comment: (shift = 0 ifTrue: ['fields nil'] ifFalse: ['zeroed']).
 	v := shift = 0 ifTrue: [X23] ifFalse: [XZR].
 	(k >= 0 and: [k <= 16])
-		ifTrue: [0 to: k - 1 do: [:i | asm str: v base: X16 offset: 16 + (8 * i)]]
+		ifTrue: [
+			0 to: k - 1 by: 2 do: [:i |
+				i + 1 < k
+					ifTrue: [asm stp: v with: v base: X16 offset: 16 + (8 * i)]
+					ifFalse: [asm str: v base: X16 offset: 16 + (8 * i)]]]
 		ifFalse: [
 			loop := asm newLabel.
 			fill := asm newLabel.
@@ -2394,34 +2395,31 @@ emitAllocate: n slow: slow done: done
 	self def: n from: r.
 	asm b: done
 !
-emitEdenObject: cls slow: slow
-	"x16 := a new object of class cls in eden, its header the slots and format in scratchB with a hash (the VM's generator); no room, or the allocation sample's limit: slow. Uses scratchA, scratchB, x17."
-	asm ldr: X16 base: X22 offset: self hashBoxOffset.
-	asm ldr: X17 base: X16 offset: 0.
-	asm mov: self scratchA imm: 6364136223846793005.
-	asm mul: X17 with: X17 with: self scratchA.
-	asm mov: self scratchA imm: 1442695040888963407.
-	asm add: X17 with: X17 with: self scratchA.
-	asm str: X17 base: X16 offset: 0.
-	asm lsr: X17 with: X17 imm: 40.
-	asm and: X17 with: X17 imm: H_HASH_MASK.
-	asm cmp: X17 imm: 0.
-	asm csinc: X17 with: X17 with: XZR cond: COND_NE.
-	asm orr: self scratchB with: self scratchB with: X17 shift: SHIFT_LSL amount: H_HASH_SHIFT.
-	asm comment: 'room in eden'.
-	asm ubfx: self scratchA with: self scratchB lsb: 0 width: 32.
-	asm lsl: self scratchA with: self scratchA imm: 3.
-	asm add: self scratchA with: self scratchA imm: 16.
+emitEdenObject: cls bytes: b slow: slow
+	"x16 := a new object of class cls in eden, bumping its top (GarbageCollector>>edenBox: the top, then the fast path's limit), its header scratchB: slots and format, no identity hash (assigned at its first use, ObjectMemory>>assignHashOf:); b its bytes, -1 if only the header's slots say; no room, or the allocation sample's limit: slow. Uses scratchA, x17."
+	asm comment: 'room in eden: its top, the limit (GarbageCollector>>edenBox)'.
 	asm adrp: X17 label: (asm labelAt: gc edenBoxAddress).
 	asm add: X17 with: X17 imm: (gc edenBoxAddress bitAnd: 16rFFF) asInt64.
-	asm ldr: X16 base: X17 offset: 0.
-	asm add: self scratchA with: X16 with: self scratchA.
-	asm ldr: X17 base: X17 offset: 8.
-	asm cmp: self scratchA with: X17.
-	asm b: slow if: COND_HI.
-	asm adrp: X17 label: (asm labelAt: gc edenBoxAddress).
-	asm add: X17 with: X17 imm: (gc edenBoxAddress bitAnd: 16rFFF) asInt64.
+	(b >= 0 and: [b < 4096])
+		ifTrue: [
+			asm ldp: X16 with: self scratchA base: X17 offset: 0.
+			asm sub: self scratchA with: self scratchA imm: b.
+			asm cmp: X16 with: self scratchA.
+			asm b: slow if: COND_HI.
+			asm add: self scratchA with: X16 imm: b]
+		ifFalse: [
+			asm ubfx: self scratchA with: self scratchB lsb: 0 width: 32.
+			asm lsl: self scratchA with: self scratchA imm: 3.
+			asm add: self scratchA with: self scratchA imm: 16.
+			asm ldr: X16 base: X17 offset: 0.
+			asm add: self scratchA with: X16 with: self scratchA.
+			asm ldr: X17 base: X17 offset: 8.
+			asm cmp: self scratchA with: X17.
+			asm b: slow if: COND_HI.
+			asm adrp: X17 label: (asm labelAt: gc edenBoxAddress).
+			asm add: X17 with: X17 imm: (gc edenBoxAddress bitAnd: 16rFFF) asInt64].
 	asm str: self scratchA base: X17 offset: 0.
+	asm comment: 'header and class'.
 	self loadConstant: cls into: X17.
 	asm stp: self scratchB with: X17 base: X16 offset: 0
 !
@@ -2438,7 +2436,7 @@ emitMakeArray: n
 		ifTrue: [
 			asm comment: 'make an Array in eden, the operands its elements'.
 			asm mov: self scratchB imm: (k asInt64 bitOr: F_VAR asInt64 << H_FMT_SHIFT).
-			self emitEdenObject: memory clsArray slow: slow.
+			self emitEdenObject: memory clsArray bytes: 16 + (8 * k) slow: slow.
 			0 to: k - 1 do: [:i |
 				x := self src: (ir operand: nd args + i) into: self scratchA.
 				asm str: x base: X16 offset: (self fieldOffset: i)].
