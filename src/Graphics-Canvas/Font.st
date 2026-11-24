@@ -446,12 +446,13 @@ emojiFaceName
 	^'Twemoji'
 !
 imageFaceNames
-	"The faces stage 2 loads into the image: the standard faces, the fallback faces and the color emoji face. The runtime image keeps none: its applications read the faces they draw from their files, as they need them."
+	"The faces stage 2 loads into the image: the standard faces, the fallback faces, the theme faces and the color emoji face. The runtime image keeps none: its applications read the faces they draw from their files, as they need them."
 	| names |
 	Smalltalk isRuntimeImage ifTrue: [^#()].
 	names := OrderedCollection new.
 	self standardSpecs do: [:spec | (names includes: (spec at: 2)) ifFalse: [names add: (spec at: 2)]].
 	self fallbackFaceNames do: [:each | (names includes: each) ifFalse: [names add: each]].
+	self themeFaceNames do: [:each | (names includes: each) ifFalse: [names add: each]].
 	names add: self emojiFaceName.
 	^names asArray
 !
@@ -477,6 +478,10 @@ isInvisible: codePoint
 hexDigitDots
 	"3×5 dot patterns of the hex digits 0-F (rows top to bottom, most significant bit first), for missing-glyph boxes."
 	^#(16r7B6F 16r2C97 16r73E7 16r73CF 16r5BC9 16r79CF 16r79EF 16r7249 16r7BEF 16r7BCF 16r7BED 16r6BAE 16r7927 16r6B6E 16r79E7 16r79E4)
+!
+themeFaceNames
+	"Faces a theme draws its UI in (the be-gold theme's Noto Sans, Haiku's system face): stage 2 loads them when fonts/ has them."
+	^#('NotoSans-Regular' 'NotoSans-Bold' 'NotoSans-Italic')
 ! !
 
 !Font class methodsFor: 'standard fonts'!

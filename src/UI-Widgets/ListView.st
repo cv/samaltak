@@ -344,6 +344,15 @@ drawSelfOn: aCanvas
 		top := self barTop.
 		top isNil ifFalse: [
 			bar := 0 @ (top - offset + self contentTop) extent: self rowsWidth @ (self heightOfRow: selection).
+			self theme invertsSelection ifFalse: [
+				aCanvas fillRect: bar color: (self showsFocusedSelection
+					ifTrue: [self theme selectionColor]
+					ifFalse: [self theme selectionColor mixed: 0.5 with: self theme paper]).
+				aCanvas clip: bar during: [
+					((self rowIndexAtContentY: bar top - self contentTop + offset) max: 1)
+						to: ((self rowIndexAtContentY: bar bottom - self contentTop + offset - 0.01) max: 1)
+						do: [:i | self drawRow: i on: aCanvas inverted: false]].
+				^self].
 			self showsFocusedSelection
 				ifTrue: [
 					aCanvas fillRect: bar color: self theme ink.

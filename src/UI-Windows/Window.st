@@ -3,8 +3,6 @@ Object subclass: #Window
 	classVariableNames: 'ChromeStyle ErrorHandler'
 	package: 'UI-Windows'!
 
-x!
-
 Window comment: 'I am an overlapping window of the World: a Blue Book frame (title bar with stripes and the black title tab when focused, close and collapse boxes, the process chip, a resize grip) around a content View, with my own Process (priority 40, named after my title) running an event loop over a SharedQueue.
 
 	Window new title: ''Hello''; content: aView; bounds: (100@100 extent: 400@300); open
@@ -173,15 +171,18 @@ agentContext
 
 !Window methodsFor: 'geometry'!
 titleBarHeight
-	^21
+	"The title bar; tabbed, the tab (its last row lies on the frame)."
+	^self isTabbed ifTrue: [25] ifFalse: [21]
 !
 contentTop
-	"Frame (1) + title bar (21) + rule (1)."
-	^23
+	"Frame (1) + title bar (21) + rule (1); tabbed: tab (24) + frame (5)."
+	^self isTabbed ifTrue: [self frameTop + self frameWidth] ifFalse: [23]
 !
 contentRectInWindow
 	"The content area in my own coordinates (0@0 = my top-left)."
-	^1 @ self contentTop corner: (bounds width - 1) @ (bounds height - 1)
+	| b |
+	b := self frameWidth.
+	^b @ self contentTop corner: (bounds width - b) @ (bounds height - b)
 !
 contentOrigin
 	"The screen point of my content's 0@0."
@@ -194,7 +195,8 @@ contentExtent
 	^self contentRectInWindow extent max: 0 @ 0
 !
 collapsedHeight
-	^self contentTop
+	"Just the title bar; tabbed, just the tab."
+	^self isTabbed ifTrue: [self titleBarHeight] ifFalse: [self contentTop]
 !
 constrain: aRectangle
 	"Keep my extent at least minExtent (collapsed: title bar only)."
@@ -207,10 +209,13 @@ constrain: aRectangle
 !
 closeBoxRect
 	"In my coordinates."
-	^7 @ 6 extent: 11 @ 11
+	^self isTabbed ifTrue: [5 @ 5 extent: 15 @ 15] ifFalse: [7 @ 6 extent: 11 @ 11]
 !
 collapseBoxRect
-	^(bounds width - 18) @ 6 extent: 11 @ 11
+	"Tabbed: where Haiku has the zoom box, at the tab's right end."
+	^self isTabbed
+		ifTrue: [(self tabRect right - 20) @ 5 extent: 15 @ 15]
+		ifFalse: [(bounds width - 18) @ 6 extent: 11 @ 11]
 !
 chipRect
 	"The process chip (just its dot unless busy or suspended)."
@@ -219,7 +224,7 @@ chipRect
 chipRectWidth: w
 	| right |
 	right := self collapseBoxRect left - 5.
-	^(right - w) @ 4 extent: w @ 15
+	^(right - w) @ (self isTabbed ifTrue: [5] ifFalse: [4]) extent: w @ 15
 !
 chipWidth
 	| label |
@@ -235,31 +240,54 @@ chipLabel
 	^nil
 !
 resizeGripRect
-	^(bounds width - 11) @ (bounds height - 11) extent: 9 @ 9
+	| b |
+	b := self frameWidth.
+	^(bounds width - 10 - b) @ (bounds height - 10 - b) extent: 9 @ 9
 !
 zoneAt: aScreenPoint
-	"The window-manager zone at aScreenPoint: #close #collapse #chip #title #resizeL #resizeR #resizeB #resizeBR #content #frame, or nil when outside (resize zones reach 3 points beyond my frame)."
-	| p w h |
+	"The window-manager zone at aScreenPoint: #close #collapse #chip #title #resizeL #resizeR #resizeB #resizeBR #content #frame, or nil when outside (resize zones reach 3 points beyond my frame; tabbed, beside the tab is outside)."
+	| p w h b |
 	p := aScreenPoint - bounds origin.
 	w := bounds width.
 	h := bounds height.
+	b := self frameWidth max: 4.
 	(p x < -3 or: [p y < 0 or: [p x >= (w + 3) or: [p y >= (h + 3)]]]) ifTrue: [^nil].
 	((self closeBoxRect outsetBy: 2) containsPoint: p) ifTrue: [^#close].
 	((self collapseBoxRect outsetBy: 2) containsPoint: p) ifTrue: [^#collapse].
 	((self chipRect outsetBy: 2) containsPoint: p) ifTrue: [^#chip].
+	(self isTabbed and: [p y < self frameTop or: [collapsed]]) ifTrue: [
+		^(p y < self titleBarHeight and: [p x >= 0 and: [p x < self tabRect right]]) ifTrue: [#title] ifFalse: [nil]].
 	p y < self contentTop ifTrue: [
 		(p x < 0 or: [p x >= w]) ifTrue: [^collapsed ifTrue: [nil] ifFalse: [p x < 0 ifTrue: [#resizeL] ifFalse: [#resizeR]]].
-		^#title].
+		^self isTabbed ifTrue: [#frame] ifFalse: [#title]].
 	collapsed ifTrue: [^nil].
 	(p x >= (w - 14) and: [p y >= (h - 14)]) ifTrue: [^#resizeBR].
-	p x >= (w - 4) ifTrue: [^#resizeR].
-	p x < 4 ifTrue: [^#resizeL].
-	p y >= (h - 4) ifTrue: [^#resizeB].
+	p x >= (w - b) ifTrue: [^#resizeR].
+	p x < b ifTrue: [^#resizeL].
+	p y >= (h - b) ifTrue: [^#resizeB].
 	(self contentRectInWindow containsPoint: p) ifTrue: [^#content].
 	^#frame
 !
 containsPoint: aScreenPoint
 	^(self zoneAt: aScreenPoint) notNil
+!
+frameTop
+	"Where my frame begins: tabbed, under the tab's first rows."
+	^self isTabbed ifTrue: [self titleBarHeight - 1] ifFalse: [0]
+!
+frameWidth
+	"Blue Book: a 1-point rule; tabbed: Haiku's 5-point bevelled border."
+	^self isTabbed ifTrue: [5] ifFalse: [1]
+!
+tabRect
+	"Tabbed: the tab, as wide as the close box, the title, the chip and the collapse box need (Haiku's tab hugs its title)."
+	^0 @ 0 extent: (self closeBoxRect right + 12 + self tabTitleWidth + 14 + 16 + 5 + 20 min: bounds width) @ self titleBarHeight
+!
+tabTitleWidth
+	"The room the tab gives the title: as wide as it is, but the tab stays inside my width."
+	| max |
+	max := bounds width - self closeBoxRect right - 70 max: 0.
+	^(Font title widthOf: title) ceiling min: max
 ! !
 
 !Window methodsFor: 'testing'!
@@ -308,6 +336,10 @@ processState
 	self isBusy ifTrue: [^'busy'].
 	(p isActiveProcess or: [p isRunnable]) ifTrue: [^'running'].
 	^'waiting'
+!
+isTabbed
+	"Do I draw the BeOS/Haiku chrome (a tab holding the title above a bevelled frame)?"
+	^self class chromeStyle == #tab
 ! !
 
 !Window methodsFor: 'opening and closing'!
@@ -411,8 +443,9 @@ invalidate
 	redrawQueued ifFalse: [self queueRedraw]
 !
 restyle
-	"Drawing code or the look changed: draw my content anew (no replays of retained drawing) and my chrome (any Process)."
+	"Drawing code or the look changed: lay out my content again (the chrome's geometry or the fonts may have changed) and draw it anew (no replays of retained drawing) and my chrome (any Process)."
 	layer isNil ifFalse: [layer chromeKey: nil; markNeedsRender].
+	queue isNil ifFalse: [self queueResize].
 	self invalidate
 !
 redrawChanged
@@ -531,8 +564,11 @@ contentDisplayListFresh: aBoolean
 	| canvas rect |
 	canvas := Canvas extent: bounds extent scale: world displayScale
 		capacity: (layer contentList isNil ifTrue: [32768] ifFalse: [layer contentList byteCount + 32768]).
+	"Tabbed, beside my tab the desk shows: my layer clears to transparent and the content area to paper."
+	layer clearColor: (self isTabbed ifTrue: [Color transparent] ifFalse: [nil]).
 	(collapsed or: [content isNil]) ifFalse: [
 		rect := self contentRectInWindow.
+		self isTabbed ifTrue: [canvas fillRect: rect color: Color paper].
 		canvas clip: rect during: [
 			canvas translateBy: rect origin + content position during: [
 				[aBoolean
@@ -694,7 +730,7 @@ restartProcess
 !Window methodsFor: 'chrome'!
 chromeKey
 	"What my chrome depends on; the compositor re-renders my layer when it changes."
-	^Array with: bounds extent with: (focusAmount * 50) rounded with: title with: collapsed
+	^Array with: bounds extent with: (focusAmount * 50) rounded with: title with: collapsed with: self class chromeStyle
 !
 drawTitleOn: c in: bar
 	"The title tab between the close box and the chip; when focused (f: focus amount) black, with stripes on both sides."
@@ -764,7 +800,7 @@ drawDecorationsOn: c time: ms
 drawSuspendedChip: label on: c
 	| chip |
 	chip := self chipRect.
-	c fillRect: (chip outsetBy: 2) color: Color paper.
+	c fillRect: (chip outsetBy: 2) color: self chipBackground.
 	c fillRect: chip color: Color ink.
 	c fillRect: ((chip left + 5) @ (chip top + 5) extent: 5 @ 5) color: Color paper.
 	c drawString: label at: (chip left + 15) @ (chip top - 1) font: Font smallItalic color: Color paper
@@ -777,7 +813,7 @@ drawBusy: label on: c time: ms
 			x := (ms / 400.0 * 8) \\ 8.
 			c pattern: #diagonalStripes in: ((1 - 8 + x) @ self contentTop extent: (bounds width + 8) @ 2) color: Color ultramarine]].
 	chip := self chipRect.
-	c fillRect: (chip outsetBy: 2) color: Color paper.
+	c fillRect: (chip outsetBy: 2) color: self chipBackground.
 	x := chip left + 9.5.
 	y := chip top + 7.5.
 	angle := ms / 700.0 * 2 * Float pi.
@@ -797,6 +833,12 @@ decorationsNeedFrameAt: ms
 	chip := self chipLabel.
 	chip = shownChip ifFalse: [shownChip := chip. ^true].
 	^(chip notNil and: [chip ~= 'suspended']) or: [(ms - lastInputTime) < 200]
+!
+chipBackground
+	"What the busy and suspended chip stand on: the paper, or tabbed the tab."
+	^self isTabbed
+		ifTrue: [((Color named: #tabInactive) mixed: focusAmount with: (Color named: #tab))]
+		ifFalse: [Color paper]
 ! !
 
 !Window methodsFor: 'remote control'!
@@ -871,15 +913,6 @@ screenshotContent
 	^world screenshot: self contentBounds
 ! !
 
-!Window class methodsFor: 'chrome'!
-chromeStyle
-	"#classic (Blue Book stripes) or #tab (a BeOS-like tab, colored by Color tab and tabShade)."
-	^ChromeStyle ifNil: [#classic]
-!
-chromeStyle: aSymbol
-	ChromeStyle := aSymbol
-! !
-
 !Window methodsFor: 'drawing'!
 drawChromeOn: c
 	"Frame, title bar and grip in my coordinates (the content was drawn below)."
@@ -895,41 +928,70 @@ drawChromeOn: c
 	self drawBoxesOn: c.
 	collapsed ifFalse: [self drawGripOn: c]
 !
+drawFrameOn: c
+	"Haiku's border below the tab: five rings, lit at the top and left, shaded at the bottom and right."
+	| r |
+	r := 0 @ self frameTop corner: bounds width @ bounds height.
+	#(#(16r9D9D9D 16r848484) #(16rF3F3F3 16rCFCFCF) #(16rE0E0E0 16rE0E0E0) #(16rCFCFCF 16rF3F3F3) #(16r9D9D9D 16r9D9D9D)) do: [:pair |
+		| lit shaded |
+		lit := Color hex: pair first.
+		shaded := Color hex: pair last.
+		c fillRect: (r origin extent: r width @ 1) color: lit.
+		c fillRect: (r origin extent: 1 @ r height) color: lit.
+		c fillRect: (r left @ (r bottom - 1) extent: r width @ 1) color: shaded.
+		c fillRect: ((r right - 1) @ (r top + 1) extent: 1 @ (r height - 1)) color: shaded.
+		r := r insetBy: 1]
+!
+drawTabBox: box on: c top: top bottom: bottom edge: edge
+	"A box of the tab: its edge around the tab's shading, lighter at the top."
+	| light |
+	light := top mixed: 0.5 with: Color white.
+	1 to: box height - 2 do: [:y |
+		c fillRect: ((box left + 1) @ (box top + y) extent: (box width - 2) @ 1) color: (light mixed: y - 1 / (box height - 3) with: bottom)].
+	c strokeRect: box color: edge width: 1
+!
+drawTabBoxesOn: c top: top bottom: bottom edge: edge
+	"The collapse box as Haiku's zoom box (a small box over a larger one) and the chip's dot."
+	| box |
+	box := self collapseBoxRect.
+	self drawTabBox: ((box left + 4) @ (box top + 4) corner: box corner) on: c top: top bottom: bottom edge: edge.
+	self drawTabBox: (box origin extent: 9 @ 9) on: c top: top bottom: bottom edge: edge.
+	c strokeRect: self dotRect color: edge width: 1
+!
 drawTabChromeOn: c
-	"The BeOS-like chrome: a gray bevelled frame and bar, the title on a shaded tab that holds the close box; the tab is Color tab when focused, gray when not."
-	| w h bar f titleFont label tab top bottom box |
+	"The Haiku chrome: a 5-point bevelled gray frame and above it a tab as wide as the title, Color tab shading down from tabLight when focused (tabInactive when not), holding the close box, the title, the chip and the collapse box. Beside the tab is transparent (my layer clears to transparent)."
+	| w h f tab top bottom edge label titleFont x |
 	w := bounds width.
 	h := bounds height.
 	f := focusAmount.
-	bar := 1 @ 1 extent: (w - 2) @ self titleBarHeight.
-	c fillRect: bar color: Color paper.
+	collapsed ifFalse: [self drawFrameOn: c].
+	tab := self tabRect.
+	top := (Color named: #tabInactiveLight) mixed: f with: (Color named: #tabLight).
+	bottom := (Color named: #tabInactive) mixed: f with: (Color named: #tab).
+	edge := (Color named: #tabInactiveEdge) mixed: f with: (Color named: #tabEdge).
+	2 to: tab height - 1 do: [:y |
+		c fillRect: (tab left @ y extent: tab width @ 1) color: (top mixed: y - 2 / (tab height - 3) with: bottom)].
+	c fillRect: (1 @ 1 extent: (tab width - 2) @ 1) color: (top mixed: 0.3 with: bottom).
+	c fillRect: (1 @ 1 extent: 1 @ (tab height - 1)) color: (top mixed: 0.3 with: bottom).
+	c fillRect: ((tab right - 2) @ 1 extent: 1 @ (tab height - 1)) color: (bottom mixed: 0.25 with: edge).
+	c fillRect: (0 @ 0 extent: (tab width - 1) @ 1) color: (Color hex: 16r9D9D9D).
+	c fillRect: (0 @ 0 extent: 1 @ tab height) color: (Color hex: 16r9D9D9D).
+	c fillRect: ((tab right - 1) @ 0 extent: 1 @ tab height) color: (Color hex: 16r848484).
+	self drawTabBox: self closeBoxRect on: c top: top bottom: bottom edge: edge.
 	titleFont := Font title.
-	label := self class truncate: title to: self chipRectStatic left - self closeBoxRect right - 40 font: titleFont.
-	tab := bar origin extent: ((self closeBoxRect right + 8 + (titleFont widthOf: label) + 12) min: self chipRectStatic left - 8) rounded @ bar height.
-	top := (Color named: #hair) mixed: f with: (Color named: #tab).
-	bottom := (Color named: #ink4) mixed: f with: (Color named: #tabShade).
-	0 to: tab height - 1 do: [:y |
-		c fillRect: (tab left @ (tab top + y) extent: tab width @ 1)
-			color: (top mixed: y / (tab height - 1) with: bottom)].
-	c fillRect: (tab origin extent: tab width @ 1) color: (Color white alpha: 0.8).
-	c fillRect: (tab topRight - (1 @ 0) extent: 1 @ tab height) color: (Color named: #ink3).
-	box := self closeBoxRect.
-	c fillRect: box color: (Color white alpha: 0.55).
-	c fillRect: (box origin + 1 extent: box extent - 2 // 2) color: (Color white alpha: 0.6).
-	c strokeRect: box color: (Color named: #ink3) width: 1.
-	c drawString: label at: (box right + 8) @ (bar top + 3) font: titleFont color: ((Color named: #ink3) mixed: f with: Color ink).
-	self drawTabBoxesOn: c.
-	c fillRect: (1 @ (bar bottom) extent: (w - 2) @ 1) color: (Color named: #ink3).
-	c strokeRect: (0 @ 0 extent: w @ h) color: (Color named: #ink3) width: 1.
-	c fillRect: (1 @ 1 extent: 1 @ (h - 2)) color: (Color white alpha: 0.7).
+	label := self class truncate: title to: self tabTitleWidth font: titleFont.
+	x := self closeBoxRect right + 12.
+	c drawString: label at: x @ ((tab height - titleFont lineHeight) / 2) rounded font: titleFont
+		color: ((Color hex: 16r505050) mixed: f with: Color ink).
+	self drawTabBoxesOn: c top: top bottom: bottom edge: edge.
 	collapsed ifFalse: [self drawGripOn: c]
+! !
+
+!Window class methodsFor: 'chrome'!
+chromeStyle
+	"#classic (Blue Book stripes) or #tab (a BeOS-like tab, colored by Color tab and tabShade)."
+	^ChromeStyle ifNil: [#classic]
 !
-drawTabBoxesOn: c
-	"The collapse box and the chip's dot, bevelled like the close box."
-	| ink |
-	ink := (Color named: #ink3).
-	{self collapseBoxRect. self chipRectStatic} do: [:box |
-		c fillRect: box color: (Color white alpha: 0.55).
-		c strokeRect: box color: ink width: 1].
-	c strokeRect: self dotRect color: ink width: 1
+chromeStyle: aSymbol
+	ChromeStyle := aSymbol
 ! !

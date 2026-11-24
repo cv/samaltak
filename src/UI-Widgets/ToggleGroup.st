@@ -102,21 +102,21 @@ preferredExtent
 !ToggleGroup methodsFor: 'drawing'!
 drawSelfOn: aCanvas
 	| rects ink paper on |
+	self theme isBevelled ifTrue: [^self drawTabsOn: aCanvas].
 	ink := self theme ink.
 	paper := self theme paper.
-	on := self theme isBevelled ifTrue: [self theme color: #pressed] ifFalse: [ink].
+	on := ink.
 	aCanvas fillRect: self localBounds color: paper.
 	self framed ifTrue: [aCanvas fillRect: (0 @ 0 extent: self width @ 1) color: self theme rule].
 	rects := self segmentRects.
 	rects doWithIndex: [:r :i |
-		| amount fg |
+		| amount |
 		amount := self onAmountAt: i.
 		amount > 0 ifTrue: [aCanvas fillRect: r color: (on alpha: amount)].
 		aCanvas strokeRect: r color: ink width: 1.
-		fg := on == ink ifTrue: [ink mixed: amount with: paper] ifFalse: [ink].
 		aCanvas drawString: (self labelAt: i) in: r
 			font: (self theme font: (amount > 0.5 ifTrue: [#buttonBold] ifFalse: [#button]))
-			color: fg align: #center]
+			color: (ink mixed: amount with: paper) align: #center]
 !
 onAmountAt: index
 	"How inverted segment index is (cross-fade between the previous and the new selection)."
@@ -125,6 +125,24 @@ onAmountAt: index
 	index = self selectionIndex ifTrue: [^f].
 	index = previous ifTrue: [^1 - f].
 	^0
+!
+drawTabsOn: aCanvas
+	"Haiku's tab view: the segments are tabs, the chosen one raised and lighter, the others darker."
+	| t edge |
+	t := self theme.
+	edge := t color: #bevelDark.
+	aCanvas fillRect: self localBounds color: t panel.
+	self segmentRects doWithIndex: [:r :i |
+		| amount top bottom |
+		amount := self onAmountAt: i.
+		top := (t panel mixed: 0.15 with: edge) mixed: amount with: (t color: #buttonTop).
+		bottom := (t panel mixed: 0.1 with: edge) mixed: amount with: t panel.
+		t shade: (r insetBy: 1) from: top to: bottom on: aCanvas.
+		aCanvas strokeRect: r color: edge width: 1.
+		aCanvas fillRect: ((r left + 1) @ (r top + 1) extent: (r width - 2) @ 1) color: ((t color: #bevelLight) alpha: amount * 0.8 + 0.2).
+		aCanvas drawString: (self labelAt: i) in: r
+			font: (t font: (amount > 0.5 ifTrue: [#buttonBold] ifFalse: [#button]))
+			color: t ink align: #center]
 ! !
 
 !ToggleGroup methodsFor: 'events'!

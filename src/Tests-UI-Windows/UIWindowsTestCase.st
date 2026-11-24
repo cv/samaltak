@@ -7,8 +7,9 @@ UIWindowsTestCase comment: 'I am the abstract superclass of the window-system in
 
 !UIWindowsTestCase methodsFor: 'running'!
 setUp
-	"World current comes back after the test (a cleanup), whatever happens to world."
+	"World current comes back after the test (a cleanup), whatever happens to world; the windows have the Blue Book chrome (the geometry the tests click), whatever the theme."
 	self keep: #current of: World.
+	self replace: #chromeStyle of: Window with: #classic.
 	world := World openHidden: 1000 @ 700
 !
 tearDown

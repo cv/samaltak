@@ -45,6 +45,7 @@ along: aPoint
 !ScrollBar methodsFor: 'drawing'!
 drawSelfOn: aCanvas
 	| thumb r |
+	self theme isBevelled ifTrue: [^self drawBevelledOn: aCanvas].
 	r := self localBounds.
 	aCanvas fillRect: r color: self theme paper.
 	aCanvas pattern: #halftone in: r color: self theme ink.
@@ -59,6 +60,29 @@ drawSelfOn: aCanvas
 			aCanvas fillRect: (thumb left @ 0 corner: thumb right @ (thumb bottom - 1)) color: self theme paper.
 			aCanvas strokeRect: (thumb left @ 0 corner: thumb right @ (thumb bottom + 1)) color: self theme rule width: 1]
 		ifFalse: [aCanvas strokeRect: (thumb left @ thumb top corner: (thumb right + 1) @ thumb bottom) color: self theme rule width: 1]
+!
+drawBevelledOn: aCanvas
+	"Haiku's scroll bar: a sunken gray track and a raised thumb with grip lines."
+	| t r thumb c |
+	t := self theme.
+	r := self localBounds.
+	aCanvas fillRect: r color: (t panel mixed: 0.25 with: (t color: #bevelDark)).
+	aCanvas fillRect: (r origin extent: (self isHorizontal ifTrue: [r width @ 1] ifFalse: [1 @ r height])) color: (t color: #bevelDark).
+	thumb := self thumbRect.
+	thumb isNil ifTrue: [^self].
+	thumb := self isHorizontal
+		ifTrue: [thumb left @ 1 corner: thumb right @ thumb bottom]
+		ifFalse: [1 @ thumb top corner: thumb right @ thumb bottom].
+	aCanvas strokeRect: thumb color: (t color: #bevelDark) width: 1.
+	thumb := thumb insetBy: 1.
+	t shade: thumb from: (t color: #buttonTop) to: (t color: #buttonBottom) on: aCanvas.
+	aCanvas fillRect: (thumb origin extent: thumb width @ 1) color: (t color: #bevelLight).
+	aCanvas fillRect: (thumb origin extent: 1 @ thumb height) color: (t color: #bevelLight).
+	c := thumb center rounded.
+	-2 to: 2 by: 2 do: [:d |
+		self isHorizontal
+			ifTrue: [aCanvas fillRect: ((c x + d) @ (c y - 3) extent: 1 @ 6) color: (t color: #bevelDark)]
+			ifFalse: [aCanvas fillRect: ((c x - 3) @ (c y + d) extent: 6 @ 1) color: (t color: #bevelDark)]]
 ! !
 
 !ScrollBar methodsFor: 'events'!

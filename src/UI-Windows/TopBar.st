@@ -105,8 +105,8 @@ drawOn: c
 	"The brand and, at the right, ? and the tags always; the rest while it fits, in the order of importance: the process count, the image name, fps, ms, the sparkline, its label, the banner, the hint (the first to go when the World is narrow)."
 	| x font mono monoBold label banner hint keep pieces avail |
 	world showsTopBar ifFalse: [^self].
-	c fillRect: (0 @ 0 extent: world extent x @ 26) color: Color paper.
-	c fillRect: (0 @ 26 extent: world extent x @ 1) color: Color ink.
+	c fillRect: (0 @ 0 extent: world extent x @ 26) color: (Color named: #panel).
+	c fillRect: (0 @ 26 extent: world extent x @ 1) color: ((Color named: #panel) = Color paper ifTrue: [Color ink] ifFalse: [Color named: #ink3]).
 	c image: (UIIcons orbScale: c scale) in: (14 @ 5 extent: 16 @ 16).
 	font := self font: #brand.
 	c drawString: 'Samaltak' at: 37 @ (26 - font lineHeight / 2) rounded font: font color: Color ink.

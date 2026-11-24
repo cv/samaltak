@@ -107,8 +107,13 @@ preferredExtent
 drawSelfOn: aCanvas
 	| ink tops |
 	ink := self theme ink.
-	aCanvas fillRect: self localBounds color: self theme paper.
-	aCanvas strokeRect: self localBounds color: ink width: 1.
+	aCanvas fillRect: self localBounds color: self theme panel.
+	self theme isBevelled
+		ifTrue: [
+			aCanvas strokeRect: self localBounds color: (self theme color: #bevelDark) width: 1.
+			aCanvas fillRect: (1 @ 1 extent: (self width - 2) @ 1) color: (self theme color: #bevelLight).
+			aCanvas fillRect: (1 @ 1 extent: 1 @ (self height - 2)) color: (self theme color: #bevelLight)]
+		ifFalse: [aCanvas strokeRect: self localBounds color: ink width: 1].
 	menu title isNil ifFalse: [self drawTitleOn: aCanvas].
 	tops := self itemTops.
 	self items doWithIndex: [:each :i |
@@ -121,8 +126,9 @@ drawTitleOn: aCanvas
 	tw := font widthOf: menu title.
 	x0 := (self width - tw / 2) floor.
 	x1 := x0 + tw.
-	aCanvas pattern: #stripes in: (6 @ 5 corner: (x0 - 6) @ 16).
-	aCanvas pattern: #stripes in: ((x1 + 6) @ 5 corner: (self width - 6) @ 16).
+	self theme isBevelled ifFalse: [
+		aCanvas pattern: #stripes in: (6 @ 5 corner: (x0 - 6) @ 16).
+		aCanvas pattern: #stripes in: ((x1 + 6) @ 5 corner: (self width - 6) @ 16)].
 	aCanvas drawString: menu title in: (0 @ 1 corner: self width @ h) font: font color: self theme ink align: #center.
 	aCanvas fillRect: (0 @ h corner: self width @ (h + 1)) color: self theme rule
 !
@@ -132,11 +138,17 @@ drawItem: anItem at: index in: r on: aCanvas
 	anItem isSeparator ifTrue: [
 		| y |
 		y := r top + 3.
+		self theme isBevelled ifTrue: [
+			aCanvas fillRect: ((r left + 1) @ y extent: (r width - 2) @ 1) color: (self theme color: #bevelDark).
+			^aCanvas fillRect: ((r left + 1) @ (y + 1) extent: (r width - 2) @ 1) color: (self theme color: #bevelLight)].
 		r left to: r right - 1 by: 2 do: [:dx | aCanvas fillRect: (dx @ y extent: 1 @ 1) color: self theme ink].
 		^self].
 	anItem isHeader ifTrue: [
 		^aCanvas drawString: anItem label at: (r left + pad) @ (r top + 5) font: (self theme font: #header) color: self theme muted].
 	on := index = highlight and: [anItem isEnabled].
+	self theme invertsSelection ifFalse: [
+		on ifTrue: [aCanvas fillRect: r color: self theme selectionColor].
+		on := false].
 	on ifTrue: [aCanvas fillRect: r color: self theme ink].
 	fg := anItem isEnabled
 		ifTrue: [on ifTrue: [self theme paper] ifFalse: [self theme ink]]

@@ -126,6 +126,7 @@ namedColors
 			at: #white put: (self hex: 16rFFFFFF);
 			at: #ink put: (self hex: 16r000000);
 			at: #paper put: (self hex: 16rFFFFFF);
+			at: #panel put: (self hex: 16rFFFFFF);
 			at: #shadow put: (self hex: 16r000000);
 			at: #desk put: (self hex: 16rFFFFFF);
 			at: #deskDots put: (self hex: 16r000000);

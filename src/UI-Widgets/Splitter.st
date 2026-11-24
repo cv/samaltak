@@ -78,11 +78,11 @@ dragBy: delta
 drawSelfOn: aCanvas
 	self isVertical
 		ifTrue: [
-			aCanvas fillRect: self localBounds color: self theme paper.
+			aCanvas fillRect: self localBounds color: self theme panel.
 			aCanvas fillRect: (0 @ 0 corner: self width @ 1) color: self theme rule.
 			aCanvas fillRect: (0 @ (self height - 1) corner: self width @ self height) color: self theme rule]
 		ifFalse: [
-			aCanvas fillRect: self localBounds color: self theme paper.
+			aCanvas fillRect: self localBounds color: self theme panel.
 			aCanvas fillRect: (1 @ 0 corner: 2 @ self height) color: self theme rule]
 ! !
 

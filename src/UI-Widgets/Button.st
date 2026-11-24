@@ -129,28 +129,15 @@ drawSelfOn: aCanvas
 	aCanvas drawString: self label in: r font: self font color: textColor align: #center
 !
 drawBevelledOn: aCanvas
-	"A raised gray button with light top-left and dark bottom-right edges; pressed or on, it is the accent green and sunken."
-	| r t light dark face frame textColor |
+	"Haiku's button (Theme>>drawRaised:pressed:hover:on:); the default button has a darker outline."
+	| t r textColor |
 	t := self theme.
 	r := self localBounds.
-	light := t color: #bevelLight.
-	dark := t color: #bevelDark.
-	frame := self isEnabled ifTrue: [t color: #ink3] ifFalse: [t color: #ink4].
+	aCanvas fillRect: r color: t panel.
 	self isDefault ifTrue: [
-		aCanvas strokeRect: r color: t ink width: 1.5.
-		r := r insetBy: 2.5].
-	face := self isInverted
-		ifTrue: [t color: #pressed]
-		ifFalse: [(hover == true and: [self isEnabled]) ifTrue: [light] ifFalse: [t paper mixed: 0.4 with: light]].
-	aCanvas fillRect: r color: face.
-	self isInverted
-		ifTrue: [light := dark. dark := face]
-		ifFalse: [].
-	aCanvas fillRect: (r origin + 1 extent: (r width - 2) @ 1) color: light.
-	aCanvas fillRect: (r origin + 1 extent: 1 @ (r height - 2)) color: light.
-	aCanvas fillRect: ((r left + 1) @ (r bottom - 2) extent: (r width - 2) @ 1) color: dark.
-	aCanvas fillRect: ((r right - 2) @ (r top + 1) extent: 1 @ (r height - 2)) color: dark.
-	aCanvas strokeRect: r color: frame width: 1.
+		aCanvas strokeRect: r color: (t color: #bevelDark) width: 1.
+		r := r insetBy: 2].
+	t drawRaised: r pressed: self isInverted hover: (hover == true and: [self isEnabled]) on: aCanvas.
 	textColor := self isEnabled ifTrue: [t ink] ifFalse: [t color: #ink4].
 	aCanvas drawString: self label in: r font: self font color: textColor align: #center
 ! !
