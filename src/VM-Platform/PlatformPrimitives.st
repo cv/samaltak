@@ -695,15 +695,6 @@ primRasterBlit
 		to: d pixels width: d width height: d height format: d format rect: dr linear: v = memory trueOop.
 	self answerSelf
 !
-primRasterBands
-	"n: the raster's work split into n bands, run on the CPUs there are (CpuWorkers), whatever its size (tests: they must draw what one band does); 0: as many as there are CPUs, for work of enough pixels. Answers the previous n."
-	<vmPrimitive: 484 name: 'rasterBands'>
-	| n |
-	(self args: 1) ifFalse: [^self fail].
-	n := self intArg: 0.
-	(bad or: [n < 0 or: [n > 64]]) ifTrue: [^self fail].
-	self answer: (self intOop: (raster forcedBands: n))
-!
 primRasterQuadBounds
 	"vertices firstQuad count out: the device pixels that quads firstQuad .. firstQuad + count - 1 of a DisplayList's vertex bytes cover (PlatformRaster>>quadBounds:count:into:), as int32 x0 y0 x1 y1 into the first 16 bytes of out; answers false, out untouched, if count is 0. For culling batches outside a damaged rectangle (DisplayList>>boundsOfBatch:)."
 	<vmPrimitive: 485 name: 'rasterQuadBounds'>
@@ -735,7 +726,6 @@ primRasterCopy
 	d := self memoryArg: 0 offset: 0 length: ((h - 1) * ds) + (w * bpp) writable: true.
 	s := self memoryArg: 2 offset: 0 length: ((h - 1) * ss) + (w * bpp) writable: false.
 	bad ifTrue: [^self fail].
-	raster copy: d stride: ds from: s stride: ss width: w height: h bytesPerPixel: bpp mode: mode
-		parallel: ((self isAddressArg: 0) and: [self isAddressArg: 2]).
+	raster copy: d stride: ds from: s stride: ss width: w height: h bytesPerPixel: bpp mode: mode.
 	self answerSelf
 ! !

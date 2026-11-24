@@ -1,6 +1,6 @@
 VMPlatformModule subclass: #PlatformRaster
-	instanceVariableNames: 'rsPixels rsW rsH rsFmt rsClipX0 rsClipY0 rsClipX1 rsClipY1 rsBlend rsTex rsTexW rsTexH rsTexFmt rsLinear rsRepeat rsOx rsOy rsSx rsSy rsTx rsTy rsMode rsColor rsOrgX rsOrgY rsBandY0 rsBandY1 rows workers forcedBands'
-	classVariableNames: 'RS_BAND_ALL RS_MAX_COORD RS_PARALLEL_PIXELS RS_STRIDE'
+	instanceVariableNames: 'rsPixels rsW rsH rsFmt rsClipX0 rsClipY0 rsClipX1 rsClipY1 rsBlend rsTex rsTexW rsTexH rsTexFmt rsLinear rsRepeat rsOx rsOy rsSx rsSy rsTx rsTy rsMode rsColor rsOrgX rsOrgY rows'
+	classVariableNames: 'RS_MAX_COORD RS_STRIDE'
 	package: 'VM-Platform'!
 
 PlatformRaster comment: 'The pixel work of a software GPU (the raster primitives; the image''s SoftwareGPU is the device): the Renderer''s uber-shader (Renderer class>>glslShaderSource) run on a batch of its vertices into a pixel buffer, fills, blits, and copies of pixel rectangles. Pure computation on memory the caller owns: pixels are rows of R8, RGBA8 or BGRA8, tightly packed.
@@ -18,20 +18,12 @@ declarations
 		(rsTex 'uint8_t *') (rsTexW int64_t) (rsTexH int64_t) (rsTexFmt int32_t) (rsLinear bool) (rsRepeat bool)
 		(rsOx double) (rsOy double) (rsSx double) (rsSy double) (rsTx double) (rsTy double)
 		(rsMode uint32_t) (rsColor uint32_t) (rsOrgX double) (rsOrgY double)
-		(rsBandY0 int64_t) (rsBandY1 int64_t)
-		(rows PixelRows) (workers CpuWorkers) (forcedBands int64_t))
-!
-threadLocalVariables
-	"Each CPU draws its band with its own raster state."
-	^#(rsPixels rsW rsH rsFmt rsClipX0 rsClipY0 rsClipX1 rsClipY1 rsBlend rsTex rsTexW rsTexH rsTexFmt rsLinear rsRepeat
-		rsOx rsOy rsSx rsSy rsTx rsTy rsMode rsColor rsOrgX rsOrgY rsBandY0 rsBandY1)
+		(rows PixelRows))
 !
 initialize
-	"The Renderer's vertex; vertex positions are clamped to RS_MAX_COORD pixels from the origin. A band without a bound reaches RS_BAND_ALL rows; work of at least RS_PARALLEL_PIXELS pixels is split into bands across the CPUs (CpuWorkers)."
+	"The Renderer's vertex; vertex positions are clamped to RS_MAX_COORD pixels from the origin."
 	RS_STRIDE := 40.
-	RS_MAX_COORD := 1048576.
-	RS_BAND_ALL := 1099511627776.
-	RS_PARALLEL_PIXELS := 32768
+	RS_MAX_COORD := 1048576
 ! !
 
 !PlatformRaster methodsFor: 'bounds'!
@@ -193,37 +185,6 @@ blend: d source: c k: k
 	^(r bitOr: ch << 24) asUInt32
 !
 fill: pixels count: n bytesPerPixel: bpp value: v
-	"n pixels of bpp bytes (1 or 4) set to v; in parts across the CPUs if there are enough."
-	<function>
-	<var: #pixels type: 'uint8_t *'>
-	<var: #n type: 'int64_t'>
-	<var: #bpp type: 'int'>
-	<var: #v type: 'uint32_t'>
-	| j bands |
-	bands := self rowBands: (n quo: 1024) width: 1024.
-	bands > 1 ifTrue: [
-		j := self local: 'RasterJob'.
-		j dst: pixels.
-		j count: n.
-		j bpp: bpp asInt64.
-		j fillValue: v.
-		j bands: bands.
-		workers parallelRun: (self functionPointer: #fillBand:index:) context: j count: bands.
-		^self].
-	self fillRun: pixels count: n bytesPerPixel: bpp value: v
-!
-fillBand: job index: i
-	"Part i of the fill job (a RasterJob): on any CPU."
-	<function>
-	<var: #job type: 'void *'>
-	<var: #i type: 'int64_t'>
-	| j a b |
-	j := self cCoerce: job to: 'RasterJob *'.
-	a := (j count * i) quo: j bands.
-	b := (j count * (i + 1)) quo: j bands.
-	self fillRun: j dst + (a * j bpp) count: b - a bytesPerPixel: j bpp asInt32 value: j fillValue
-!
-fillRun: pixels count: n bytesPerPixel: bpp value: v
 	"n pixels of bpp bytes (1 or 4) set to v."
 	<function>
 	<var: #pixels type: 'uint8_t *'>
@@ -237,47 +198,7 @@ fillRun: pixels count: n bytesPerPixel: bpp value: v
 	p := self cCoerce: pixels to: 'uint32_t *'.
 	(rows fill: p count: n value: v) to: n - 1 do: [:i | p at: i put: v]
 !
-copy: dst stride: dstStride from: src stride: srcStride width: w height: h bytesPerPixel: bpp mode: mode parallel: parallel
-	"As copyRows:...; in bands across the CPUs if parallel (dst and src outside the heap) and there are enough pixels."
-	<function>
-	<var: #dst type: 'uint8_t *'>
-	<var: #dstStride type: 'int64_t'>
-	<var: #src type: 'uint8_t *'>
-	<var: #srcStride type: 'int64_t'>
-	<var: #w type: 'int64_t'>
-	<var: #h type: 'int64_t'>
-	<var: #bpp type: 'int64_t'>
-	<var: #mode type: 'int64_t'>
-	<var: #parallel type: 'bool'>
-	| j bands |
-	bands := parallel ifTrue: [self rowBands: h width: w] ifFalse: [1].
-	bands > 1 ifTrue: [
-		j := self local: 'RasterJob'.
-		j dst: dst.
-		j dstStride: dstStride.
-		j src: src.
-		j srcStride: srcStride.
-		j w: w.
-		j h: h.
-		j bpp: bpp.
-		j mode: mode.
-		j bands: bands.
-		workers parallelRun: (self functionPointer: #copyBand:index:) context: j count: bands.
-		^self].
-	self copyRows: dst stride: dstStride from: src stride: srcStride width: w height: h bytesPerPixel: bpp mode: mode
-!
-copyBand: job index: i
-	"Band i of the copy job (a RasterJob): on any CPU."
-	<function>
-	<var: #job type: 'void *'>
-	<var: #i type: 'int64_t'>
-	| j a b |
-	j := self cCoerce: job to: 'RasterJob *'.
-	a := (j h * i) quo: j bands.
-	b := (j h * (i + 1)) quo: j bands.
-	self copyRows: j dst + (a * j dstStride) stride: j dstStride from: j src + (a * j srcStride) stride: j srcStride width: j w height: b - a bytesPerPixel: j bpp mode: j mode
-!
-copyRows: dst stride: dstStride from: src stride: srcStride width: w height: h bytesPerPixel: bpp mode: mode
+copy: dst stride: dstStride from: src stride: srcStride width: w height: h bytesPerPixel: bpp mode: mode
 	"Rows of w pixels of bpp bytes (1 or 4); 4-byte pixels with mode bit 1 swap red and blue, with bit 2 only those whose alpha is not 0 are copied."
 	<function>
 	<var: #dst type: 'uint8_t *'>
@@ -312,125 +233,9 @@ rasterize: st vertices: base first: first count: count
 	<var: #base type: 'uint8_t *'>
 	<var: #first type: 'int64_t'>
 	<var: #count type: 'int64_t'>
-	| j bands |
+	| k last |
 	count < 3 ifTrue: [^self].
 	(self prepare: st) ifFalse: [^self].
-	j := self local: 'RasterJob'.
-	j st: st.
-	j base: base.
-	j first: first.
-	j count: count.
-	bands := self bandsOf: j.
-	bands > 1 ifTrue: [
-		workers parallelRun: (self functionPointer: #drawBand:index:) context: j count: bands.
-		^self].
-	self wholeBand.
-	self drawVertices: base first: first count: count
-!
-drawBand: job index: i
-	"Band i of the draw job (a RasterJob): on any CPU, with its own raster state."
-	<function>
-	<var: #job type: 'void *'>
-	<var: #i type: 'int64_t'>
-	| j |
-	j := self cCoerce: job to: 'RasterJob *'.
-	(self prepare: j st) ifFalse: [^self].
-	self band: j index: i.
-	self drawVertices: j base first: j first count: j count
-!
-bandsOf: j
-	"Into how many bands the draw j is split (1: none; at most one per CPU, each at least 8 rows), and the rows it is split at (y0, y1: those of the vertices' bounding box inside the clip, at least RS_PARALLEL_PIXELS pixels). Only where the split goes depends on the vertices: the first band starts and the last ends without a bound."
-	<function>
-	<var: #j type: 'RasterJob *'>
-	<returns: 'int64_t'>
-	| f u k last xl xh yl yh x y a b x0 x1 y0 y1 bands |
-	(forcedBands = 0 and: [workers parallelWorkers = 0]) ifTrue: [^1].
-	xl := 1.0e30.
-	xh := -1.0e30.
-	yl := 1.0e30.
-	yh := -1.0e30.
-	k := j first.
-	last := j first + j count.
-	[k < last] whileTrue: [
-		f := self cCoerce: j base + (k * RS_STRIDE) to: 'float *'.
-		u := self cCoerce: j base + (k * RS_STRIDE) to: 'uint32_t *'.
-		x := (f at: 0) asFloat + (f at: 8) asFloat.
-		y := (f at: 1) asFloat + (f at: 9) asFloat.
-		x < xl ifTrue: [xl := x].
-		x > xh ifTrue: [xh := x].
-		y < yl ifTrue: [yl := y].
-		y > yh ifTrue: [yh := y].
-		((u at: 7) >> 31) = 0 ifTrue: [
-			x := (f at: 2) asFloat + (f at: 8) asFloat.
-			y := (f at: 3) asFloat + (f at: 9) asFloat.
-			x < xl ifTrue: [xl := x].
-			x > xh ifTrue: [xh := x].
-			y < yl ifTrue: [yl := y].
-			y > yh ifTrue: [yh := y]].
-		k := k + 1].
-	(xl <= xh and: [yl <= yh]) ifFalse: [^1].
-	a := self floorOf: rsOx + ((xl + rsTx) * rsSx).
-	b := self floorOf: rsOx + ((xh + rsTx) * rsSx).
-	x0 := (a min: b) max: rsClipX0.
-	x1 := ((a max: b) + 1) min: rsClipX1.
-	a := self floorOf: rsOy + ((yl + rsTy) * rsSy).
-	b := self floorOf: rsOy + ((yh + rsTy) * rsSy).
-	y0 := (a min: b) max: rsClipY0.
-	y1 := ((a max: b) + 1) min: rsClipY1.
-	(x0 < x1 and: [y0 < y1]) ifFalse: [^1].
-	bands := self rowBands: y1 - y0 width: x1 - x0.
-	bands < 2 ifTrue: [^1].
-	j y0: y0.
-	j y1: y1.
-	j bands: bands.
-	^bands
-!
-rowBands: rows width: w
-	"Into how many bands rows rows of w pixels are split (1: none): one per CPU (at least 8 rows each) if there are RS_PARALLEL_PIXELS pixels, or as many as rasterBands: forces."
-	| n bands |
-	rows < 2 ifTrue: [^1].
-	forcedBands > 0 ifTrue: [^forcedBands min: rows].
-	n := workers parallelWorkers.
-	n = 0 ifTrue: [^1].
-	(rows * w) < RS_PARALLEL_PIXELS ifTrue: [^1].
-	bands := (n + 1) min: (rows quo: 8).
-	^bands < 2 ifTrue: [1] ifFalse: [bands]
-!
-band: j index: i
-	"rsBandY0 .. rsBandY1: band i of j's rows; the first and the last band without a bound outside."
-	<var: #j type: 'RasterJob *'>
-	rsBandY0 := i = 0 ifTrue: [RS_BAND_ALL negated] ifFalse: [j y0 + (((j y1 - j y0) * i) quo: j bands)].
-	rsBandY1 := i = (j bands - 1) ifTrue: [RS_BAND_ALL] ifFalse: [j y0 + (((j y1 - j y0) * (i + 1)) quo: j bands)]
-!
-forcedBands: n
-	"Split all work into n bands (n > 0; on one CPU one after the other), or (0) as many as there are CPUs where it is large enough; answer the previous n. For tests: bands draw what one CPU does, to the bit."
-	<function>
-	<var: #n type: 'int64_t'>
-	<returns: 'int64_t'>
-	| old |
-	old := forcedBands.
-	forcedBands := n.
-	^old
-!
-wholeBand
-	rsBandY0 := RS_BAND_ALL negated.
-	rsBandY1 := RS_BAND_ALL
-!
-bandFirst: y
-	"The first row j (of rows y + j) in the band."
-	^(rsBandY0 - y) max: 0
-!
-bandEnd: y height: h
-	"The row j (of rows y + j, j < h) the band ends before."
-	^(rsBandY1 - y) min: h
-!
-drawVertices: base first: first count: count
-	"The triangles and quads of a draw, the rows of the band (rsBandY0, rsBandY1) only."
-	<function>
-	<var: #base type: 'uint8_t *'>
-	<var: #first type: 'int64_t'>
-	<var: #count type: 'int64_t'>
-	| k last |
 	k := first.
 	last := first + count.
 	[k + 3 <= last] whileTrue: [
@@ -549,7 +354,6 @@ drawQuad: v
 	px1 := px1 min: rsClipX1.
 	py1 := py1 min: rsClipY1.
 	(px0 < px1 and: [py0 < py1]) ifFalse: [^self].
-	(py1 <= rsBandY0 or: [py0 >= rsBandY1]) ifTrue: [^self].
 	m := rsMode bitAnd: 255.
 	m = 0 ifTrue: [^self solidX: px0 y: py0 width: px1 - px0 height: py1 - py0].
 	(m = 1 or: [m = 2]) ifFalse: [
@@ -588,17 +392,17 @@ solidX: x y: y width: w height: h
 	c := rsColor.
 	ca := c >> 24.
 	(rsBlend = PF_BLEND_NONE or: [ca = 255]) ifTrue: [
-		(y max: rsBandY0) to: ((y + h) min: rsBandY1) - 1 do: [:py |
+		y to: y + h - 1 do: [:py |
 			d := self row: py x: x.
 			(rows fill: d count: w value: c) to: w - 1 do: [:i | d at: i put: c]].
 		^self].
 	rsBlend = PF_BLEND_PREMULTIPLIED ifFalse: [
-		(y max: rsBandY0) to: ((y + h) min: rsBandY1) - 1 do: [:py |
+		y to: y + h - 1 do: [:py |
 			d := self row: py x: x.
 			0 to: w - 1 do: [:i | d at: i put: (self blend: (d at: i) source: c k: 255)]].
 		^self].
 	c = 0 ifTrue: [^self].
-	(y max: rsBandY0) to: ((y + h) min: rsBandY1) - 1 do: [:py |
+	y to: y + h - 1 do: [:py |
 		d := self row: py x: x.
 		(rows over: d color: c count: w) to: w - 1 do: [:i | d at: i put: (self over: (d at: i) color: c)]]
 !
@@ -618,7 +422,7 @@ patternX: x y: y width: w height: h
 	c := rsColor.
 	c = 0 ifTrue: [^self].
 	dx := self floorOf: (x asFloat + 0.5) - rsOrgX.
-	(y max: rsBandY0) to: ((y + h) min: rsBandY1) - 1 do: [:py |
+	y to: y + h - 1 do: [:py |
 		d := self row: py x: x.
 		dy := self floorOf: (py asFloat + 0.5) - rsOrgY.
 		iy := (dy max: 0) quo: cell.
@@ -694,7 +498,7 @@ texturedX: x y: y width: w height: h u: u0 v: v0 du: du dv: dv
 	(tx >= 0 and: [ty >= 0 and: [tx + w <= rsTexW and: [ty + h <= rsTexH]]]) ifFalse: [^false].
 	m := rsMode bitAnd: 255.
 	bpp := rsTexFmt = PF_TEX_R8 ifTrue: [1] ifFalse: [4].
-	(self bandFirst: y) to: (self bandEnd: y height: h) - 1 do: [:j |
+	0 to: h - 1 do: [:j |
 		m = 1
 			ifTrue: [
 				self glyphRow: (self row: y + j x: x)
@@ -735,7 +539,7 @@ scaledX: x y: y width: w height: h u: u0 v: v0 du: du dv: dv
 	ca := (c >> 24) asInt64.
 	glyphShift := rsFmt = PF_TEX_BGRA8 ifTrue: [16] ifFalse: [0].
 	(m = 2 and: [ca = 0]) ifTrue: [^true].
-	(self bandFirst: y) to: (self bandEnd: y height: h) - 1 do: [:j |
+	0 to: h - 1 do: [:j |
 		d := self row: y + j x: x.
 		v := v0 + (dv * j asFloat).
 		lin
@@ -891,7 +695,7 @@ shadeX: x y: y width: w height: h u: u0 v: v0 du: du dv: dv
 	<var: #du type: 'double'>
 	<var: #dv type: 'double'>
 	| d v |
-	(self bandFirst: y) to: (self bandEnd: y height: h) - 1 do: [:j |
+	0 to: h - 1 do: [:j |
 		d := self row: y + j x: x.
 		v := v0 + (dv * j asFloat).
 		0 to: w - 1 do: [:i |
@@ -1084,9 +888,9 @@ drawTriangle: base index: k
 	y0 := (minY + 127) >> 8.
 	y1 := ((maxY + 127) >> 8) + 1.
 	x0 := x0 max: rsClipX0.
-	y0 := (y0 max: rsClipY0) max: rsBandY0.
+	y0 := y0 max: rsClipY0.
 	x1 := x1 min: rsClipX1.
-	y1 := (y1 min: rsClipY1) min: rsBandY1.
+	y1 := y1 min: rsClipY1.
 	(x0 < x1 and: [y0 < y1]) ifFalse: [^self].
 	"attribute planes from vertex 0: a = a0 + dx (x - x0) + dy (y - y0), the slopes of u, v and the four color lanes in dx and dy"
 	fx0 := (xs at: 0) asFloat / 256.0.
@@ -1153,56 +957,7 @@ triangleSpan: py from: xl to: xr planes: at dx: dx dy: dy x0: fx0 y0: fy0 flat: 
 
 !PlatformRaster methodsFor: 'blits'!
 blitPixels: src width: srcW height: srcH format: srcFmt rect: sr to: dst width: dstW height: dstH format: dstFmt rect: dr linear: linear
-	"Rects: x y w h. As blitRows:..., in bands across the CPUs if there are enough pixels."
-	<function>
-	<var: #src type: 'uint8_t *'>
-	<var: #srcW type: 'int64_t'>
-	<var: #srcH type: 'int64_t'>
-	<var: #srcFmt type: 'int32_t'>
-	<var: #sr type: 'int64_t *'>
-	<var: #dst type: 'uint8_t *'>
-	<var: #dstW type: 'int64_t'>
-	<var: #dstH type: 'int64_t'>
-	<var: #dstFmt type: 'int32_t'>
-	<var: #dr type: 'int64_t *'>
-	<var: #linear type: 'bool'>
-	| j bands y0 y1 |
-	y0 := (dr at: 1) max: 0.
-	y1 := ((dr at: 1) + (dr at: 3)) min: dstH.
-	bands := y1 > y0 ifTrue: [self rowBands: y1 - y0 width: (dr at: 2)] ifFalse: [1].
-	bands > 1 ifTrue: [
-		j := self local: 'RasterJob'.
-		j src: src.
-		j srcW: srcW.
-		j srcH: srcH.
-		j srcFmt: srcFmt.
-		j sr: sr.
-		j dst: dst.
-		j dstW: dstW.
-		j dstH: dstH.
-		j dstFmt: dstFmt.
-		j dr: dr.
-		j linear: linear.
-		j y0: y0.
-		j y1: y1.
-		j bands: bands.
-		workers parallelRun: (self functionPointer: #blitBand:index:) context: j count: bands.
-		^self].
-	self wholeBand.
-	self blitRows: src width: srcW height: srcH format: srcFmt rect: sr to: dst width: dstW height: dstH format: dstFmt rect: dr linear: linear
-!
-blitBand: job index: i
-	"Band i of the blit job (a RasterJob): on any CPU."
-	<function>
-	<var: #job type: 'void *'>
-	<var: #i type: 'int64_t'>
-	| j |
-	j := self cCoerce: job to: 'RasterJob *'.
-	self band: j index: i.
-	self blitRows: j src width: j srcW height: j srcH format: j srcFmt rect: j sr to: j dst width: j dstW height: j dstH format: j dstFmt rect: j dr linear: j linear
-!
-blitRows: src width: srcW height: srcH format: srcFmt rect: sr to: dst width: dstW height: dstH format: dstFmt rect: dr linear: linear
-	"Rects: x y w h; the rows of the band (rsBandY0, rsBandY1). Like SDL_BlitGPUTexture: each destination pixel of dr samples the source at its centre mapped into sr (nearest, or linear; clamped to the source's edge), converted to the destination's format."
+	"Rects: x y w h. Like SDL_BlitGPUTexture: each destination pixel of dr samples the source at its centre mapped into sr (nearest, or linear; clamped to the source's edge), converted to the destination's format."
 	<function>
 	<var: #src type: 'uint8_t *'>
 	<var: #srcW type: 'int64_t'>
@@ -1241,7 +996,7 @@ blitRows: src width: srcW height: srcH format: srcFmt rect: sr to: dst width: ds
 	rsRepeat := false.
 	rsFmt := PF_TEX_RGBA8.
 	same := sw = dw and: [sh = dh and: [sx >= 0 and: [sy >= 0 and: [sx + sw <= rsTexW and: [sy + sh <= rsTexH]]]]].
-	(y0 max: rsBandY0) to: (y1 min: rsBandY1) - 1 do: [:py |
+	y0 to: y1 - 1 do: [:py |
 		d := dst + ((((py * dstW) + x0) * tbpp) asUInt64).
 		same
 			ifTrue: [
@@ -1301,20 +1056,4 @@ fields
 		(viewportX double) (viewportY double) (viewportW double) (viewportH double)
 		(viewSizeX double) (viewSizeY double) (translateX double) (translateY double)
 		(texture 'uint8_t *') (textureWidth int64_t) (textureHeight int64_t) (textureFormat int32_t) (linear bool) (wrap bool))
-! !
-
-VMStruct subclass: #RasterJob
-	instanceVariableNames: ''
-	classVariableNames: ''
-	package: 'VM-Platform'!
-
-RasterJob comment: 'A draw, blit, copy or fill of PlatformRaster split into bands across the CPUs (CpuWorkers): its arguments, and for bands of rows the rows the split is made in (y0 .. y1) and their number.'!
-
-!RasterJob class methodsFor: 'declaring'!
-fields
-	^#((st 'RasterState *') (base 'uint8_t *') (first int64_t) (count int64_t)
-		(src 'uint8_t *') (srcW int64_t) (srcH int64_t) (sr 'int64_t *') (srcStride int64_t)
-		(dst 'uint8_t *') (dstW int64_t) (dstH int64_t) (dr 'int64_t *') (dstStride int64_t)
-		(w int64_t) (h int64_t) (bpp int64_t) (mode int64_t) (y0 int64_t) (y1 int64_t) (bands int64_t)
-		(srcFmt int32_t) (dstFmt int32_t) (fillValue uint32_t) (linear bool))
 ! !

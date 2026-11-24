@@ -1,7 +1,7 @@
 // The raster primitives' C (vm/gen/platform_raster.c) on a record of what a SoftwareGPU got and produced
 // (SoftwareGPURecorder, tests/nv/record.st): replays it on the CPU, compares every pass end and presented frame with
 // the recorded pixels (then carries on from those) and times the raster work of each 1920x1080 command buffer.
-//   [RASTER_BANDS=N] replay <record> [passes]    prints the differences and, per pass, the mean time of a 1920x1080 command buffer
+//   replay <record> [passes]    prints the differences and, per pass, the mean time of a 1920x1080 command buffer
 // Built by tests/raster/run.sh with the compiler and flags given; no GPU needed.
 #include <stdbool.h>
 #include <stdint.h>
@@ -10,19 +10,6 @@
 #include <string.h>
 #include <time.h>
 #include "samaltak.h"
-
-// The CpuWorkers interface (vm/gen/no_cpu_workers.c in the VM): RASTER_BANDS=N has the raster split its work into bands
-// as for N CPUs, run here one after the other, so a replay checks that bands draw what one CPU does, to the bit.
-int64_t parallel_workers(void)
-{
-	static int64_t n = -1;
-	if (n < 0) { const char *e = getenv("RASTER_BANDS"); n = e && atoi(e) > 1 ? atoi(e) - 1 : 0; }
-	return n;
-}
-void parallel_run(void (*fn)(void *, int64_t), void *ctx, int64_t n)
-{
-	for (int64_t i = n - 1; i >= 0; i--) fn(ctx, i);
-}
 
 typedef struct { int64_t handle; int64_t w, h; int fmt; size_t bytes; uint8_t *p; int refs; } Obj;
 static Obj *objs; static int nobjs, capobjs;

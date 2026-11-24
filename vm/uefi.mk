@@ -11,11 +11,11 @@ UEFI_TARGET ?= x86_64
 NATIVE_DIR := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
 include $(NATIVE_DIR)/native/native.mk
 UEFI_CFLAGS := -target $(UEFI_TARGET)-unknown-none-elf -ffreestanding -fno-builtin -fno-stack-protector -fPIE -mno-red-zone \
-	-fno-math-errno -ffp-contract=off -ftls-model=local-exec -O2 -std=gnu11 -fsigned-char -DSAMALTAK_UEFI -I$(GEN) -MMD -MP \
+	-fno-math-errno -ffp-contract=off -O2 -std=gnu11 -fsigned-char -DSAMALTAK_UEFI -I$(GEN) -MMD -MP \
 	-I$(NATIVE_DIR)/native -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-type-limits -Wno-parentheses -Wno-unused-value -Wno-self-assign
 OBJS := $(patsubst $(GEN)/%.c,$(OBJ)/%.o,$(wildcard $(GEN)/*.c))
 UEFI_NATIVE_CFLAGS := -target $(UEFI_TARGET)-unknown-none-elf -ffreestanding -fno-stack-protector -fPIE -mno-red-zone \
-	-fno-math-errno -ffp-contract=off -ftls-model=local-exec -O2 -std=gnu11 -DSAMALTAK_UEFI -MMD -MP \
+	-fno-math-errno -ffp-contract=off -O2 -std=gnu11 -DSAMALTAK_UEFI -MMD -MP \
 	-nostdlibinc $(NATIVE_CPPFLAGS)
 NATIVE_OBJS := $(patsubst $(NATIVE_DIR)/%.c,$(OBJ)/native-src/%.o,$(NATIVE_SRCS) $(NATIVE_UEFI_SRCS))
 

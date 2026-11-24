@@ -29,7 +29,7 @@ stressed
 
 !JitOptRuntimeTest methodsFor: 'background compilation'!
 background
-	"Background compilation on (docs/jit.md, Background compilation); answer whether a helper thread does it (none on one CPU, nor on UEFI without a second CPU started: then the VM's thread compiles, and these tests check only results)."
+	"Background compilation on (docs/jit.md, Background compilation); answer whether a helper thread does it (none on UEFI or on one CPU: then the VM's thread compiles, and these tests check only results)."
 	Smalltalk vm jitParameters: #(nil 'bg' nil nil).
 	^(Smalltalk vm jitParameters at: 7) >= 0
 !
@@ -1872,18 +1872,6 @@ testReplaceFastPathAndItsFailures
 	[off := self replaceFailureResults] ensure: [Smalltalk vm jitParameters: #(nil 'prims' nil nil)].
 	self assert: (on allButFirst: 3) equals: (off allButFirst: 3).
 	self assert: (on last: 3) equals: #('#(''1'' ''2'' ''3'' ''4'' ''5'' ''6'')' '#(''2'' ''4'' ''6'' ''8'' ''10'' ''12'')' '#(''3'' ''6'' ''9'' ''12'' ''15'' ''18'')')
-! !
-
-JitOptRuntimeTest subclass: #JitOptBackgroundTest
-	instanceVariableNames: ''
-	classVariableNames: ''
-	package: 'Tests-VM'!
-
-JitOptBackgroundTest comment: 'JitOptRuntimeTest''s background compilation tests alone: on UEFI (make test-uefi) their helper thread is an application processor (docs/uefi.md, More than one CPU), and the rest of JitOptRuntimeTest starts processes.'!
-
-!JitOptBackgroundTest class methodsFor: 'testing'!
-testSelectors
-	^super testSelectors select: [:s | s beginsWith: 'testBackground']
 ! !
 
 !JitOptRuntimeTest methodsFor: 'long units'!

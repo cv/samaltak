@@ -17,12 +17,9 @@ for m in off fma; do
 	c=off; [ $m = fma ] && c=fast
 	$CC -O2 -std=gnu11 -D_GNU_SOURCE -fsigned-char -Ivm/gen -Ivm/native -ffp-contract=$c \
 		-Drasterize=ref_${m}_rasterize -Dblit_pixels=ref_${m}_blit_pixels -Dplatform_raster_copy=ref_${m}_copy -Dplatform_raster_fill=ref_${m}_fill -Dquad_bounds=ref_${m}_quad_bounds \
-		-Dplatform_raster_forced_bands=ref_${m}_forced_bands \
 		-c vm/gen/platform_raster.c -o "$NV/ref_$m.o"
 done
-# the raster's bands run one after the other here
-$CC -O2 -std=gnu11 -D_GNU_SOURCE -Ivm/gen -Ivm/native -c vm/gen/no_cpu_workers.c -o "$NV/no_cpu_workers.o"
-$CXX -O2 -std=c++17 -I"$CUDA/include" tests/nv/replay.cpp "$NV/ref_off.o" "$NV/ref_fma.o" "$NV/no_cpu_workers.o" -o "$NV/replay" -lcuda
+$CXX -O2 -std=c++17 -I"$CUDA/include" tests/nv/replay.cpp "$NV/ref_off.o" "$NV/ref_fma.o" -o "$NV/replay" -lcuda
 "$NV/replay" fuzz "$NV/raster.cubin" "${NV_FUZZ:-20000}"
 "$NV/replay" fuzzbatch "$NV/raster.cubin" "${NV_FUZZ:-20000}"
 NV_RECORD="$NV/world.nvrec" NV_FRAMES="${NV_FRAMES:-6}" vm/build/samaltak "$OUT/samaltak.image" --headless --eval "$(cat tests/nv/record.st)"

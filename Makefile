@@ -346,9 +346,6 @@ QEMU_UEFI_MACHINE := qemu-system-x86_64 -machine q35 $(UEFI_ACCEL) $(if $(UEFI_G
 UEFI_NIC ?= e1000e
 endif
 UEFI_VGA = $(if $(filter x86_64,$(UEFI_ARCH)),$(if $(UEFI_GPU),,-vga std))
-# UEFI_CPUS: QEMU's CPUs; the VM runs on the first and starts the others for its raster's bands and background compilation
-# (docs/uefi.md, More than one CPU). 1: one CPU, as on firmware without MP services or PSCI.
-UEFI_CPUS ?= 4
 # UEFI_AFFINITY: the host CPUs QEMU runs on (tools/qemu-pin.sh; docs/uefi.md, Pinning): big, the cores of the highest
 # maximum frequency where there is more than one kind (Linux; the DGX Spark's X925s, where an A725 is half as fast),
 # each vCPU on one of its own and no more vCPUs than cores; a taskset list (5-9,15-19); empty or none, anywhere. The
@@ -356,7 +353,7 @@ UEFI_CPUS ?= 4
 # tests anywhere, as gates run at once.
 UEFI_PIN = $(UEFI_AFFINITY)
 uefi-ui uefi-control: UEFI_PIN = $(if $(filter undefined,$(origin UEFI_AFFINITY)),big,$(UEFI_AFFINITY))
-QEMU_UEFI = $(QEMU_UEFI_MACHINE) -smp $(UEFI_CPUS) -m $(UEFI_MEM) -no-reboot \
+QEMU_UEFI = $(QEMU_UEFI_MACHINE) -m $(UEFI_MEM) -no-reboot \
 	-nic user,model=$(UEFI_NIC)$(if $(UEFI_CONTROL_PORT),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_CONTROL_PORT)-:7341)$(UEFI_DISPLAY_FWD) -global $(UEFI_NIC).romfile= \
 	-device virtio-rng-pci -drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI_RUN)/vars.fd \
 	-drive format=raw,file=fat:rw:$(UEFI_RUN)/esp -drive format=raw,file=$(UEFI_RUN)/image.disk
@@ -407,13 +404,12 @@ UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest Conte
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \
 	Amd64DisassemblerTest Arm64DisassemblerTest ByteSearchTest FFIBindingTest \
 	GitHubClientTest SourceFilerGitHubTest SourceUpdateTest PosixDeviceTest ZLibTest PNGCodecTest AgentImageTest \
-	SoftwareGPUTest SoftwareGPUBandsTest JitOptBackgroundTest FrameTapTest PixelPackTest
+	SoftwareGPUTest FrameTapTest PixelPackTest
 UEFI_WORLD := | w t | w := UIWindows startUp. RemoteInputDevice default inject: {1. nil. 123. 45. 0. 0. nil. w displayWindow windowId}. t := Time millisecondClockValue. [w dispatcher pointer = (123 @ 45) or: [Time millisecondClockValue - t > 20000]] whileFalse: [(Delay forMilliseconds: 50) wait]. Smalltalk vm stderrWrite: 'world ', w extent printString, ' ', Renderer default device isSoftware printString, ' ', w dispatcher pointer rounded printString, (String with: Character lf)
 UEFI_NET := | s buf n | s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: '{\"cmd\": \"ping\", \"auth\": \"', ControlServer current token, '\"}', (String with: Character lf). buf := ByteArray new: 200. n := s receiveInto: buf timeout: 20000. s close. (buf copyFrom: 1 to: n) asString
 UEFI_NET_BULK := | src req s buf n chunk out t ms resp ok more | src := String new: 1000000. 1 to: src size do: [:i | src at: i put: (Character value: 97 + (i * 7 rem: 26))]. req := '{\"cmd\": \"eval\", \"auth\": \"', ControlServer current token, '\", \"source\": \"''', src, ''' reverse\"}', (String with: Character lf). t := Time millisecondClockValue. s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: req. out := WriteStream on: (String new: 1100000). buf := ByteArray new: 65536. more := true. [more] whileTrue: [n := s receiveInto: buf timeout: 60000. chunk := (buf copyFrom: 1 to: n) asString. out nextPutAll: chunk. more := n > 0 and: [(chunk includes: Character lf) not]]. ms := Time millisecondClockValue - t. s close. resp := out contents. ok := (resp includesSubstring: '\"ok\":true') and: [resp includesSubstring: src reverse]. 'bulk ', ok printString, ' ', (req size + resp size) printString, ' bytes in ', ms printString, ' ms'
 UEFI_NET_DRIVER := 'driver ', NetworkStack active interface class name
 UEFI_DRIVER = $(if $(filter e1000e,$(1)),E1000eInterface,VirtioNetInterface)
-UEFI_MP := 1 to: 300 do: [:i | Compiler evaluate: '3 + 4 * ', i printString]. Smalltalk vm stderrWrite: 'mp bg jobs ', Smalltalk vm statistics optBackgroundJobs printString, (String with: Character lf)
 UEFI_RESET := Smalltalk vm stderrWrite: 'menu ', ((((ToolsMenu worldMenuAt: nil) itemLabeled: 'System') submenu) selectableItems collect: [:i | i label]) asArray printString, (String with: Character lf). Firmware restart
 UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot: Smalltalk vm imagePath) ifTrue: ['resumed ', (Smalltalk at: 'UefiMark' asSymbol) printString, ' ', (SecureRandom default nextBytes: 16) hex] ifFalse: ['saved']
 # test-uefi's parts boot at once (make -j UEFI_TEST_JOBS, default nproc / 2; 1: one after another), each QEMU holding
@@ -421,7 +417,7 @@ UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot:
 # (UEFI_RUN), its output shown when it ends (make -O); the snapshot's three boots one after another in theirs. Every
 # part runs to its end (-k), and the boot directories stay for a look when one fails.
 UEFI_TEST_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2); echo $$(( n > 1 ? n / 2 : 1 )))
-UEFI_TEST_PARTS = tests cutover lowspace mp cpu1 reset world world-gpu rfb net $(if $(filter-out virtio-net-pci,$(UEFI_NIC)),nic) snapshot
+UEFI_TEST_PARTS = tests cutover lowspace reset world world-gpu rfb net $(if $(filter-out virtio-net-pci,$(UEFI_NIC)),nic) snapshot
 # make 3.81 (macOS's) has no -O: there the parts run one after another
 UEFI_TEST_SYNC = $(call TEST_PARTS_SYNC,$(UEFI_TEST_JOBS))
 UEFI_PART_RUN = $(UEFI)/run-$(patsubst test-uefi-part-%,%,$@)
@@ -444,15 +440,8 @@ test-uefi-part-cutover:
 	grep -Fq 'UEFI-stderr-é' $(UEFI_PART_LOG)
 test-uefi-part-tests:
 	$(MAKE) $(UEFI_PART_BOOT) UEFI_ARGS='--headless --test $(UEFI_TESTS)'
-	grep -q "^samaltak: $(UEFI_CPUS) CPUs" $(UEFI_PART_LOG)
 test-uefi-part-lowspace:
 	$(MAKE) $(UEFI_PART_BOOT) UEFI_HEAP_MB=128 UEFI_ARGS='--headless --test LowSpaceTest StackOverflowTest'
-test-uefi-part-mp:
-	$(MAKE) $(UEFI_PART_BOOT) UEFI_ARGS="--headless --eval \"$(UEFI_MP)\""
-	$(if $(filter-out 1,$(UEFI_CPUS)),grep -qE "^mp bg jobs [1-9]" $(UEFI_PART_LOG))
-test-uefi-part-cpu1:
-	$(MAKE) $(UEFI_PART_BOOT) UEFI_CPUS=1 UEFI_ARGS='--headless --test SoftwareGPUTest SoftwareGPUBandsTest JitOptBackgroundTest'
-	grep -q "^samaltak: 1 CPUs" $(UEFI_PART_LOG)
 test-uefi-part-reset:
 	-$(MAKE) $(UEFI_PART_BOOT) UEFI_ARGS="--headless --eval \"$(UEFI_RESET)\""
 	grep -q "^samaltak: reset cold" $(UEFI_PART_LOG) && grep -q "'Restart' 'Warm restart' 'Power off'" $(UEFI_PART_LOG)

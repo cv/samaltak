@@ -6,7 +6,6 @@
 # its arithmetic). No GPU needed.
 #   tests/raster/run.sh [OUT [PASSES]]   OUT: the build directory with samaltak.image (default build)
 #   CC=clang CFLAGS='-O2 -ffp-contract=off' tests/raster/run.sh    as the UEFI VM compiles it
-#   RASTER_BANDS=4 tests/raster/run.sh    the work split into bands as for 4 CPUs (UEFI), run one after the other
 set -e
 OUT=${1:-build}
 PASSES=${2:-7}

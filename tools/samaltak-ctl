@@ -15,7 +15,7 @@ const ROOT = path.resolve(__dirname, '..');
 const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
   open [--headless] [--hidden] [--work-clock] [--image path] [--port n] [--window-size WxH] [--source-dir d]   start an image with --control (--work-clock: on the recording clock from the start)
        [--display-port n [--display-password-file f]]   and its remote display (RFB, --display) on 127.0.0.1:n (0: a free port, in <session>.display-port), VNC authentication with f's password
-  open --uefi [--headless] [--port n] [--window-size WxH] [--affinity big|LIST|none] [--cpus n]   the VM on UEFI in QEMU (make uefi-control), its control port forwarded to n; its host CPUs (UEFI_AFFINITY, default big) and vCPUs (UEFI_CPUS)
+  open --uefi [--headless] [--port n] [--window-size WxH] [--affinity big|LIST|none]   the VM on UEFI in QEMU (make uefi-control), its control port forwarded to n; its host CPUs (UEFI_AFFINITY, default big)
        [--vnc n [--vnc-server qemu|image] [--vnc-password-file f]]   its screen on VNC at 127.0.0.1:5900+n: the image's own RFB server (default; UEFI_DISPLAY: QEMU without a display) or QEMU's (qemu: UEFI_VNC), its password f's, else ~/.samaltak-vnc's where present, else one made for the session in <session>.vnc-password (0600)
   connect [--host h] --port n --token-file f   a session for an image someone else started (a bare-metal machine: the token it showed at boot, in f; - reads stdin); default host 127.0.0.1 (an SSH tunnel)
   snapshot [ref] [--depth n] [--bounds]    widget tree with stable @refs
@@ -54,7 +54,7 @@ const pos = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--session') session = argv[++i];
-  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|affinity|cpus|settle|delay|source-dir|at|provider|model|thinking|token-command|repo|base|prefix|ref|host|token-file|vnc|vnc-server|vnc-password-file|display-port|display-password-file)$/.test(a)) flags[a.slice(2)] = argv[++i];
+  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|affinity|settle|delay|source-dir|at|provider|model|thinking|token-command|repo|base|prefix|ref|host|token-file|vnc|vnc-server|vnc-password-file|display-port|display-password-file)$/.test(a)) flags[a.slice(2)] = argv[++i];
   else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi|from-pi|from-gh|clear|dry-run|theirs|force|quit)$/.test(a)) flags[a.slice(2)] = true;
   else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
   else pos.push(a);
@@ -232,9 +232,8 @@ async function openUefi() {
   if (flags['window-size']) vmArgs.push('--window-size', flags['window-size']);
   const log = fs.openSync(logFile, 'w');
   const makeArgs = ['-s', 'uefi-control', `UEFI_CONTROL_PORT=${port}`, `UEFI_CONTROL_ARGS=${vmArgs.join(' ')}`];
-  // QEMU's host CPUs (big by default, tools/qemu-pin.sh) and vCPUs; else UEFI_AFFINITY and UEFI_CPUS from the environment.
+  // QEMU's host CPUs (big by default, tools/qemu-pin.sh); else UEFI_AFFINITY from the environment.
   if (flags.affinity !== undefined) makeArgs.push(`UEFI_AFFINITY=${flags.affinity}`);
-  if (flags.cpus !== undefined) makeArgs.push(`UEFI_CPUS=${flags.cpus}`);
   const vnc = vncOptions();
   if (vnc) makeArgs.push(...vnc.makeArgs);
   const child = spawn('make', makeArgs,

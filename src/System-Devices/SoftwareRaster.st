@@ -21,11 +21,6 @@ blit: sourceSurface rect: sourceRect to: destinationSurface rect: destinationRec
 	<primitive: 'rasterBlit'>
 	^self error: 'bad blit'
 !
-bands: n
-	"Split the work into n bands whatever its size (0: one per CPU where it is large enough, the default); answer the previous n. Bands draw what one CPU does, to the bit (SoftwareGPUBandsTest)."
-	<primitive: 'rasterBands'>
-	^self error: 'bad band count'
-!
 quadBoundsOf: vertices from: firstQuad count: n into: aByteArray
 	"The device pixels that quads firstQuad .. firstQuad + n - 1 of a DisplayList's vertex bytes cover, as int32 x0 y0 x1 y1 (floored and ceiled) in aByteArray's first 16 bytes: true, false if n is 0, nil if the VM cannot (an older one)."
 	<primitive: 'rasterQuadBounds'>

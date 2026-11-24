@@ -257,9 +257,6 @@ primitive_entry vm_primitive_table[] = {
     {483, 2, "rasterCopy", prim_raster_copy},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
-    {484, 2, "rasterBands", prim_raster_bands},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
     {485, 2, "rasterQuadBounds", prim_raster_quad_bounds},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM

@@ -693,9 +693,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define REG_D 128
 #define REG_SP 32
 #define REG_W 64
-#define RS_BAND_ALL 1099511627776LL
 #define RS_MAX_COORD 1048576
-#define RS_PARALLEL_PIXELS 32768
 #define RS_STRIDE 40
 #define R_DBL 3
 #define R_INT 2
@@ -945,7 +943,6 @@ typedef struct pf_stat pf_stat;
 typedef struct pf_table pf_table;
 typedef struct pf_vattr pf_vattr;
 typedef struct pty_child pty_child;
-typedef struct raster_job raster_job;
 typedef struct raster_state raster_state;
 typedef struct sock_sems sock_sems;
 typedef struct tls_send_retry tls_send_retry;
@@ -1402,35 +1399,6 @@ struct pty_child {
     bool reaped;
 };
 _Static_assert(sizeof(pty_child) == 8, "the simulator lays out PtyChild as C does");
-
-struct raster_job {
-    raster_state *st;
-    uint8_t *base;
-    int64_t first;
-    int64_t count;
-    uint8_t *src;
-    int64_t src_w;
-    int64_t src_h;
-    int64_t *sr;
-    int64_t src_stride;
-    uint8_t *dst;
-    int64_t dst_w;
-    int64_t dst_h;
-    int64_t *dr;
-    int64_t dst_stride;
-    int64_t w;
-    int64_t h;
-    int64_t bpp;
-    int64_t mode;
-    int64_t y0;
-    int64_t y1;
-    int64_t bands;
-    int32_t src_fmt;
-    int32_t dst_fmt;
-    uint32_t fill_value;
-    bool linear;
-};
-_Static_assert(sizeof(raster_job) == 184, "the simulator lays out RasterJob as C does");
 
 struct raster_state {
     uint8_t *pixels;
@@ -2457,8 +2425,6 @@ void ffi_vsync_notification_prim_close(void);
 void ffi_vsync_notification_prim_poll(void);
 void ffi_vsync_notification_refreshed(void);
 void ffi_vsync_notification_signal_ready(void);
-void parallel_run(void (*fn)(void *, int64_t), void *ctx, int64_t n);
-int64_t parallel_workers(void);
 void platform_common_fail_os_code(char *what, int code);
 void platform_common_fail_os_path_code(char *what, char *path, int code);
 void platform_common_handle_counts(int64_t *out);
@@ -2595,7 +2561,6 @@ void prim_nic_status(void);
 void prim_pty_close(void);
 void prim_pty_foreground(void);
 void prim_pty_resize(void);
-void prim_raster_bands(void);
 void prim_raster_blit(void);
 void prim_raster_copy(void);
 void prim_raster_draw(void);
@@ -2617,9 +2582,8 @@ bool resize(int32_t p, int32_t rows, int32_t cols);
 int32_t platform_ptys_spawn(char **argv, char **envp, char *cwd, int32_t rows, int32_t cols, int64_t *pid_out);
 bool platform_ptys_wait(int32_t p, bool block, int32_t *status, bool *done);
 void blit_pixels(uint8_t *src, int64_t src_w, int64_t src_h, int32_t src_fmt, int64_t *sr, uint8_t *dst, int64_t dst_w, int64_t dst_h, int32_t dst_fmt, int64_t *dr, bool linear);
-void platform_raster_copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode, bool parallel);
+void platform_raster_copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode);
 void platform_raster_fill(uint8_t *pixels, int64_t n, int bpp, uint32_t v);
-int64_t platform_raster_forced_bands(int64_t n);
 void quad_bounds(uint8_t *v, int64_t n, uint8_t *o);
 void rasterize(raster_state *st, uint8_t *base, int64_t first, int64_t count);
 int32_t platform_sockets_accept(int32_t s, bool *would_block);
