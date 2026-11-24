@@ -295,6 +295,28 @@ static void bounds_out_of(int32_t h, int64_t entry, int64_t index)
     int32_t g_3;
     int32_t size;
     int32_t g_4;
+    int32_t v_4;
+    int32_t n_7;
+    int64_t k_2;
+    opt_node *nd_6;
+    int32_t v_5;
+    bool r_is_int_const_4;
+    opt_node *nd_7;
+    uint64_t o_6;
+    int32_t v_6;
+    int32_t r_int_value_of_3;
+    int32_t n_8;
+    int32_t n_9;
+    int32_t v_7;
+    bool r_is_int_const_5;
+    opt_node *nd_8;
+    uint64_t o_7;
+    int32_t v_8;
+    int32_t r_int_value_of_4;
+    int32_t n_10;
+    int32_t n_11;
+    int32_t v_9;
+    int32_t v_10;
     phi = counted_loop(h, index);
     if (phi < 0) {
         return;
@@ -556,6 +578,65 @@ exit_induction_step:;
                             return;
                         }
                         (opt_nodes + m)->flags = (opt_nodes + m)->flags | NF_NOBOUNDS;
+                        v_4 = opt_ir_resolve((opt_nodes + m)->b);
+                        n_7 = v_4;
+                        k_2 = 0;
+                        while (k_2 < 6) {
+                            nd_6 = opt_nodes + n_7;
+                            if (!((((int32_t)nd_6->op == O_IADD) || ((int32_t)nd_6->op == O_ISUB)) && (nd_6->block >= 0))) {
+                                goto exit_in_bounds;
+                            }
+                            nd_6->flags = nd_6->flags | NF_INRANGE;
+                            nd_6->state = -1;
+                            v_5 = opt_ir_resolve(nd_6->b);
+                            n_7 = ({
+    if (({
+    nd_7 = opt_nodes + v_5;
+    r_is_int_const_4 = ((int32_t)nd_7->op == O_CONST) && (((int32_t)nd_7->rep == R_OOP) && ({
+    o_6 = (uint64_t)nd_7->aux;
+    (o_6 & 1) != 0; }));
+    r_is_int_const_4; })) {
+        v_6 = nd_6->a;
+        v_10 = ({
+    n_8 = opt_ir_resolve(v_6);
+    while (((int32_t)(opt_nodes + n_8)->op == O_GUARDINT) && ({
+    n_9 = opt_ir_resolve((opt_nodes + n_8)->a);
+    (int32_t)(opt_nodes + n_9)->tkind == T_SMI; })) {
+        n_8 = opt_ir_resolve((opt_nodes + n_8)->a);
+    }
+    r_int_value_of_3 = n_8;
+    r_int_value_of_3; });
+    } else {
+        v_7 = opt_ir_resolve(nd_6->a);
+        v_10 = ({
+    if (({
+    nd_8 = opt_nodes + v_7;
+    r_is_int_const_5 = ((int32_t)nd_8->op == O_CONST) && (((int32_t)nd_8->rep == R_OOP) && ({
+    o_7 = (uint64_t)nd_8->aux;
+    (o_7 & 1) != 0; }));
+    r_is_int_const_5; })) {
+        v_8 = nd_6->b;
+        v_9 = ({
+    n_10 = opt_ir_resolve(v_8);
+    while (((int32_t)(opt_nodes + n_10)->op == O_GUARDINT) && ({
+    n_11 = opt_ir_resolve((opt_nodes + n_10)->a);
+    (int32_t)(opt_nodes + n_11)->tkind == T_SMI; })) {
+        n_10 = opt_ir_resolve((opt_nodes + n_10)->a);
+    }
+    r_int_value_of_4 = n_10;
+    r_int_value_of_4; });
+    } else {
+        v_9 = -1;
+    }
+    v_9; });
+    }
+    v_10; });
+                            if (n_7 < 0) {
+                                goto exit_in_bounds;
+                            }
+                            k_2 = k_2 + 1;
+                        }
+                    exit_in_bounds:;
                     }
                 }
             }

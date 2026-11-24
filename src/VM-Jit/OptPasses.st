@@ -1245,7 +1245,23 @@ boundsOutOf: h entry: entry index: index
 						ir insert: size before: (ir block: entry) last.
 						self guard: hi atMost: size for: m in: entry state: s.
 						ir full ifTrue: [^self].
-						(ir node: m) flags: ((ir node: m) flags bitOr: NF_NOBOUNDS)]]]]]
+						(ir node: m) flags: ((ir node: m) flags bitOr: NF_NOBOUNDS).
+						self inBounds: (ir resolve: (ir node: m) b)]]]]]
+!
+inBounds: v
+	"Index v of an access its loop checked once (boundsOutOf:entry:index:) is within the object's bounds on every turn, and so is, give or take a constant, the sum or difference it adds a constant to, and so on down (start + i - 1: start + i): these check no overflow."
+	| n nd k |
+	n := v.
+	k := 0.
+	[k < 6] whileTrue: [
+		nd := ir node: n.
+		((nd op asInt32 = O_IADD or: [nd op asInt32 = O_ISUB]) and: [nd block >= 0]) ifFalse: [^self].
+		self inRange: nd.
+		n := (self isIntConst: (ir resolve: nd b))
+			ifTrue: [self intValueOf: nd a]
+			ifFalse: [(self isIntConst: (ir resolve: nd a)) ifTrue: [self intValueOf: nd b] ifFalse: [-1]].
+		n < 0 ifTrue: [^self].
+		k := k + 1]
 !
 countedLoop: h index: index
 	"Loop h, entered from its predecessor index alone, counts a SmallInteger phi by a constant step and goes around again while the phi's next value is at most (counting down: at least) a SmallInteger limit from before the loop, the branch on every way back (to:do:, to:by:do:): answer the phi, its start, step and limit in psCounted; else -1. Wherever the loop reads the phi, it is between its start and the limit if the loop was entered so."
