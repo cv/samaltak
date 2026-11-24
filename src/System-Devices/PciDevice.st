@@ -88,18 +88,6 @@ capabilitiesDo: aBlock
 		aBlock value: cap value: (self config: cap width: 1).
 		cap := (self config: cap + 1 width: 1) bitAnd: 16rFC]
 !
-extendedCapabilitiesDo: aBlock
-	"aBlock value: the configuration offset of each PCI Express extended capability (the list from 16r100) value: its ID. None where the firmware gives only the first 256 bytes."
-	| cap header seen |
-	cap := 16r100.
-	seen := 0.
-	[cap >= 16r100 and: [seen < 128]] whileTrue: [
-		header := self config: cap width: 4.
-		(header = 0 or: [header = 16rFFFFFFFF]) ifTrue: [^self].
-		aBlock value: cap value: (header bitAnd: 16rFFFF).
-		cap := (header bitShift: -20) bitAnd: 16rFFC.
-		seen := seen + 1]
-!
 location
 	"Where the function is, as lspci writes it (segment:bus:device.function, GetLocation), or nil."
 	| hex |
@@ -107,28 +95,6 @@ location
 	(firmware isError: (self pci: 112 with: scratch with: scratch + 8 with: scratch + 16 with: scratch + 24)) ifTrue: [^nil].
 	^(hex value: (Machine uint64At: scratch) value: 4), ':', (hex value: (Machine uint64At: scratch + 8) value: 2), ':',
 		(hex value: (Machine uint64At: scratch + 16) value: 2), '.', (Machine uint64At: scratch + 24) printString
-!
-barResource: index
-	"{address. length} of memory BAR index as the firmware assigned it (GetBarAttributes: its ACPI QWORD address space descriptor), or nil. Reads only: sizing a BAR by writing ones to it would disturb a device a firmware driver runs."
-	| p r |
-	Machine uint64At: scratch put: 0.
-	(firmware isError: (self pci: 128 with: index with: 0 with: scratch)) ifTrue: [^nil].
-	p := Machine uint64At: scratch.
-	p = 0 ifTrue: [^nil].
-	r := (Machine uint8At: p) = 16r8A ifTrue: [Array with: (Machine uint64At: p + 14) with: (Machine uint64At: p + 38)].
-	firmware freePool: p.
-	^r
-!
-mem32At: offset bar: index
-	"The 32-bit register at offset in memory BAR index, read through the firmware (PCI I/O Mem.Read), or nil if it refuses."
-	Machine uint32At: scratch put: 0.
-	(firmware isError: (self pci: 16 with: 2 with: index with: offset with: 1 with: scratch)) ifTrue: [^nil].
-	^Machine uint32At: scratch
-!
-mem32At: offset bar: index put: aValue
-	"Write the 32-bit register at offset in memory BAR index through the firmware (PCI I/O Mem.Write). Answer whether it could."
-	Machine uint32At: scratch put: aValue.
-	^(firmware isError: (self pci: 24 with: 2 with: index with: offset with: 1 with: scratch)) not
 !
 barAddress: index
 	"The address of memory BAR index (64-bit ones take two), nil if it is an I/O BAR."

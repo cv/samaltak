@@ -1,17 +1,15 @@
 Object subclass: #FirmwareDiagnostics
-	instanceVariableNames: 'firmware file fileNote echo sink'
+	instanceVariableNames: 'firmware file fileNote echo'
 	classVariableNames: ''
 	package: 'System-Storage'!
 
-FirmwareDiagnostics comment: 'I report what a machine''s UEFI firmware offers the image, for a first boot on new hardware (docs/uefi.md, Real hardware): the firmware''s vendor and revision, its configuration tables, SMBIOS (BIOS, system, board, processors, memory), ACPI (tables, PSCI in the FADT, CPUs in the MADT, the serial console in the SPCR), MP services, the memory map, memory protection (EFI_MEMORY_ATTRIBUTE_PROTOCOL, the CPU architectural protocol, the memory attributes table), the timer''s period and what a 1 ms Delay takes, EFI_RNG_PROTOCOL, the graphics outputs and their modes (size, pixel format, framebuffer or Blt only, the monitor''s EDID), PCI functions, block devices and partitions (the image store among them), the ext4 volumes FirmwareVolumes mounts, NVIDIA GPUs (NvProbe: configuration space, whether a firmware driver and the GOP are theirs, and a few registers, read only), the simple network protocol''s NICs (link, UNDI), and a DHCP attempt with the image''s network stack.
+FirmwareDiagnostics comment: 'I report what a machine''s UEFI firmware offers the image, for a first boot on new hardware (docs/uefi.md, Real hardware): the firmware''s vendor and revision, its configuration tables, SMBIOS (BIOS, system, board, processors, memory), ACPI (tables, PSCI in the FADT, CPUs in the MADT, the serial console in the SPCR), MP services, the memory map, memory protection (EFI_MEMORY_ATTRIBUTE_PROTOCOL, the CPU architectural protocol, the memory attributes table), the timer''s period and what a 1 ms Delay takes, EFI_RNG_PROTOCOL, the graphics outputs and their modes (size, pixel format, framebuffer or Blt only, the monitor''s EDID), PCI functions, block devices and partitions (the image store among them), the ext4 volumes FirmwareVolumes mounts, the simple network protocol''s NICs (link, UNDI), and a DHCP attempt with the image''s network stack.
 
-Each line, prefixed diag, goes to the console (stderr: the serial port if there is one, else the firmware''s console; with a serial port also the firmware''s console, so a screen shows it) and to samaltak-diag.txt on the volume with samaltak.args (the boot stick''s EFI system partition), flushed after each section, so a hang leaves what came before it. A section that fails says why and the next one runs. Reading is all I do but for the network section, which starts the network stack (NetworkStack active) as the World would. make usb-image USB_DIAG=1 boots into runThenWorld, USB_DIAG=nv into runNvidiaThenWorld (the firmware, the PCI functions and the NVIDIA section only: docs/nv-gsp.md, Step 1).
+Each line, prefixed diag, goes to the console (stderr: the serial port if there is one, else the firmware''s console; with a serial port also the firmware''s console, so a screen shows it) and to samaltak-diag.txt on the volume with samaltak.args (the boot stick''s EFI system partition), flushed after each section, so a hang leaves what came before it. A section that fails says why and the next one runs. Reading is all I do but for the network section, which starts the network stack (NetworkStack active) as the World would. make usb-image USB_DIAG=1 boots into runThenWorld.
 
 	FirmwareDiagnostics run			"the report"
 	FirmwareDiagnostics runThenWorld	"then, after a key or 30 s, the World"
-	FirmwareDiagnostics runThenWaitForKey	"then power off after a key"
-	FirmwareDiagnostics runNvidiaThenWorld	"the NVIDIA GPU probe, then the World"
-	FirmwareDiagnostics nvidiaLines		"its lines, answered (the World menu''s System › NVIDIA GPU probe)"'!
+	FirmwareDiagnostics runThenWaitForKey	"then power off after a key"'!
 
 !FirmwareDiagnostics class methodsFor: 'running'!
 run
@@ -31,15 +29,6 @@ runThenWaitForKey
 	"The report, then power off after a key."
 	self new run; waitForKeyOrSeconds: nil saying: 'press a key to power off'.
 	Smalltalk quit: 0
-!
-runNvidiaThenWorld
-	"The firmware, the PCI functions and the NVIDIA GPUs (read only, NvProbe), then the World after a key or 30 s (make usb-image USB_DIAG=nv)."
-	self new runSections: #(#firmwareInfo #pci #nvidia); waitForKeyOrSeconds: 30 saying: 'press a key to start the World (or wait 30 s)'.
-	Smalltalk runMainAction
-!
-nvidiaLines
-	"The nvidia section's lines (without the diag prefix), answered instead of written; one line where there is no firmware."
-	^self new nvidiaLines
 !
 fileName
 	^'samaltak-diag.txt'
@@ -88,7 +77,7 @@ configurationTableNames
 !FirmwareDiagnostics methodsFor: 'running'!
 run
 	"Every section, in order of risk (the network last)."
-	self runSections: #(#firmwareInfo #smbios #acpi #cpus #memoryMap #memoryProtection #timer #rng #graphics #pci #blockDevices #volumes #nvidia #snp #network)
+	self runSections: #(#firmwareInfo #smbios #acpi #cpus #memoryMap #memoryProtection #timer #rng #graphics #pci #blockDevices #volumes #snp #network)
 !
 runSections: selectors
 	firmware := Firmware current.
@@ -102,15 +91,6 @@ runSections: selectors
 	selectors do: [:each | self section: each].
 	self line: 'done'.
 	self closeFile
-!
-nvidiaLines
-	| lines |
-	firmware := Firmware current.
-	firmware isNil ifTrue: [^#('nvidia: no firmware: not on UEFI')].
-	lines := OrderedCollection new.
-	sink := [:aString | lines add: aString].
-	self section: #nvidia.
-	^lines asArray
 !
 section: aSelector
 	[self perform: aSelector] on: Error do: [:e |
@@ -142,7 +122,6 @@ echoOnScreen: aString
 !
 line: aString
 	| text |
-	sink isNil ifFalse: [^sink value: aString].
 	text := 'diag ', aString.
 	Smalltalk vm stderrWrite: text, (String with: Character lf).
 	echo == true ifTrue: [self conOut: text].
@@ -427,27 +406,6 @@ pci
 		self line: 'pci ', (d location ifNil: ['?']), ' ', (self hex: d vendor digits: 4), ':', (self hex: d deviceId digits: 4), ' class ', (self hex: class digits: 6), ' ', (self pciClassName: class),
 			((firmware isManaged: h) ifTrue: [', driven by the firmware'] ifFalse: [''])]
 			ensure: [d release]]]
-!
-nvidia
-	"Each NVIDIA GPU, read only (NvProbe, System-NV): where it is, whether a firmware driver has it, which GOP is its, then what NvProbe finds (docs/nv-gsp.md, Step 1)."
-	| probe gops count |
-	probe := Smalltalk at: #NvProbe ifAbsent: [^self line: 'nvidia: no NvProbe in this image (System-NV)'].
-	gops := firmware handlesSupporting: (self class guids at: #gop).
-	count := 0.
-	(firmware handlesSupporting: (self class guids at: #pciIo)) do: [:h | (PciDevice firmware: firmware handle: h) ifNotNil: [:d |
-		[(probe isNvidiaGpu: d) ifTrue: [| children path |
-			count := count + 1.
-			children := firmware childrenOf: h.
-			path := self pathText: h.
-			self line: 'nvidia ', (d location ifNil: ['?']), ' on ', path,
-				((firmware isManaged: h) ifTrue: [', driven by the firmware'] ifFalse: [', no firmware driver']), ', ', children size printString, ' child controllers'.
-			gops doWithIndex: [:g :i |
-				((children includes: g) or: [(path beginsWith: '(') not and: [(self pathText: g) beginsWith: path]])
-					ifTrue: [self line: 'nvidia gop ', i printString, ' is this GPU''s: ', (self pathText: g)]].
-			self flushFile.
-			(probe on: d) lines do: [:each | self line: 'nvidia ', each]]]
-			ensure: [d release]]].
-	count = 0 ifTrue: [self line: 'nvidia: no NVIDIA GPU']
 !
 blockDevices
 	| handles |

@@ -66,7 +66,6 @@ addFirmwareItemsTo: aMenu
 	"On UEFI: the installer, the reboots into each system (docs/uefi.md, Installing), and restarting or powering off by the firmware (Firmware reset:)."
 	aMenu addSeparator.
 	aMenu add: 'Install Samaltak…' description: 'onto this machine''s disk' action: [self run: [Tools openInstaller]].
-	aMenu add: 'NVIDIA GPU probe' description: 'read only' action: [self run: [Tools openWorkspaceWith: (String new join: ((FirmwareDiagnostics nvidiaLines) collect: [:each | each, (String with: Character lf)]))]].
 	aMenu addSeparator.
 	aMenu add: 'Reboot into Ubuntu' description: 'BootNext, once' action: [self run: [Tools rebootInto: #ubuntu]].
 	aMenu add: 'Reboot into Samaltak' description: 'from the disk' action: [self run: [Tools rebootInto: #samaltak]].

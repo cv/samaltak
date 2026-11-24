@@ -104,7 +104,7 @@ docs/nv.md's Struct layouts; NvEncodingTest checks their offsets.
 
 ## Tests and numbers
 
-`make test-core` runs NvCubinTest, NvEncodingTest, NvTransportTest (NvDevice over a fake transport that logs the RM calls), and NvProbeTest, none of which needs a GPU. `make test-nv` runs NvGpuTest on the GPU: it is not
+`make test-core` runs NvCubinTest, NvEncodingTest, and NvTransportTest (NvDevice over a fake transport that logs the RM calls), none of which needs a GPU. `make test-nv` runs NvGpuTest on the GPU: it is not
 part of `make test` (`NvGpuTest class>>runsByDefault` is false, so `--test` without names leaves it out) and fails,
 saying so, where there is no NVIDIA driver. `NvGpuMeasure report` (evaluate it) measures, on the GB10 (48 SMs),
 best of a few runs:
