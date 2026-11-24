@@ -1,13 +1,24 @@
 VMCoreModule subclass: #GarbageCollector
 	instanceVariableNames: 'youngLo youngHi edenLo edenHi edenBox survLo survTop survHi survOtherLo survOtherHi oldLo oldTop oldHi oldAltLo oldAltHi oldBudget maxHeapBytes heapReserve lowSpaceLevel lowSpacePending lowSpaceHash oldReserve gcEpoch statScavenges statFullGcs statScavengeUs statFullUs statAllocated statTenured remset remsetCount remsetCap startBits vlo verify toLo toTop toHi weakList weakCount weakCap finalizationPending statWeakCleared ftTop becomeFrom becomeTo updateWeakOwners invalidateWeakOwners'
-	classVariableNames: 'MIN_BUDGET TENURE_AGE'
+	classVariableNames: 'MIN_BUDGET TENURE_AGE HUGE_PAGE'
 	package: 'VM-Core'!
 
-GarbageCollector comment: 'Generational GC: eden and two survivor spaces scavenged with a remembered set, copying full GC between two old-space reservations. Weak objects (format 4) have their indexable slots cleared when their referents die. Addresses of the spaces are plain integers.
+GarbageCollector comment: 'Generational GC: eden and two survivor spaces scavenged with a remembered set, copying full GC between two old-space reservations. Weak objects (format 4) have their indexable slots cleared when their referents die. Addresses of the spaces are plain integers. The spaces are backed by huge pages where the system has them (reserveHuge:; SAMALTAK_GC_NO_THP=1: not).
 
 The heap limit (maxHeapBytes) keeps back a reserve (heapReserve, an eighth of it, at most 128 MB) so that a program that fills the heap gets a catchable error and its handlers and the UI can still run: allocations Smalltalk asks for in old space (large objects: oldAllocTry:limit: with softLimit) fail with PRIM_ERR_NO_MEMORY beyond maxHeapBytes - heapReserve; small objects and Contexts may use the reserve. A full GC that leaves more than that live raises lowSpaceLevel to 1, more than maxHeapBytes - heapReserve / 4 to 2, and sets lowSpacePending: the interpreter''s next safepoint in the process that was running then (lowSpaceHash, its identity hash: the one whose allocation, or whose stack flushed at a switch, ran the GC) signals it there (Interpreter>>interruptSafepoint); a process that preempts it does not get it. The old space''s budget stops at the next level''s limit, so a full GC notices each level; one that leaves no more than softLimit live re-arms them. Only a full GC with more than maxHeapBytes live is fatal.'!
 
 !GarbageCollector class methodsFor: 'declaring'!
+cPreamble
+	"Posix>>MADV_HUGEPAGE: Linux's transparent huge pages, else 0."
+	^'#if defined(__linux__) && !!defined(SAMALTAK_UEFI)
+#include <sys/mman.h>
+#endif
+#if defined(__linux__) && !!defined(SAMALTAK_UEFI) && defined(MADV_HUGEPAGE)
+#define SAMALTAK_MADV_HUGEPAGE MADV_HUGEPAGE
+#else
+#define SAMALTAK_MADV_HUGEPAGE 0
+#endif'
+!
 declarations
 	^#((youngLo uint64_t) (youngHi uint64_t) (edenLo uint64_t) (edenHi uint64_t) (edenBox 'uint64_t[2]')
 		(survLo uint64_t) (survTop uint64_t) (survHi uint64_t) (survOtherLo uint64_t) (survOtherHi uint64_t)
@@ -23,6 +34,7 @@ declarations
 !
 initialize
 	MIN_BUDGET := 64 << 20.
+	HUGE_PAGE := 2 << 20.
 	TENURE_AGE := 2
 ! !
 
@@ -159,6 +171,20 @@ reserve: n
 	p = posix MAP_FAILED ifTrue: [self fatal: 'cannot reserve %zu bytes' with: n].
 	^self cCoerce: p to: 'uint64_t'
 !
+reserveHuge: n
+	"As reserve:, aligned to 2 MB and backed by huge pages where the system has them (Linux): bump allocation into a space then faults a page in per 2 MB instead of per 4 KB (a 64 MB eden: 32 faults, not 16,384), and the mutator and the collector miss the TLB less."
+	<function>
+	<var: #n type: 'size_t'>
+	| p |
+	posix MADV_HUGEPAGE = 0 ifTrue: [^self reserve: n].
+	p := ((self reserve: n + HUGE_PAGE) + HUGE_PAGE - 1) bitClear: HUGE_PAGE - 1.
+	self adviseHuge: p size: n.
+	^p
+!
+adviseHuge: p size: n
+	<function>
+	(posix MADV_HUGEPAGE ~= 0 and: [(libc getenv: 'SAMALTAK_GC_NO_THP') isNull]) ifTrue: [posix madvise: (self ptr: p) length: n advice: posix MADV_HUGEPAGE]
+!
 releasePages: address size: n
 	"Tell the system the whole pages in [address, address + n) are not needed: their memory goes back to it until they are touched again. Their contents are undefined afterwards (zeroes on Linux, kept on macOS and UEFI): only for memory whose contents do not matter."
 	<export>
@@ -183,14 +209,15 @@ discard: p size: n
 	m := (n + 16383) bitClear: 16383.
 	m ~= 0 ifTrue: [
 		posix mmap: (self ptr: p) length: m protection: (posix PROT_READ bitOr: posix PROT_WRITE)
-			flags: (((posix MAP_PRIVATE bitOr: posix MAP_ANON) bitOr: posix MAP_FIXED) bitOr: posix MAP_NORESERVE) file: -1 offset: 0]
+			flags: (((posix MAP_PRIVATE bitOr: posix MAP_ANON) bitOr: posix MAP_FIXED) bitOr: posix MAP_NORESERVE) file: -1 offset: 0.
+		self adviseHuge: p size: m]
 !
 init: edenBytes maxHeap: maxHeap
 	<function>
 	| surv young |
 	surv := edenBytes quo: 4.
 	young := edenBytes + (2 * surv).
-	youngLo := self reserve: young.
+	youngLo := self reserveHuge: young.
 	youngHi := youngLo + young.
 	edenLo := youngLo.
 	self edenTop: youngLo.
@@ -205,9 +232,9 @@ init: edenBytes maxHeap: maxHeap
 	lowSpaceLevel := 0.
 	lowSpacePending := false.
 	oldReserve := maxHeap + young + (1 << 20).
-	oldLo := oldTop := self reserve: oldReserve.
+	oldLo := oldTop := self reserveHuge: oldReserve.
 	oldHi := oldLo + oldReserve.
-	oldAltLo := self reserve: oldReserve.
+	oldAltLo := self reserveHuge: oldReserve.
 	oldAltHi := oldAltLo + oldReserve.
 	oldBudget := MIN_BUDGET
 ! !

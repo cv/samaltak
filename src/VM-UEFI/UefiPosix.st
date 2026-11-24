@@ -98,6 +98,10 @@ madvise: addr length: n advice: advice
 MADV_DONTNEED
 	^4
 !
+MADV_HUGEPAGE
+	"None: memory is identity-mapped, and a reservation is real memory."
+	^0
+!
 PROT_READ
 	^1
 !

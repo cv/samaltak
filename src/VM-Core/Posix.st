@@ -50,6 +50,11 @@ MADV_DONTNEED
 	<cMacro: 'int MADV_DONTNEED'>
 	^4
 !
+MADV_HUGEPAGE
+	"Linux: back the range with transparent huge pages where the system allows it; 0 where there are none (macOS; defined in GarbageCollector class>>cPreamble, the one module that asks)."
+	<cMacro: 'int SAMALTAK_MADV_HUGEPAGE'>
+	^0
+!
 MAP_PRIVATE
 	<cMacro: 'int MAP_PRIVATE'>
 	^2

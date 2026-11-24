@@ -311,6 +311,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define F_W32 10
 #define F_W64 9
 #define F_WEAK 4
+#define HUGE_PAGE 2097152
 #define HUNG_UP_MAX 64
 #define H_AGE_MASK 6917529027641081856LL
 #define H_AGE_SHIFT 61
