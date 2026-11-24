@@ -712,9 +712,9 @@ utf8BytesOf: s size: size
 ! !
 
 !ObjectMemory methodsFor: 'initialization'!
-memoryInit: edenBytes maxHeap: maxHeap
+memoryInit: edenBytes survivor: survBytes maxHeap: maxHeap
 	<function>
-	gc init: edenBytes maxHeap: maxHeap.
+	gc init: edenBytes survivor: survBytes maxHeap: maxHeap.
 	largeObjectBytes := (edenBytes quo: 8) > (64 * 1024) ifTrue: [edenBytes quo: 8] ifFalse: [64 * 1024].
 	self resetAllocLimit
 ! !

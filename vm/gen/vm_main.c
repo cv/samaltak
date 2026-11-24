@@ -7,6 +7,8 @@ int32_t args_start;
 char **argv;
 static bool headless;
 
+static uint64_t default_eden(uint64_t max_heap);
+static uint64_t env_mb(const char *name);
 static bool jit_option(char **v, int32_t i, int n);
 static _Noreturn void vm_main_usage(void);
 
@@ -14,6 +16,29 @@ static _Noreturn void vm_main_usage(void);
 char *banner(void)
 {
     return "Samaltak VM";
+}
+
+/* VMMain>>defaultEden: */
+static uint64_t default_eden(uint64_t max_heap)
+{
+    uint64_t e;
+    e = max_heap / 64;
+    if (e < 16777216) {
+        return 16777216;
+    }
+    if (e > 67108864) {
+        return 67108864;
+    }
+    return (e + 0x3FFF) & 18446744073709535232ULL;
+}
+
+/* VMMain>>envMB: */
+static uint64_t env_mb(const char *name)
+{
+    if (getenv(name) == NULL) {
+        return 0;
+    }
+    return ((uint64_t)atol(getenv(name))) << 20;
 }
 
 /* VMMain>>jitOption:at:count: */
@@ -71,6 +96,8 @@ int main(int n, char **v)
 {
     uint64_t max_heap;
     uint64_t eden;
+    uint64_t surv;
+    long tenure;
     int64_t i;
     char *image;
     int64_t k;
@@ -79,7 +106,9 @@ int main(int n, char **v)
     uint64_t ctx;
     defaults();
     max_heap = 4294967296ULL;
-    eden = 16777216ULL;
+    eden = env_mb("SAMALTAK_EDEN_MB");
+    surv = env_mb("SAMALTAK_SURVIVOR_MB");
+    tenure = getenv("SAMALTAK_TENURE_AGE") == NULL ? 0 : atol(getenv("SAMALTAK_TENURE_AGE"));
     i = 1;
     while ((i < n) && (v[i][0] == 45)) {
         if ((strcmp(v[i], "--max-heap") == 0) && (i + 1 < n)) {
@@ -88,6 +117,12 @@ int main(int n, char **v)
         } else if ((strcmp(v[i], "--eden") == 0) && (i + 1 < n)) {
             i = i + 1;
             eden = ((uint64_t)atol(v[i])) << 20;
+        } else if ((strcmp(v[i], "--survivor") == 0) && (i + 1 < n)) {
+            i = i + 1;
+            surv = ((uint64_t)atol(v[i])) << 20;
+        } else if ((strcmp(v[i], "--tenure-age") == 0) && (i + 1 < n)) {
+            i = i + 1;
+            tenure = atol(v[i]);
         } else if (strcmp(v[i], "--headless") == 0) {
             headless = true;
         } else if (jit_option(v, (int32_t)i, n)) {
@@ -113,7 +148,14 @@ int main(int n, char **v)
         fputs("samaltak: invalid or unresolved SAMALTAK_NATIVE_GRANTS manifest\n", stderr);
         exit(64);
     }
-    memory_init(eden, max_heap);
+    if ((tenure < 0) || (tenure > 4)) {
+        vm_main_usage();
+    }
+    garbage_collector_tenure_age((uint32_t)tenure);
+    if (eden == 0) {
+        eden = default_eden(max_heap);
+    }
+    memory_init(eden, surv, max_heap);
     load_image(image);
     scheduler_init();
     jit_runtime_start();
@@ -143,7 +185,7 @@ int main(int n, char **v)
 /* VMMain>>usage */
 static void vm_main_usage(void)
 {
-    fputs("usage: samaltak [--max-heap MB] [--eden MB] [--jit none|baseline|opt (default)] [--jit-threshold N] [--jit-osr N]\n\t[--jit-opt N] [--jit-flags [-]flag,...] [--jit-cache MB] image [--headless] [arguments...]\n  --jit-threshold N  activations before a method is compiled (0: the first one)\n  --jit-osr N        backward jumps before a running method is compiled and entered\n  --jit-opt N        with --jit opt: entries and backward jumps in compiled code before a method is optimized\n  --jit-flags        ablations: baseline: ic pic mega regs arith fuse float access prims blocks quick\n                     barrier; opt: inline blocks prims unbox calls alloc gvn hoist live ffi-site;\n                     listings: notes; stress: eager deopt (-name turns one off)\n", stderr);
+    fputs("usage: samaltak [--max-heap MB] [--eden MB] [--survivor MB] [--tenure-age N] [--jit none|baseline|opt (default)]\n\t[--jit-threshold N] [--jit-osr N] [--jit-opt N] [--jit-flags [-]flag,...] [--jit-cache MB] image [--headless] [arguments...]\n  --eden MB          the young generation's allocation space (default: a 64th of --max-heap, 16 to 64 MB; SAMALTAK_EDEN_MB)\n  --survivor MB      each of its two survivor spaces (default: a quarter of eden; SAMALTAK_SURVIVOR_MB)\n  --tenure-age N     tenure a survivor on its Nth scavenge, 1 to 4; 0 (default): adaptive (SAMALTAK_TENURE_AGE)\n  --jit-threshold N  activations before a method is compiled (0: the first one)\n  --jit-osr N        backward jumps before a running method is compiled and entered\n  --jit-opt N        with --jit opt: entries and backward jumps in compiled code before a method is optimized\n  --jit-flags        ablations: baseline: ic pic mega regs arith fuse float access prims blocks quick\n                     barrier; opt: inline blocks prims unbox calls alloc gvn hoist live ffi-site;\n                     listings: notes; stress: eager deopt (-name turns one off)\n", stderr);
     exit(64);
 }
 

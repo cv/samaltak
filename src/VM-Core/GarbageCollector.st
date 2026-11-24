@@ -1,9 +1,9 @@
 VMCoreModule subclass: #GarbageCollector
-	instanceVariableNames: 'youngLo youngHi edenLo edenHi edenBox survLo survTop survHi survOtherLo survOtherHi oldLo oldTop oldHi oldAltLo oldAltHi oldBudget maxHeapBytes heapReserve lowSpaceLevel lowSpacePending lowSpaceHash oldReserve gcEpoch statScavenges statFullGcs statScavengeUs statFullUs statAllocated statTenured remset remsetCount remsetCap startBits vlo verify toLo toTop toHi weakList weakCount weakCap finalizationPending statWeakCleared ftTop becomeFrom becomeTo updateWeakOwners invalidateWeakOwners'
-	classVariableNames: 'MIN_BUDGET TENURE_AGE HUGE_PAGE'
+	instanceVariableNames: 'youngLo youngHi edenLo edenHi edenBox survLo survTop survHi survOtherLo survOtherHi oldLo oldTop oldHi oldAltLo oldAltHi oldBudget maxHeapBytes heapReserve lowSpaceLevel lowSpacePending lowSpaceHash oldReserve gcEpoch statScavenges statFullGcs statScavengeUs statFullUs statAllocated statTenured statSurvived statScavengeMaxUs tenureAge tenureAdaptive ageBytes copiedBytes prevAgeBytes survivalRate gcLog remset remsetCount remsetCap startBits vlo verify toLo toTop toHi weakList weakCount weakCap finalizationPending statWeakCleared ftTop becomeFrom becomeTo updateWeakOwners invalidateWeakOwners'
+	classVariableNames: 'MIN_BUDGET TENURE_AGE MAX_TENURE_AGE HUGE_PAGE'
 	package: 'VM-Core'!
 
-GarbageCollector comment: 'Generational GC: eden and two survivor spaces scavenged with a remembered set, copying full GC between two old-space reservations. Weak objects (format 4) have their indexable slots cleared when their referents die. Addresses of the spaces are plain integers. The spaces are backed by huge pages where the system has them (reserveHuge:; SAMALTAK_GC_NO_THP=1: not).
+GarbageCollector comment: 'Generational GC: eden and two survivor spaces scavenged with a remembered set, copying full GC between two old-space reservations. Weak objects (format 4) have their indexable slots cleared when their referents die. Addresses of the spaces are plain integers. A survivor is tenured on the scavenge tenureAge says (adaptTenure, or fixed by --tenure-age); the spaces are backed by huge pages where the system has them (reserveHuge:); SAMALTAK_GC_LOG prints a line per collection.
 
 The heap limit (maxHeapBytes) keeps back a reserve (heapReserve, an eighth of it, at most 128 MB) so that a program that fills the heap gets a catchable error and its handlers and the UI can still run: allocations Smalltalk asks for in old space (large objects: oldAllocTry:limit: with softLimit) fail with PRIM_ERR_NO_MEMORY beyond maxHeapBytes - heapReserve; small objects and Contexts may use the reserve. A full GC that leaves more than that live raises lowSpaceLevel to 1, more than maxHeapBytes - heapReserve / 4 to 2, and sets lowSpacePending: the interpreter''s next safepoint in the process that was running then (lowSpaceHash, its identity hash: the one whose allocation, or whose stack flushed at a switch, ran the GC) signals it there (Interpreter>>interruptSafepoint); a process that preempts it does not get it. The old space''s budget stops at the next level''s limit, so a full GC notices each level; one that leaves no more than softLimit live re-arms them. Only a full GC with more than maxHeapBytes live is fatal.'!
 
@@ -24,7 +24,8 @@ declarations
 		(survLo uint64_t) (survTop uint64_t) (survHi uint64_t) (survOtherLo uint64_t) (survOtherHi uint64_t)
 		(oldLo uint64_t) (oldTop uint64_t) (oldHi uint64_t) (oldAltLo uint64_t) (oldAltHi uint64_t)
 		(oldBudget size_t) (maxHeapBytes size_t) (heapReserve size_t) (lowSpaceLevel int32_t) (lowSpacePending bool) (lowSpaceHash uint32_t) (oldReserve size_t) (gcEpoch uint64_t)
-		(statScavenges uint64_t) (statFullGcs uint64_t) (statScavengeUs uint64_t) (statFullUs uint64_t) (statAllocated uint64_t) (statTenured uint64_t)
+		(statScavenges uint64_t) (statFullGcs uint64_t) (statScavengeUs uint64_t) (statFullUs uint64_t) (statAllocated uint64_t) (statTenured uint64_t) (statSurvived uint64_t) (statScavengeMaxUs uint64_t)
+		(tenureAge uint32_t) (tenureAdaptive bool) (ageBytes 'uint64_t[4]') (copiedBytes 'uint64_t[5]') (prevAgeBytes 'uint64_t[4]') (survivalRate uint32_t) (gcLog int32_t -1)
 		(remset 'oop *') (remsetCount size_t) (remsetCap size_t)
 		(startBits 'uint8_t *') (vlo uint64_t) (verify int32_t -1)
 		(toLo uint64_t) (toTop uint64_t) (toHi uint64_t)
@@ -35,12 +36,26 @@ declarations
 initialize
 	MIN_BUDGET := 64 << 20.
 	HUGE_PAGE := 2 << 20.
-	TENURE_AGE := 2
+	TENURE_AGE := 2.
+	MAX_TENURE_AGE := 4
 ! !
 
 !GarbageCollector methodsFor: 'accessing'!
 tenureAge
-	^TENURE_AGE
+	"The age at which the next scavenge tenures a survivor: how many scavenges it has survived, counting that one."
+	^tenureAge
+!
+tenureAge: n
+	"1 to 4: tenure on the nth scavenge survived; 0: adaptive (adaptTenure)."
+	<function>
+	tenureAdaptive := n = 0.
+	tenureAge := n = 0 ifTrue: [TENURE_AGE] ifFalse: [n asUInt32]
+!
+statSurvived
+	^statSurvived
+!
+statScavengeMaxUs
+	^statScavengeMaxUs
 !
 youngLo
 	^youngLo
@@ -212,10 +227,13 @@ discard: p size: n
 			flags: (((posix MAP_PRIVATE bitOr: posix MAP_ANON) bitOr: posix MAP_FIXED) bitOr: posix MAP_NORESERVE) file: -1 offset: 0.
 		self adviseHuge: p size: m]
 !
-init: edenBytes maxHeap: maxHeap
+init: edenBytes survivor: survBytes maxHeap: maxHeap
+	"Reserve the spaces: eden, two survivor spaces of survBytes (0: a quarter of eden), old space."
 	<function>
 	| surv young |
-	surv := edenBytes quo: 4.
+	surv := survBytes = 0 ifTrue: [edenBytes quo: 4] ifFalse: [(survBytes + 7) bitClear: 7].
+	tenureAge = 0 ifTrue: [self tenureAge: TENURE_AGE].
+	survivalRate := 100.
 	young := edenBytes + (2 * surv).
 	youngLo := self reserveHuge: young.
 	youngHi := youngLo + young.
@@ -368,7 +386,8 @@ scavCopy: o
 	(h bitAnd: H_FORWARDED) ~= 0 ifTrue: [^self rawClass: o].
 	bytes := self objBytes: o.
 	age := (((h >> H_AGE_SHIFT) bitAnd: 3) + 1) asUInt32.
-	(age >= TENURE_AGE or: [toTop + bytes > toHi])
+	copiedBytes at: age put: (copiedBytes at: age) + bytes.
+	(age >= tenureAge or: [toTop + bytes > toHi])
 		ifTrue: [
 			dst := oldTop.
 			oldTop := oldTop + bytes.
@@ -378,6 +397,7 @@ scavCopy: o
 		ifFalse: [
 			dst := toTop.
 			toTop := toTop + bytes.
+			ageBytes at: age put: (ageBytes at: age) + bytes.
 			libc memcpy: (self ptr: dst) from: (self ptr: o) size: bytes.
 			self header: dst put: ((h bitClear: H_GCBITS) bitOr: age asUInt64 << H_AGE_SHIFT)].
 	self header: o put: (h bitOr: H_FORWARDED).
@@ -472,9 +492,12 @@ scavScan: o
 !
 scavenge
 	<function>
-	| t0 tenureScan kept o scan w |
+	| t0 tenureScan kept o scan w tenured0 us |
 	interpreter beforeGC.
 	t0 := scheduler workClockHeldUs.
+	tenured0 := statTenured.
+	0 to: 3 do: [:a | ageBytes at: a put: 0].
+	0 to: 4 do: [:a | copiedBytes at: a put: 0].
 	statScavenges := statScavenges + 1.
 	statAllocated := statAllocated + (self edenTop - edenLo).
 	toLo := toTop := survOtherLo.
@@ -511,9 +534,42 @@ scavenge
 	survTop := toTop.
 	survHi := toHi.
 	self edenTop: edenLo.
+	statSurvived := statSurvived + (survTop - survLo).
+	tenureAdaptive ifTrue: [self adaptTenure].
 	self rememberIfOld: interpreter activeCtx.
 	self afterGC.
-	statScavengeUs := statScavengeUs + (scheduler workClockHeldUs - t0) asUInt64
+	us := (scheduler workClockHeldUs - t0) asUInt64.
+	statScavengeUs := statScavengeUs + us.
+	us > statScavengeMaxUs ifTrue: [statScavengeMaxUs := us].
+	self logGC ifTrue: [
+		libc fprintf: libc stderr format: 'gc: scavenge %llu us survived %llu tenured %llu remset %llu' with: us with: survTop - survLo with: statTenured - tenured0 with: remsetCount asUInt64.
+		libc fprintf: libc stderr format: ' old %llu age %u survival %u%%' with: oldTop - oldLo with: tenureAge with: survivalRate.
+		libc fprintf: libc stderr format: ' copied %llu %llu' with: (copiedBytes at: 1) with: (copiedBytes at: 2).
+		libc fprintf: libc stderr format: ' %llu %llu
+' with: (copiedBytes at: 3) with: (copiedBytes at: 4)]
+!
+adaptTenure
+	"Choose the next scavenge's tenure age. survivalRate is the share, in percent, of the survivors of one scavenge (age 1) that live through the next one too (a running average; 100 until measured). Where most do, survivors are long-lived: tenure them at age 2 (copied once). Where most die, they are medium-lived (alive across a scavenge or two): keep them young up to age MAX_TENURE_AGE, so that they die in the survivor spaces instead of growing old space towards a full GC, as long as the younger ones fill no more than half the survivor space (its overflow is tenured at once)."
+	<function>
+	| desired cum t s |
+	(prevAgeBytes at: 1) >= (64 << 10) ifTrue: [
+		s := ((copiedBytes at: 2) * 100) quo: (prevAgeBytes at: 1).
+		s > 100 ifTrue: [s := 100].
+		survivalRate := ((survivalRate * 3) + s asUInt32) quo: 4].
+	desired := (survHi - survLo) quo: 2.
+	t := survivalRate >= 50 ifTrue: [2] ifFalse: [MAX_TENURE_AGE].
+	cum := 0 asUInt64.
+	1 to: MAX_TENURE_AGE - 1 do: [:a |
+		cum := cum + (ageBytes at: a).
+		(a + 1 < t and: [cum > desired]) ifTrue: [t := a + 1].
+		prevAgeBytes at: a put: (ageBytes at: a)].
+	tenureAge := t asUInt32
+!
+logGC
+	"Whether SAMALTAK_GC_LOG asks for a line on stderr per collection."
+	<function>
+	gcLog < 0 ifTrue: [gcLog := (libc getenv: 'SAMALTAK_GC_LOG') notNull ifTrue: [1] ifFalse: [0]].
+	^gcLog ~= 0
 ! !
 
 !GarbageCollector methodsFor: 'full GC'!
@@ -578,6 +634,7 @@ fullGC
 	oldAltHi := hi.
 	self edenTop: edenLo.
 	survTop := survLo.
+	0 to: 3 do: [:a | prevAgeBytes at: a put: 0].
 	remsetCount := 0.
 	live := oldTop - oldLo.
 	self noteLive: live.
@@ -586,15 +643,17 @@ fullGC
 	self rememberIfOld: interpreter activeCtx.
 	self afterGC.
 	statFullUs := statFullUs + (scheduler workClockHeldUs - t0) asUInt64.
+	self logGC ifTrue: [libc fprintf: libc stderr format: 'gc: full %llu us live %llu
+' with: (scheduler workClockHeldUs - t0) asUInt64 with: live].
 	live > maxHeapBytes ifTrue: [self fatal: 'out of memory (%llu MB live, limit %zu MB)' with: live >> 20 with: maxHeapBytes >> 20]
 !
 collectGarbage: need
-	"Scavenge or full GC so that need bytes fit in eden."
+	"Scavenge or full GC so that need bytes fit in eden: a full GC when old space is over its budget, or would be if the survivors were tenured (most of eden dies, so its size does not count), or, near the next low-space limit, if all of the young generation were (so that a full GC notices the limit before a scavenge takes old space past it)."
 	<function>
-	| youngUsed oldUsed |
-	youngUsed := (self edenTop - edenLo) + (survTop - survLo).
+	| oldUsed youngUsed |
 	oldUsed := oldTop - oldLo.
-	oldUsed + youngUsed > oldBudget
+	youngUsed := (self edenTop - edenLo) + (survTop - survLo).
+	(oldUsed + (survTop - survLo) > oldBudget or: [oldUsed + youngUsed > oldBudget and: [oldUsed + youngUsed > (self lowSpaceLimit: lowSpaceLevel)]])
 		ifTrue: [self fullGC]
 		ifFalse: [
 			self scavenge.

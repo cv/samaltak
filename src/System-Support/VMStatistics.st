@@ -47,7 +47,7 @@ bytesTenured
 	^self counterAt: 11
 !
 tenureAge
-	"The scavenges an object survives before it is promoted (the running VM's GarbageCollector TENURE_AGE)."
+	"The scavenge, counting from an object's first, on which a survivor is tenured next (GarbageCollector>>adaptTenure: 2 where survivors mostly live on, up to 4 where they mostly die; --tenure-age fixes it)."
 	^self counterAt: 41
 !
 maxHeapBytes
@@ -80,7 +80,15 @@ cpuTimeReconciles
 !
 timerArms
 	"The Ticker's timers set or cleared (Scheduler>>tickUpdate): the deadline (timer, sampler, time slice) and the periodic poll."
-	^self counterAt: 43
+	^self counterAt: 49
+!
+bytesSurvived
+	"Bytes scavenges copied into a survivor space (kept young; bytesTenured went to old space)."
+	^self counterAt: 50
+!
+maxScavengeMicroseconds
+	"The longest scavenge so far, in µs (a maximum: a difference of two snapshots is meaningless)."
+	^self counterAt: 51
 !
 weakSlotsCleared
 	^self counterAt: 12
@@ -216,5 +224,5 @@ counters: anArray
 !VMStatistics class methodsFor: 'accessing'!
 counterNames
 	"Answer my counter accessors in vmStats order."
-	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures #jitInlineCacheMisses #jitInlineCacheLinks #jitPolymorphicCaches #jitMegamorphicSites #jitBlockCacheMisses #jitPrimitiveCalls #jitFrameWalks #optMethodsCompiled #optBytecodesCompiled #optCompileMicroseconds #optCodeBytes #optDeoptimizations #optOsrEntries #optInvalidations #optCompileFailures #optRuntimeSends #tenureAge #maxHeapBytes #heapReserve #optBackgroundJobs #optBackgroundDiscarded #optBackgroundMicroseconds #optBackgroundDeferred #cpuTimeReconciles #timerArms)
+	^#(#scavenges #fullGCs #scavengeMicroseconds #fullGCMicroseconds #oldBytesUsed #oldBudget #edenBytes #bytesAllocated #rememberedSetSize #processSwitches #bytesTenured #weakSlotsCleared #contextsMaterialized #frameFlushes #jitMethodsCompiled #jitBytecodesCompiled #jitCompileMicroseconds #jitCodeBytes #jitCacheFlushes #jitEntries #jitExits #jitResumes #jitOsrEntries #jitCompileFailures #jitInlineCacheMisses #jitInlineCacheLinks #jitPolymorphicCaches #jitMegamorphicSites #jitBlockCacheMisses #jitPrimitiveCalls #jitFrameWalks #optMethodsCompiled #optBytecodesCompiled #optCompileMicroseconds #optCodeBytes #optDeoptimizations #optOsrEntries #optInvalidations #optCompileFailures #optRuntimeSends #tenureAge #maxHeapBytes #heapReserve #optBackgroundJobs #optBackgroundDiscarded #optBackgroundMicroseconds #optBackgroundDeferred #cpuTimeReconciles #timerArms #bytesSurvived #maxScavengeMicroseconds)
 ! !

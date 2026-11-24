@@ -10,14 +10,17 @@
 #endif
 #include "samaltak.h"
 
+static uint64_t age_bytes[4];
 static oop become_from;
 static oop become_to;
+static uint64_t copied_bytes[5];
 uint64_t eden_box[2];
 uint64_t eden_hi;
 uint64_t eden_lo;
 bool finalization_pending;
 static uint64_t ft_top;
 uint64_t gc_epoch;
+static int32_t gc_log = -1;
 size_t heap_reserve;
 static void (*invalidate_weak_owners)(void);
 uint32_t low_space_hash;
@@ -31,6 +34,7 @@ static uint64_t old_hi;
 uint64_t old_lo;
 static size_t old_reserve;
 uint64_t old_top;
+static uint64_t prev_age_bytes[4];
 static oop *remset;
 static size_t remset_cap;
 size_t remset_count;
@@ -38,8 +42,10 @@ static uint8_t *start_bits;
 uint64_t stat_allocated;
 uint64_t stat_full_gcs;
 uint64_t stat_full_us;
+uint64_t stat_scavenge_max_us;
 uint64_t stat_scavenge_us;
 uint64_t stat_scavenges;
+uint64_t stat_survived;
 uint64_t stat_tenured;
 uint64_t stat_weak_cleared;
 static uint64_t surv_hi;
@@ -47,6 +53,9 @@ static uint64_t surv_lo;
 static uint64_t surv_other_hi;
 static uint64_t surv_other_lo;
 static uint64_t surv_top;
+static uint32_t survival_rate;
+static bool tenure_adaptive;
+uint32_t tenure_age;
 static uint64_t to_hi;
 static uint64_t to_lo;
 static uint64_t to_top;
@@ -59,6 +68,7 @@ static oop *weak_list;
 uint64_t young_hi;
 uint64_t young_lo;
 
+static void adapt_tenure(void);
 static void advise_huge(uint64_t p, size_t n);
 static void garbage_collector_after_gc(void);
 static void become_root(oop *p);
@@ -69,6 +79,7 @@ static uint64_t full_copy(oop o);
 static bool full_dead(oop *v);
 static void full_root(oop *p);
 static bool garbage_collector_is_context(oop o);
+static bool log_gc(void);
 static size_t low_space_limit(int32_t level);
 static void mark_starts_from(uint64_t lo, uint64_t hi);
 static void note_live(uint64_t live);
@@ -83,6 +94,34 @@ static uint32_t traced_slots(oop o);
 static bool valid_ref(oop v);
 static void verify_heap(void);
 static void verify_space_from(uint64_t lo, uint64_t hi, bool is_old);
+
+/* GarbageCollector>>adaptTenure */
+static void adapt_tenure(void)
+{
+    uint64_t s;
+    uint64_t desired;
+    int t;
+    uint64_t cum;
+    int a;
+    if (prev_age_bytes[1] >= 65536) {
+        s = copied_bytes[2] * 100 / prev_age_bytes[1];
+        if (s > 100) {
+            s = 100;
+        }
+        survival_rate = (survival_rate * 3 + (uint32_t)s) / 4;
+    }
+    desired = (surv_hi - surv_lo) / 2;
+    t = survival_rate >= 50 ? 2 : MAX_TENURE_AGE;
+    cum = 0ULL;
+    for (a = 1; a <= 3; a++) {
+        cum = cum + age_bytes[a];
+        if ((a + 1 < t) && (cum > desired)) {
+            t = a + 1;
+        }
+        prev_age_bytes[a] = age_bytes[a];
+    }
+    tenure_age = (uint32_t)t;
+}
 
 /* GarbageCollector>>adviseHuge:size: */
 static void advise_huge(uint64_t p, size_t n)
@@ -180,11 +219,11 @@ static void clear_weak_slots(bool (*is_dead)(oop *))
 /* GarbageCollector>>collectGarbage: */
 void collect_garbage(uint64_t need)
 {
-    uint64_t young_used;
     uint64_t old_used;
-    young_used = eden_box[0] - eden_lo + (surv_top - surv_lo);
+    uint64_t young_used;
     old_used = old_top - old_lo;
-    if (old_used + young_used > old_budget) {
+    young_used = eden_box[0] - eden_lo + (surv_top - surv_lo);
+    if ((old_used + (surv_top - surv_lo) > old_budget) || ((old_used + young_used > old_budget) && (old_used + young_used > low_space_limit(low_space_level)))) {
         full_gc();
     } else {
         scavenge();
@@ -308,8 +347,9 @@ void full_gc(void)
     int64_t stop;
     uint64_t lo;
     uint64_t hi;
+    int a;
     uint64_t live;
-    uint64_t a;
+    uint64_t a_2;
     size_t b;
     before_gc();
     t0 = work_clock_held_us();
@@ -351,6 +391,9 @@ void full_gc(void)
     old_alt_hi = hi;
     eden_box[0] = eden_lo;
     surv_top = surv_lo;
+    for (a = 0; a <= 3; a++) {
+        prev_age_bytes[a] = 0;
+    }
     remset_count = 0;
     live = old_top - old_lo;
     note_live(live);
@@ -363,11 +406,14 @@ void full_gc(void)
     }
     garbage_collector_after_gc();
     stat_full_us = stat_full_us + (uint64_t)(work_clock_held_us() - t0);
+    if (log_gc()) {
+        fprintf(stderr, "gc: full %llu us live %llu\n", (unsigned long long)(uint64_t)(work_clock_held_us() - t0), (unsigned long long)live);
+    }
     if (live > max_heap_bytes) {
-        a = live >> 20;
+        a_2 = live >> 20;
         b = max_heap_bytes >> 20;
         fatal_begin();
-        fprintf(stderr, "out of memory (%llu MB live, limit %zu MB)", (unsigned long long)a, b);
+        fprintf(stderr, "out of memory (%llu MB live, limit %zu MB)", (unsigned long long)a_2, b);
         fatal_end();
     }
 }
@@ -382,12 +428,16 @@ static void full_root(oop *p)
     }
 }
 
-/* GarbageCollector>>init:maxHeap: */
-void garbage_collector_init(uint64_t eden_bytes, uint64_t max_heap)
+/* GarbageCollector>>init:survivor:maxHeap: */
+void garbage_collector_init(uint64_t eden_bytes, uint64_t surv_bytes, uint64_t max_heap)
 {
     uint64_t surv;
     uint64_t young;
-    surv = eden_bytes / 4;
+    surv = surv_bytes == 0 ? eden_bytes / 4 : (surv_bytes + 7) & 18446744073709551608ULL;
+    if (tenure_age == 0) {
+        garbage_collector_tenure_age(TENURE_AGE);
+    }
+    survival_rate = 100;
     young = eden_bytes + 2 * surv;
     young_lo = reserve_huge(young);
     young_hi = young_lo + young;
@@ -427,6 +477,15 @@ static bool garbage_collector_is_context(oop o)
     c = *(uint64_t *)(o + 8);
     ctx = cls_context;
     return (c == ctx) || ((((*(uint64_t *)ctx) & H_FORWARDED) != 0) && (c == *(uint64_t *)(ctx + 8)));
+}
+
+/* GarbageCollector>>logGC */
+static bool log_gc(void)
+{
+    if (gc_log < 0) {
+        gc_log = getenv("SAMALTAK_GC_LOG") != NULL ? 1 : 0;
+    }
+    return gc_log != 0;
 }
 
 /* GarbageCollector>>lowSpaceLimit: */
@@ -603,7 +662,8 @@ static uint64_t scav_copy(oop o)
     }
     bytes = 16 + 8 * (uint64_t)(uint32_t)*(uint64_t *)o;
     age = (uint32_t)(((h >> H_AGE_SHIFT) & 3) + 1);
-    if ((age >= TENURE_AGE) || (to_top + bytes > to_hi)) {
+    copied_bytes[age] = copied_bytes[age] + bytes;
+    if ((age >= tenure_age) || (to_top + bytes > to_hi)) {
         dst = old_top;
         old_top = old_top + bytes;
         stat_tenured = stat_tenured + bytes;
@@ -613,6 +673,7 @@ static uint64_t scav_copy(oop o)
     } else {
         dst = to_top;
         to_top = to_top + bytes;
+        age_bytes[age] = age_bytes[age] + bytes;
         memcpy((void *)dst, (void *)o, bytes);
         h_3 = (h & 1152921504606846975ULL) | (((uint64_t)age) << H_AGE_SHIFT);
         *(uint64_t *)dst = h_3;
@@ -685,6 +746,9 @@ static bool scav_scan(oop o)
 void scavenge(void)
 {
     int64_t t0;
+    uint64_t tenured0;
+    int a;
+    int a_2;
     uint64_t tenure_scan;
     int64_t kept;
     int64_t i;
@@ -694,8 +758,16 @@ void scavenge(void)
     uint64_t scan;
     int64_t k;
     oop w;
+    uint64_t us;
     before_gc();
     t0 = work_clock_held_us();
+    tenured0 = stat_tenured;
+    for (a = 0; a <= 3; a++) {
+        age_bytes[a] = 0;
+    }
+    for (a_2 = 0; a_2 <= 4; a_2++) {
+        copied_bytes[a_2] = 0;
+    }
     stat_scavenges = stat_scavenges + 1;
     stat_allocated = stat_allocated + (eden_box[0] - eden_lo);
     to_lo = to_top = surv_other_lo;
@@ -746,11 +818,32 @@ void scavenge(void)
     surv_top = to_top;
     surv_hi = to_hi;
     eden_box[0] = eden_lo;
+    stat_survived = stat_survived + (surv_top - surv_lo);
+    if (tenure_adaptive) {
+        adapt_tenure();
+    }
     if (((active_ctx & 7) == 0) && ((!((uint64_t)(active_ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)active_ctx) & H_REMEMBERED) == 0))) {
         remember(active_ctx);
     }
     garbage_collector_after_gc();
-    stat_scavenge_us = stat_scavenge_us + (uint64_t)(work_clock_held_us() - t0);
+    us = (uint64_t)(work_clock_held_us() - t0);
+    stat_scavenge_us = stat_scavenge_us + us;
+    if (us > stat_scavenge_max_us) {
+        stat_scavenge_max_us = us;
+    }
+    if (log_gc()) {
+        fprintf(stderr, "gc: scavenge %llu us survived %llu tenured %llu remset %llu", (unsigned long long)us, (unsigned long long)(surv_top - surv_lo), (unsigned long long)(stat_tenured - tenured0), (unsigned long long)(uint64_t)remset_count);
+        fprintf(stderr, " old %llu age %u survival %u%%", (unsigned long long)(old_top - old_lo), tenure_age, survival_rate);
+        fprintf(stderr, " copied %llu %llu", (unsigned long long)copied_bytes[1], (unsigned long long)copied_bytes[2]);
+        fprintf(stderr, " %llu %llu\n", (unsigned long long)copied_bytes[3], (unsigned long long)copied_bytes[4]);
+    }
+}
+
+/* GarbageCollector>>tenureAge: */
+void garbage_collector_tenure_age(uint32_t n)
+{
+    tenure_adaptive = n == 0;
+    tenure_age = n == 0 ? TENURE_AGE : n;
 }
 
 /* GarbageCollector>>tracedSlots: */

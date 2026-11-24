@@ -407,6 +407,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define MAX_RECORDS 64
 #define MAX_ROOTS 1024
 #define MAX_STORAGE 15360
+#define MAX_TENURE_AGE 4
 #define MAX_VSYNC_BINDINGS 16
 #define MD_KEYS 1
 #define MD_TALLY 0
@@ -1535,10 +1536,13 @@ extern size_t remset_count;
 extern uint64_t stat_allocated;
 extern uint64_t stat_full_gcs;
 extern uint64_t stat_full_us;
+extern uint64_t stat_scavenge_max_us;
 extern uint64_t stat_scavenge_us;
 extern uint64_t stat_scavenges;
+extern uint64_t stat_survived;
 extern uint64_t stat_tenured;
 extern uint64_t stat_weak_cleared;
+extern uint32_t tenure_age;
 extern uint64_t young_hi;
 extern uint64_t young_lo;
 extern char *image_path;
@@ -1970,7 +1974,7 @@ uint64_t wrapped_result_helper(int32_t tag);
 void become_forward(oop from, oop to);
 void collect_garbage(uint64_t need);
 void full_gc(void);
-void garbage_collector_init(uint64_t eden_bytes, uint64_t max_heap);
+void garbage_collector_init(uint64_t eden_bytes, uint64_t surv_bytes, uint64_t max_heap);
 void invalidate_native_weak_owners(void);
 uint64_t old_alloc_try(uint64_t bytes, size_t limit);
 void register_weak_owners(void (*update)(bool (*)(oop *)), void (*invalidate)(void));
@@ -1978,6 +1982,7 @@ void release_free_memory(void);
 void release_pages(void *address, uint64_t n);
 void remember(oop o);
 void scavenge(void);
+void garbage_collector_tenure_age(uint32_t n);
 void walk_old_space(void (*fn)(uint64_t, void *), void *data);
 void walk_young_space(void (*fn)(uint64_t, void *), void *data);
 int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signature, uint64_t *target_out);
@@ -2200,7 +2205,7 @@ uint64_t int64_oop(int64_t v);
 bool is_float(oop o);
 bool is_kind_of_string(oop o);
 uint64_t large_int_from(oop v, bool negative);
-void memory_init(uint64_t eden_bytes, uint64_t max_heap);
+void memory_init(uint64_t eden_bytes, uint64_t surv_bytes, uint64_t max_heap);
 void pop_root(void);
 void push_root(oop *p);
 void refresh_specials(void);

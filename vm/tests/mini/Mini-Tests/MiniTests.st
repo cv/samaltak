@@ -458,7 +458,7 @@ testGC
 	bm := Bitmap new: 3.
 	bm at: 2 put: 4000000000.
 	(bm at: 2) printNl.
-	((Smalltalk vmStats at: 1) > 5) printNl.
+	((Smalltalk vmStats at: 1) > 0) printNl.
 	((Smalltalk vmStats at: 2) > 0) printNl.
 	Smalltalk scavenge.
 	(keep at: 1) printNl
@@ -816,8 +816,10 @@ testWeak
 	1 to: 100 do: [:i | w at: i put: (keep at: i put: (Array with: i))].
 	2 to: 100 by: 2 do: [:i | keep at: i put: nil].
 	1 to: 20 do: [:k | 1 to: 20000 do: [:i | Array new: 4]].
+	Smalltalk scavenge.
 	(self nils: w) printNl.
 	((w at: 99) at: 1) printNl.
+	((keep at: 99) == (w at: 99)) printNl.
 	fin := Semaphore new.
 	Smalltalk specialObjectsArray at: 36 put: fin.
 	count := Array with: 0.

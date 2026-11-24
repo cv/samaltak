@@ -3,7 +3,7 @@ ToolPane subclass: #TenureTest
 	classVariableNames: ''
 	package: 'Tools'!
 
-TenureTest comment: 'I show what the scavenger''s TENURE_AGE does: Run allocates a million arrays of 80 slots, keeping only the last 3,000 (each dies before its second scavenge), and charts old space. Each run gets a lane headed with the TENURE_AGE the running VM reports, on the same axes as the others (the last two runs stay), and my lanes are saved with the image: after a Rebuild VM & reboot, a second Run puts the new VM''s next to the old one''s.
+TenureTest comment: 'I show what the scavenger''s tenure age does (adaptive, or the VM''s --tenure-age): Run allocates a million arrays of 80 slots, keeping only the last 3,000 (each dies before its second scavenge), and charts old space. Each run gets a lane headed with the TENURE_AGE the running VM reports, on the same axes as the others (the last two runs stay), and my lanes are saved with the image: after a Rebuild VM & reboot, a second Run puts the new VM''s next to the old one''s.
 
 	TenureTest open'!
 

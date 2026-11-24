@@ -179,7 +179,7 @@ void prim_vm_banner(void)
 /* SystemPrimitives>>primVMStats */
 void prim_vm_stats(void)
 {
-    int64_t local[49];
+    int64_t local[51];
     int64_t *v;
     int i;
     int i_2;
@@ -219,7 +219,7 @@ void prim_vm_stats(void)
     for (i_2 = 0; i_2 <= 8; i_2++) {
         v[31 + i_2] = opt_stat((int32_t)i_2);
     }
-    v[40] = 2LL;
+    v[40] = (int64_t)tenure_age;
     v[41] = (int64_t)max_heap_bytes;
     v[42] = (int64_t)heap_reserve;
     for (i_3 = 0; i_3 <= 3; i_3++) {
@@ -227,8 +227,10 @@ void prim_vm_stats(void)
     }
     v[47] = (int64_t)stat_reconciles;
     v[48] = (int64_t)stat_timer_arms;
-    a = alloc_obj(cls_array, F_VAR, 49);
-    for (i_4 = 0; i_4 <= 48; i_4++) {
+    v[49] = (int64_t)stat_survived;
+    v[50] = (int64_t)stat_scavenge_max_us;
+    a = alloc_obj(cls_array, F_VAR, 51);
+    for (i_4 = 0; i_4 <= 50; i_4++) {
         v_2 = v[i_4];
         ((oop *)(a + 16))[i_4] = (uint64_t)((v_2 << 1) | 1);
     }

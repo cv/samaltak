@@ -576,10 +576,10 @@ static bool large_magnitude(oop o, uint64_t *mag, bool *neg)
     return true;
 }
 
-/* ObjectMemory>>memoryInit:maxHeap: */
-void memory_init(uint64_t eden_bytes, uint64_t max_heap)
+/* ObjectMemory>>memoryInit:survivor:maxHeap: */
+void memory_init(uint64_t eden_bytes, uint64_t surv_bytes, uint64_t max_heap)
 {
-    garbage_collector_init(eden_bytes, max_heap);
+    garbage_collector_init(eden_bytes, surv_bytes, max_heap);
     large_object_bytes = eden_bytes / 8 > 65536 ? eden_bytes / 8 : 65536;
     reset_alloc_limit();
 }

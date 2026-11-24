@@ -158,7 +158,7 @@ startObjectSpace
 	mods := VMModule vmModules select: [:c | c packageName ~= 'VM-Platform'].
 	sim := VMSimulation modules: mods.
 	memory := sim module: ObjectMemory.
-	memory memoryInit: 1024 * 1024 maxHeap: 4096 * 1024 * 1024.
+	memory memoryInit: 1024 * 1024 survivor: 0 maxHeap: 4096 * 1024 * 1024.
 	memory instVarNamed: 'largeObjectBytes' put: 0.
 	(sim module: GarbageCollector) oldBudget: 4096 * 1024 * 1024
 !
