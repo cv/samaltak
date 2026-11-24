@@ -181,20 +181,21 @@ static void bg_optimize(oop m, int32_t s, int32_t t, int32_t d, jit_method *h, j
     uint64_t o;
     uint64_t o_2;
     uint64_t o_3;
+    oop o_4;
     int32_t i_2;
     opt_act *a;
-    oop o_4;
-    uint64_t o_5;
+    oop o_5;
+    uint64_t o_6;
     bool r_mentions_young;
     int32_t i_3;
-    oop o_6;
-    int32_t i_4;
     oop o_7;
-    int32_t i_5;
+    int32_t i_4;
     oop o_8;
-    int i_6;
+    int32_t i_5;
     oop o_9;
+    int i_6;
     oop o_10;
+    oop o_11;
     int32_t r_bg_retry_count_2;
     int32_t n_5;
     int32_t n_6;
@@ -268,17 +269,19 @@ static void bg_optimize(oop m, int32_t s, int32_t t, int32_t d, jit_method *h, j
     o_2 = (uint64_t)nd->aux2;
     (o_2 - young_lo < young_hi - young_lo) || ({
     o_3 = nd->tcls;
-    o_3 - young_lo < young_hi - young_lo; }); })) {
+    (o_3 - young_lo < young_hi - young_lo) || ({
+    o_4 = nd->ffi_owner;
+    (uint64_t)(o_4 - young_lo) < young_hi - young_lo; }); }); })) {
             r_bg_mentions_young = true;
             goto exit_bg_mentions_young;
         }
     }
     for (i_2 = 0; i_2 <= opt_act_count - 1; i_2++) {
         a = opt_acts + i_2;
-        o_4 = a->method;
-        if (((uint64_t)(o_4 - young_lo) < young_hi - young_lo) || ({
-    o_5 = a->rcv_class;
-    o_5 - young_lo < young_hi - young_lo; })) {
+        o_5 = a->method;
+        if (((uint64_t)(o_5 - young_lo) < young_hi - young_lo) || ({
+    o_6 = a->rcv_class;
+    o_6 - young_lo < young_hi - young_lo; })) {
             r_bg_mentions_young = true;
             goto exit_bg_mentions_young;
         }
@@ -289,31 +292,31 @@ static void bg_optimize(oop m, int32_t s, int32_t t, int32_t d, jit_method *h, j
         goto exit_mentions_young;
     }
     for (i_3 = 0; i_3 <= ob_dep_count - 1; i_3++) {
-        o_6 = ob_deps[i_3];
-        if ((uint64_t)(o_6 - young_lo) < young_hi - young_lo) {
-            r_mentions_young = true;
-            goto exit_mentions_young;
-        }
-    }
-    for (i_4 = 0; i_4 <= ob_ana_count - 1; i_4++) {
-        o_7 = ob_ana_methods[i_4];
+        o_7 = ob_deps[i_3];
         if ((uint64_t)(o_7 - young_lo) < young_hi - young_lo) {
             r_mentions_young = true;
             goto exit_mentions_young;
         }
     }
-    for (i_5 = 0; i_5 <= ob_no_inline_count - 1; i_5++) {
-        o_8 = ob_no_inline[i_5];
+    for (i_4 = 0; i_4 <= ob_ana_count - 1; i_4++) {
+        o_8 = ob_ana_methods[i_4];
         if ((uint64_t)(o_8 - young_lo) < young_hi - young_lo) {
             r_mentions_young = true;
             goto exit_mentions_young;
         }
     }
+    for (i_5 = 0; i_5 <= ob_no_inline_count - 1; i_5++) {
+        o_9 = ob_no_inline[i_5];
+        if ((uint64_t)(o_9 - young_lo) < young_hi - young_lo) {
+            r_mentions_young = true;
+            goto exit_mentions_young;
+        }
+    }
     for (i_6 = 0; i_6 <= 7; i_6++) {
-        o_9 = ob_foreign_m[i_6];
-        if (((uint64_t)(o_9 - young_lo) < young_hi - young_lo) || ({
-    o_10 = ob_no_foreign_m[i_6];
-    (uint64_t)(o_10 - young_lo) < young_hi - young_lo; })) {
+        o_10 = ob_foreign_m[i_6];
+        if (((uint64_t)(o_10 - young_lo) < young_hi - young_lo) || ({
+    o_11 = ob_no_foreign_m[i_6];
+    (uint64_t)(o_11 - young_lo) < young_hi - young_lo; })) {
             r_mentions_young = true;
             goto exit_mentions_young;
         }

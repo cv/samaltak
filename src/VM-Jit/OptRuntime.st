@@ -145,7 +145,8 @@ bgMentionsYoung
 	(self isYoung: rtBgMethod) ifTrue: [^true].
 	0 to: ir nodeCount - 1 do: [:n |
 		nd := ir node: n.
-		((self isYoung: nd aux asUInt64) or: [(self isYoung: nd aux2 asUInt64) or: [self isYoung: nd tcls]]) ifTrue: [^true]].
+		"ffiOwner: a bound FFI site's seed binding (OptBuilder>>boundFFICall:...), which code generation puts in the site"
+		((self isYoung: nd aux asUInt64) or: [(self isYoung: nd aux2 asUInt64) or: [(self isYoung: nd tcls) or: [self isYoung: nd ffiOwner]]]) ifTrue: [^true]].
 	0 to: ir actCount - 1 do: [:i |
 		a := ir act: i.
 		((self isYoung: a method) or: [self isYoung: a rcvClass]) ifTrue: [^true]].
