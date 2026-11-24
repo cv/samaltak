@@ -305,6 +305,9 @@ makeArrayFunction
 !
 returnFunction
 	^self cCoerce: (self functionPointer: #returnBottom:index:) to: 'uint64_t'
+!
+respecializeFunction
+	^self cCoerce: (self functionPointer: #respecialize:) to: 'uint64_t'
 ! !
 
 !OptRuntime methodsFor: 'headers'!
@@ -977,6 +980,33 @@ stackFull: f
 ! !
 
 !OptRuntime methodsFor: 'deoptimization'!
+respecialize: f
+	"A loop of f's unit, entered at its start, that calls closures the unit did not make turned OPT_RESPEC_TURNS times in this activation (OptBuilder>>turnAt:; f on top, its pc and sp at the loop's interrupt check). If the activation running the loop holds a closure another frame made that a loop's variant may inline (as closureSignatureOf: finds them), and there is room for variants: f's activations become frames there, as a deoptimization at an interrupt check (the unit stays), and that activation's method counts one backward jump, so the loop's next turn enters its variant (tierUp:loop:), as after a flush (materialize:); answer 1 (leave). Else 0: the loop goes on here (it is not asked again in this activation)."
+	<function>
+	<var: #f type: 'Frame *'>
+	<returns: 'uint64_t'>
+	| h k i m v base found |
+	(rtVariantCount >= OPT_MAX_VARIANT_UNITS or: [self unitsFull]) ifTrue: [^0 asUInt64].
+	runtime canonicalizeBelow: f.
+	h := self cCoerce: f code to: 'JitMethod *'.
+	k := f pc - h bcSize asInt32.
+	self decode: h index: k frame: f regs: self null mode: 0.
+	i := rtActCount - 1.
+	m := rtActMethod at: i.
+	base := rtActVals at: i.
+	found := false.
+	0 to: ((rtActDepth at: i) min: 64) - 1 do: [:j |
+		v := rtDeoptVals at: base + j.
+		((builder inlinableClosure: v) and: [(self loadRef: (self loadRef: v at: BC_OUTER) at: CTX_METHOD) ~= m]) ifTrue: [found := true]].
+	rtDeoptCount := 0.
+	found ifFalse: [^0 asUInt64].
+	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
+		libc fprintf: libc stderr format: 'opt: respecialize the loop at pc %d of ' with: (rtActPc at: i).
+		interpreter printActivation: m receiver: memory nilOop closure: memory nilOop on: libc stderr].
+	self deoptFrame: f index: k regs: self null mode: 0.
+	runtime counterFor: m put: 1.
+	^1 asUInt64
+!
 deoptGuard: f index: k
 	"A guard of f's code failed at safepoint k; the registers are in the JitState's dump. Rebuild f's activations as frames; the interpreter continues the top one."
 	<function>

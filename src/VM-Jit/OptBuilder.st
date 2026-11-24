@@ -1,5 +1,5 @@
 OptModule subclass: #OptBuilder
-	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obAnaInts obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount obForeign obForeignM obForeignS obForeignDepth obNoForeignM obNoForeignS obNoForeignCount obPerformAct obPerformPc obPerformSlot obPerformCount obPerformVals obAnaLive obNilConst obConstVals obConstNodes'
+	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obAnaInts obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount obForeign obForeignM obForeignS obForeignDepth obNoForeignM obNoForeignS obNoForeignCount obPerformAct obPerformPc obPerformSlot obPerformCount obPerformVals obAnaLive obNilConst obConstVals obConstNodes obTurnVar obBlockCalls obHeadCalls'
 	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_STRAIGHT OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC OPK_CHARVALUE OPK_CHARFROM OPK_REPLACE OPK_STRHASH OPK_STRCMP OPK_U16AT OPK_I16AT OPK_U32AT OPK_U32ATPUT OPK_U16BEAT OPK_I16BEAT OPK_U32BEAT'
 	package: 'VM-Jit'!
 
@@ -16,7 +16,7 @@ declarations
 		(obInlined int32_t) (obDeps 'oop[OPT_MAX_DEPS]') (obDepCount int32_t) (obPrimKinds 'uint8_t[OPT_MAX_PRIM]') (obPrimsKnown bool)
 		(obNoInline 'oop[OPT_MAX_NOINLINE]') (obNoInlineCount int32_t) (obArgVals 'int32_t[OPT_MAX_VARS]') (obArgFlags 'uint8_t[OPT_MAX_VARS]') (obUnitStart int32_t) (obOsrPc int32_t) (obParamSlots int32_t) (obValidSlots int32_t) (obSafeEpoch int32_t) (obAnaFloat 'bool[OPT_MAX_ANA]') (obAnaInts 'bool[OPT_MAX_ANA]') (obResident bool) (obChecked 'int32_t[8]') (obCheckedCount int32_t) (obCheckedBlock int32_t) (obCheckedEpoch int32_t) (obFrame 'Frame *') (obSpecParam 'int32_t[8]') (obSpecInfo 'int32_t[8]') (obSpecCount int32_t) (obForeign bool) (obForeignM 'oop[8]') (obForeignS 'int32_t[8]') (obForeignDepth int32_t) (obNoForeignM 'oop[8]') (obNoForeignS 'int32_t[8]') (obNoForeignCount int32_t)
 		(obPerformAct int32_t) (obPerformPc int32_t) (obPerformSlot int32_t) (obPerformCount int32_t) (obPerformVals 'int32_t[8]')
-		(obAnaLive 'uint64_t[OPT_ANA_MAX]') (obNilConst int32_t) (obConstVals 'uint64_t[256]') (obConstNodes 'int32_t[256]'))
+		(obAnaLive 'uint64_t[OPT_ANA_MAX]') (obNilConst int32_t) (obConstVals 'uint64_t[256]') (obConstNodes 'int32_t[256]') (obTurnVar int32_t) (obBlockCalls int32_t) (obHeadCalls 'int32_t[OPT_MAX_BLOCKS]'))
 !
 initialize
 	OPT_MAX_INC := 16384.
@@ -143,6 +143,8 @@ buildOnce: m
 	obPerformAct := -1.
 	obNilConst := -1.
 	0 to: 255 do: [:i | obConstNodes at: i put: -1].
+	obBlockCalls := 0.
+	obTurnVar := -1.
 	a := obUnitStart > 0 ifTrue: [self newBlockActFor: m start: obUnitStart] ifFalse: [self newActFor: m].
 	a < 0 ifTrue: [^false].
 	obEntryBlock := ir newBlock.
@@ -150,6 +152,11 @@ buildOnce: m
 	(ir block: obEntryBlock) act: a.
 	obCurBlock := obEntryBlock.
 	(ir act: a) receiver: (self param: -1).
+	"a unit entered at its start counts the turns of its loops that call closures it did not make (turnAt:)"
+	(obOsrPc < 0 and: [runtime flag: runtime respecFlag]) ifTrue: [
+		obTurnVar := obVarTop.
+		obVarTop := obVarTop + 1.
+		self write: obTurnVar value: (self constant: (self intOop: 0))].
 	obUnitStart > 0 ifTrue: [(ir act: a) closure: (self param: -2)].
 	obParamSlots := (ir act: a) numArgs.
 	obOsrPc >= 0 ifTrue: [^self buildOsr: a].
@@ -637,7 +644,9 @@ buildAct: a
 					(obCurBlock >= 0 and: [obCurBlock ~= b]) ifTrue: [self goto: b].
 					obCurBlock := b.
 					(self isLoopHead: pc act: a)
-						ifTrue: [(ir block: b) entryState: (self stateAct: a pc: pc depth: (self depthAt: pc act: a))]
+						ifTrue: [
+							(ir block: b) entryState: (self stateAct: a pc: pc depth: (self depthAt: pc act: a)).
+							b < OPT_MAX_BLOCKS ifTrue: [obHeadCalls at: b put: obBlockCalls]]
 						ifFalse: [self seal: b]].
 				obCurBlock < 0
 					ifTrue: [pc := self skip: pc act: a]
@@ -897,7 +906,9 @@ blockAt: pc act: a
 	b := ir newBlock.
 	(ir block: b) act: a.
 	(ir block: b) pc: pc.
-	(self isLoopHead: pc act: a) ifTrue: [(ir block: b) flags: BF_LOOP].
+	(self isLoopHead: pc act: a) ifTrue: [
+		(ir block: b) flags: BF_LOOP.
+		b < OPT_MAX_BLOCKS ifTrue: [obHeadCalls at: b put: obBlockCalls]].
 	obPcBlocks at: (ir act: a) pcb + pc put: b.
 	^b
 ! !
@@ -967,6 +978,19 @@ receiverSlotAt: pc act: a
 	p := (self methodBytecodes: (ir act: a) method) + pc.
 	(analysis pushesOf: p) > 0 ifTrue: [^self depthAt: pc act: a].
 	^(self depthAt: pc act: a) - (analysis sendArgcOf: p) - 1
+!
+turnAt: b
+	"The backward jump to loop head b about to be built: if the unit was entered at its start and a turn of the loop calls a closure the unit did not make (NF_BLOCKCALL: one passed in, which a loop's variant may inline where the frame shows it), the activation's turns of such loops so far (obTurnVar, a SmallInteger from 0 at the entry: a phi at each such loop's head), which its interrupt check compares with OPT_RESPEC_TURNS (OptCodegen>>emitCheckInterrupt:): there the runtime may move the loop to its variant (OptRuntime>>respecialize:), once per activation, without a flush of the frame. Else -1."
+	| c n |
+	(obTurnVar < 0 or: [b >= OPT_MAX_BLOCKS or: [obBlockCalls <= (obHeadCalls at: b)]]) ifTrue: [^-1].
+	c := self read: obTurnVar.
+	n := self add: O_IADD rep: R_OOP.
+	(ir node: n) a: c.
+	(ir node: n) b: (self constant: (self intOop: 1)).
+	(ir node: n) tkind: T_SMI.
+	(ir node: n) flags: (NF_PURE bitOr: NF_INRANGE).
+	self write: obTurnVar value: n.
+	^n
 !
 checkInterruptAct: a pc: pc depth: d kind: k
 	| n |
@@ -1339,13 +1363,15 @@ localReturn: v act: a pc: pc depth: d
 	obCurBlock := -1
 !
 jumpTo: t from: pc act: a
-	| b |
+	| b turns n |
 	b := self blockAt: t act: a.
 	"a backward jump checks for interrupts before it is taken (an unconditional one at its pc, else at its target)"
 	t <= pc ifTrue: [
-		(self byteAt: pc act: a) = 16r90
+		turns := self turnAt: b.
+		n := (self byteAt: pc act: a) = 16r90
 			ifTrue: [self checkInterruptAct: a pc: pc depth: (self depthAt: pc act: a) kind: SP_LOOP]
-			ifFalse: [self checkInterruptAct: a pc: t depth: (self depthAt: t act: a) kind: SP_LOOP]].
+			ifFalse: [self checkInterruptAct: a pc: t depth: (self depthAt: t act: a) kind: SP_LOOP].
+		(ir node: n) a: turns].
 	self goto: b.
 	(t <= pc and: [(self lastBackJumpTo: t act: a) = pc]) ifTrue: [self seal: b]
 !
@@ -1892,6 +1918,7 @@ blockCall: sel argc: argc pc: pc act: a rcvSlot: r
 		^true].
 	n := self callSelector: sel argc: argc kind: 2 special: k pc: pc act: a rcvSlot: r.
 	(ir node: n) flags: ((ir node: n) flags bitOr: NF_BLOCKCALL).
+	obBlockCalls := obBlockCalls + 1.
 	^true
 !
 allocate: m selector: sel class: cls argc: argc pc: pc act: a rcvSlot: r

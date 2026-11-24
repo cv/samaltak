@@ -1,5 +1,5 @@
 JitCompiler subclass: #JitStubs
-	instanceVariableNames: 'exitPlainAddr interruptStub entryInterruptStub closureStub contextStub contextFieldStub makeArrayStub widowStub barrierStub tierUpStub optDeoptStub optDeoptReturnStub optStackFullStub optMakeArrayStub optReturnStub blEnter blExitSync blMiss blBlock blMega blPerform blEntrySlow blPrim blRemember blReturnSlow blBox blSent blCopy blStrHash blStrCmp blStrEq symbolAddrs symbolNames symbolCount'
+	instanceVariableNames: 'exitPlainAddr interruptStub entryInterruptStub closureStub contextStub contextFieldStub makeArrayStub widowStub barrierStub tierUpStub optDeoptStub optDeoptReturnStub optStackFullStub optMakeArrayStub optReturnStub optRespecStub blEnter blExitSync blMiss blBlock blMega blPerform blEntrySlow blPrim blRemember blReturnSlow blBox blSent blCopy blStrHash blStrCmp blStrEq symbolAddrs symbolNames symbolCount'
 	classVariableNames: 'STUB_MAX_SYMBOLS'
 	package: 'VM-Jit'!
 
@@ -13,7 +13,7 @@ One stub per runtime function (ldr x16, =function; br x16), so that compiled cod
 declarations
 	^#((exitPlainAddr uint64_t)
 		(interruptStub uint64_t) (entryInterruptStub uint64_t) (closureStub uint64_t) (contextStub uint64_t) (contextFieldStub uint64_t) (makeArrayStub uint64_t)
-		(widowStub uint64_t) (barrierStub uint64_t) (tierUpStub uint64_t) (optDeoptStub uint64_t) (optDeoptReturnStub uint64_t) (optStackFullStub uint64_t) (optMakeArrayStub uint64_t) (optReturnStub uint64_t)
+		(widowStub uint64_t) (barrierStub uint64_t) (tierUpStub uint64_t) (optDeoptStub uint64_t) (optDeoptReturnStub uint64_t) (optStackFullStub uint64_t) (optMakeArrayStub uint64_t) (optReturnStub uint64_t) (optRespecStub uint64_t)
 		(blEnter uint64_t) (blExitSync uint64_t) (blMiss uint64_t) (blBlock uint64_t) (blMega uint64_t) (blPerform uint64_t) (blEntrySlow uint64_t) (blPrim uint64_t) (blRemember uint64_t) (blReturnSlow uint64_t) (blBox uint64_t) (blSent uint64_t) (blCopy uint64_t) (blStrHash uint64_t) (blStrCmp uint64_t) (blStrEq uint64_t)
 		(symbolAddrs 'uint64_t[STUB_MAX_SYMBOLS]') (symbolNames 'const char *[STUB_MAX_SYMBOLS]') (symbolCount int32_t))
 !
@@ -69,6 +69,9 @@ optDeoptReturnStub
 !
 optStackFullStub
 	^optStackFullStub
+!
+respecStub
+	^optRespecStub
 !
 optMakeArrayStub
 	^optMakeArrayStub
@@ -213,6 +216,7 @@ generate
 	optDeoptReturnStub := self stub: runtime optDeoptReturnFunction named: 'deoptimize after a send'.
 	optStackFullStub := self stub: runtime optStackFullFunction named: 'no room for the frame'.
 	optMakeArrayStub := self stub: runtime optMakeArrayFunction named: 'make an Array'.
+	optRespecStub := self stub: runtime optRespecializeFunction named: 'respecialize a loop'.
 	optDeoptStub := self dumpingStub: runtime optDeoptFunction named: 'deoptimize'.
 	optReturnStub := self dumpingStub: runtime optReturnFunction named: 'return from the bottom frame'.
 	asm finish = ASM_OK ifFalse: [^false].
@@ -295,6 +299,7 @@ generateX64
 	optDeoptReturnStub := self stubX64: runtime optDeoptReturnFunction named: 'deoptimize after a send'.
 	optStackFullStub := self stubX64: runtime optStackFullFunction named: 'no room for the frame'.
 	optMakeArrayStub := self stubX64: runtime optMakeArrayFunction named: 'make an Array'.
+	optRespecStub := self stubX64: runtime optRespecializeFunction named: 'respecialize a loop'.
 	optDeoptStub := self dumpingStubX64: runtime optDeoptFunction named: 'deoptimize'.
 	optReturnStub := self dumpingStubX64: runtime optReturnFunction named: 'return from the bottom frame'.
 	asm finish = ASM_OK ifFalse: [^false].

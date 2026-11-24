@@ -2511,6 +2511,57 @@ void opt_runtime_release(void)
     opt_regalloc_release();
 }
 
+/* OptRuntime>>respecialize: */
+uint64_t respecialize(frame *f)
+{
+    jit_method *h;
+    int32_t k;
+    int32_t i;
+    oop m;
+    int32_t base;
+    bool found;
+    int32_t j;
+    oop v;
+    uint64_t o;
+    uint32_t r_hash_of;
+    uint32_t h_2;
+    if ((rt_variant_count >= OPT_MAX_VARIANT_UNITS) || (rt_unit_count >= 6144)) {
+        return 0ULL;
+    }
+    if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
+        canonicalize_below(f);
+    }
+    h = (jit_method *)f->code;
+    k = f->pc - (int32_t)h->bc_size;
+    decode(h, k, f, (uint64_t *)NULL, 0);
+    i = rt_act_count - 1;
+    m = rt_act_method[i];
+    base = rt_act_vals[i];
+    found = false;
+    for (j = 0; j <= (rt_act_depth[i] < 64 ? rt_act_depth[i] : 64) - 1; j++) {
+        v = rt_deopt_vals[base + j];
+        if (inlinable_closure(v) && ({
+    o = *(uint64_t *)(v + 16 + 0);
+    *(uint64_t *)(o + 16 + 24) != m; })) {
+            found = true;
+        }
+    }
+    rt_deopt_count = 0;
+    if (!found) {
+        return 0ULL;
+    }
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        fprintf(stderr, "opt: respecialize the loop at pc %d of ", rt_act_pc[i]);
+        print_activation(m, nil_oop, nil_oop, stderr);
+    }
+    deopt_frame(f, k, (uint64_t *)NULL, 0);
+    opt_counts[({
+    h_2 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m);
+    r_hash_of; }) & 65535] = 1;
+    return 1ULL;
+}
+
 /* OptRuntime>>resume: */
 uint64_t opt_runtime_resume(frame *f)
 {

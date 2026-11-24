@@ -1016,6 +1016,24 @@ testAffineIndicesCheckBoundsOnce
 		self assert: (o becomeSum: a copy to: 4000 at: 10 with: a copy) equals: (a inject: 0 into: [:s :x | s + x]).
 		self should: [o becomeSum: a copy to: 4000 at: 10 with: (ByteArray new: 20)] raise: Error]
 !
+testLoopsCallingClosuresMoveToTheirVariants
+	"A loop of a method's unit that calls a block passed in (through the block stub) moves, after OPT_RESPEC_TURNS turns in one activation, to its loop's variant for that block (OptRuntime>>respecialize:), without a flush: the callers here stay in the lower tier, and the blocks' outer temps are their frames'."
+	| o a short before d |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'each: a do: b 1 to: a size do: [:i | b value: (a at: i)]'.
+	self define: 'sumWith: a | s | s := 0. self each: a do: [:x | s := s + x]. ^s'.
+	self define: 'oddsWith: a | n | n := 0. self each: a do: [:x | x odd ifTrue: [n := n + 1]]. ^n'.
+	o := JitRuntimeTestSubject new.
+	short := #(1 2 3).
+	3000 timesRepeat: [o each: short do: [:x | x]].
+	a := (1 to: 20000) asArray.
+	before := self statistics.
+	3 timesRepeat: [
+		self assert: (o sumWith: a) equals: 200010000.
+		self assert: (o oddsWith: a) equals: 10000].
+	d := self statistics - before.
+	self stressed ifFalse: [self assert: d optOsrEntries > 0]
+!
 testCountedLoopsCheckNoOverflow
 	"A loop's counter, and sums the loop adds bytes to, check no overflow: their ranges follow from the counter's start and limit (a byte added to such a sum is added shifted, untagged), and where those are not known, from guards where the loop is entered: the start and limit at most the largest SmallInteger less twice the step, the limit less the start at most 2^24 turns for a sum of sums. At the largest SmallIntegers, and for more turns, those guards fail: the lower tier runs the loop (its sums LargeIntegers past them), and the code compiled next checks; a sum from a value not known checks every time."
 	| o b max sum adler early big |

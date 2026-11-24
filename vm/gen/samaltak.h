@@ -342,7 +342,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define JIT_FLAG_HOIST 1048576
 #define JIT_FLAG_IC 16
 #define JIT_FLAG_INLINE 16384
-#define JIT_FLAG_LAST 16777216
+#define JIT_FLAG_LAST 33554432
 #define JIT_FLAG_LIVE 2097152
 #define JIT_FLAG_MEGA 64
 #define JIT_FLAG_NOTES 8
@@ -350,6 +350,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define JIT_FLAG_PRIMS 256
 #define JIT_FLAG_QUICK 8192
 #define JIT_FLAG_REGS 128
+#define JIT_FLAG_RESPEC 33554432
 #define JIT_FLAG_UNBOX 32768
 #define JIT_MAX_COUNT 65535
 #define JIT_MAX_MAP 32768
@@ -497,6 +498,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define OPT_MAX_VARS 65536
 #define OPT_MAX_YOUNG 1024
 #define OPT_PCB_MAX 131072
+#define OPT_RESPEC_TURNS 1000
 #define OUT_ARRAY 12
 #define OUT_BARRIER 3
 #define OUT_BOTTOM 6
@@ -506,6 +508,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define OUT_INTERRUPT 2
 #define OUT_LAZY 4
 #define OUT_NOTMADE 11
+#define OUT_RESPEC 16
 #define OUT_RESUME 9
 #define OUT_SENT 10
 #define OUT_SITE 7
@@ -1640,6 +1643,7 @@ extern uint64_t make_array_stub;
 extern uint64_t opt_deopt_return_stub;
 extern uint64_t opt_deopt_stub;
 extern uint64_t opt_make_array_stub;
+extern uint64_t opt_respec_stub;
 extern uint64_t opt_return_stub;
 extern uint64_t opt_stack_full_stub;
 extern uint64_t symbol_addrs[48];
@@ -2308,6 +2312,7 @@ uint64_t opt_runtime_leave(frame *f, bool after);
 oop opt_runtime_make_array(frame *f, uint64_t n);
 void materialize(frame *f);
 void opt_runtime_release(void);
+uint64_t respecialize(frame *f);
 uint64_t opt_runtime_resume(frame *f);
 uint64_t return_bottom(frame *f, int64_t k);
 oop send_from(frame *f, uint64_t ret);

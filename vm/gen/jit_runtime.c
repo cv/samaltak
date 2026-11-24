@@ -936,7 +936,7 @@ uint64_t jit_runtime_context_field(frame *f)
 void defaults(void)
 {
     jit_mode = JIT_OPT;
-    jit_flags = 32767991U;
+    jit_flags = 66322423U;
 }
 
 #if defined(__x86_64__)
@@ -1924,6 +1924,9 @@ char *flag_name(uint32_t bit)
     if (bit == JIT_FLAG_COLD) {
         return "cold";
     }
+    if (bit == JIT_FLAG_RESPEC) {
+        return "respec";
+    }
     return "deopt";
 }
 
@@ -2544,6 +2547,10 @@ bool parse_flags(char *s)
     }
     if ((strlen("cold") == (uint64_t)n) && (memcmp(name, "cold", (uint64_t)n) == 0)) {
         r_flag_named = JIT_FLAG_COLD;
+        goto exit_flag_named;
+    }
+    if ((strlen("respec") == (uint64_t)n) && (memcmp(name, "respec", (uint64_t)n) == 0)) {
+        r_flag_named = JIT_FLAG_RESPEC;
         goto exit_flag_named;
     }
     r_flag_named = 0;

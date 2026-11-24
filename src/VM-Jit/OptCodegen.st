@@ -1,6 +1,6 @@
 OptModule subclass: #OptCodegen
-	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgRawBase cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgFlagsLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced ffi'
-	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_HELD CG_MAX_SITES CG_MAX_SP OUT_ARRAY OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_NOTMADE OUT_UNBOX OUT_BOX OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW OUT_BOUND_FILL'
+	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgRawBase cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgFlagsLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgRespecLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced ffi'
+	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_HELD CG_MAX_SITES CG_MAX_SP OUT_ARRAY OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_NOTMADE OUT_UNBOX OUT_BOX OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW OUT_BOUND_FILL OUT_RESPEC'
 	package: 'VM-Jit'!
 
 OptCodegen comment: 'Emits arm64 code for the allocated IR (OptRegalloc) in block order, then the out-of-line paths (guard failures, interrupt checks, brace Arrays the runtime makes, store barriers, deoptimization after a call, resumption after a call, the stack check), then the oop pool the code loads constants from (pc-relative; GC roots) and the inline caches'' literals. Records for every safepoint and guard the deoptimization metadata (OptRuntime decodes it): kind, continuation, the send, and for each activation its method, closure, receiver, pc and where each slot''s value is (LOC_*).
@@ -14,7 +14,7 @@ declarations
 	^#((ir OptIR) (passes OptPasses) (regalloc OptRegalloc)
 		(cgCodeStart uint64_t) (cgBcSize int32_t) (cgValidSlots int32_t) (cgEntryPc int32_t) (cgSlotTop int32_t) (cgRawBase int32_t) (cgMaxOut int32_t) (cgNeed int32_t)
 		(cgExitPlainLabel int32_t) (cgExitSyncLabel int32_t) (cgDeoptLabel int32_t) (cgReturnLabel int32_t) (cgHeaderLabel int32_t) (cgFlagsLabel int32_t) (cgChecksLabel int32_t) (cgBodyLabel int32_t) (cgInterruptLabel int32_t)
-		(cgBarrierLabel int32_t) (cgDeoptReturnLabel int32_t) (cgStackFullLabel int32_t)
+		(cgBarrierLabel int32_t) (cgDeoptReturnLabel int32_t) (cgStackFullLabel int32_t) (cgRespecLabel int32_t)
 		(cgOuts 'OptOut[CG_MAX_OUT]') (cgOutCount int32_t)
 		(cgPoolOops 'oop[CG_MAX_POOL]') (cgPoolLabels 'int32_t[CG_MAX_POOL]') (cgPoolCount int32_t)
 		(cgMetaWords 'int32_t[CG_MAX_META]') (cgMetaCount int32_t) (cgSpOffsets 'int32_t[CG_MAX_SP]') (cgSpCount int32_t)
@@ -48,7 +48,8 @@ initialize
 	OUT_ARRAY := 12.
 	OUT_UNBOX := 13.
 	OUT_BOX := 14.
-	OUT_BOUND_FILL := 15
+	OUT_BOUND_FILL := 15.
+	OUT_RESPEC := 16
 ! !
 
 !OptCodegen methodsFor: 'accessing'!
@@ -172,6 +173,7 @@ generate: m act: a
 	cgBarrierLabel := asm labelAt: stubs barrierStub.
 	cgDeoptReturnLabel := asm labelAt: stubs optDeoptReturnStub.
 	cgStackFullLabel := asm labelAt: stubs optStackFullStub.
+	cgRespecLabel := asm labelAt: stubs respecStub.
 	cgHeaderLabel := asm newLabel.
 	cgFlagsLabel := asm newLabel.
 	cgChecksLabel := asm newLabel.
@@ -1812,12 +1814,20 @@ emitReturn: n
 	asm ret
 !
 emitCheckInterrupt: n
-	| s back |
+	| s back t x |
 	back := asm newLabel.
 	s := self out: OUT_INTERRUPT node: n index: 0.
 	(cgOuts + (cgOutCount - 1)) resume: back.
 	asm comment: 'interrupt check'.
 	self emitInterruptTestTo: s.
+	"a loop that calls closures its unit did not make: at OPT_RESPEC_TURNS turns in this activation (a, OptBuilder>>turnAt:) the runtime may move it to its variant"
+	(ir node: n) a >= 0 ifTrue: [
+		t := self out: OUT_RESPEC node: n index: 0.
+		(cgOuts + (cgOutCount - 1)) resume: back.
+		asm comment: 'turns of a loop calling closures passed in'.
+		x := self src: (ir node: n) a into: self scratchA.
+		asm cmp: x imm: (self intOop: OPT_RESPEC_TURNS) asInt64.
+		asm b: t if: COND_EQ].
 	self emitStressAt: n label: s.
 	asm bind: back
 !
@@ -2731,6 +2741,16 @@ emitOuts
 			self emitFramePc: cgBcSize + (self recordSafepoint: o node kind: (ir node: o node) aux asInt32) sp: cgSlotTop.
 			asm mov: X0 with: X19.
 			asm bl: ((ir node: o node) aux = SP_ENTRY ifTrue: [asm labelAt: stubs entryInterruptStub] ifFalse: [cgInterruptLabel]).
+			asm cbnz: X0 to: cgExitPlainLabel.
+			self emitReloadPinned.
+			self reloadAcross: o node.
+			asm b: o resume].
+		o kind = OUT_RESPEC ifTrue: [
+			asm comment: 'the loop turned often enough: the runtime may move it to its variant'.
+			self saveAcross: o node.
+			self emitFramePc: cgBcSize + (self recordSafepoint: o node kind: SP_LOOP) sp: cgSlotTop.
+			asm mov: X0 with: X19.
+			asm bl: cgRespecLabel.
 			asm cbnz: X0 to: cgExitPlainLabel.
 			self emitReloadPinned.
 			self reloadAcross: o node.
