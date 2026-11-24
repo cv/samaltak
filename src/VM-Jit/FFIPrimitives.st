@@ -1,6 +1,6 @@
 VMPrimitiveModule subclass: #FFIPrimitives
 	instanceVariableNames: 'ffiStubs runtimeNative bigint cryptoBackend nvrtcBackend mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingUntryable bindingArities bindingResultTags bindingSerial bindingSerials boundSites boundSiteCount boundSiteTrace boundTraceCounts ownedRows ownedReserved ownedSession ownedSerial'
-	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_PLATFORM_EXEC FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED FFI_BOUND_SITE_LIMIT FFI_OWNED_LIMIT FFI_OWNED_BYTE_LIMIT'
+	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_PLATFORM_EXEC FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED FFI_BOUND_SITE_LIMIT FFI_OWNED_LIMIT FFI_OWNED_BYTE_LIMIT FFI_SIGNATURE_BYTES'
 	package: 'VM-Jit'!
 
 FFIPrimitives comment: 'Prepare resolves an approved symbol and exact signature to a process-local wrapper. A bound send uses a session-tagged index checked against a VM-managed weak receiver reference. Saved images rebind from the symbolic descriptor. Native code must not reenter the VM or retain borrowed memory.'!
@@ -34,7 +34,8 @@ initialize
 	FFI_BOUND_SITE_LIMIT := 4096.
 	FFI_BOUND_REJECTED := 1.
 	FFI_OWNED_LIMIT := 16.
-	FFI_OWNED_BYTE_LIMIT := 67108864
+	FFI_OWNED_BYTE_LIMIT := 67108864.
+	FFI_SIGNATURE_BYTES := 8 "six argument tags, the result tag, NUL"
 ! !
 
 !FFIPrimitives methodsFor: 'bound primitives'!
@@ -475,10 +476,12 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 	<var: #target type: 'uint64_t *'>
 	<var: #prepared type: 'bool'>
 	<returns: 'int32_t'>
-	| name lib sig hasPointer hasVettedArgument t id |
+	| name lib sig signature hasPointer hasVettedArgument t id |
 	name := self cCoerce: symbol to: 'const char *'.
 	lib := self cCoerce: library to: 'const char *'.
+	"The fixed libm, libc and platform rows compare packed nibbles; approved exports the tags as a NUL-terminated string."
 	sig := 0 asUInt32.
+	signature := self local: 'uint8_t[FFI_SIGNATURE_BYTES]'.
 	hasPointer := false.
 	result = 15 ifTrue: [(n = 1 and: [(tags at: 0) = 14]) ifFalse: [^0]].
 	hasVettedArgument := result = 11.
@@ -496,8 +499,11 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 			prepared ifFalse: [^0].
 			hasVettedArgument := true].
 		t = 5 ifTrue: [hasPointer := true].
+		signature at: i put: t.
 		sig := ((sig asUInt64 << 4) bitOr: t asUInt64) asUInt32].
 	sig := ((sig asUInt64 << 4) bitOr: result asUInt64) asUInt32.
+	signature at: n put: result asUInt8.
+	signature at: n + 1 put: 0.
 	(libc strcmp: lib with: 'libm') = 0 ifTrue: [
 		0 to: 9 do: [:i |
 			(sig = (mathSignatures at: i) and: [(libc strcmp: name with: (mathNames at: i)) = 0]) ifTrue: [
@@ -512,7 +518,7 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 	hasPointer ifTrue: [^0].
 	(libc strcmp: lib with: 'vm:core') = 0 ifTrue: [
 		prepared ifFalse: [^0].
-		^self ffiApprovedCore: name signature: sig asUInt32 into: target].
+		^self ffiApprovedCore: name signature: signature into: target].
 	(libc strcmp: lib with: 'platform') = 0 ifTrue: [
 		0 to: 8 do: [:i |
 			(sig = (platformSignatures at: i) and: [(libc strcmp: name with: (platformNames at: i)) = 0]) ifTrue: [
@@ -520,17 +526,17 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 				target value: (platform ffiTarget: id).
 				^target value = 0 ifTrue: [0] ifFalse: [id]]].
 		prepared ifFalse: [^0].
-		^platform ffiApprovedPlatform: name signature: sig asUInt32 into: target].
+		^platform ffiApprovedPlatform: name signature: signature into: target].
 	(hasVettedArgument or: [result = 12]) ifTrue: [^0].
 	target value: (self cCoerce: (runtimeNative lookupLibrary: library length: libLen symbol: symbol length: symLen types: tags count: n result: result) to: 'uint64_t').
 	^target value = 0 ifTrue: [0] ifFalse: [FFI_DYNAMIC]
 !
-ffiApprovedCore: approvedName signature: packedSignature into: targetOut
-	"Generated from the core approvedFFI declarations. Simulated native stubs are unavailable."
+ffiApprovedCore: approvedName signature: signature into: targetOut
+	"Generated from the core approvedFFI declarations. signature: the argument tags, the result tag, NUL. Simulated native stubs are unavailable."
 	<function>
 	<approvedFFIDispatch>
 	<var: #approvedName type: 'const char *'>
-	<var: #packedSignature type: 'uint32_t'>
+	<var: #signature type: 'const uint8_t *'>
 	<var: #targetOut type: 'uint64_t *'>
 	<returns: 'int32_t'>
 	^0

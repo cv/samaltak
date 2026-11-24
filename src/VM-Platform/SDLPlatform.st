@@ -146,11 +146,11 @@ quitStatus: code
 ! !
 
 !SDLPlatform methodsFor: 'FFI'!
-ffiApprovedPlatform: approvedName signature: packedSignature into: targetOut
+ffiApprovedPlatform: approvedName signature: signature into: targetOut
 	<export>
 	<approvedFFIDispatch>
 	<var: #approvedName type: 'const char *'>
-	<var: #packedSignature type: 'uint32_t'>
+	<var: #signature type: 'const uint8_t *'>
 	<var: #targetOut type: 'uint64_t *'>
 	<returns: 'int32_t'>
 	^0

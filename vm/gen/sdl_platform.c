@@ -582,552 +582,552 @@ static int32_t ffi_owned_name_release_entry_witness(uint64_t a1) {
     return ffi_owned_name_release(a1);
 }
 #endif
-int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signature, uint64_t *target_out)
+int32_t ffi_approved_platform(const char *approved_name, const uint8_t *signature, uint64_t *target_out)
 {
 #ifndef SAMALTAK_UEFI
-    if (packed_signature == 210993 && strcmp(approved_name, "platform_windows_open") == 0) {
+    if (strcmp((const char *) signature, "\003\003\010\003\001") == 0 && strcmp(approved_name, "platform_windows_open") == 0) {
         *target_out = (uint64_t) ffi_window_open;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_window_open_entry_witness;
         return 1424;
     }
-    if (packed_signature == 913 && strcmp(approved_name, "platform_windows_size") == 0) {
+    if (strcmp((const char *) signature, "\003\011\001") == 0 && strcmp(approved_name, "platform_windows_size") == 0) {
         *target_out = (uint64_t) ffi_window_size;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_window_size_entry_witness;
         return 1426;
     }
-    if (packed_signature == 913 && strcmp(approved_name, "platform_windows_pixel_size") == 0) {
+    if (strcmp((const char *) signature, "\003\011\001") == 0 && strcmp(approved_name, "platform_windows_pixel_size") == 0) {
         *target_out = (uint64_t) ffi_window_pixel_size;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_window_pixel_size_entry_witness;
         return 1427;
     }
-    if (packed_signature == 897 && strcmp(approved_name, "platform_windows_set_title") == 0) {
+    if (strcmp((const char *) signature, "\003\010\001") == 0 && strcmp(approved_name, "platform_windows_set_title") == 0) {
         *target_out = (uint64_t) sdl_platform_ffi_window_title_size;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) sdl_platform_ffi_window_title_size_entry_witness;
         return 1429;
     }
-    if (packed_signature == 145 && strcmp(approved_name, "platform_windows_clipboard_get") == 0) {
+    if (strcmp((const char *) signature, "\011\001") == 0 && strcmp(approved_name, "platform_windows_clipboard_get") == 0) {
         *target_out = (uint64_t) ffi_clipboard_get;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_clipboard_get_entry_witness;
         return 1434;
     }
-    if (packed_signature == 129 && strcmp(approved_name, "platform_windows_clipboard_set") == 0) {
+    if (strcmp((const char *) signature, "\010\001") == 0 && strcmp(approved_name, "platform_windows_clipboard_set") == 0) {
         *target_out = (uint64_t) ffi_clipboard_set;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_clipboard_set_entry_witness;
         return 1435;
     }
-    if (packed_signature == 2449 && strcmp(approved_name, "platform_events_next") == 0) {
+    if (strcmp((const char *) signature, "\011\011\001") == 0 && strcmp(approved_name, "platform_events_next") == 0) {
         *target_out = (uint64_t) ffi_events_next;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_events_next_entry_witness;
         return 1436;
     }
-    if (packed_signature == 129 && strcmp(approved_name, "platform_events_inject") == 0) {
+    if (strcmp((const char *) signature, "\010\001") == 0 && strcmp(approved_name, "platform_events_inject") == 0) {
         *target_out = (uint64_t) ffi_events_inject;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_events_inject_entry_witness;
         return 1437;
     }
-    if (packed_signature == 145 && strcmp(approved_name, "platform_last_error") == 0) {
+    if (strcmp((const char *) signature, "\011\001") == 0 && strcmp(approved_name, "platform_last_error") == 0) {
         *target_out = (uint64_t) ffi_platform_last_error;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_platform_last_error_entry_witness;
         return 1439;
     }
-    if (packed_signature == 145 && strcmp(approved_name, "platform_handle_counts") == 0) {
+    if (strcmp((const char *) signature, "\011\001") == 0 && strcmp(approved_name, "platform_handle_counts") == 0) {
         *target_out = (uint64_t) ffi_platform_handle_counts;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_platform_handle_counts_entry_witness;
         return 1441;
     }
-    if (packed_signature == 3 && strcmp(approved_name, "platform_events_dropped") == 0) {
+    if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "platform_events_dropped") == 0) {
         *target_out = (uint64_t) ffi_dropped_events;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_dropped_events_entry_witness;
         return 1442;
     }
-    if (packed_signature == 2113 && strcmp(approved_name, "platform_windows_clipboard_data") == 0) {
+    if (strcmp((const char *) signature, "\010\004\001") == 0 && strcmp(approved_name, "platform_windows_clipboard_data") == 0) {
         *target_out = (uint64_t) ffi_clipboard_data;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_clipboard_data_entry_witness;
         return 1444;
     }
-    if (packed_signature == 13105 && strcmp(approved_name, "platform_windows_set_size") == 0) {
+    if (strcmp((const char *) signature, "\003\003\003\001") == 0 && strcmp(approved_name, "platform_windows_set_size") == 0) {
         *target_out = (uint64_t) sdl_platform_ffi_window_width_height;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) sdl_platform_ffi_window_width_height_entry_witness;
         return 1445;
     }
-    if (packed_signature == 17 && strcmp(approved_name, "platform_gpu_create_device") == 0) {
+    if (strcmp((const char *) signature, "\001\001") == 0 && strcmp(approved_name, "platform_gpu_create_device") == 0) {
         *target_out = (uint64_t) ffi_gpu_create_device;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_create_device_entry_witness;
         return 1454;
     }
-    if (packed_signature == 273 && strcmp(approved_name, "platform_gpu_claim_window") == 0) {
+    if (strcmp((const char *) signature, "\001\001\001") == 0 && strcmp(approved_name, "platform_gpu_claim_window") == 0) {
         *target_out = (uint64_t) ffi_gpu_claim_window;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_claim_window_entry_witness;
         return 1455;
     }
-    if (packed_signature == 273 && strcmp(approved_name, "platform_gpu_swapchain_format") == 0) {
+    if (strcmp((const char *) signature, "\001\001\001") == 0 && strcmp(approved_name, "platform_gpu_swapchain_format") == 0) {
         *target_out = (uint64_t) ffi_gpu_swapchain_format;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_swapchain_format_entry_witness;
         return 1456;
     }
-    if (packed_signature == 6273 && strcmp(approved_name, "platform_gpu_create_shader") == 0) {
+    if (strcmp((const char *) signature, "\001\010\010\001") == 0 && strcmp(approved_name, "platform_gpu_create_shader") == 0) {
         *target_out = (uint64_t) ffi_gpu_create_shader;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_create_shader_entry_witness;
         return 1457;
     }
-    if (packed_signature == 70017 && strcmp(approved_name, "platform_gpu_create_pipeline") == 0) {
+    if (strcmp((const char *) signature, "\001\001\001\010\001") == 0 && strcmp(approved_name, "platform_gpu_create_pipeline") == 0) {
         *target_out = (uint64_t) ffi_gpu_create_pipeline;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_create_pipeline_entry_witness;
         return 1458;
     }
-    if (packed_signature == 1118481 && strcmp(approved_name, "platform_gpu_create_texture") == 0) {
+    if (strcmp((const char *) signature, "\001\001\001\001\001\001") == 0 && strcmp(approved_name, "platform_gpu_create_texture") == 0) {
         *target_out = (uint64_t) ffi_gpu_create_texture;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_create_texture_entry_witness;
         return 1459;
     }
-    if (packed_signature == 4369 && strcmp(approved_name, "platform_gpu_create_sampler") == 0) {
+    if (strcmp((const char *) signature, "\001\001\001\001") == 0 && strcmp(approved_name, "platform_gpu_create_sampler") == 0) {
         *target_out = (uint64_t) ffi_gpu_create_sampler;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_create_sampler_entry_witness;
         return 1460;
     }
-    if (packed_signature == 4385 && strcmp(approved_name, "platform_gpu_create_buffer") == 0) {
+    if (strcmp((const char *) signature, "\001\001\002\001") == 0 && strcmp(approved_name, "platform_gpu_create_buffer") == 0) {
         *target_out = (uint64_t) ffi_gpu_create_buffer;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_create_buffer_entry_witness;
         return 1461;
     }
-    if (packed_signature == 17 && strcmp(approved_name, "platform_gpu_release") == 0) {
+    if (strcmp((const char *) signature, "\001\001") == 0 && strcmp(approved_name, "platform_gpu_release") == 0) {
         *target_out = (uint64_t) ffi_gpu_release;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_release_entry_witness;
         return 1462;
     }
-    if (packed_signature == 6177 && strcmp(approved_name, "platform_gpu_upload_buffer") == 0) {
+    if (strcmp((const char *) signature, "\001\010\002\001") == 0 && strcmp(approved_name, "platform_gpu_upload_buffer") == 0) {
         *target_out = (uint64_t) ffi_gpu_upload_buffer;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_upload_buffer_entry_witness;
         return 1463;
     }
-    if (packed_signature == 6273 && strcmp(approved_name, "platform_gpu_upload_texture") == 0) {
+    if (strcmp((const char *) signature, "\001\010\010\001") == 0 && strcmp(approved_name, "platform_gpu_upload_texture") == 0) {
         *target_out = (uint64_t) ffi_gpu_upload_texture;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_upload_texture_entry_witness;
         return 1464;
     }
-    if (packed_signature == 17 && strcmp(approved_name, "platform_gpu_acquire_command_buffer") == 0) {
+    if (strcmp((const char *) signature, "\001\001") == 0 && strcmp(approved_name, "platform_gpu_acquire_command_buffer") == 0) {
         *target_out = (uint64_t) ffi_gpu_acquire_command_buffer;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_acquire_command_buffer_entry_witness;
         return 1465;
     }
-    if (packed_signature == 4497 && strcmp(approved_name, "platform_gpu_acquire_swapchain") == 0) {
+    if (strcmp((const char *) signature, "\001\001\011\001") == 0 && strcmp(approved_name, "platform_gpu_acquire_swapchain") == 0) {
         *target_out = (uint64_t) ffi_gpu_acquire_swapchain;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_acquire_swapchain_entry_witness;
         return 1466;
     }
-    if (packed_signature == 273 && strcmp(approved_name, "platform_gpu_begin_load") == 0) {
+    if (strcmp((const char *) signature, "\001\001\001") == 0 && strcmp(approved_name, "platform_gpu_begin_load") == 0) {
         *target_out = (uint64_t) ffi_gpu_begin_load;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_begin_load_entry_witness;
         return 1467;
     }
-    if (packed_signature == 1468001 && strcmp(approved_name, "platform_gpu_set_viewport") == 0) {
+    if (strcmp((const char *) signature, "\001\006\006\006\006\001") == 0 && strcmp(approved_name, "platform_gpu_set_viewport") == 0) {
         *target_out = (uint64_t) ffi_gpu_set_viewport;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_set_viewport_entry_witness;
         return 1468;
     }
-    if (packed_signature == 1118481 && strcmp(approved_name, "platform_gpu_set_scissor") == 0) {
+    if (strcmp((const char *) signature, "\001\001\001\001\001\001") == 0 && strcmp(approved_name, "platform_gpu_set_scissor") == 0) {
         *target_out = (uint64_t) ffi_gpu_set_scissor;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_set_scissor_entry_witness;
         return 1469;
     }
-    if (packed_signature == 273 && strcmp(approved_name, "platform_gpu_bind_pipeline") == 0) {
+    if (strcmp((const char *) signature, "\001\001\001") == 0 && strcmp(approved_name, "platform_gpu_bind_pipeline") == 0) {
         *target_out = (uint64_t) ffi_gpu_bind_pipeline;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_bind_pipeline_entry_witness;
         return 1470;
     }
-    if (packed_signature == 69921 && strcmp(approved_name, "platform_gpu_bind_vertex_buffer") == 0) {
+    if (strcmp((const char *) signature, "\001\001\001\002\001") == 0 && strcmp(approved_name, "platform_gpu_bind_vertex_buffer") == 0) {
         *target_out = (uint64_t) ffi_gpu_bind_vertex_buffer;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_bind_vertex_buffer_entry_witness;
         return 1471;
     }
-    if (packed_signature == 69905 && strcmp(approved_name, "platform_gpu_bind_texture") == 0) {
+    if (strcmp((const char *) signature, "\001\001\001\001\001") == 0 && strcmp(approved_name, "platform_gpu_bind_texture") == 0) {
         *target_out = (uint64_t) ffi_gpu_bind_texture;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_bind_texture_entry_witness;
         return 1472;
     }
-    if (packed_signature == 70017 && strcmp(approved_name, "platform_gpu_push_uniforms") == 0) {
+    if (strcmp((const char *) signature, "\001\001\001\010\001") == 0 && strcmp(approved_name, "platform_gpu_push_uniforms") == 0) {
         *target_out = (uint64_t) ffi_gpu_push_uniforms;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_push_uniforms_entry_witness;
         return 1473;
     }
-    if (packed_signature == 4641 && strcmp(approved_name, "platform_gpu_draw") == 0) {
+    if (strcmp((const char *) signature, "\001\002\002\001") == 0 && strcmp(approved_name, "platform_gpu_draw") == 0) {
         *target_out = (uint64_t) ffi_gpu_draw;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_draw_entry_witness;
         return 1474;
     }
-    if (packed_signature == 17 && strcmp(approved_name, "platform_gpu_end_pass") == 0) {
+    if (strcmp((const char *) signature, "\001\001") == 0 && strcmp(approved_name, "platform_gpu_end_pass") == 0) {
         *target_out = (uint64_t) ffi_gpu_end_pass;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_end_pass_entry_witness;
         return 1475;
     }
-    if (packed_signature == 1118593 && strcmp(approved_name, "platform_gpu_blit") == 0) {
+    if (strcmp((const char *) signature, "\001\001\001\001\010\001") == 0 && strcmp(approved_name, "platform_gpu_blit") == 0) {
         *target_out = (uint64_t) ffi_gpu_blit;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_blit_entry_witness;
         return 1476;
     }
-    if (packed_signature == 273 && strcmp(approved_name, "platform_gpu_submit") == 0) {
+    if (strcmp((const char *) signature, "\001\001\001") == 0 && strcmp(approved_name, "platform_gpu_submit") == 0) {
         *target_out = (uint64_t) ffi_gpu_submit;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_submit_entry_witness;
         return 1477;
     }
-    if (packed_signature == 17 && strcmp(approved_name, "platform_gpu_wait_fence") == 0) {
+    if (strcmp((const char *) signature, "\001\001") == 0 && strcmp(approved_name, "platform_gpu_wait_fence") == 0) {
         *target_out = (uint64_t) ffi_gpu_wait_fence;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_wait_fence_entry_witness;
         return 1478;
     }
-    if (packed_signature == 17 && strcmp(approved_name, "platform_gpu_fence_done") == 0) {
+    if (strcmp((const char *) signature, "\001\001") == 0 && strcmp(approved_name, "platform_gpu_fence_done") == 0) {
         *target_out = (uint64_t) ffi_gpu_fence_done;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_fence_done_entry_witness;
         return 1479;
     }
-    if (packed_signature == 6289 && strcmp(approved_name, "platform_gpu_download") == 0) {
+    if (strcmp((const char *) signature, "\001\010\011\001") == 0 && strcmp(approved_name, "platform_gpu_download") == 0) {
         *target_out = (uint64_t) ffi_gpu_download;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_download_entry_witness;
         return 1480;
     }
-    if (packed_signature == 17 && strcmp(approved_name, "platform_gpu_wait_idle") == 0) {
+    if (strcmp((const char *) signature, "\001\001") == 0 && strcmp(approved_name, "platform_gpu_wait_idle") == 0) {
         *target_out = (uint64_t) ffi_gpu_wait_idle;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_wait_idle_entry_witness;
         return 1482;
     }
-    if (packed_signature == 19 && strcmp(approved_name, "platform_gpu_fence_elapsed") == 0) {
+    if (strcmp((const char *) signature, "\001\003") == 0 && strcmp(approved_name, "platform_gpu_fence_elapsed") == 0) {
         *target_out = (uint64_t) ffi_gpu_fence_elapsed;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_fence_elapsed_entry_witness;
         return 1483;
     }
-    if (packed_signature == 17 && strcmp(approved_name, "platform_gpu_shader_language") == 0) {
+    if (strcmp((const char *) signature, "\001\001") == 0 && strcmp(approved_name, "platform_gpu_shader_language") == 0) {
         *target_out = (uint64_t) ffi_gpu_shader_language;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_shader_language_entry_witness;
         return 1484;
     }
-    if (packed_signature == 33169 && strcmp(approved_name, "platform_gpu_compile_shader") == 0) {
+    if (strcmp((const char *) signature, "\010\001\011\001") == 0 && strcmp(approved_name, "platform_gpu_compile_shader") == 0) {
         *target_out = (uint64_t) ffi_gpu_compile_shader;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_compile_shader_entry_witness;
         return 1485;
     }
-    if (packed_signature == 2097 && strcmp(approved_name, "platform_files_open") == 0) {
+    if (strcmp((const char *) signature, "\010\003\001") == 0 && strcmp(approved_name, "platform_files_open") == 0) {
         *target_out = (uint64_t) ffi_file_open;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_open_entry_witness;
         return 1524;
     }
-    if (packed_signature == 49 && strcmp(approved_name, "platform_files_close") == 0) {
+    if (strcmp((const char *) signature, "\003\001") == 0 && strcmp(approved_name, "platform_files_close") == 0) {
         *target_out = (uint64_t) ffi_file_close;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_close_entry_witness;
         return 1525;
     }
-    if (packed_signature == 915 && strcmp(approved_name, "platform_files_read") == 0) {
+    if (strcmp((const char *) signature, "\003\011\003") == 0 && strcmp(approved_name, "platform_files_read") == 0) {
         *target_out = (uint64_t) ffi_file_read;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_read_entry_witness;
         return 1526;
     }
-    if (packed_signature == 899 && strcmp(approved_name, "platform_files_write") == 0) {
+    if (strcmp((const char *) signature, "\003\010\003") == 0 && strcmp(approved_name, "platform_files_write") == 0) {
         *target_out = (uint64_t) ffi_file_write;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_write_entry_witness;
         return 1527;
     }
-    if ((packed_signature == 60 || packed_signature == 51) && strcmp(approved_name, "platform_files_size") == 0) {
+    if ((strcmp((const char *) signature, "\003\014") == 0 || strcmp((const char *) signature, "\003\003") == 0) && strcmp(approved_name, "platform_files_size") == 0) {
         *target_out = (uint64_t) ffi_file_size;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_size_entry_witness;
         return 1528;
     }
-    if ((packed_signature == 60 || packed_signature == 51) && strcmp(approved_name, "platform_files_position") == 0) {
+    if ((strcmp((const char *) signature, "\003\014") == 0 || strcmp((const char *) signature, "\003\003") == 0) && strcmp(approved_name, "platform_files_position") == 0) {
         *target_out = (uint64_t) ffi_file_position;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_position_entry_witness;
         return 1529;
     }
-    if (packed_signature == 817 && strcmp(approved_name, "platform_files_seek") == 0) {
+    if (strcmp((const char *) signature, "\003\003\001") == 0 && strcmp(approved_name, "platform_files_seek") == 0) {
         *target_out = (uint64_t) ffi_file_seek;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_seek_entry_witness;
         return 1530;
     }
-    if (packed_signature == 49 && strcmp(approved_name, "platform_files_flush") == 0) {
+    if (strcmp((const char *) signature, "\003\001") == 0 && strcmp(approved_name, "platform_files_flush") == 0) {
         *target_out = (uint64_t) ffi_file_flush;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_flush_entry_witness;
         return 1531;
     }
-    if (packed_signature == 129 && strcmp(approved_name, "platform_files_delete") == 0) {
+    if (strcmp((const char *) signature, "\010\001") == 0 && strcmp(approved_name, "platform_files_delete") == 0) {
         *target_out = (uint64_t) ffi_file_delete;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_delete_entry_witness;
         return 1532;
     }
-    if (packed_signature == 2177 && strcmp(approved_name, "platform_files_rename") == 0) {
+    if (strcmp((const char *) signature, "\010\010\001") == 0 && strcmp(approved_name, "platform_files_rename") == 0) {
         *target_out = (uint64_t) ffi_file_rename;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_rename_entry_witness;
         return 1533;
     }
-    if (packed_signature == 2193 && strcmp(approved_name, "platform_files_stat") == 0) {
+    if (strcmp((const char *) signature, "\010\011\001") == 0 && strcmp(approved_name, "platform_files_stat") == 0) {
         *target_out = (uint64_t) ffi_file_stat;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_stat_entry_witness;
         return 1534;
     }
-    if (packed_signature == 2193 && strcmp(approved_name, "platform_files_dir_entries") == 0) {
+    if (strcmp((const char *) signature, "\010\011\001") == 0 && strcmp(approved_name, "platform_files_dir_entries") == 0) {
         *target_out = (uint64_t) ffi_dir_entries;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_dir_entries_entry_witness;
         return 1535;
     }
-    if (packed_signature == 129 && strcmp(approved_name, "platform_files_dir_create") == 0) {
+    if (strcmp((const char *) signature, "\010\001") == 0 && strcmp(approved_name, "platform_files_dir_create") == 0) {
         *target_out = (uint64_t) ffi_file_dir_create;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_dir_create_entry_witness;
         return 1536;
     }
-    if (packed_signature == 145 && strcmp(approved_name, "platform_files_cwd") == 0) {
+    if (strcmp((const char *) signature, "\011\001") == 0 && strcmp(approved_name, "platform_files_cwd") == 0) {
         *target_out = (uint64_t) ffi_cwd_receipt;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_cwd_receipt_entry_witness;
         return 1537;
     }
-    if (packed_signature == 129 && strcmp(approved_name, "platform_files_mkfifo") == 0) {
+    if (strcmp((const char *) signature, "\010\001") == 0 && strcmp(approved_name, "platform_files_mkfifo") == 0) {
         *target_out = (uint64_t) ffi_file_mkfifo;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_file_mkfifo_entry_witness;
         return 1538;
     }
-    if (packed_signature == 131 && strcmp(approved_name, "platform_process_spawn") == 0) {
+    if (strcmp((const char *) signature, "\010\003") == 0 && strcmp(approved_name, "platform_process_spawn") == 0) {
         *target_out = (uint64_t) ffi_process_spawn;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_process_spawn_entry_witness;
         return 1539;
     }
-    if (packed_signature == 12689 && strcmp(approved_name, "platform_process_wait") == 0) {
+    if (strcmp((const char *) signature, "\003\001\011\001") == 0 && strcmp(approved_name, "platform_process_wait") == 0) {
         *target_out = (uint64_t) ffi_process_wait;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_process_wait_entry_witness;
         return 1540;
     }
-    if (packed_signature == 129 && strcmp(approved_name, "platform_process_exec") == 0) {
+    if (strcmp((const char *) signature, "\010\001") == 0 && strcmp(approved_name, "platform_process_exec") == 0) {
         *target_out = (uint64_t) ffi_process_exec;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_process_exec_entry_witness;
         return 1542;
     }
-    if (packed_signature == 33585 && strcmp(approved_name, "platform_sockets_listen") == 0) {
+    if (strcmp((const char *) signature, "\010\003\003\001") == 0 && strcmp(approved_name, "platform_sockets_listen") == 0) {
         *target_out = (uint64_t) ffi_socket_listen;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_socket_listen_entry_witness;
         return 1564;
     }
-    if (packed_signature == 2097 && strcmp(approved_name, "platform_sockets_connect") == 0) {
+    if (strcmp((const char *) signature, "\010\003\001") == 0 && strcmp(approved_name, "platform_sockets_connect") == 0) {
         *target_out = (uint64_t) ffi_socket_connect;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_socket_connect_entry_witness;
         return 1565;
     }
-    if (packed_signature == 49 && strcmp(approved_name, "platform_sockets_accept") == 0) {
+    if (strcmp((const char *) signature, "\003\001") == 0 && strcmp(approved_name, "platform_sockets_accept") == 0) {
         *target_out = (uint64_t) ffi_socket_accept;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_socket_accept_entry_witness;
         return 1566;
     }
-    if (packed_signature == 915 && strcmp(approved_name, "platform_sockets_recv") == 0) {
+    if (strcmp((const char *) signature, "\003\011\003") == 0 && strcmp(approved_name, "platform_sockets_recv") == 0) {
         *target_out = (uint64_t) ffi_socket_recv;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_socket_recv_entry_witness;
         return 1567;
     }
-    if (packed_signature == 899 && strcmp(approved_name, "platform_sockets_send") == 0) {
+    if (strcmp((const char *) signature, "\003\010\003") == 0 && strcmp(approved_name, "platform_sockets_send") == 0) {
         *target_out = (uint64_t) ffi_socket_send;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_socket_send_entry_witness;
         return 1568;
     }
-    if (packed_signature == 49 && strcmp(approved_name, "platform_sockets_close") == 0) {
+    if (strcmp((const char *) signature, "\003\001") == 0 && strcmp(approved_name, "platform_sockets_close") == 0) {
         *target_out = (uint64_t) ffi_socket_close;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_socket_close_entry_witness;
         return 1569;
     }
-    if (packed_signature == 13105 && strcmp(approved_name, "platform_sockets_semaphore") == 0) {
+    if (strcmp((const char *) signature, "\003\003\003\001") == 0 && strcmp(approved_name, "platform_sockets_semaphore") == 0) {
         *target_out = (uint64_t) ffi_socket_semaphore;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_socket_semaphore_entry_witness;
         return 1570;
     }
-    if (packed_signature == 49 && strcmp(approved_name, "platform_sockets_local_port") == 0) {
+    if (strcmp((const char *) signature, "\003\001") == 0 && strcmp(approved_name, "platform_sockets_local_port") == 0) {
         *target_out = (uint64_t) ffi_socket_local_port;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_socket_local_port_entry_witness;
         return 1571;
     }
-    if (packed_signature == 129 && strcmp(approved_name, "platform_sockets_lookup") == 0) {
+    if (strcmp((const char *) signature, "\010\001") == 0 && strcmp(approved_name, "platform_sockets_lookup") == 0) {
         *target_out = (uint64_t) ffi_socket_lookup;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_socket_lookup_entry_witness;
         return 1572;
     }
-    if (packed_signature == 49 && strcmp(approved_name, "platform_sockets_connected") == 0) {
+    if (strcmp((const char *) signature, "\003\001") == 0 && strcmp(approved_name, "platform_sockets_connected") == 0) {
         *target_out = (uint64_t) ffi_socket_connected;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_socket_connected_entry_witness;
         return 1573;
     }
-    if (packed_signature == 897 && strcmp(approved_name, "platform_tls_start") == 0) {
+    if (strcmp((const char *) signature, "\003\010\001") == 0 && strcmp(approved_name, "platform_tls_start") == 0) {
         *target_out = (uint64_t) ffi_tls_start;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_tls_start_entry_witness;
         return 1574;
     }
-    if (packed_signature == 915 && strcmp(approved_name, "platform_tls_recv") == 0) {
+    if (strcmp((const char *) signature, "\003\011\003") == 0 && strcmp(approved_name, "platform_tls_recv") == 0) {
         *target_out = (uint64_t) ffi_tls_recv;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_tls_recv_entry_witness;
         return 1575;
     }
-    if (packed_signature == 899 && strcmp(approved_name, "platform_tls_send") == 0) {
+    if (strcmp((const char *) signature, "\003\010\003") == 0 && strcmp(approved_name, "platform_tls_send") == 0) {
         *target_out = (uint64_t) ffi_tls_send;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_tls_send_entry_witness;
         return 1576;
     }
-    if (packed_signature == 49 && strcmp(approved_name, "platform_tls_close") == 0) {
+    if (strcmp((const char *) signature, "\003\001") == 0 && strcmp(approved_name, "platform_tls_close") == 0) {
         *target_out = (uint64_t) ffi_tls_close;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_tls_close_entry_witness;
         return 1577;
     }
-    if (packed_signature == 13105 && strcmp(approved_name, "platform_tls_semaphore") == 0) {
+    if (strcmp((const char *) signature, "\003\003\003\001") == 0 && strcmp(approved_name, "platform_tls_semaphore") == 0) {
         *target_out = (uint64_t) ffi_tls_semaphore;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_tls_semaphore_entry_witness;
         return 1578;
     }
-    if (packed_signature == 49 && strcmp(approved_name, "platform_tls_handshake") == 0) {
+    if (strcmp((const char *) signature, "\003\001") == 0 && strcmp(approved_name, "platform_tls_handshake") == 0) {
         *target_out = (uint64_t) ffi_tls_handshake;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_tls_handshake_entry_witness;
         return 1579;
     }
-    if (packed_signature == 528785 && strcmp(approved_name, "platform_pty_spawn") == 0) {
+    if (strcmp((const char *) signature, "\010\001\001\011\001") == 0 && strcmp(approved_name, "platform_pty_spawn") == 0) {
         *target_out = (uint64_t) ffi_pty_spawn;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_pty_spawn_entry_witness;
         return 1584;
     }
-    if (packed_signature == 915 && strcmp(approved_name, "pty_read") == 0) {
+    if (strcmp((const char *) signature, "\003\011\003") == 0 && strcmp(approved_name, "pty_read") == 0) {
         *target_out = (uint64_t) ffi_pty_read;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_pty_read_entry_witness;
         return 1585;
     }
-    if (packed_signature == 899 && strcmp(approved_name, "pty_write") == 0) {
+    if (strcmp((const char *) signature, "\003\010\003") == 0 && strcmp(approved_name, "pty_write") == 0) {
         *target_out = (uint64_t) ffi_pty_write;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_pty_write_entry_witness;
         return 1586;
     }
-    if (packed_signature == 13105 && strcmp(approved_name, "pty_semaphore") == 0) {
+    if (strcmp((const char *) signature, "\003\003\003\001") == 0 && strcmp(approved_name, "pty_semaphore") == 0) {
         *target_out = (uint64_t) ffi_pty_semaphore;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_pty_semaphore_entry_witness;
         return 1588;
     }
-    if (packed_signature == 785 && strcmp(approved_name, "pty_wait") == 0) {
+    if (strcmp((const char *) signature, "\003\001\001") == 0 && strcmp(approved_name, "pty_wait") == 0) {
         *target_out = (uint64_t) ffi_pty_wait;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_pty_wait_entry_witness;
         return 1589;
     }
-    if (packed_signature == 18245217 && strcmp(approved_name, "platform_gpu_begin_clear") == 0) {
+    if (strcmp((const char *) signature, "\001\001\006\006\006\006\001") == 0 && strcmp(approved_name, "platform_gpu_begin_clear") == 0) {
         *target_out = (uint64_t) ffi_gpu_begin_clear;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_begin_clear_entry_witness;
         return 2467;
     }
-    if (packed_signature == 4369 && strcmp(approved_name, "platform_gpu_draw_eligibility") == 0) {
+    if (strcmp((const char *) signature, "\001\001\001\001") == 0 && strcmp(approved_name, "platform_gpu_draw_eligibility") == 0) {
         *target_out = (uint64_t) ffi_gpu_draw_eligibility;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_draw_eligibility_entry_witness;
         return 2474;
     }
-    if (packed_signature == 17553 && strcmp(approved_name, "platform_output_copy") == 0) {
+    if (strcmp((const char *) signature, "\004\004\011\001") == 0 && strcmp(approved_name, "platform_output_copy") == 0) {
         *target_out = (uint64_t) ffi_platform_copy_output;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_platform_copy_output_entry_witness;
         return 2485;
     }
-    if (packed_signature == 65 && strcmp(approved_name, "platform_output_release") == 0) {
+    if (strcmp((const char *) signature, "\004\001") == 0 && strcmp(approved_name, "platform_output_release") == 0) {
         *target_out = (uint64_t) ffi_platform_release_output;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_platform_release_output_entry_witness;
         return 2486;
     }
 #ifdef SAMALTAK_FFI_TEST_EXPORTS
-    if (packed_signature == 145 && strcmp(approved_name, "platform_gpu_test_shader_pages") == 0) {
+    if (strcmp((const char *) signature, "\011\001") == 0 && strcmp(approved_name, "platform_gpu_test_shader_pages") == 0) {
         *target_out = (uint64_t) ffi_gpu_shader_oversized_fixture;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_gpu_shader_oversized_fixture_entry_witness;
         return 2487;
     }
 #endif
-    if (packed_signature == 1059 && strcmp(approved_name, "platform_files_name_size") == 0) {
+    if (strcmp((const char *) signature, "\004\002\003") == 0 && strcmp(approved_name, "platform_files_name_size") == 0) {
         *target_out = (uint64_t) ffi_owned_name_size;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_owned_name_size_entry_witness;
         return 2535;
     }
-    if (packed_signature == 17041 && strcmp(approved_name, "platform_files_name_copy") == 0) {
+    if (strcmp((const char *) signature, "\004\002\011\001") == 0 && strcmp(approved_name, "platform_files_name_copy") == 0) {
         *target_out = (uint64_t) ffi_owned_name_copy;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_owned_name_copy_entry_witness;
         return 2536;
     }
-    if (packed_signature == 65 && strcmp(approved_name, "platform_files_name_release") == 0) {
+    if (strcmp((const char *) signature, "\004\001") == 0 && strcmp(approved_name, "platform_files_name_release") == 0) {
         *target_out = (uint64_t) ffi_owned_name_release;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_owned_name_release_entry_witness;

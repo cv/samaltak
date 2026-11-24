@@ -33,7 +33,7 @@ static void call_bound(uint64_t entry, const oop *args);
 static bool can_try_bound_owner(oop owner);
 static bool describe_bound_owner(oop owner, int32_t n, ffi_bound_site *desc);
 static bool ensure_binding_session(void);
-static int32_t ffi_approved_core(const char *approved_name, uint32_t packed_signature, uint64_t *target_out);
+static int32_t ffi_approved_core(const char *approved_name, const uint8_t *signature, uint64_t *target_out);
 static void ffi_big_integer_add(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
 static void ffi_big_integer_bit_and(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
 static void ffi_big_integer_bit_or(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
@@ -728,263 +728,263 @@ static int64_t native_test_writable_pair_entry_witness(uint8_t *a1, uint64_t a2,
 }
 #endif
 #endif
-static int32_t ffi_approved_core(const char *approved_name, uint32_t packed_signature, uint64_t *target_out)
+static int32_t ffi_approved_core(const char *approved_name, const uint8_t *signature, uint64_t *target_out)
 {
 #ifndef SAMALTAK_UEFI
-    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_add") == 0) {
+    if (strcmp((const char *) signature, "\012\012\013") == 0 && strcmp(approved_name, "core_bigint_add") == 0) {
         *target_out = (uint64_t) ffi_big_integer_add;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_add_entry_witness;
         return 1044;
     }
-    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_sub") == 0) {
+    if (strcmp((const char *) signature, "\012\012\013") == 0 && strcmp(approved_name, "core_bigint_sub") == 0) {
         *target_out = (uint64_t) ffi_big_integer_sub;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_sub_entry_witness;
         return 1045;
     }
-    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_mul") == 0) {
+    if (strcmp((const char *) signature, "\012\012\013") == 0 && strcmp(approved_name, "core_bigint_mul") == 0) {
         *target_out = (uint64_t) ffi_big_integer_mul;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_mul_entry_witness;
         return 1046;
     }
-    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_quo") == 0) {
+    if (strcmp((const char *) signature, "\012\012\013") == 0 && strcmp(approved_name, "core_bigint_quo") == 0) {
         *target_out = (uint64_t) ffi_big_integer_quo;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_quo_entry_witness;
         return 1047;
     }
-    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_rem") == 0) {
+    if (strcmp((const char *) signature, "\012\012\013") == 0 && strcmp(approved_name, "core_bigint_rem") == 0) {
         *target_out = (uint64_t) ffi_big_integer_rem;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_rem_entry_witness;
         return 1048;
     }
-    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_floordiv") == 0) {
+    if (strcmp((const char *) signature, "\012\012\013") == 0 && strcmp(approved_name, "core_bigint_floordiv") == 0) {
         *target_out = (uint64_t) ffi_big_integer_floor_div;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_floor_div_entry_witness;
         return 1049;
     }
-    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_mod") == 0) {
+    if (strcmp((const char *) signature, "\012\012\013") == 0 && strcmp(approved_name, "core_bigint_mod") == 0) {
         *target_out = (uint64_t) ffi_big_integer_mod;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_mod_entry_witness;
         return 1050;
     }
-    if (packed_signature == 2721 && strcmp(approved_name, "core_bigint_compare") == 0) {
+    if (strcmp((const char *) signature, "\012\012\001") == 0 && strcmp(approved_name, "core_bigint_compare") == 0) {
         *target_out = (uint64_t) ffi_big_integer_compare;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_compare_entry_witness;
         return 1051;
     }
-    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_bitand") == 0) {
+    if (strcmp((const char *) signature, "\012\012\013") == 0 && strcmp(approved_name, "core_bigint_bitand") == 0) {
         *target_out = (uint64_t) ffi_big_integer_bit_and;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_bit_and_entry_witness;
         return 1052;
     }
-    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_bitor") == 0) {
+    if (strcmp((const char *) signature, "\012\012\013") == 0 && strcmp(approved_name, "core_bigint_bitor") == 0) {
         *target_out = (uint64_t) ffi_big_integer_bit_or;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_bit_or_entry_witness;
         return 1053;
     }
-    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_bitxor") == 0) {
+    if (strcmp((const char *) signature, "\012\012\013") == 0 && strcmp(approved_name, "core_bigint_bitxor") == 0) {
         *target_out = (uint64_t) ffi_big_integer_bit_xor;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_bit_xor_entry_witness;
         return 1054;
     }
-    if (packed_signature == 2731 && strcmp(approved_name, "core_bigint_bitshift") == 0) {
+    if (strcmp((const char *) signature, "\012\012\013") == 0 && strcmp(approved_name, "core_bigint_bitshift") == 0) {
         *target_out = (uint64_t) ffi_big_integer_bit_shift;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_big_integer_bit_shift_entry_witness;
         return 1055;
     }
-    if (packed_signature == 102 && strcmp(approved_name, "core_float_fraction_part") == 0) {
+    if (strcmp((const char *) signature, "\006\006") == 0 && strcmp(approved_name, "core_float_fraction_part") == 0) {
         *target_out = (uint64_t) native_float_fraction_part;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_float_fraction_part_entry_witness;
         return 1076;
     }
-    if (packed_signature == 1681 && strcmp(approved_name, "core_float_print_string") == 0) {
+    if (strcmp((const char *) signature, "\006\011\001") == 0 && strcmp(approved_name, "core_float_print_string") == 0) {
         *target_out = (uint64_t) native_float_print_string;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_float_print_string_entry_witness;
         return 1085;
     }
-    if (packed_signature == 3 && strcmp(approved_name, "core_utc_microseconds") == 0) {
+    if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "core_utc_microseconds") == 0) {
         *target_out = (uint64_t) native_utc_microseconds;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_utc_microseconds_entry_witness;
         return 1176;
     }
-    if (packed_signature == 3 && strcmp(approved_name, "core_thread_cpu_microseconds") == 0) {
+    if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "core_thread_cpu_microseconds") == 0) {
         *target_out = (uint64_t) native_thread_cpu_microseconds;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_thread_cpu_microseconds_entry_witness;
         return 1177;
     }
-    if (packed_signature == 135 && strcmp(approved_name, "core_stdout_write") == 0) {
+    if (strcmp((const char *) signature, "\010\007") == 0 && strcmp(approved_name, "core_stdout_write") == 0) {
         *target_out = (uint64_t) native_write_stdout;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_write_stdout_entry_witness;
         return 1193;
     }
-    if (packed_signature == 135 && strcmp(approved_name, "core_stderr_write") == 0) {
+    if (strcmp((const char *) signature, "\010\007") == 0 && strcmp(approved_name, "core_stderr_write") == 0) {
         *target_out = (uint64_t) native_write_stderr;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_write_stderr_entry_witness;
         return 1194;
     }
-    if (packed_signature == 2113 && strcmp(approved_name, "core_getenv") == 0) {
+    if (strcmp((const char *) signature, "\010\004\001") == 0 && strcmp(approved_name, "core_getenv") == 0) {
         *target_out = (uint64_t) native_getenv;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_getenv_entry_witness;
         return 1196;
     }
-    if (packed_signature == 14483 && strcmp(approved_name, "core_crypto_digest") == 0) {
+    if (strcmp((const char *) signature, "\003\010\011\003") == 0 && strcmp(approved_name, "core_crypto_digest") == 0) {
         *target_out = (uint64_t) native_crypto_digest;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_digest_entry_witness;
         return 1744;
     }
-    if (packed_signature == 915 && strcmp(approved_name, "core_crypto_digest_init") == 0) {
+    if (strcmp((const char *) signature, "\003\011\003") == 0 && strcmp(approved_name, "core_crypto_digest_init") == 0) {
         *target_out = (uint64_t) native_crypto_digest_init;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_digest_init_entry_witness;
         return 1745;
     }
-    if (packed_signature == 14723 && strcmp(approved_name, "core_crypto_digest_update") == 0) {
+    if (strcmp((const char *) signature, "\003\011\010\003") == 0 && strcmp(approved_name, "core_crypto_digest_update") == 0) {
         *target_out = (uint64_t) native_crypto_digest_update;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_digest_update_entry_witness;
         return 1746;
     }
-    if (packed_signature == 14739 && strcmp(approved_name, "core_crypto_digest_final") == 0) {
+    if (strcmp((const char *) signature, "\003\011\011\003") == 0 && strcmp(approved_name, "core_crypto_digest_final") == 0) {
         *target_out = (uint64_t) native_crypto_digest_final;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_digest_final_entry_witness;
         return 1747;
     }
-    if (packed_signature == 899 && strcmp(approved_name, "core_crypto_aead_key") == 0) {
+    if (strcmp((const char *) signature, "\003\010\003") == 0 && strcmp(approved_name, "core_crypto_aead_key") == 0) {
         *target_out = (uint64_t) native_crypto_aead_key;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_aead_key_entry_witness;
         return 1748;
     }
-    if (packed_signature == 14483 && strcmp(approved_name, "core_crypto_aead") == 0) {
+    if (strcmp((const char *) signature, "\003\010\011\003") == 0 && strcmp(approved_name, "core_crypto_aead") == 0) {
         *target_out = (uint64_t) native_crypto_aead;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_aead_entry_witness;
         return 1749;
     }
-    if (packed_signature == 34963 && strcmp(approved_name, "core_crypto_x25519") == 0) {
+    if (strcmp((const char *) signature, "\010\010\011\003") == 0 && strcmp(approved_name, "core_crypto_x25519") == 0) {
         *target_out = (uint64_t) native_crypto_x25519;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_x25519_entry_witness;
         return 1750;
     }
-    if (packed_signature == 131 && strcmp(approved_name, "core_crypto_public_key") == 0) {
+    if (strcmp((const char *) signature, "\010\003") == 0 && strcmp(approved_name, "core_crypto_public_key") == 0) {
         *target_out = (uint64_t) native_crypto_public_key;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_public_key_entry_witness;
         return 1751;
     }
-    if (packed_signature == 211075 && strcmp(approved_name, "core_crypto_verify") == 0) {
+    if (strcmp((const char *) signature, "\003\003\010\010\003") == 0 && strcmp(approved_name, "core_crypto_verify") == 0) {
         *target_out = (uint64_t) native_crypto_verify;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_verify_entry_witness;
         return 1752;
     }
-    if (packed_signature == 33683 && strcmp(approved_name, "core_crypto_chacha20") == 0) {
+    if (strcmp((const char *) signature, "\010\003\011\003") == 0 && strcmp(approved_name, "core_crypto_chacha20") == 0) {
         *target_out = (uint64_t) native_crypto_chacha20;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_chacha20_entry_witness;
         return 1753;
     }
-    if (packed_signature == 147 && strcmp(approved_name, "core_crypto_backend") == 0) {
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "core_crypto_backend") == 0) {
         *target_out = (uint64_t) native_crypto_backend;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_backend_entry_witness;
         return 1754;
     }
-    if (packed_signature == 3 && strcmp(approved_name, "core_nvrtc_version") == 0) {
+    if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "core_nvrtc_version") == 0) {
         *target_out = (uint64_t) native_nvrtc_version;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_nvrtc_version_entry_witness;
         return 1764;
     }
-    if (packed_signature == 2179 && strcmp(approved_name, "core_nvrtc_start") == 0) {
+    if (strcmp((const char *) signature, "\010\010\003") == 0 && strcmp(approved_name, "core_nvrtc_start") == 0) {
         *target_out = (uint64_t) native_nvrtc_start;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_nvrtc_start_entry_witness;
         return 1765;
     }
-    if (packed_signature == 51 && strcmp(approved_name, "core_nvrtc_poll") == 0) {
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "core_nvrtc_poll") == 0) {
         *target_out = (uint64_t) native_nvrtc_poll;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_nvrtc_poll_entry_witness;
         return 1766;
     }
-    if (packed_signature == 13203 && strcmp(approved_name, "core_nvrtc_output") == 0) {
+    if (strcmp((const char *) signature, "\003\003\011\003") == 0 && strcmp(approved_name, "core_nvrtc_output") == 0) {
         *target_out = (uint64_t) native_nvrtc_output;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_nvrtc_output_entry_witness;
         return 1767;
     }
-    if (packed_signature == 51 && strcmp(approved_name, "core_nvrtc_free") == 0) {
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "core_nvrtc_free") == 0) {
         *target_out = (uint64_t) native_nvrtc_free;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_nvrtc_free_entry_witness;
         return 1768;
     }
-    if (packed_signature == 215 && strcmp(approved_name, "core_stdout_text") == 0) {
+    if (strcmp((const char *) signature, "\015\007") == 0 && strcmp(approved_name, "core_stdout_text") == 0) {
         *target_out = (uint64_t) native_text_stdout;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_text_stdout_entry_witness;
         return 2193;
     }
-    if (packed_signature == 215 && strcmp(approved_name, "core_stderr_text") == 0) {
+    if (strcmp((const char *) signature, "\015\007") == 0 && strcmp(approved_name, "core_stderr_text") == 0) {
         *target_out = (uint64_t) native_text_stderr;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_text_stderr_entry_witness;
         return 2194;
     }
-    if (packed_signature == 239 && strcmp(approved_name, "core_getenv_text") == 0) {
+    if (strcmp((const char *) signature, "\016\017") == 0 && strcmp(approved_name, "core_getenv_text") == 0) {
         *target_out = (uint64_t) native_text_getenv;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_text_getenv_entry_witness;
         return 2196;
     }
-    if (packed_signature == 657 && strcmp(approved_name, "ffi_owned_reserve") == 0) {
+    if (strcmp((const char *) signature, "\002\011\001") == 0 && strcmp(approved_name, "ffi_owned_reserve") == 0) {
         *target_out = (uint64_t) owned_reserve;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) owned_reserve_entry_witness;
         return 5024;
     }
-    if (packed_signature == 65 && strcmp(approved_name, "ffi_owned_size") == 0) {
+    if (strcmp((const char *) signature, "\004\001") == 0 && strcmp(approved_name, "ffi_owned_size") == 0) {
         *target_out = (uint64_t) owned_size;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) owned_size_entry_witness;
         return 5025;
     }
-    if (packed_signature == 1169 && strcmp(approved_name, "ffi_owned_copy") == 0) {
+    if (strcmp((const char *) signature, "\004\011\001") == 0 && strcmp(approved_name, "ffi_owned_copy") == 0) {
         *target_out = (uint64_t) owned_copy;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) owned_copy_entry_witness;
         return 5026;
     }
-    if (packed_signature == 65 && strcmp(approved_name, "ffi_owned_release") == 0) {
+    if (strcmp((const char *) signature, "\004\001") == 0 && strcmp(approved_name, "ffi_owned_release") == 0) {
         *target_out = (uint64_t) owned_release;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) owned_release_entry_witness;
         return 5027;
     }
 #ifdef SAMALTAK_FFI_TEST_EXPORTS
-    if (packed_signature == 1041 && strcmp(approved_name, "ffi_test_owned_octets") == 0) {
+    if (strcmp((const char *) signature, "\004\001\001") == 0 && strcmp(approved_name, "ffi_test_owned_octets") == 0) {
         *target_out = (uint64_t) owned_test;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) owned_test_entry_witness;
@@ -992,7 +992,7 @@ static int32_t ffi_approved_core(const char *approved_name, uint32_t packed_sign
     }
 #endif
 #ifdef SAMALTAK_FFI_TEST_EXPORTS
-    if ((packed_signature == 60 || packed_signature == 51) && strcmp(approved_name, "ffi_test_nonnegative_i64") == 0) {
+    if ((strcmp((const char *) signature, "\003\014") == 0 || strcmp((const char *) signature, "\003\003") == 0) && strcmp(approved_name, "ffi_test_nonnegative_i64") == 0) {
         *target_out = (uint64_t) ffi_test_non_negative_i64;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_test_non_negative_i64_entry_witness;
@@ -1000,7 +1000,7 @@ static int32_t ffi_approved_core(const char *approved_name, uint32_t packed_sign
     }
 #endif
 #ifdef SAMALTAK_FFI_TEST_EXPORTS
-    if (packed_signature == 614803 && strcmp(approved_name, "ffi_test_writable_pair") == 0) {
+    if (strcmp((const char *) signature, "\011\006\001\011\003") == 0 && strcmp(approved_name, "ffi_test_writable_pair") == 0) {
         *target_out = (uint64_t) native_test_writable_pair;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_test_writable_pair_entry_witness;
@@ -2310,6 +2310,8 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
     const char *name;
     const char *lib;
     int64_t sig;
+    uint8_t local[8];
+    uint8_t *signature;
     bool has_pointer;
     bool has_vetted_argument;
     int32_t i;
@@ -2321,6 +2323,8 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
     name = (const char *)symbol;
     lib = (const char *)library;
     sig = 0U;
+    memset(&local, 0, sizeof local);
+    signature = local;
     has_pointer = false;
     if (result == 15) {
         if (!((n == 1) && (tags[0] == 14))) {
@@ -2351,9 +2355,12 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
         if (t == 5) {
             has_pointer = true;
         }
+        signature[i] = t;
         sig = (uint32_t)((((uint64_t)sig) << 4) | ((uint64_t)t));
     }
     sig = (uint32_t)((((uint64_t)sig) << 4) | ((uint64_t)result));
+    signature[n] = (uint8_t)result;
+    signature[n + 1] = 0;
     if (strcmp(lib, "libm") == 0) {
         for (i_2 = 0; i_2 <= 9; i_2++) {
             if ((sig == math_signatures[i_2]) && (strcmp(name, math_names[i_2]) == 0)) {
@@ -2413,7 +2420,7 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
         if (!prepared) {
             return 0;
         }
-        return ffi_approved_core(name, (uint32_t)sig, target);
+        return ffi_approved_core(name, signature, target);
     }
     if (strcmp(lib, "platform") == 0) {
         for (i_3 = 0; i_3 <= 8; i_3++) {
@@ -2426,7 +2433,7 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
         if (!prepared) {
             return 0;
         }
-        return ffi_approved_platform(name, (uint32_t)sig, target);
+        return ffi_approved_platform(name, signature, target);
     }
     if (has_vetted_argument || (result == 12)) {
         return 0;
