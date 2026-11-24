@@ -206,7 +206,10 @@ generate: m act: a
 	asm bindData: cgFlagsLabel offset: self headerFlagsOffset.
 	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
 		libc fprintf: libc stderr format: 'codegen: asm error %d, %d safepoints, %d metadata words
-' with: asm errorCode with: cgSpCount with: cgMetaCount].
+' with: asm errorCode with: cgSpCount with: cgMetaCount.
+		asm rangeBits ~= 0 ifTrue: [
+			libc fprintf: libc stderr format: 'codegen: a %d-bit offset does not reach %lld bytes, at %lld of %lld bytes of code
+' with: asm rangeBits with: asm rangeDistance with: asm rangeSite - cgCodeStart with: asm pc - cgCodeStart]].
 	^asm failed not and: [cgSpCount < CG_MAX_SP and: [cgMetaCount < (CG_MAX_META - 1024)]]
 !
 maxOutgoing
@@ -375,6 +378,7 @@ emitBlock: b next: nextBlock
 	n := (ir block: b) first.
 	[n >= 0] whileTrue: [
 		nd := ir node: n.
+		asm veneersWithin: self veneerMargin.
 		((nd bcact ~= cgLastAct or: [nd bcpc ~= cgLastPc]) and: [nd op asInt32 ~= O_PHI and: [nd op asInt32 ~= O_CONST]]) ifTrue: [
 			nd bcact = cgRootAct
 				ifTrue: [asm bytecode: nd bcpc]
@@ -2511,10 +2515,15 @@ deoptLabelFor: n
 	self emitStressAt: n label: l.
 	^l
 !
+veneerMargin
+	"More than one node's or out-of-line path's code: what may come after a place between them where the assembler may put veneers (Arm64Assembler>>veneersWithin:) before the next."
+	^8192
+!
 emitOuts
 	| o |
 	0 to: cgOutCount - 1 do: [:i |
 		o := cgOuts + i.
+		asm veneersWithin: self veneerMargin.
 		asm bind: o label.
 		o kind = OUT_DEOPT ifTrue: [
 			asm comment: 'guard failed: deoptimize'.

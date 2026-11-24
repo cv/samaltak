@@ -150,10 +150,57 @@ testUnencodable
 	self assert: (self assemble: [asm add: x0 with: x1 with: x1 shift: (Arm64Module classPool at: #SHIFT_ROR) amount: 1]) equals: 5.
 	self assert: (self assemble: [asm ldr: x0 base: x1 index: x1 extend: (Arm64Module classPool at: #EXT_LSL) shift: 2]) equals: 5.
 	self assert: (self assemble: [asm b: (asm labelAt: asm pc + 134217728)]) equals: 3.
-	self assert: (self assemble: [asm cbz: x0 to: (asm labelAt: asm pc + 16r100000)]) equals: 3.
-	self assert: (self assemble: [asm tbz: x0 bit: 1 to: (asm labelAt: asm pc - 32772)]) equals: 3.
+	self assert: (self assemble: [asm b: (asm labelAt: asm pc + 16r100000) if: 14]) equals: 3.
 	self assert: (self assemble: [asm adr: x0 label: (asm labelAt: asm pc + 16r100000)]) equals: 3.
 	self assert: (self assemble: [asm add: x0 with: x1 imm: 4097. asm nop. asm b: (asm labelAt: asm pc + 16r10000000)]) equals: 2
+!
+testLongBranches
+	"A conditional branch to a bound label out of its reach is the inverse one over a b to it."
+	| x0 w3 kinds |
+	x0 := self reg: 'X0'.
+	w3 := self reg: 'W3'.
+	kinds := {
+		[:l | asm b: l if: 11]. [:l | asm cbz: x0 to: l]. [:l | asm cbnz: w3 to: l].
+		[:l | asm tbz: x0 bit: 37 to: l]. [:l | asm tbnz: w3 bit: 2 to: l]}.
+	kinds do: [:emit |
+		| over far |
+		over := self assemble: [emit value: (asm labelAt: buffer + 8)].
+		far := self assemble: [emit value: (asm labelAt: buffer + 16r200000)].
+		self assert: far size equals: 2.
+		self assert: (far first bitXor: over first) equals: (emit == kinds first ifTrue: [1] ifFalse: [16r1000000]).
+		self assert: (asm branchTargetAt: buffer) equals: buffer + 8.
+		self assert: (asm branchTargetAt: buffer + 4) equals: buffer + 16r200000].
+	"tbz reaches 32 KB back"
+	self assert: (self assemble: [asm nop. asm tbz: x0 bit: 1 to: (asm labelAt: buffer + 4 - 32772)]) size equals: 3.
+	self assert: (self assemble: [asm nop. asm tbz: x0 bit: 1 to: (asm labelAt: buffer + 4 - 32768)]) size equals: 2
+!
+testVeneers
+	"A branch to a label not bound yet that might not reach it gets a veneer where veneersWithin: allows one; else the label is out of reach."
+	| x0 l end v |
+	x0 := self reg: 'X0'.
+	self assert: (self assemble: [
+		l := asm newLabel.
+		asm tbz: x0 bit: 3 to: l.
+		9000 timesRepeat: [asm nop].
+		asm bind: l]) equals: 3.
+	self assemble: [
+		l := asm newLabel.
+		asm tbz: x0 bit: 3 to: l.
+		asm cbz: x0 to: l.
+		9000 timesRepeat: [
+			asm veneersWithin: 64.
+			asm nop].
+		end := asm pc.
+		asm bind: l].
+	self assert: asm finish equals: 0.
+	self assert: asm codeSize equals: 4 * (2 + 9000 + 2).
+	"tbz to the veneer, the veneer to the label, a b over it; cbz, which reaches 1 MB, to the label"
+	v := asm branchTargetAt: buffer.
+	self assert: (v - buffer between: 32764 - 64 - 8 and: 32764).
+	self assert: (asm branchTargetAt: v) equals: end.
+	self assert: (asm branchTargetAt: v - 4) equals: v + 4.
+	self assert: (asm branchTargetAt: buffer + 4) equals: end.
+	self assert: ((self words count: [:w | (w bitAnd: 16rFC000000) = 16r14000000])) equals: 2
 !
 testBufferFull
 	| x0 |

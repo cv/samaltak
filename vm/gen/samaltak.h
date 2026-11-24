@@ -1357,10 +1357,16 @@ extern bool asm_noting;
 extern uint64_t asm_pc;
 #if defined(__x86_64__)
 extern uint64_t asm_regs[32];
+#else
+extern int32_t asm_range_bits;
+extern int64_t asm_range_distance;
+extern uint64_t asm_range_site;
 #endif
 extern uint64_t asm_start;
 #if defined(__x86_64__)
 extern uint64_t asm_state;
+#else
+extern uint64_t asm_veneer_due;
 #endif
 extern uint8_t *ana_bcs;
 extern int16_t ana_depths[32768];
@@ -1662,6 +1668,9 @@ void amd64_assembler_bind(int32_t a_label);
 void arm64_assembler_bind(int32_t a_label);
 #endif
 void bind_data(int32_t a_label, int64_t k);
+#if !defined(__x86_64__)
+void arm64_assembler_branch(uint64_t w, int32_t a_label, int n, int inv);
+#endif
 uint64_t branch_target_at(uint64_t site);
 #if defined(__x86_64__)
 void branch_to(int32_t a_label);
@@ -1691,6 +1700,7 @@ void index_address(int64_t rn, int64_t rm, int64_t ext, int64_t n);
 void indexed_any(int32_t op, int32_t olen, int32_t pre, int32_t w, int64_t rt, int64_t rn, int64_t rm, int64_t ext, int64_t n, bool is_load);
 int amd64_assembler_kind(int64_t r);
 #else
+void emit_veneers_within(int64_t margin);
 int32_t arm64_assembler_finish(void);
 int32_t fmov_immediate(double a_double);
 #endif

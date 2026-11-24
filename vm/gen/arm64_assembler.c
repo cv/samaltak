@@ -19,8 +19,12 @@ uint32_t asm_note_offsets[8192];
 const char *asm_note_texts[8192];
 bool asm_noting;
 uint64_t asm_pc;
+int32_t asm_range_bits;
+int64_t asm_range_distance;
+uint64_t asm_range_site;
 uint64_t asm_start;
 static int32_t asm_unresolved;
+uint64_t asm_veneer_due;
 
 /* Arm64Assembler>>beginAt:limit: */
 void begin_at(uint64_t start, uint64_t limit)
@@ -32,6 +36,9 @@ void begin_at(uint64_t start, uint64_t limit)
     asm_label_count = 0;
     asm_fixup_count = 0;
     asm_unresolved = 0;
+    asm_veneer_due = 0xFFFFFFFFFFFFFFFFULL;
+    asm_range_bits = 0;
+    asm_range_distance = 0;
     asm_note_count = 0;
 }
 
@@ -47,6 +54,7 @@ void arm64_assembler_bind(int32_t a_label)
         if (asm_fixup_sites[f] < asm_pc) {
             patch_branch_at(asm_fixup_sites[f], asm_pc);
         }
+        asm_fixup_sites[f] = 0;
         asm_unresolved = asm_unresolved - 1;
         f = asm_fixup_next[f];
     }
@@ -63,10 +71,101 @@ void bind_data(int32_t a_label, int64_t k)
     f = asm_label_fixups[a_label];
     while (f >= 0) {
         patch_branch_at(asm_fixup_sites[f], a);
+        asm_fixup_sites[f] = 0;
         asm_unresolved = asm_unresolved - 1;
         f = asm_fixup_next[f];
     }
     asm_label_fixups[a_label] = -1;
+}
+
+/* Arm64Assembler>>branch:to:bits:invert: */
+void arm64_assembler_branch(uint64_t w, int32_t a_label, int n, int inv)
+{
+    uint64_t a;
+    int64_t off;
+    uint64_t a_word;
+    int64_t r_offset_to;
+    int64_t off_2;
+    int64_t d;
+    int64_t a_word_2;
+    int64_t r_branch_to;
+    uint64_t reach;
+    uint64_t target;
+    int64_t r_offset_to_2;
+    int64_t off_3;
+    int64_t d_2;
+    uint64_t a_word_3;
+    a = asm_labels[a_label];
+    if ((a != 0) && (inv != 0)) {
+        off = ((int64_t)(a - asm_pc)) >> 2;
+        if (!((off >= -(1LL << (n - 1))) && (off <= (1LL << (n - 1)) - 1))) {
+            a_word = (w ^ inv) | 64;
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = a_word;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+            a_word_2 = 0x14000000 | ({
+    off_2 = ((int64_t)(a - asm_pc)) >> 2;
+    if (!((off_2 >= -33554432) && (off_2 <= 33554431))) {
+        d = (int64_t)(a - asm_pc);
+        if (asm_error == ASM_OK) {
+            asm_range_bits = 26;
+            asm_range_distance = d;
+            asm_range_site = asm_pc;
+        }
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to = 0;
+        goto exit_offset_to;
+    }
+    r_offset_to = off_2 & 67108863;
+exit_offset_to:;
+    r_offset_to; });
+            if (asm_pc < asm_limit) {
+                *(uint32_t *)asm_pc = a_word_2;
+                asm_pc = asm_pc + 4;
+            } else if (asm_error == ASM_OK) {
+                asm_error = ASM_ERR_FULL;
+            }
+            return;
+        }
+    }
+    a_word_3 = w | (((uint64_t)({
+    if (asm_labels[a_label] == 0) {
+        reach = asm_pc + ((1LL << (n + 1)) - 4);
+        if (reach < asm_veneer_due) {
+            asm_veneer_due = reach;
+        }
+    }
+    target = target_of(a_label);
+    r_branch_to = ({
+    off_3 = ((int64_t)(target - asm_pc)) >> 2;
+    if (!((off_3 >= -(1LL << (n - 1))) && (off_3 <= (1LL << (n - 1)) - 1))) {
+        d_2 = (int64_t)(target - asm_pc);
+        if (asm_error == ASM_OK) {
+            asm_range_bits = (int32_t)n;
+            asm_range_distance = d_2;
+            asm_range_site = asm_pc;
+        }
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_RANGE;
+        }
+        r_offset_to_2 = 0;
+        goto exit_offset_to_2;
+    }
+    r_offset_to_2 = off_3 & ((1LL << n) - 1);
+exit_offset_to_2:;
+    r_offset_to_2; });
+    r_branch_to; })) << 5);
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = a_word_3;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
 }
 
 /* Arm64Assembler>>branchTargetAt: */
@@ -93,6 +192,104 @@ uint64_t branch_target_at(uint64_t site)
         return site + ((((int64_t)((w >> 5) & 0x7FFFF)) ^ 0x40000) - 0x40000) * 4;
     }
     return 0;
+}
+
+/* Arm64Assembler>>emitVeneersWithin: */
+void emit_veneers_within(int64_t margin)
+{
+    uint64_t due;
+    int64_t k;
+    int32_t f;
+    uint64_t site_2;
+    uint64_t r_reach_at;
+    uint32_t w;
+    uint64_t reach;
+    uint64_t horizon;
+    uint64_t over;
+    int32_t f_2;
+    uint64_t site;
+    uint64_t r_reach_at_2;
+    uint32_t w_2;
+    due = 0xFFFFFFFFFFFFFFFFULL;
+    k = 0;
+    for (f = 0; f <= asm_fixup_count - 1; f++) {
+        site_2 = asm_fixup_sites[f];
+        reach = ({
+    if ((site_2 == 0) || (site_2 >= asm_pc)) {
+        r_reach_at = 0ULL;
+        goto exit_reach_at;
+    }
+    w = *(uint32_t *)site_2;
+    if ((w & 0x7E000000) == 0x36000000) {
+        r_reach_at = site_2 + 0x7FFC;
+        goto exit_reach_at;
+    }
+    if (((w & 0xFF000010LL) == 0x54000000) || ((w & 0x7E000000) == 0x34000000)) {
+        r_reach_at = site_2 + 0xFFFFC;
+        goto exit_reach_at;
+    }
+    r_reach_at = 0ULL;
+exit_reach_at:;
+    r_reach_at; });
+        if (reach != 0) {
+            k = k + 1;
+            if (reach < due) {
+                due = reach;
+            }
+        }
+    }
+    asm_veneer_due = due;
+    if (asm_pc + margin + 4 * k < due) {
+        return;
+    }
+    horizon = asm_pc + margin + 4 * k + 16384;
+    if (asm_noting) {
+        note("veneers: b to labels further than the branches to them reach", 0);
+    }
+    over = asm_pc;
+    if (asm_pc < asm_limit) {
+        *(uint32_t *)asm_pc = 0x14000000;
+        asm_pc = asm_pc + 4;
+    } else if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_FULL;
+    }
+    due = 0xFFFFFFFFFFFFFFFFULL;
+    for (f_2 = 0; f_2 <= asm_fixup_count - 1; f_2++) {
+        site = asm_fixup_sites[f_2];
+        reach = ({
+    if ((site == 0) || (site >= asm_pc)) {
+        r_reach_at_2 = 0ULL;
+        goto exit_reach_at_2;
+    }
+    w_2 = *(uint32_t *)site;
+    if ((w_2 & 0x7E000000) == 0x36000000) {
+        r_reach_at_2 = site + 0x7FFC;
+        goto exit_reach_at_2;
+    }
+    if (((w_2 & 0xFF000010LL) == 0x54000000) || ((w_2 & 0x7E000000) == 0x34000000)) {
+        r_reach_at_2 = site + 0xFFFFC;
+        goto exit_reach_at_2;
+    }
+    r_reach_at_2 = 0ULL;
+exit_reach_at_2:;
+    r_reach_at_2; });
+        if (reach != 0) {
+            if (reach <= horizon) {
+                patch_branch_at(site, asm_pc);
+                asm_fixup_sites[f_2] = asm_pc;
+                if (asm_pc < asm_limit) {
+                    *(uint32_t *)asm_pc = 0x14000000;
+                    asm_pc = asm_pc + 4;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+            } else if (reach < due) {
+                due = reach;
+            }
+        }
+    }
+    asm_veneer_due = due;
+    patch_branch_at(over, asm_pc);
 }
 
 /* Arm64Assembler>>finish */
@@ -374,9 +571,13 @@ bool patch_branch_at(uint64_t site, uint64_t target)
     bool r_patch_2;
     bool r_patch_failed_2;
     bool r_patch_failed_3;
+    int64_t d;
     bool r_patch_failed_4;
+    int64_t d_2;
     bool r_patch_failed_5;
+    int64_t d_3;
     bool r_patch_failed_6;
+    int64_t d_4;
     bool r_patch_failed_7;
     w = *(uint32_t *)site;
     off = (int64_t)(target - site);
@@ -386,6 +587,11 @@ bool patch_branch_at(uint64_t site, uint64_t target)
         return ({
     if (!((off >= -1048576) && (off <= 0xFFFFF))) {
         r_patch = ({
+    if (asm_error == ASM_OK) {
+        asm_range_bits = 21;
+        asm_range_distance = off;
+        asm_range_site = site;
+    }
     if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_RANGE;
     }
@@ -404,6 +610,11 @@ exit_patch:;
     if (!((off >= -1048576) && (off <= 0xFFFFF))) {
         r_patch_2 = ({
     if (asm_error == ASM_OK) {
+        asm_range_bits = 21;
+        asm_range_distance = off;
+        asm_range_site = site;
+    }
+    if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_RANGE;
     }
     r_patch_failed_2 = false;
@@ -418,6 +629,11 @@ exit_patch_2:;
     if (!((off & 3) == 0)) {
         return ({
     if (asm_error == ASM_OK) {
+        asm_range_bits = 0;
+        asm_range_distance = off;
+        asm_range_site = site;
+    }
+    if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_RANGE;
     }
     r_patch_failed_3 = false;
@@ -426,7 +642,13 @@ exit_patch_2:;
     off = off >> 2;
     if ((w & 0x7C000000) == 0x14000000) {
         if (!((off >= -33554432) && (off <= 0x1FFFFFF))) {
+            d = off << 2;
             return ({
+    if (asm_error == ASM_OK) {
+        asm_range_bits = 26;
+        asm_range_distance = d;
+        asm_range_site = site;
+    }
     if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_RANGE;
     }
@@ -438,7 +660,13 @@ exit_patch_2:;
     }
     if ((w & 0x7E000000) == 0x36000000) {
         if (!((off >= -8192) && (off <= 0x1FFF))) {
+            d_2 = off << 2;
             return ({
+    if (asm_error == ASM_OK) {
+        asm_range_bits = 14;
+        asm_range_distance = d_2;
+        asm_range_site = site;
+    }
     if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_RANGE;
     }
@@ -450,7 +678,13 @@ exit_patch_2:;
     }
     if (((w & 0xFF000010LL) == 0x54000000) || (((w & 0x7E000000) == 0x34000000) || ((w & 0x3B000000) == 0x18000000))) {
         if (!((off >= -262144) && (off <= 0x3FFFF))) {
+            d_3 = off << 2;
             return ({
+    if (asm_error == ASM_OK) {
+        asm_range_bits = 19;
+        asm_range_distance = d_3;
+        asm_range_site = site;
+    }
     if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_RANGE;
     }
@@ -460,7 +694,13 @@ exit_patch_2:;
         *(uint32_t *)site = (w & 0xFF00001FLL) | (((uint64_t)(off & 0x7FFFF)) << 5);
         return true;
     }
+    d_4 = off << 2;
     return ({
+    if (asm_error == ASM_OK) {
+        asm_range_bits = 0;
+        asm_range_distance = d_4;
+        asm_range_site = site;
+    }
     if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_RANGE;
     }

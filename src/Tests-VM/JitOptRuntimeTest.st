@@ -1758,3 +1758,28 @@ JitOptBackgroundTest comment: 'JitOptRuntimeTest''s background compilation tests
 testSelectors
 	^super testSelectors select: [:s | s beginsWith: 'testBackground']
 ! !
+
+!JitOptRuntimeTest methodsFor: 'long units'!
+farSum: x
+	"What far: answers: 800 times s := s + ((x at: s \\ 8 + 1) bitXor: k)."
+	^(1 to: 800) inject: 0 into: [:s :k | s + ((x at: s \\ 8 + 1) bitXor: k)]
+!
+testFarOutOfLinePaths
+	"A unit whose guards are further from their out-of-line paths than arm64's tbz reaches (32 KB): its branches go there through veneers. It is optimized, and an element that is not a SmallInteger deoptimizes through one. (A statement per line: the listing shows a bytecode's line.)"
+	| o arr big listing |
+	self define: (String new: 40000 streamContents: [:s |
+		s nextPutAll: 'far: x | s | s := 0.'; lf.
+		1 to: 800 do: [:k | s nextPutAll: 's := s + ((x at: s \\ 8 + 1) bitXor: '; print: k; nextPutAll: ').'; lf].
+		s nextPutAll: '^s']).
+	o := JitRuntimeTestSubject new.
+	arr := #(1 2 3 4 5 6 7 8) copy.
+	1 to: 50 do: [:i | self assert: (o far: arr) equals: (self farSum: arr)].
+	self assert: ((JitRuntimeTestSubject >> #far:) jitCode: #opt) notNil description: 'far: is not optimized'.
+	self isX64 ifFalse: [
+		listing := (JitRuntimeTestSubject >> #far:) machineCodeFor: #opt.
+		self assert: (listing includesSubstring: 'veneers')].
+	big := arr copy.
+	big at: 3 put: (2 raisedTo: 70).
+	self assert: (o far: big) equals: (self farSum: big).
+	self assert: (o far: arr) equals: (self farSum: arr)
+! !

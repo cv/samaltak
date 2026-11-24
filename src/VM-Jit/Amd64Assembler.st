@@ -108,6 +108,19 @@ isFull: aCode
 fail: aCode
 	asmError = ASM_OK ifTrue: [asmError := aCode]
 !
+rangeBits
+	"Arm64Assembler's: what did not reach. Displacements here are 32 bits (forward jumps rel32): none to say."
+	^0
+!
+rangeDistance
+	^0
+!
+rangeSite
+	^0
+!
+veneersWithin: margin
+	"Arm64Assembler's: jumps to labels not bound yet are rel32, they reach."
+!
 isX64
 	"The code generators emit x86-64 through me."
 	^true

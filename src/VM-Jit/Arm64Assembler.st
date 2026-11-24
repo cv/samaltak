@@ -1,11 +1,11 @@
 JitAssembler subclass: #Arm64Assembler
-	instanceVariableNames: 'abi asmStart asmPc asmLimit asmError asmLabelCount asmLabels asmLabelFixups asmFixupCount asmFixupSites asmFixupNext asmUnresolved asmBinds asmBoundPc asmNoting asmNoteCount asmNoteOffsets asmNoteTexts asmNoteArgs'
+	instanceVariableNames: 'abi asmStart asmPc asmLimit asmError asmLabelCount asmLabels asmLabelFixups asmFixupCount asmFixupSites asmFixupNext asmUnresolved asmBinds asmBoundPc asmNoting asmNoteCount asmNoteOffsets asmNoteTexts asmNoteArgs asmVeneerDue asmRangeBits asmRangeDistance asmRangeSite'
 	classVariableNames: 'ASM_MAX_FIXUPS ASM_MAX_LABELS ASM_MAX_NOTES'
 	package: 'VM-Jit'!
 
 Arm64Assembler comment: 'I write arm64 instructions into a code buffer: beginAt:limit:, then one message per instruction, operands in assembly order (asm add: X0 with: X1 imm: 12), then finish (the error code, ASM_OK if all went well). The instruction methods are inline, so with constant operands each is a store of a constant word.
 
-Labels: newLabel, bind:, labelAt: anAddress (a label bound to an address outside the code, e.g. a runtime routine); branches to labels not bound yet are patched when they are. labelsBound counts the labels bound (where control may come from elsewhere), boundPc is where the last one is, hasBranchesTo: tells whether a label not bound yet has branches to it. An immediate, offset or branch distance that does not encode sets the error (the first sticks; the code must not be run); the encoders logicalImmediate:width: and fmovImmediate: answer -1 for values that do not encode.
+Labels: newLabel, bind:, labelAt: anAddress (a label bound to an address outside the code, e.g. a runtime routine); branches to labels not bound yet are patched when they are. labelsBound counts the labels bound (where control may come from elsewhere), boundPc is where the last one is, hasBranchesTo: tells whether a label not bound yet has branches to it. A conditional branch (b.cond, cbz, cbnz: ±1 MB; tbz, tbnz: ±32 KB) to a bound label out of its reach is the inverse one over a b (±128 MB); one to a label not bound yet gets a veneer, a b to the label that the branch goes to, where the code generator calls veneersWithin: (between its nodes) and the label might be out of reach before the next such place. An immediate, offset or branch distance that does not encode sets the error (the first sticks; the code must not be run); the encoders logicalImmediate:width: and fmovImmediate: answer -1 for values that do not encode.
 
 Notes, for annotated disassembly: with recordNotes: true, comment: (and comment:with:, a printf format and an integer) and bytecode: record what the code at pc does and which bytecode it implements; otherwise they cost a test of a flag.
 
@@ -16,7 +16,7 @@ targetArch
 	^#arm64
 !
 declarations
-	^#((abi Arm64Abi) (asmStart uint64_t) (asmPc uint64_t) (asmLimit uint64_t) (asmError int32_t) (asmLabelCount int32_t) (asmLabels 'uint64_t[ASM_MAX_LABELS]') (asmLabelFixups 'int32_t[ASM_MAX_LABELS]') (asmFixupCount int32_t) (asmFixupSites 'uint64_t[ASM_MAX_FIXUPS]') (asmFixupNext 'int32_t[ASM_MAX_FIXUPS]') (asmUnresolved int32_t) (asmBinds int32_t) (asmBoundPc uint64_t) (asmNoting bool) (asmNoteCount int32_t) (asmNoteOffsets 'uint32_t[ASM_MAX_NOTES]') (asmNoteTexts 'const char *[ASM_MAX_NOTES]') (asmNoteArgs 'int64_t[ASM_MAX_NOTES]'))
+	^#((abi Arm64Abi) (asmStart uint64_t) (asmPc uint64_t) (asmLimit uint64_t) (asmError int32_t) (asmLabelCount int32_t) (asmLabels 'uint64_t[ASM_MAX_LABELS]') (asmLabelFixups 'int32_t[ASM_MAX_LABELS]') (asmFixupCount int32_t) (asmFixupSites 'uint64_t[ASM_MAX_FIXUPS]') (asmFixupNext 'int32_t[ASM_MAX_FIXUPS]') (asmUnresolved int32_t) (asmBinds int32_t) (asmBoundPc uint64_t) (asmNoting bool) (asmNoteCount int32_t) (asmNoteOffsets 'uint32_t[ASM_MAX_NOTES]') (asmNoteTexts 'const char *[ASM_MAX_NOTES]') (asmNoteArgs 'int64_t[ASM_MAX_NOTES]') (asmVeneerDue uint64_t) (asmRangeBits int32_t) (asmRangeDistance int64_t) (asmRangeSite uint64_t))
 !
 initialize
 	ASM_MAX_LABELS := 16384.
@@ -35,6 +35,9 @@ beginAt: start limit: limit
 	asmLabelCount := 0.
 	asmFixupCount := 0.
 	asmUnresolved := 0.
+	asmVeneerDue := 16rFFFFFFFFFFFFFFFF.
+	asmRangeBits := 0.
+	asmRangeDistance := 0.
 	asmNoteCount := 0
 !
 finish
@@ -76,6 +79,28 @@ isFull: aCode
 !
 fail: aCode
 	asmError = ASM_OK ifTrue: [asmError := aCode]
+!
+rangeError: n distance: d at: site
+	"The n-bit offset field (21: adr, adrp) of the instruction at site cannot hold d bytes (pages for adrp)."
+	<var: #d type: 'int64_t'>
+	<var: #site type: 'uint64_t'>
+	asmError = ASM_OK ifTrue: [
+		asmRangeBits := n asInt32.
+		asmRangeDistance := d.
+		asmRangeSite := site].
+	self fail: ASM_ERR_RANGE
+!
+rangeBits
+	"The offset field of the first ASM_ERR_RANGE: 26 b and bl, 19 b.cond, cbz, cbnz and ldr literal, 14 tbz and tbnz, 21 adr and adrp; 0 if there was none."
+	^asmRangeBits
+!
+rangeDistance
+	"The distance that did not fit it."
+	^asmRangeDistance
+!
+rangeSite
+	"The instruction's address."
+	^asmRangeSite
 !
 emit: aWord
 	"Append an instruction (or a data word)."
@@ -132,6 +157,7 @@ bind: aLabel
 	f := asmLabelFixups at: aLabel.
 	[f >= 0] whileTrue: [
 		(asmFixupSites at: f) < asmPc ifTrue: [self patchBranchAt: (asmFixupSites at: f) to: asmPc].
+		asmFixupSites at: f put: 0.
 		asmUnresolved := asmUnresolved - 1.
 		f := asmFixupNext at: f].
 	asmLabelFixups at: aLabel put: -1
@@ -147,6 +173,7 @@ bindData: aLabel offset: k
 	f := asmLabelFixups at: aLabel.
 	[f >= 0] whileTrue: [
 		self patchBranchAt: (asmFixupSites at: f) to: a.
+		asmFixupSites at: f put: 0.
 		asmUnresolved := asmUnresolved - 1.
 		f := asmFixupNext at: f].
 	asmLabelFixups at: aLabel put: -1
@@ -170,6 +197,73 @@ targetOf: aLabel
 	asmFixupCount := asmFixupCount + 1.
 	asmUnresolved := asmUnresolved + 1.
 	^asmPc
+!
+branchTo: aLabel bits: n
+	"The n-bit offset field of a conditional branch at pc to aLabel (19: b.cond, cbz, cbnz; 14: tbz, tbnz). If aLabel is not bound yet, it must be by the time pc + 2^(n+1) - 4 is reached, else the branch gets a veneer (veneersWithin:)."
+	| reach |
+	(asmLabels at: aLabel) = 0 ifTrue: [
+		reach := asmPc + ((1 << (n + 1)) - 4).
+		reach < asmVeneerDue ifTrue: [asmVeneerDue := reach]].
+	^self offsetTo: (self targetOf: aLabel) bits: n
+!
+branch: w to: aLabel bits: n invert: inv
+	"Emit the conditional branch w (its offset field, n bits from bit 5, 0) to aLabel. One to a bound label out of its reach becomes the inverse branch (w bitXor: inv; inv 0: none, b.al and b.nv) over a b to it."
+	<function>
+	<var: #w type: 'uint64_t'>
+	| a off |
+	a := asmLabels at: aLabel.
+	(a ~= 0 and: [inv ~= 0]) ifTrue: [
+		off := (a - asmPc) asInt64 >> 2.
+		(off between: (1 << (n - 1)) negated and: (1 << (n - 1)) - 1) ifFalse: [
+			self emit: ((w bitXor: inv) bitOr: 2 << 5).
+			^self emit: (16r14000000 bitOr: (self offsetTo: a bits: 26))]].
+	self emit: (w bitOr: ((self branchTo: aLabel bits: n) asUInt64 << 5))
+!
+reachAt: site
+	"The last address the conditional branch at site, not bound yet, can reach (b.cond, cbz, cbnz: 1 MB on, tbz, tbnz: 32 KB); 0 for none (resolved, not emitted, another instruction)."
+	<var: #site type: 'uint64_t'>
+	| w |
+	(site = 0 or: [site >= asmPc]) ifTrue: [^0 asUInt64].
+	w := self uint32At: site.
+	(w bitAnd: 16r7E000000) = 16r36000000 ifTrue: [^site + 16r7FFC].
+	((w bitAnd: 16rFF000010) = 16r54000000 or: [(w bitAnd: 16r7E000000) = 16r34000000]) ifTrue: [^site + 16rFFFFC].
+	^0 asUInt64
+!
+veneersWithin: margin
+	"Where code may go between two instructions (not inside a sequence the runtime patches or reads at fixed offsets), and at most margin bytes come before the next such place: give each conditional branch to a label not bound yet that might not reach it from there a veneer, a b to the label, jumped over, the branch pointed at it."
+	asmPc + margin >= asmVeneerDue ifTrue: [self emitVeneersWithin: margin]
+!
+emitVeneersWithin: margin
+	"veneersWithin:'s work: in the order of the branches (the first, nearest its limit, has the first veneer), those that reach no further than 16 KB beyond the margin and the veneers; asmVeneerDue the limit of those left."
+	<export>
+	<var: #margin type: 'int64_t'>
+	| due k horizon over site reach |
+	due := 16rFFFFFFFFFFFFFFFF.
+	k := 0.
+	0 to: asmFixupCount - 1 do: [:f |
+		reach := self reachAt: (asmFixupSites at: f).
+		reach ~= 0 ifTrue: [
+			k := k + 1.
+			reach < due ifTrue: [due := reach]]].
+	asmVeneerDue := due.
+	asmPc + margin + (4 * k) < due ifTrue: [^self].
+	horizon := asmPc + margin + (4 * k) + 16384.
+	self comment: 'veneers: b to labels further than the branches to them reach'.
+	over := asmPc.
+	self emit: 16r14000000.
+	due := 16rFFFFFFFFFFFFFFFF.
+	0 to: asmFixupCount - 1 do: [:f |
+		site := asmFixupSites at: f.
+		reach := self reachAt: site.
+		reach ~= 0 ifTrue: [
+			reach <= horizon
+				ifTrue: [
+					self patchBranchAt: site to: asmPc.
+					asmFixupSites at: f put: asmPc.
+					self emit: 16r14000000]
+				ifFalse: [reach < due ifTrue: [due := reach]]]].
+	asmVeneerDue := due.
+	self patchBranchAt: over to: asmPc
 ! !
 
 !Arm64Assembler methodsFor: 'notes'!
@@ -245,7 +339,7 @@ offsetTo: target bits: n
 	| off |
 	off := (target - asmPc) asInt64 >> 2.
 	(off between: (1 << (n - 1)) negated and: (1 << (n - 1)) - 1) ifFalse: [
-		self fail: ASM_ERR_RANGE.
+		self rangeError: n distance: (target - asmPc) asInt64 at: asmPc.
 		^0].
 	^off bitAnd: (1 << n) - 1
 ! !
@@ -933,14 +1027,14 @@ ldr: rt label: aLabel
 adr: rd label: aLabel
 	| off |
 	off := ((self targetOf: aLabel) - asmPc) asInt64.
-	(off between: -16r100000 and: 16rFFFFF) ifFalse: [^self fail: ASM_ERR_RANGE].
+	(off between: -16r100000 and: 16rFFFFF) ifFalse: [^self rangeError: 21 distance: off at: asmPc].
 	self emit: ((16r10000000 bitOr: ((off bitAnd: 3) asUInt64 << 29)) bitOr: ((((off >> 2) bitAnd: 16r7FFFF) asUInt64 << 5) bitOr: (rd bitAnd: 31)))
 !
 adrp: rd label: aLabel
 	"rd := the 4 KB page of aLabel"
 	| off |
 	off := (((self targetOf: aLabel) bitClear: 16rFFF) - (asmPc bitClear: 16rFFF)) asInt64 >> 12.
-	(off between: -16r100000 and: 16rFFFFF) ifFalse: [^self fail: ASM_ERR_RANGE].
+	(off between: -16r100000 and: 16rFFFFF) ifFalse: [^self rangeError: 21 distance: off at: asmPc].
 	self emit: ((16r90000000 bitOr: ((off bitAnd: 3) asUInt64 << 29)) bitOr: ((((off >> 2) bitAnd: 16r7FFFF) asUInt64 << 5) bitOr: (rd bitAnd: 31)))
 ! !
 
@@ -952,18 +1046,17 @@ bl: aLabel
 	self emit: (16r94000000 bitOr: (self offsetTo: (self targetOf: aLabel) bits: 26))
 !
 b: aLabel if: c
-	self emit: (16r54000000 bitOr: (((self offsetTo: (self targetOf: aLabel) bits: 19) asUInt64 << 5) bitOr: (c bitAnd: 15)))
+	self branch: (16r54000000 bitOr: (c bitAnd: 15) asUInt64) to: aLabel bits: 19 invert: ((c bitAnd: 14) = 14 ifTrue: [0] ifFalse: [1])
 !
 cbz: rt to: aLabel
-	self emit: ((16r34000000 bitOr: (self sf: rt)) bitOr: (((self offsetTo: (self targetOf: aLabel) bits: 19) asUInt64 << 5) bitOr: (rt bitAnd: 31)))
+	self branch: ((16r34000000 bitOr: (self sf: rt)) bitOr: (rt bitAnd: 31) asUInt64) to: aLabel bits: 19 invert: 16r1000000
 !
 cbnz: rt to: aLabel
-	self emit: ((16r35000000 bitOr: (self sf: rt)) bitOr: (((self offsetTo: (self targetOf: aLabel) bits: 19) asUInt64 << 5) bitOr: (rt bitAnd: 31)))
+	self branch: ((16r35000000 bitOr: (self sf: rt)) bitOr: (rt bitAnd: 31) asUInt64) to: aLabel bits: 19 invert: 16r1000000
 !
 testBranch: op rt: rt bit: n to: aLabel
 	(n between: 0 and: 63) ifFalse: [^self fail: ASM_ERR_IMMEDIATE].
-	self emit: (((op bitOr: ((n >> 5) asUInt64 << 31)) bitOr: ((n bitAnd: 31) asUInt64 << 19))
-		bitOr: (((self offsetTo: (self targetOf: aLabel) bits: 14) asUInt64 << 5) bitOr: (rt bitAnd: 31)))
+	self branch: (((op bitOr: ((n >> 5) asUInt64 << 31)) bitOr: ((n bitAnd: 31) asUInt64 << 19)) bitOr: (rt bitAnd: 31) asUInt64) to: aLabel bits: 14 invert: 16r1000000
 !
 tbz: rt bit: n to: aLabel
 	self testBranch: 16r36000000 rt: rt bit: n to: aLabel
@@ -1127,30 +1220,32 @@ patchBranchAt: site to: target
 		off := ((target bitClear: 16rFFF) - (site bitClear: 16rFFF)) asInt64 >> 12.
 		^self patch: site word: (w bitAnd: 16r9F00001F) offset: off].
 	(w bitAnd: 16r9F000000) = 16r10000000 ifTrue: [^self patch: site word: (w bitAnd: 16r9F00001F) offset: off].
-	(off bitAnd: 3) = 0 ifFalse: [^self patchFailed].
+	(off bitAnd: 3) = 0 ifFalse: [^self patchFailed: 0 distance: off at: site].
 	off := off >> 2.
 	(w bitAnd: 16r7C000000) = 16r14000000 ifTrue: [
-		(off between: -16r2000000 and: 16r1FFFFFF) ifFalse: [^self patchFailed].
+		(off between: -16r2000000 and: 16r1FFFFFF) ifFalse: [^self patchFailed: 26 distance: off << 2 at: site].
 		self uint32At: site put: ((w bitAnd: 16rFC000000) bitOr: (off bitAnd: 16r3FFFFFF)).
 		^true].
 	(w bitAnd: 16r7E000000) = 16r36000000 ifTrue: [
-		(off between: -16r2000 and: 16r1FFF) ifFalse: [^self patchFailed].
+		(off between: -16r2000 and: 16r1FFF) ifFalse: [^self patchFailed: 14 distance: off << 2 at: site].
 		self uint32At: site put: ((w bitAnd: 16rFFF8001F) bitOr: ((off bitAnd: 16r3FFF) asUInt64 << 5)).
 		^true].
 	((w bitAnd: 16rFF000010) = 16r54000000 or: [(w bitAnd: 16r7E000000) = 16r34000000 or: [(w bitAnd: 16r3B000000) = 16r18000000]]) ifTrue: [
-		(off between: -16r40000 and: 16r3FFFF) ifFalse: [^self patchFailed].
+		(off between: -16r40000 and: 16r3FFFF) ifFalse: [^self patchFailed: 19 distance: off << 2 at: site].
 		self uint32At: site put: ((w bitAnd: 16rFF00001F) bitOr: ((off bitAnd: 16r7FFFF) asUInt64 << 5)).
 		^true].
-	^self patchFailed
+	^self patchFailed: 0 distance: off << 2 at: site
 !
 patch: site word: w offset: off
 	"adr and adrp: off (bytes or pages) into immlo and immhi."
-	(off between: -16r100000 and: 16rFFFFF) ifFalse: [^self patchFailed].
+	(off between: -16r100000 and: 16rFFFFF) ifFalse: [^self patchFailed: 21 distance: off at: site].
 	self uint32At: site put: ((w bitOr: ((off bitAnd: 3) asUInt64 << 29)) bitOr: (((off >> 2) bitAnd: 16r7FFFF) asUInt64 << 5)).
 	^true
 !
-patchFailed
-	self fail: ASM_ERR_RANGE.
+patchFailed: n distance: d at: site
+	<var: #d type: 'int64_t'>
+	<var: #site type: 'uint64_t'>
+	self rangeError: n distance: d at: site.
 	^false
 !
 branchTargetAt: site
