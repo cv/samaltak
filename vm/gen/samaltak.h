@@ -303,6 +303,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define FFI_SIGNATURE_BYTES 18
 #define FFI_SLOT_LIMIT 16
 #define FFI_STUB_BYTES 256
+#define FFI_STUB_KEY_WORDS 8192
 #define FFI_STUB_LIMIT 1024
 #define FFI_STUB_TABLE_SIZE 4096
 #define FFI_WRAPPED_BYTES 4096

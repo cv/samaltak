@@ -24,6 +24,7 @@ static uint64_t owned_session;
 static const char *platform_names[9] = {"platform_windows_close", "platform_windows_display_scale", "platform_windows_refresh_rate", "platform_windows_show", "platform_windows_set_cursor", "platform_windows_set_text_input_area", "pty_resize", "pty_close", "pty_foreground"};
 static uint32_t platform_signatures[9] = {49U, 54U, 54U, 785U, 49U, 53687089U, 13105U, 49U, 49U};
 
+static int32_t approved(const char *name, const uint8_t *tags, int32_t n, int32_t result, bool is_platform, uint64_t *target);
 static uint64_t ffi_primitives_arity_mix_bytes_length(uint64_t h, const uint8_t *p, uint64_t n);
 static uint64_t ffi_primitives_arity_mix_float(uint64_t h, float f);
 static uint64_t ffi_primitives_arity_mix_with(uint64_t h, uint64_t v);
@@ -110,6 +111,22 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_ou
 static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, const uint8_t *symbol, size_t sym_len, const uint8_t *tags, int32_t n, int32_t result, bool prepared, uint64_t *target);
 static void trace_bound_primitive(void);
 static void update_binding_owners(bool (*is_dead)(oop *));
+
+/* FFIPrimitives>>approved:tags:count:result:platform:into: */
+static int32_t approved(const char *name, const uint8_t *tags, int32_t n, int32_t result, bool is_platform, uint64_t *target)
+{
+    uint8_t local[18];
+    uint8_t *signature;
+    int32_t i;
+    memset(&local, 0, sizeof local);
+    signature = local;
+    for (i = 0; i <= n - 1; i++) {
+        signature[i] = tags[i];
+    }
+    signature[n] = (uint8_t)result;
+    signature[n + 1] = 0;
+    return is_platform ? ffi_approved_platform(name, signature, target) : ffi_approved_core(name, signature, target);
+}
 
 /* FFIPrimitives>>arityMix:bytes:length: */
 static uint64_t ffi_primitives_arity_mix_bytes_length(uint64_t h, const uint8_t *p, uint64_t n)
@@ -2516,8 +2533,6 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
     const char *name;
     const char *lib;
     int64_t sig;
-    uint8_t local[18];
-    uint8_t *signature;
     bool has_pointer;
     bool wide;
     bool has_vetted_argument;
@@ -2530,8 +2545,6 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
     name = (const char *)symbol;
     lib = (const char *)library;
     sig = 0U;
-    memset(&local, 0, sizeof local);
-    signature = local;
     has_pointer = false;
     wide = false;
     if (result == 15) {
@@ -2566,15 +2579,12 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
         if (t == 16) {
             wide = true;
         }
-        signature[i] = t;
         sig = (uint32_t)((((uint64_t)sig) << 4) | ((uint64_t)t));
     }
     sig = (uint32_t)((((uint64_t)sig) << 4) | ((uint64_t)result));
     if ((n > 6) || (wide || (result == 16))) {
         sig = 0U;
     }
-    signature[n] = (uint8_t)result;
-    signature[n + 1] = 0;
     if (strcmp(lib, "libm") == 0) {
         for (i_2 = 0; i_2 <= 9; i_2++) {
             if ((sig == math_signatures[i_2]) && (strcmp(name, math_names[i_2]) == 0)) {
@@ -2634,7 +2644,7 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
         if (!prepared) {
             return 0;
         }
-        return ffi_approved_core(name, signature, target);
+        return approved(name, tags, n, result, false, target);
     }
     if (strcmp(lib, "platform") == 0) {
         for (i_3 = 0; i_3 <= 8; i_3++) {
@@ -2647,7 +2657,7 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
         if (!prepared) {
             return 0;
         }
-        return ffi_approved_platform(name, signature, target);
+        return approved(name, tags, n, result, true, target);
     }
     if (has_vetted_argument || (result == 12)) {
         return 0;

@@ -1,6 +1,6 @@
 VMModule subclass: #FFIStubCompiler
-	instanceVariableNames: 'asm memory wrapperHelpers publishedCount wrappedCount stubTargets stubKeys stubKeysHigh stubEntries'
-	classVariableNames: 'FFI_STUB_BYTES FFI_STUB_LIMIT FFI_WRAPPED_BYTES FFI_WRAPPED_LIMIT FFI_WRAPPED_LANES FFI_STUB_TABLE_SIZE'
+	instanceVariableNames: 'asm memory wrapperHelpers publishedCount wrappedCount stubTargets stubKeys stubEntries'
+	classVariableNames: 'FFI_STUB_BYTES FFI_STUB_LIMIT FFI_WRAPPED_BYTES FFI_WRAPPED_LIMIT FFI_WRAPPED_LANES FFI_STUB_TABLE_SIZE FFI_STUB_KEY_WORDS'
 	package: 'VM-Jit'!
 
 FFIStubCompiler comment: 'Hosted launchers for fixed C signatures, excluding variadics. A wrapper validates and unboxes oops, calls the resolved target, and boxes its result. Legacy word stubs accept already marshalled arguments. Published entries are immutable and stay live until exit, independent of CodeCache. Publish only on the VM thread. The cache contains code, not authorization; callers must resolve and authorize before obtaining an entry.'!
@@ -9,8 +9,7 @@ FFIStubCompiler comment: 'Hosted launchers for fixed C signatures, excluding var
 declarations
 	^#((asm JitAssembler) (memory FFIStubMemory) (wrapperHelpers FFIWrapperHelpers)
 		(publishedCount uint32_t) (wrappedCount uint32_t)
-		(stubTargets 'uint64_t[FFI_STUB_TABLE_SIZE]') (stubKeys 'uint64_t[FFI_STUB_TABLE_SIZE]')
-		(stubKeysHigh 'uint64_t[FFI_STUB_TABLE_SIZE]')
+		(stubTargets 'uint64_t[FFI_STUB_TABLE_SIZE]') (stubKeys 'uint64_t[FFI_STUB_KEY_WORDS]')
 		(stubEntries 'uint64_t[FFI_STUB_TABLE_SIZE]'))
 !
 initialize
@@ -20,7 +19,9 @@ initialize
 	FFI_WRAPPED_LIMIT := 1024.
 	"Native argument lanes of a wrapper: a slice or magnitude takes two."
 	FFI_WRAPPED_LANES := 16.
-	FFI_STUB_TABLE_SIZE := 2 * (FFI_STUB_LIMIT + FFI_WRAPPED_LIMIT)
+	FFI_STUB_TABLE_SIZE := 2 * (FFI_STUB_LIMIT + FFI_WRAPPED_LIMIT).
+	"Two words of each slot's key, adjacent."
+	FFI_STUB_KEY_WORDS := 2 * FFI_STUB_TABLE_SIZE
 ! !
 
 !FFIStubCompiler methodsFor: 'public'!
@@ -147,10 +148,12 @@ stubSlotFor: target key: key high: keyHigh
 	<returns: 'uint32_t'>
 	| hash slot |
 	hash := (target >> 4) bitXor: ((target >> 17) bitXor: (target >> 32)).
-	hash := hash bitXor: (key bitXor: ((key >> 12) bitXor: ((key >> 37) bitXor: (keyHigh bitXor: keyHigh >> 19)))).
+	hash := hash bitXor: (key bitXor: ((key >> 12) bitXor: key >> 36)).
+	keyHigh ~= 0 ifTrue: [hash := hash bitXor: (keyHigh bitXor: keyHigh >> 19)].
 	slot := (hash bitAnd: FFI_STUB_TABLE_SIZE - 1) asUInt32.
 	[(stubEntries at: slot) ~= 0] whileTrue: [
-		((stubTargets at: slot) = target and: [(stubKeys at: slot) = key and: [(stubKeysHigh at: slot) = keyHigh]]) ifTrue: [^slot].
+		"A slot's two key words are adjacent."
+		((stubTargets at: slot) = target and: [(stubKeys at: 2 * slot) = key and: [(stubKeys at: 2 * slot + 1) = keyHigh]]) ifTrue: [^slot].
 		slot := (slot + 1) bitAnd: FFI_STUB_TABLE_SIZE - 1].
 	^slot
 !
@@ -158,8 +161,8 @@ rememberStub: entry target: target key: key high: keyHigh at: slot
 	<var: #key type: 'uint64_t'>
 	<var: #keyHigh type: 'uint64_t'>
 	stubTargets at: slot put: target.
-	stubKeys at: slot put: key.
-	stubKeysHigh at: slot put: keyHigh.
+	stubKeys at: 2 * slot put: key.
+	stubKeys at: 2 * slot + 1 put: keyHigh.
 	stubEntries at: slot put: entry
 ! !
 
