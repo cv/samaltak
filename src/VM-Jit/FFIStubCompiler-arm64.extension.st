@@ -50,27 +50,30 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 	<var: #helper type: 'uint64_t'>
 	<var: #rejection type: 'uint32_t'>
 	<var: #resultDone type: 'int32_t'>
+	<var: #gpRegs type: 'int32_t'>
+	<var: #fpRegs type: 'int32_t'>
+	<var: #gpBase type: 'int32_t'>
+	<var: #scratch type: 'int32_t'>
+	<var: #off type: 'int32_t'>
 	<returns: 'uint32_t'>
 	"oop (*)(const oop *args). Counts/tags are checked by the shared compiler.
-	x19 holds args; converted args live in preserved x20..x25 and d8..d13 across
-	helper calls, not a word vector. Only a helper's typed out slot (and a slice
-	length) use scratch on the stack; helpers must not allocate before entry."
-	| j gp fp tag gpSave fpSave fpBase localBytes integerOut gp32 reg helper slow ok rejection
-		rejectSites failCount resultDone epilogue reject |
-	gp := 0.
-	fp := 0.
-	gp32 := 0 asUInt32.
-	0 to: n - 1 do: [:i |
-		tag := types at: i.
-		tag = 6
-			ifTrue: [fp := fp + 1]
-			ifFalse: [
-				tag <= 2 ifTrue: [gp32 := gp32 bitOr: (1 asUInt32 << gp)].
-				gp := gp + ((self wrappedTwoLanes: tag) ifTrue: [2] ifFalse: [1])]].
-	gpSave := gp + 1. "Include x19."
+	x19 holds args; converted register arguments live in preserved x20..x27 and
+	d8..d15 across helper calls, not a word vector; stack arguments go straight
+	to the outgoing area at sp (an integer through x10). Only a helper's typed
+	out slot (and a slice length) use scratch above that area; helpers must not
+	allocate before entry."
+	| j gp fp tag gpRegs fpRegs gpSave fpSave gpBase fpBase localBytes integerOut gp32 reg helper slow ok rejection
+		rejectSites failCount resultDone epilogue reject laneStack totals scratch off lane |
+	laneStack := self local: 'int32_t[FFI_WRAPPED_LANES]'.
+	totals := self local: 'int32_t[2]'.
+	scratch := self layoutLanes: types count: n gp: 8 fp: 8 packed: memory packsStackArguments into: laneStack totals: totals.
+	gpRegs := (totals at: 0) < 8 ifTrue: [totals at: 0] ifFalse: [8].
+	fpRegs := (totals at: 1) < 8 ifTrue: [totals at: 1] ifFalse: [8].
+	gpSave := gpRegs + 1. "Include x19."
 	operation = 1 ifTrue: [gpSave := gpSave + 2]. "x23/x24 hold memcmp bounds."
-	fpBase := 16 + (gpSave * 8).
-	fpSave := fp.
+	gpBase := scratch + 16.
+	fpBase := gpBase + (gpSave * 8).
+	fpSave := fpRegs.
 	localBytes := (fpBase + (fpSave * 8) + 15) bitClear: 15.
 	integerOut := localBytes.
 	result = 11 ifTrue: [
@@ -83,7 +86,7 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 		buf at: j put: 16rD10003FF + (localBytes * 1024). "sub sp,sp,#localBytes"
 		j := j + 1.
 		0 to: gpSave - 1 do: [:i |
-			buf at: j put: 16rF90003F3 + ((2 + i) * 1024) + i. "str x19+i,[sp,#16+i*8]"
+			buf at: j put: 16rF90003F3 + (((gpBase quo: 8) + i) * 1024) + i. "str x19+i,[sp,#gpBase+i*8]"
 			j := j + 1].
 		0 to: fpSave - 1 do: [:i |
 			buf at: j put: 16rFD0003E8 + ((fpBase quo: 8) + i * 1024) + i. "str d8+i,[sp,#fpBase+i*8]"
@@ -92,17 +95,20 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 		j := j + 1].
 	"Keep branch sites in the emitter only. At most two per argument, plus the
 	two memcmp bounds. A set of opcode bases denotes the branch widths below."
-	rejectSites := self local: 'int32_t[16]'.
+	rejectSites := self local: 'int32_t[40]'.
 	failCount := 0.
 	gp := 0.
 	fp := 0.
+	lane := 0.
+	gp32 := 0 asUInt32.
 	0 to: n - 1 do: [:i |
 		tag := types at: i.
 		helper := self wrappedArgumentHelper: tag.
 		helper = 0 ifTrue: [^0].
+		off := laneStack at: lane.
 		buf at: j put: 16rF9400260 + (i * 1024). "ldr x0,[x19,#i*8]"
 		j := j + 1.
-		reg := 20 + gp.
+		reg := off < 0 ifTrue: [20 + gp] ifFalse: [10].
 		tag <= 4 ifTrue: [
 			slow := j. "tbz w0,#0,slow (not a SmallInteger)"
 			buf at: j + 1 put: 16r9341FC00 + reg. "asr xReg,x0,#1"
@@ -125,10 +131,11 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 			ok := j. "b ready"
 			j := j + 1.
 			self arm64WrappedBranch: 16r36000000 from: slow to: j mask: 16r3FFF into: buf].
-		buf at: j put: 16r910003E1. "add x1,sp,#0 (typed out slot)"
+		"add x1,sp,#out: a stack double goes straight to its slot"
+		buf at: j put: 16r910003E1 + (((tag = 6 and: [off >= 0]) ifTrue: [off] ifFalse: [scratch]) * 1024).
 		j := j + 1.
 		(tag = 5 or: [self wrappedTwoLanes: tag]) ifTrue: [
-			buf at: j put: 16r910023E2. "add x2,sp,#8 (slice length out slot)"
+			buf at: j put: 16r910003E2 + ((scratch + 8) * 1024). "add x2,sp,#scratch+8 (slice length out slot)"
 			j := j + 1].
 		j := self arm64WrappedCall: helper at: j into: buf.
 		buf at: j put: 16r36000000. "tbz w0,#0,reject (C bool)"
@@ -137,22 +144,42 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 		j := j + 1.
 		tag = 6
 			ifTrue: [
-				buf at: j put: 16rFD4003E8 + fp. "ldr d8+fp,[sp]"
-				j := j + 1.
-				fp := fp + 1]
-			ifFalse: [
-				buf at: j put: (tag <= 2 ifTrue: [16rB94003E0] ifFalse: [16rF94003E0]) + reg. "ldr wReg/xReg,[sp]"
-				j := j + 1.
-				gp := gp + 1.
-				(self wrappedTwoLanes: tag) ifTrue: [
-					buf at: j put: 16rF94007E0 + reg + 1. "ldr xReg+1,[sp,#8]"
-					j := j + 1.
-					gp := gp + 1].
-				tag = 5 ifTrue: [
-					buf at: j put: 16rF94007F7 + i. "ldr x23+i,[sp,#8] (memcmp only)"
+				off < 0 ifTrue: [
+					buf at: j put: 16rFD4003E8 + fp + ((scratch quo: 8) * 1024). "ldr d8+fp,[sp,#scratch]"
 					j := j + 1].
+				fp := fp + 1.
+				lane := lane + 1]
+			ifFalse: [
+				buf at: j put: (tag <= 2
+					ifTrue: [16rB94003E0 + ((scratch quo: 4) * 1024)]
+					ifFalse: [16rF94003E0 + ((scratch quo: 8) * 1024)]) + reg. "ldr wReg/xReg,[sp,#scratch]"
+				j := j + 1.
 				tag <= 4 ifTrue: [
-					self arm64WrappedBranch: 16r14000000 from: ok to: j mask: 16r3FFFFFF into: buf]]].
+					self arm64WrappedBranch: 16r14000000 from: ok to: j mask: 16r3FFFFFF into: buf].
+				off < 0
+					ifTrue: [tag <= 2 ifTrue: [gp32 := gp32 bitOr: (1 asUInt32 << gp)]]
+					ifFalse: [
+						buf at: j put: (tag <= 2
+							ifTrue: [16rB90003EA + ((off quo: 4) * 1024)]
+							ifFalse: [16rF90003EA + ((off quo: 8) * 1024)]). "str w10/x10,[sp,#slot]"
+						j := j + 1].
+				gp := gp + 1.
+				lane := lane + 1.
+				(self wrappedTwoLanes: tag) ifTrue: [
+					off := laneStack at: lane.
+					off < 0
+						ifTrue: [
+							buf at: j put: 16rF94003E0 + (20 + gp) + (((scratch + 8) quo: 8) * 1024). "ldr xReg+1,[sp,#scratch+8]"
+							j := j + 1]
+						ifFalse: [
+							buf at: j put: 16rF94003EA + (((scratch + 8) quo: 8) * 1024). "ldr x10,[sp,#scratch+8]"
+							buf at: j + 1 put: 16rF90003EA + ((off quo: 8) * 1024). "str x10,[sp,#slot]"
+							j := j + 2].
+					gp := gp + 1.
+					lane := lane + 1].
+				tag = 5 ifTrue: [
+					buf at: j put: 16rF94003F7 + i + (((scratch + 8) quo: 8) * 1024). "ldr x23+i,[sp,#scratch+8] (memcmp only)"
+					j := j + 1]]].
 	operation = 1 ifTrue: [
 		23 to: 24 do: [:bound |
 			buf at: j put: 16rEB0002DF + (bound * 65536). "cmp x22,xBound (count vs length)"
@@ -160,11 +187,11 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 			rejectSites at: failCount put: j + 1.
 			failCount := failCount + 1.
 			j := j + 2]].
-	0 to: gp - 1 do: [:i |
+	0 to: gpRegs - 1 do: [:i |
 		reg := 20 + i.
 		buf at: j put: ((gp32 bitAnd: (1 asUInt32 << i)) ~= 0 ifTrue: [16r2A0003E0] ifFalse: [16rAA0003E0]) + (reg * 65536) + i. "mov wN,wReg / mov xN,xReg"
 		j := j + 1].
-	0 to: fp - 1 do: [:i |
+	0 to: fpRegs - 1 do: [:i |
 		buf at: j put: 16r1E604100 + (i * 32) + i. "fmov dN,d8+N"
 		j := j + 1].
 	result = 11 ifTrue: [
@@ -205,11 +232,11 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 	resultDone >= 0 ifTrue: [
 		self arm64WrappedBranch: 16r14000000 from: resultDone to: epilogue mask: 16r3FFFFFF into: buf].
 	(self wrappedTailResult: result) ifTrue: [
-		j := self arm64RestoreWrappedGP: gpSave asInt32 fp: fpSave asInt32 offset: fpBase asInt32 bytes: localBytes asInt32 hasArgs: n > 0 at: j into: buf.
+		j := self arm64RestoreWrappedGP: gpSave asInt32 at: gpBase fp: fpSave asInt32 offset: fpBase asInt32 bytes: localBytes asInt32 hasArgs: n > 0 at: j into: buf.
 		j := self arm64WrappedTransfer: helper tail: true at: j into: buf.
 		failCount = 0 ifTrue: [^j asUInt32 * 4].
 		epilogue := j].
-	j := self arm64RestoreWrappedGP: gpSave asInt32 fp: fpSave asInt32 offset: fpBase asInt32 bytes: localBytes asInt32 hasArgs: n > 0 at: j into: buf.
+	j := self arm64RestoreWrappedGP: gpSave asInt32 at: gpBase fp: fpSave asInt32 offset: fpBase asInt32 bytes: localBytes asInt32 hasArgs: n > 0 at: j into: buf.
 	buf at: j put: 16rD65F03C0. "ret"
 	j := j + 1.
 	failCount > 0 ifTrue: [
@@ -224,10 +251,11 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 				mask: ((rejection >> 24) = 16r54 ifTrue: [16r7FFFF] ifFalse: [16r3FFF]) asUInt32 into: buf]].
 	^j asUInt32 * 4
 !
-arm64RestoreWrappedGP: gpSave fp: fpSave offset: fpBase bytes: localBytes hasArgs: hasArgs at: start into: buf
+arm64RestoreWrappedGP: gpSave at: gpBase fp: fpSave offset: fpBase bytes: localBytes hasArgs: hasArgs at: start into: buf
 	<function>
 	<arch: #arm64>
 	<var: #gpSave type: 'int32_t'>
+	<var: #gpBase type: 'int32_t'>
 	<var: #fpSave type: 'int32_t'>
 	<var: #fpBase type: 'int32_t'>
 	<var: #localBytes type: 'int32_t'>
@@ -239,7 +267,7 @@ arm64RestoreWrappedGP: gpSave fp: fpSave offset: fpBase bytes: localBytes hasArg
 	j := start.
 	hasArgs ifTrue: [
 		0 to: gpSave - 1 do: [:i |
-			buf at: j put: 16rF94003F3 + ((2 + i) * 1024) + i. "ldr x19+i,[sp,#16+i*8]"
+			buf at: j put: 16rF94003F3 + (((gpBase quo: 8) + i) * 1024) + i. "ldr x19+i,[sp,#gpBase+i*8]"
 			j := j + 1].
 		0 to: fpSave - 1 do: [:i |
 			buf at: j put: 16rFD4003E8 + ((fpBase quo: 8) + i * 1024) + i. "ldr d8+i,[sp,#fpBase+i*8]"

@@ -3839,7 +3839,7 @@ exit_is_value_selector_3:;
             if (inline_send(sel, argc, kind, 0, pc, a, r_3)) {
                 goto exit_send_selector;
             }
-        } else if (((jit_flags & JIT_FLAG_FFI_SITE) != 0) && ((kind == 0) && ((argc <= 6) && generic_bound_ffi_call(sel, argc, pc, a, r_3)))) {
+        } else if (((jit_flags & JIT_FLAG_FFI_SITE) != 0) && ((kind == 0) && ((argc <= 16) && generic_bound_ffi_call(sel, argc, pc, a, r_3)))) {
             goto exit_send_selector;
         }
         if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
@@ -16248,7 +16248,7 @@ static bool monomorphic_send(uint64_t sel, int32_t rcv, oop cls, int32_t argc, i
     if (m == 0) {
         return false;
     }
-    if (((jit_flags & JIT_FLAG_FFI_SITE) != 0) && ((kind == 0) && ((argc <= 6) && bound_ffi_call(m, sel, rcv, cls, argc, pc, a, r)))) {
+    if (((jit_flags & JIT_FLAG_FFI_SITE) != 0) && ((kind == 0) && ((argc <= 16) && bound_ffi_call(m, sel, rcv, cls, argc, pc, a, r)))) {
         return true;
     }
     v = s >= 0 ? ({

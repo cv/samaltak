@@ -1,6 +1,6 @@
 VMCoreModule subclass: #RuntimeNativeLoader
 	instanceVariableNames: 'dynamicLinker manifest grants grantCount grantUnregister'
-	classVariableNames: 'NATIVE_GRANT_BYTES NATIVE_GRANT_BUFFER_SIZE NATIVE_GRANT_LIMIT NATIVE_GRANT_NAME_MAX NATIVE_GRANT_ARITY_MAX NATIVE_NOTIFY_CONTEXT NATIVE_NOTIFY_I32 NATIVE_NOTIFY_VOID'
+	classVariableNames: 'NATIVE_GRANT_BYTES NATIVE_GRANT_BUFFER_SIZE NATIVE_GRANT_LIMIT NATIVE_GRANT_NAME_MAX NATIVE_GRANT_ARITY_MAX NATIVE_NOTIFY_ARITY_MAX NATIVE_NOTIFY_CONTEXT NATIVE_NOTIFY_I32 NATIVE_NOTIFY_VOID'
 	package: 'VM-Core'!
 
 RuntimeNativeLoader comment: 'The hosted launcher may grant fixed exports with scalar and bounded byte arguments before the image starts. It supplies absolute library paths, exact symbol names and their trusted C prototypes in SAMALTAK_NATIVE_GRANTS. The image supplies only counted logical names and tags. Lookup never loads a library and a target is returned only to VM code that builds the adapter.'!
@@ -14,7 +14,8 @@ initialize
 	NATIVE_GRANT_BUFFER_SIZE := NATIVE_GRANT_BYTES + 1.
 	NATIVE_GRANT_LIMIT := 32.
 	NATIVE_GRANT_NAME_MAX := 127.
-	NATIVE_GRANT_ARITY_MAX := 6.
+	NATIVE_GRANT_ARITY_MAX := 16.
+	NATIVE_NOTIFY_ARITY_MAX := 6.
 	NATIVE_NOTIFY_CONTEXT := 250.
 	NATIVE_NOTIFY_I32 := 250.
 	NATIVE_NOTIFY_VOID := 251
@@ -165,7 +166,7 @@ parseSignature: text into: row
 		tag = 0 ifTrue: [^-1].
 		tag = NATIVE_NOTIFY_CONTEXT ifTrue: [contexts := contexts + 1].
 		slots := slots + (tag = 8 ifTrue: [2] ifFalse: [1]).
-		slots > NATIVE_GRANT_ARITY_MAX ifTrue: [^-1].
+		slots > (notification ifTrue: [NATIVE_NOTIFY_ARITY_MAX] ifFalse: [NATIVE_GRANT_ARITY_MAX]) ifTrue: [^-1].
 		row types at: n put: tag asUInt8.
 		n := n + 1.
 		start := end + 1].
@@ -238,6 +239,6 @@ VMStruct subclass: #RuntimeNativeGrant
 !RuntimeNativeGrant class methodsFor: 'declaring'!
 fields
 	^#((library 'const char *') (symbol 'const char *') (path 'const char *')
-		(librarySize size_t) (symbolSize size_t) (types 'uint8_t[6]')
+		(librarySize size_t) (symbolSize size_t) (types 'uint8_t[NATIVE_GRANT_ARITY_MAX]')
 		(arity int32_t) (resultType int32_t) (target 'void *') (unregisterName 'const char *'))
 ! !

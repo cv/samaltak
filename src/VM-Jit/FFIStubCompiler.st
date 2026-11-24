@@ -1,6 +1,6 @@
 VMModule subclass: #FFIStubCompiler
-	instanceVariableNames: 'asm memory wrapperHelpers publishedCount wrappedCount stubTargets stubKeys stubEntries'
-	classVariableNames: 'FFI_STUB_BYTES FFI_STUB_LIMIT FFI_WRAPPED_BYTES FFI_WRAPPED_LIMIT FFI_STUB_TABLE_SIZE'
+	instanceVariableNames: 'asm memory wrapperHelpers publishedCount wrappedCount stubTargets stubKeys stubKeysHigh stubEntries'
+	classVariableNames: 'FFI_STUB_BYTES FFI_STUB_LIMIT FFI_WRAPPED_BYTES FFI_WRAPPED_LIMIT FFI_WRAPPED_LANES FFI_STUB_TABLE_SIZE'
 	package: 'VM-Jit'!
 
 FFIStubCompiler comment: 'Hosted launchers for fixed C signatures, excluding variadics. A wrapper validates and unboxes oops, calls the resolved target, and boxes its result. Legacy word stubs accept already marshalled arguments. Published entries are immutable and stay live until exit, independent of CodeCache. Publish only on the VM thread. The cache contains code, not authorization; callers must resolve and authorize before obtaining an entry.'!
@@ -9,14 +9,17 @@ FFIStubCompiler comment: 'Hosted launchers for fixed C signatures, excluding var
 declarations
 	^#((asm JitAssembler) (memory FFIStubMemory) (wrapperHelpers FFIWrapperHelpers)
 		(publishedCount uint32_t) (wrappedCount uint32_t)
-		(stubTargets 'uint64_t[FFI_STUB_TABLE_SIZE]') (stubKeys 'uint32_t[FFI_STUB_TABLE_SIZE]')
+		(stubTargets 'uint64_t[FFI_STUB_TABLE_SIZE]') (stubKeys 'uint64_t[FFI_STUB_TABLE_SIZE]')
+		(stubKeysHigh 'uint64_t[FFI_STUB_TABLE_SIZE]')
 		(stubEntries 'uint64_t[FFI_STUB_TABLE_SIZE]'))
 !
 initialize
 	FFI_STUB_BYTES := 256.
 	FFI_STUB_LIMIT := 1024.
-	FFI_WRAPPED_BYTES := 2048.
+	FFI_WRAPPED_BYTES := 4096.
 	FFI_WRAPPED_LIMIT := 1024.
+	"Native argument lanes of a wrapper: a slice or magnitude takes two."
+	FFI_WRAPPED_LANES := 16.
 	FFI_STUB_TABLE_SIZE := 2 * (FFI_STUB_LIMIT + FFI_WRAPPED_LIMIT)
 ! !
 
@@ -62,7 +65,7 @@ downcall: target types: types count: n result: result
 		tag := types at: i.
 		(tag = 0 or: [tag > 6]) ifTrue: [^0].
 		key := ((key asUInt64 << 3) bitOr: tag) asUInt32].
-	slot := self stubSlotFor: target key: key.
+	slot := self stubSlotFor: target key: key asUInt64 high: 0.
 	(stubEntries at: slot) ~= 0 ifTrue: [^stubEntries at: slot].
 	publishedCount = FFI_STUB_LIMIT ifTrue: [^0].
 	"Aligned scratch space for either encoder."
@@ -72,7 +75,7 @@ downcall: target types: types count: n result: result
 		ifTrue: [self encodeX64: p target: target types: types count: n result: result]
 		ifFalse: [self encodeArm64: buf target: target types: types count: n result: result].
 	entry := self publishCode: p size: size.
-	entry ~= 0 ifTrue: [self rememberStub: entry target: target key: key at: slot].
+	entry ~= 0 ifTrue: [self rememberStub: entry target: target key: key asUInt64 high: 0 at: slot].
 	^entry
 !
 entryFor: target argumentTags: types count: n returnTag: result operation: operation
@@ -84,8 +87,8 @@ entryFor: target argumentTags: types count: n returnTag: result operation: opera
 	<var: #result type: 'int32_t'>
 	<var: #operation type: 'int32_t'>
 	<returns: 'uint64_t'>
-	| key slot tag lanes buf p size entry text prepare finish |
-	(target = 0 or: [n < 0 or: [n > 6]]) ifTrue: [^0].
+	| key keyHigh slot tag lanes buf p size entry text prepare finish |
+	(target = 0 or: [n < 0 or: [n > FFI_WRAPPED_LANES]]) ifTrue: [^0].
 	((result >= 1 and: [result <= 7 and: [result ~= 5]]) or: [result = 11 or: [result = 12 or: [result = 15]]]) ifFalse: [^0].
 	(n > 0 and: [types isNull]) ifTrue: [^0].
 	self canPublishCode ifFalse: [^0].
@@ -97,21 +100,24 @@ entryFor: target argumentTags: types count: n returnTag: result operation: opera
 	operation = 1 ifTrue: [
 		(n = 3 and: [result = 1 and: [(types at: 0) = 5 and: [(types at: 1) = 5 and: [(types at: 2) = 4]]]]) ifFalse: [^0]
 	] ifFalse: [operation = 0 ifFalse: [^0]].
-	"A nonzero result nibble followed by up to six argument nibbles encodes arity.
-	 Bit 28 is the operation; bit 31 separates the word-stub namespace."
-	key := result asUInt32.
+	"Nonzero 5-bit tags, the result's and then up to sixteen arguments', encode arity
+	 in two words. Bit 62 is the operation; bit 63 separates the word-stub namespace."
+	key := result asUInt64.
+	keyHigh := 0 asUInt64.
 	lanes := n.
 	0 to: n - 1 do: [:i |
 		tag := types at: i.
 		(tag = 0 or: [tag = 7 or: [(tag > 10 and: [text not]) or: [tag = 5 and: [operation = 0]]]]) ifTrue: [^0].
 		(text or: [self wrappedTwoLanes: tag]) ifTrue: [lanes := lanes + 1].
-		key := ((key asUInt64 << 4) bitOr: tag) asUInt32].
-	lanes > 6 ifTrue: [^0].
-	key := ((key bitOr: (operation asUInt64 << 28)) bitOr: 16r80000000) asUInt32.
-	slot := self stubSlotFor: target key: key.
+		i < 11
+			ifTrue: [key := key bitOr: tag asUInt64 << (5 * (i + 1))]
+			ifFalse: [keyHigh := keyHigh bitOr: tag asUInt64 << (5 * (i - 11))]].
+	lanes > FFI_WRAPPED_LANES ifTrue: [^0].
+	key := (key bitOr: operation asUInt64 << 62) bitOr: 16r8000000000000000 asUInt64.
+	slot := self stubSlotFor: target key: key high: keyHigh.
 	(stubEntries at: slot) ~= 0 ifTrue: [^stubEntries at: slot].
 	wrappedCount = FFI_WRAPPED_LIMIT ifTrue: [^0].
-	buf := self local: 'uint32_t[512]'.
+	buf := self local: 'uint32_t[1024]'.
 	p := self cCoerce: buf to: 'uint8_t *'.
 	text
 		ifTrue: [
@@ -128,34 +134,86 @@ entryFor: target argumentTags: types count: n returnTag: result operation: opera
 	entry := memory publishFFIStub: p size: size.
 	entry ~= 0 ifTrue: [
 		wrappedCount := wrappedCount + 1.
-		self rememberStub: entry target: target key: key at: slot].
+		self rememberStub: entry target: target key: key high: keyHigh at: slot].
 	^entry
 ! !
 
 !FFIStubCompiler methodsFor: 'cache'!
-stubSlotFor: target key: key
+stubSlotFor: target key: key high: keyHigh
 	<function>
 	<var: #target type: 'uint64_t'>
-	<var: #key type: 'uint32_t'>
+	<var: #key type: 'uint64_t'>
+	<var: #keyHigh type: 'uint64_t'>
 	<returns: 'uint32_t'>
 	| hash slot |
 	hash := (target >> 4) bitXor: ((target >> 17) bitXor: (target >> 32)).
-	hash := hash bitXor: (key bitXor: (key >> 12)).
+	hash := hash bitXor: (key bitXor: ((key >> 12) bitXor: ((key >> 37) bitXor: (keyHigh bitXor: keyHigh >> 19)))).
 	slot := (hash bitAnd: FFI_STUB_TABLE_SIZE - 1) asUInt32.
 	[(stubEntries at: slot) ~= 0] whileTrue: [
-		((stubTargets at: slot) = target and: [(stubKeys at: slot) = key]) ifTrue: [^slot].
+		((stubTargets at: slot) = target and: [(stubKeys at: slot) = key and: [(stubKeysHigh at: slot) = keyHigh]]) ifTrue: [^slot].
 		slot := (slot + 1) bitAnd: FFI_STUB_TABLE_SIZE - 1].
 	^slot
 !
-rememberStub: entry target: target key: key at: slot
+rememberStub: entry target: target key: key high: keyHigh at: slot
+	<var: #key type: 'uint64_t'>
+	<var: #keyHigh type: 'uint64_t'>
 	stubTargets at: slot put: target.
 	stubKeys at: slot put: key.
+	stubKeysHigh at: slot put: keyHigh.
 	stubEntries at: slot put: entry
 ! !
 
 !FFIStubCompiler methodsFor: 'wrapper helper addresses'!
 wrappedTwoLanes: tag
 	^tag >= 8 and: [tag <= 10]
+!
+wrappedFloatLane: tag
+	^tag = 6
+!
+wrappedNarrowLane: tag
+	"A 4-byte argument: Apple's arm64 ABI gives it a 4-byte stack slot."
+	^tag <= 2
+!
+layoutLanes: types count: n gp: gpMax fp: fpMax packed: packed into: laneStack totals: totals
+	"Give each native lane (in argument order; a two-lane tag's pointer, then its length)
+	 a register (-1) or an offset in the outgoing stack area. AAPCS64 and SysV: integer
+	 and floating-point lanes take their own registers in order, and once a class runs
+	 out, its later lanes go to the stack in argument order. Each takes an 8-byte slot,
+	 or with packed (Apple arm64) its natural size and alignment. totals gets the
+	 integer and floating-point lane counts. Answer the area's size, a multiple of 16."
+	<function>
+	<var: #types type: 'const uint8_t *'>
+	<var: #n type: 'int32_t'>
+	<var: #gpMax type: 'int32_t'>
+	<var: #fpMax type: 'int32_t'>
+	<var: #packed type: 'bool'>
+	<var: #laneStack type: 'int32_t *'>
+	<var: #totals type: 'int32_t *'>
+	<var: #size type: 'int32_t'>
+	<var: #stack type: 'int32_t'>
+	<returns: 'int32_t'>
+	| gp fp lane stack tag size float width |
+	gp := 0.
+	fp := 0.
+	lane := 0.
+	stack := 0.
+	0 to: n - 1 do: [:i |
+		tag := types at: i.
+		float := self wrappedFloatLane: tag.
+		width := (self wrappedTwoLanes: tag) ifTrue: [2] ifFalse: [1].
+		1 to: width do: [:k |
+			(float ifTrue: [fp < fpMax] ifFalse: [gp < gpMax])
+				ifTrue: [laneStack at: lane put: -1]
+				ifFalse: [
+					size := (packed and: [self wrappedNarrowLane: tag]) ifTrue: [4] ifFalse: [8].
+					stack := (stack + size - 1) bitClear: size - 1.
+					laneStack at: lane put: stack.
+					stack := stack + size].
+			float ifTrue: [fp := fp + 1] ifFalse: [gp := gp + 1].
+			lane := lane + 1]].
+	totals at: 0 put: gp.
+	totals at: 1 put: fp.
+	^(stack + 15) bitClear: 15
 !
 wrappedArgumentHelper: tag
 	^wrapperHelpers wrappedArgumentHelper: tag
@@ -304,6 +362,11 @@ publishFFIStub: bytes size: size
 	<returns: 'uint64_t'>
 	self subclassResponsibility
 !
+packsStackArguments
+	"Whether stack arguments take their natural size and alignment rather than 8-byte slots (Apple's arm64 ABI)."
+	<returns: 'bool'>
+	self subclassResponsibility
+!
 staticCoreEntry: name signature: signature
 	"An exact, precompiled vm:core launcher or 0; never resolves a grant."
 	<var: #name type: 'const char *'>
@@ -329,6 +392,10 @@ targetOS
 canMapFFIStubs
 	<export>
 	^jit canRunCode
+!
+packsStackArguments
+	<export>
+	^true
 !
 publishFFIStub: bytes size: size
 	<export>
@@ -376,6 +443,10 @@ canMapFFIStubs
 	<export>
 	^true
 !
+packsStackArguments
+	<export>
+	^false
+!
 publishFFIStub: bytes size: size
 	"One OS page per packet, bounded by the compiler's publication count. Never reopen a page that other threads may be executing."
 	<export>
@@ -417,8 +488,9 @@ protect: address size: size flags: flags
 !FFIStubCompiler methodsFor: 'wrapped x64 SysV'!
 encodeWrappedX64: start target: target types: types count: n result: result operation: operation
 	"Called with a validated signature. Only the encoder sees tags. The launcher
-	 puts values in their final registers and spills live lanes only around
-	 argument helpers. Scratch and memcmp lengths never escape the frame."
+	 puts register arguments in their final registers and spills live lanes only
+	 around argument helpers; stack arguments go straight to their outgoing slots.
+	 Scratch and memcmp lengths never escape the frame."
 	<function>
 	<arch: #x86_64>
 	<var: #start type: 'uint8_t *'>
@@ -429,27 +501,42 @@ encodeWrappedX64: start target: target types: types count: n result: result oper
 	<var: #operation type: 'int32_t'>
 	<var: #gp type: 'int32_t'>
 	<var: #fp type: 'int32_t'>
+	<var: #gpLive type: 'int32_t'>
+	<var: #fpLive type: 'int32_t'>
+	<var: #off type: 'int32_t'>
+	<var: #homes type: 'int32_t'>
+	<var: #outs type: 'int32_t'>
+	<var: #integerOut type: 'int32_t'>
+	<var: #frame type: 'int32_t'>
 	<returns: 'uint32_t'>
-	| p failSites failed gp fp tag helper slow done reg rex wideResultSlow rejected epilogue stackBytes tail |
+	| p failSites failed gp fp gpLive fpLive tag helper slow done reg rex wideResultSlow rejected epilogue tail
+		laneStack totals homes outs integerOut frame off lane |
 	"At most two failure sites per argument plus the two memcmp bounds."
-	failSites := self local: 'uint32_t[14]'.
+	failSites := self local: 'uint32_t[40]'.
+	laneStack := self local: 'int32_t[FFI_WRAPPED_LANES]'.
+	totals := self local: 'int32_t[2]'.
+	"[rsp+0..homes) holds the outgoing stack arguments; then the register lanes'
+	 spill homes (at least 48 bytes), two helper outputs and two memcmp slice
+	 lengths. Entry, push r12 and a frame of 16-byte multiples keep calls aligned."
+	homes := self layoutLanes: types count: n gp: 6 fp: 8 packed: false into: laneStack totals: totals.
+	gpLive := (totals at: 0) < 6 ifTrue: [totals at: 0] ifFalse: [6].
+	fpLive := (totals at: 1) < 8 ifTrue: [totals at: 1] ifFalse: [8].
+	outs := homes + ((gpLive + fpLive) * 8 < 48 ifTrue: [48] ifFalse: [((gpLive + fpLive) * 8 + 15) bitClear: 15]).
+	integerOut := outs + 32.
+	frame := integerOut.
+	result = 11 ifTrue: [frame := frame + (((self sizeof: 'BigIntegerNativeResult') + 15) bitClear: 15) asInt32].
 	failed := 0.
 	gp := 0.
 	fp := 0.
-	"endbr64; push r12; sub rsp,80; mov r12,rdi (oop args).
-	 Stack remains aligned; [rsp+0..47] are spill homes, +48 and +56
-	 are helper outputs, +64 and +72 are memcmp slice lengths."
-	p := self emitX64: 16r5441FA1E0FF3 asUInt64 count: 6 at: start.
-	stackBytes := 80 + (((self sizeof: 'BigIntegerNativeResult') + 15) bitClear: 15) asUInt64.
-	result = 11
-		ifTrue: [
-			p := self emitX64: ((stackBytes << 24) bitOr: 16rEC8148) count: 7 at: p. "sub rsp,imm32"
-			p := self emitX64: 16rFC8949 asUInt64 count: 3 at: p]
-		ifFalse: [p := self emitX64: 16rFC894950EC8348 asUInt64 count: 7 at: p].
+	lane := 0.
+	p := self emitX64: 16r5441FA1E0FF3 asUInt64 count: 6 at: start. "endbr64; push r12"
+	p := self x64AdjustStack: frame add: false at: p.
+	p := self emitX64: 16rFC8949 asUInt64 count: 3 at: p. "mov r12,rdi (oop args)"
 	0 to: n - 1 do: [:i |
 		tag := types at: i.
 		helper := self wrappedArgumentHelper: tag.
 		helper = 0 ifTrue: [^0].
+		off := laneStack at: lane.
 		"mov rax,[r12+i*8]"
 		p := self emitX64: (16r24448B49 asUInt64 + (i asUInt64 << 35)) count: 5 at: p.
 		done := p.
@@ -473,76 +560,84 @@ encodeWrappedX64: start target: target types: types count: n result: result oper
 			done := self emitX64: 16rE9 asUInt64 count: 5 at: p. "jmp merge"
 			self x64WrappedPatch: slow to: done.
 			p := done].
-		p := self x64WrappedSpillGP: gp fp: fp restore: false at: p.
-		"mov rdi,rax; lea rsi,[rsp+48]"
-		p := self emitX64: 16r3024748D48C78948 asUInt64 count: 8 at: p.
+		p := self x64WrappedSpillGP: (gp < 6 ifTrue: [gp] ifFalse: [6]) fp: (fp < 8 ifTrue: [fp] ifFalse: [8]) base: homes restore: false at: p.
+		p := self emitX64: 16rC78948 asUInt64 count: 3 at: p. "mov rdi,rax"
+		"lea rsi,[rsp+out]: a stack double goes straight to its slot"
+		p := self x64Lea: 6 offset: ((tag = 6 and: [off >= 0]) ifTrue: [off] ifFalse: [outs]) at: p.
 		(tag = 5 or: [self wrappedTwoLanes: tag]) ifTrue: [
-			p := self emitX64: 16r3824548D48 asUInt64 count: 5 at: p]. "lea rdx,[rsp+56]"
+			p := self x64Lea: 2 offset: outs + 8 at: p]. "lea rdx,[rsp+out+8]"
 		p := self x64WrappedCall: helper at: p.
 		p := self emitX64: 16rC084 asUInt64 count: 2 at: p. "test al,al"
 		p := self x64WrappedJcc: 4 at: p.
 		failSites at: failed put: (p - start) asUInt32.
 		failed := failed + 1.
-		p := self x64WrappedSpillGP: gp fp: fp restore: true at: p.
+		p := self x64WrappedSpillGP: (gp < 6 ifTrue: [gp] ifFalse: [6]) fp: (fp < 8 ifTrue: [fp] ifFalse: [8]) base: homes restore: true at: p.
 		tag = 6 ifTrue: [
-			p := self x64WrappedXMM: fp offset: 48 restore: true at: p.
-			fp := fp + 1
+			off < 0 ifTrue: [p := self x64WrappedXMM: fp offset: outs restore: true at: p].
+			fp := fp + 1.
+			lane := lane + 1
 		] ifFalse: [
 			tag <= 2
-				ifTrue: [p := self emitX64: 16r3024448B asUInt64 count: 4 at: p] "mov eax,[rsp+48]"
-				ifFalse: [p := self emitX64: 16r3024448B48 asUInt64 count: 5 at: p]. "mov rax,[rsp+48]"
+				ifTrue: [p := self x64Rsp: 16r8B asUInt64 count: 1 reg: 0 offset: outs at: p] "mov eax,[rsp+out]"
+				ifFalse: [p := self x64WrappedGP: 0 offset: outs restore: true at: p]. "mov rax,[rsp+out]"
 			tag <= 4 ifTrue: [self x64WrappedPatch: done to: p].
-			reg := self x64WrappedGP: gp.
-			rex := (tag <= 2 ifTrue: [16r40] ifFalse: [16r48]) + (reg >> 3).
-			"mov final GP lane, eax/rax"
-			p := self emitX64: (16rC08900 asUInt64 + rex asUInt64 + ((reg bitAnd: 7) asUInt64 << 16)) count: 3 at: p.
+			off < 0
+				ifTrue: [
+					reg := self x64WrappedGP: gp.
+					rex := (tag <= 2 ifTrue: [16r40] ifFalse: [16r48]) + (reg >> 3).
+					"mov final GP lane, eax/rax"
+					p := self emitX64: (16rC08900 asUInt64 + rex asUInt64 + ((reg bitAnd: 7) asUInt64 << 16)) count: 3 at: p]
+				ifFalse: [p := self x64WrappedGP: 0 offset: off restore: false at: p]. "mov [rsp+slot],rax"
 			gp := gp + 1.
+			lane := lane + 1.
 			(self wrappedTwoLanes: tag) ifTrue: [
-				p := self x64WrappedGP: (self x64WrappedGP: gp) offset: 56 restore: true at: p.
-				gp := gp + 1].
+				off := laneStack at: lane.
+				off < 0
+					ifTrue: [p := self x64WrappedGP: (self x64WrappedGP: gp) offset: outs + 8 restore: true at: p]
+					ifFalse: [
+						p := self x64WrappedGP: 0 offset: outs + 8 restore: true at: p.
+						p := self x64WrappedGP: 0 offset: off restore: false at: p].
+				gp := gp + 1.
+				lane := lane + 1].
 			tag = 5 ifTrue: [
 				"Save the validated slice length (not an argument)."
-				p := self x64WrappedGP: 10 offset: 56 restore: true at: p.
-				p := self x64WrappedGP: 10 offset: 64 + (i * 8) restore: false at: p]]].
+				p := self x64WrappedGP: 10 offset: outs + 8 restore: true at: p.
+				p := self x64WrappedGP: 10 offset: outs + 16 + (i * 8) restore: false at: p]]].
 	operation = 1 ifTrue: [
-		"cmp rdx,[rsp+64/72]; ja reject"
+		"cmp rdx,[rsp+out+16/24]; ja reject"
 		0 to: 1 do: [:i |
-			p := self emitX64: (16r4024543B48 asUInt64 + (i asUInt64 << 35)) count: 5 at: p.
+			p := self x64Rsp: 16r3B48 asUInt64 count: 2 reg: 2 offset: outs + 16 + (i * 8) at: p.
 			p := self x64WrappedJcc: 7 at: p.
 			failSites at: failed put: (p - start) asUInt32.
 			failed := failed + 1]].
 	result = 11 ifTrue: [
 		"Exact two-magnitude signature: the hidden fifth GP argument is r8."
-		p := self emitX64: 16r5024448D4C asUInt64 count: 5 at: p].
+		p := self x64Lea: 8 offset: integerOut at: p].
 	p := self x64WrappedCall: target at: p.
 	wideResultSlow := self local: 'uint8_t *'.
 	wideResultSlow value: self null.
 	tail := self wrappedTailResult: result.
 	result = 11
 		ifTrue: [
-			p := self emitX64: 16r50247C8D48 asUInt64 count: 5 at: p. "lea rdi,[rsp+80]"
+			p := self x64Lea: 7 offset: integerOut at: p. "lea rdi,[rsp+integerOut]"
 			p := self x64WrappedCall: (self wrappedResultHelper: result) at: p]
 		ifFalse: [
 			tail ifFalse: [p := self x64WrappedInlineResult: result at: p slow: wideResultSlow]].
 	epilogue := p.
-	result = 11
-		ifTrue: [
-			p := self emitX64: ((stackBytes << 24) bitOr: 16rC48148) count: 7 at: p.
-			p := self emitX64: 16r5C41 asUInt64 count: 2 at: p]
-		ifFalse: [p := self x64RestoreWrappedStackAt: p].
+	p := self x64RestoreWrappedStack: frame at: p.
 	p := tail
 		ifTrue: [self x64WrappedTransfer: (self wrappedResultHelper: result) tail: true at: p]
 		ifFalse: [self emitX64: 16rC3 asUInt64 count: 1 at: p].
 	wideResultSlow value notNull ifTrue: [
 		self x64WrappedPatch: wideResultSlow value to: p.
-		p := self x64RestoreWrappedStackAt: p.
+		p := self x64RestoreWrappedStack: frame at: p.
 		p := self x64WrappedTransfer: (self wrappedResultHelper: result) tail: true at: p].
 	failed > 0 ifTrue: [
 		rejected := p.
 		p := self emitX64: 16rC031 asUInt64 count: 2 at: p. "xor eax,eax"
 		tail
 			ifTrue: [
-				p := self x64RestoreWrappedStackAt: p.
+				p := self x64RestoreWrappedStack: frame at: p.
 				p := self emitX64: 16rC3 asUInt64 count: 1 at: p]
 			ifFalse: [
 				p := self emitX64: 16rE9 asUInt64 count: 5 at: p. "jmp epilogue"
@@ -551,12 +646,51 @@ encodeWrappedX64: start target: target types: types count: n result: result oper
 			self x64WrappedPatch: start + (failSites at: i) to: rejected]].
 	^(p - start) asUInt32
 !
-x64RestoreWrappedStackAt: p
+x64AdjustStack: bytes add: add at: p
+	"sub/add rsp,imm8 or imm32"
 	<function>
 	<arch: #x86_64>
+	<var: #bytes type: 'int32_t'>
+	<var: #add type: 'bool'>
 	<var: #p type: 'uint8_t *'>
 	<returns: 'uint8_t *'>
-	^self emitX64: 16r5C4150C48348 asUInt64 count: 6 at: p "add rsp,80; pop r12"
+	bytes < 128 ifTrue: [
+		^self emitX64: (add ifTrue: [16rC48348] ifFalse: [16rEC8348]) asUInt64 + (bytes asUInt64 << 24) count: 4 at: p].
+	^self emitX64: (add ifTrue: [16rC48148] ifFalse: [16rEC8148]) asUInt64 + (bytes asUInt64 << 24) count: 7 at: p
+!
+x64RestoreWrappedStack: bytes at: p
+	<function>
+	<arch: #x86_64>
+	<var: #bytes type: 'int32_t'>
+	<var: #p type: 'uint8_t *'>
+	<returns: 'uint8_t *'>
+	^self emitX64: 16r5C41 asUInt64 count: 2 at: (self x64AdjustStack: bytes add: true at: p) "add rsp,bytes; pop r12"
+!
+x64Rsp: opcode count: count reg: reg offset: offset at: p
+	"opcode (count bytes, with any prefix and REX), then ModRM for reg and [rsp+offset], with an 8- or 32-bit displacement."
+	<function>
+	<arch: #x86_64>
+	<var: #opcode type: 'uint64_t'>
+	<var: #count type: 'int32_t'>
+	<var: #reg type: 'int32_t'>
+	<var: #offset type: 'int32_t'>
+	<var: #p type: 'uint8_t *'>
+	<returns: 'uint8_t *'>
+	| q |
+	q := self emitX64: opcode count: count at: p.
+	offset < 128 ifTrue: [
+		^self emitX64: 16r2444 asUInt64 + ((reg bitAnd: 7) asUInt64 << 3) + (offset asUInt64 << 16) count: 3 at: q].
+	^self emitX64: 16r2484 asUInt64 + ((reg bitAnd: 7) asUInt64 << 3) + (offset asUInt64 << 16) count: 6 at: q
+!
+x64Lea: reg offset: offset at: p
+	"lea r64,[rsp+offset]"
+	<function>
+	<arch: #x86_64>
+	<var: #reg type: 'int32_t'>
+	<var: #offset type: 'int32_t'>
+	<var: #p type: 'uint8_t *'>
+	<returns: 'uint8_t *'>
+	^self x64Rsp: 16r8D48 asUInt64 + ((reg bitAnd: 8) >> 1) asUInt64 count: 2 reg: reg offset: offset at: p
 !
 x64WrappedCall: target at: p
 	<function>
@@ -611,12 +745,11 @@ x64WrappedGP: reg offset: offset restore: restore at: p
 	<var: #restore type: 'bool'>
 	<var: #p type: 'uint8_t *'>
 	<returns: 'uint8_t *'>
-	| rex opcode modrm |
-	"mov r64,[rsp+disp8] or mov [rsp+disp8],r64"
+	| rex opcode |
+	"mov r64,[rsp+offset] or mov [rsp+offset],r64"
 	rex := 16r48 + ((reg bitAnd: 8) >> 1).
 	opcode := restore ifTrue: [16r8B] ifFalse: [16r89].
-	modrm := 16r44 + ((reg bitAnd: 7) * 8).
-	^self emitX64: (16r24000000 asUInt64 + rex asUInt64 + (opcode asUInt64 << 8) + (modrm asUInt64 << 16) + (offset asUInt64 << 32)) count: 5 at: p
+	^self x64Rsp: rex asUInt64 + (opcode asUInt64 << 8) count: 2 reg: reg offset: offset at: p
 !
 x64WrappedXMM: lane offset: offset restore: restore at: p
 	<function>
@@ -626,26 +759,27 @@ x64WrappedXMM: lane offset: offset restore: restore at: p
 	<var: #restore type: 'bool'>
 	<var: #p type: 'uint8_t *'>
 	<returns: 'uint8_t *'>
-	| opcode modrm |
-	"movsd xmmN,[rsp+disp8] or movsd [rsp+disp8],xmmN"
+	| opcode |
+	"movsd xmmN,[rsp+offset] or movsd [rsp+offset],xmmN"
 	opcode := restore ifTrue: [16r10] ifFalse: [16r11].
-	modrm := 16r44 + (lane * 8).
-	^self emitX64: (16r2400000FF2 asUInt64 + (opcode asUInt64 << 16) + (modrm asUInt64 << 24) + (offset asUInt64 << 40)) count: 6 at: p
+	^self x64Rsp: 16r0FF2 asUInt64 + (opcode asUInt64 << 16) count: 3 reg: lane offset: offset at: p
 !
-x64WrappedSpillGP: gp fp: fp restore: restore at: p
+x64WrappedSpillGP: gp fp: fp base: base restore: restore at: p
+	"Spill or restore the first gp integer and fp floating-point register lanes at [rsp+base]."
 	<function>
 	<arch: #x86_64>
 	<var: #gp type: 'int32_t'>
 	<var: #fp type: 'int32_t'>
+	<var: #base type: 'int32_t'>
 	<var: #restore type: 'bool'>
 	<var: #p type: 'uint8_t *'>
 	<returns: 'uint8_t *'>
 	| q |
 	q := p.
 	0 to: gp - 1 do: [:i |
-		q := self x64WrappedGP: (self x64WrappedGP: i) offset: i * 8 restore: restore at: q].
+		q := self x64WrappedGP: (self x64WrappedGP: i) offset: base + (i * 8) restore: restore at: q].
 	0 to: fp - 1 do: [:i |
-		q := self x64WrappedXMM: i offset: (gp + i) * 8 restore: restore at: q].
+		q := self x64WrappedXMM: i offset: base + ((gp + i) * 8) restore: restore at: q].
 	^q
 !
 x64WrappedInlineResult: result at: p slow: slow

@@ -13,6 +13,12 @@ bool can_map_ffi_stubs(void)
     return can_run_code();
 }
 
+/* DarwinFFIStubMemory>>packsStackArguments */
+bool packs_stack_arguments(void)
+{
+    return true;
+}
+
 /* DarwinFFIStubMemory>>publishFFIStub:size: */
 uint64_t publish_ffi_stub(const uint8_t *bytes, uint32_t size)
 {

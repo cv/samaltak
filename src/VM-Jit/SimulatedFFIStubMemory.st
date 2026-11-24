@@ -23,6 +23,9 @@ declarations
 canMapFFIStubs
 	^false
 !
+packsStackArguments
+	^false
+!
 publishFFIStub: bytes size: size
 	^0
 !
