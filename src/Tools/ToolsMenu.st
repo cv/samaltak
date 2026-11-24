@@ -3,7 +3,7 @@ Object subclass: #ToolsMenu
 	classVariableNames: 'Entries'
 	package: 'Tools'!
 
-ToolsMenu comment: 'I build the World menu (a click on the desk). Tools register what they open, sorted by order, in a group: #open (the "open…" section at the top, the default) or the #tools, #apps or #settings submenu (groups). The rest of the menu is mine: in Tools, long computation and user interrupt; in Settings, slow motion (every animation 10× slower); arrange, save; in System, rebuild the VM and reboot and, on UEFI, the firmware''s: install Samaltak onto the machine''s disk, reboot into Ubuntu, Samaltak or the firmware''s setup (FirmwareBoot: BootNext, once), restart, warm restart or power off (Firmware reset:); help, quit.
+ToolsMenu comment: 'I build the World menu (a click on the desk). Tools register what they open, sorted by order, in a group: #open (the top section, the default) or the #tools, #apps or #settings submenu (groups). The rest of the menu is mine: in Tools, long computation and user interrupt; in Settings, slow motion (every animation 10× slower); arrange, save; in System, rebuild the VM and reboot and, on UEFI, the firmware''s: install Samaltak onto the machine''s disk, reboot into Ubuntu, Samaltak or the firmware''s setup (FirmwareBoot: BootNext, once), restart, warm restart or power off (Firmware reset:); help, quit.
 
 	ToolsMenu register: ''Profiler'' description: ''samples · frames'' group: #tools order: 60 action: [:aPoint | ...]
 	ToolsMenu unregister: ''Profiler''
@@ -15,7 +15,7 @@ entries
 	^Entries ifNil: [Entries := OrderedCollection new]
 !
 register: aString description: descriptionOrNil order: aNumber action: aBlock
-	"Add (or replace) the open… item aString."
+	"Add (or replace) the item aString."
 	self register: aString description: descriptionOrNil group: #open order: aNumber action: aBlock
 !
 register: aString order: aNumber action: aBlock
@@ -32,7 +32,7 @@ sortedEntries
 	^(self entries asSortedCollection: [:a :b | (a at: 3) <= (b at: 3)]) asArray
 !
 register: aString description: descriptionOrNil group: aSymbol order: aNumber action: aBlock
-	"Add (or replace) the item aString in the section aSymbol: #open (the open… items at the top) or a submenu of the groups."
+	"Add (or replace) the item aString in the section aSymbol: #open (the items at the top) or a submenu of the groups."
 	self unregister: aString.
 	self entries add: (Array with: aString with: descriptionOrNil with: aNumber with: aBlock with: aSymbol)
 ! !
@@ -41,7 +41,6 @@ register: aString description: descriptionOrNil group: aSymbol order: aNumber ac
 worldMenuAt: aPoint
 	| menu tools apps settings |
 	menu := Menu title: 'World'.
-	menu addHeader: 'open…'.
 	self add: #open to: menu at: aPoint.
 	menu addSeparator.
 	tools := self add: #tools to: Menu new at: aPoint.
