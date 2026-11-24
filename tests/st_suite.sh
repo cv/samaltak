@@ -173,8 +173,15 @@ while [ $k -le "$JOBS" ]; do
   # shard 1 has the longest class (the plan places the longest first): it is the suite's critical path
   SLOT_PRIORITY=; [ $k = 1 ] && SLOT_PRIORITY=1
   ( export TMPDIR="$WORK/$k/tmp"; SLOT_LABEL="shard $k/$JOBS $(basename "$IMAGE")$VMOPTS: $classes"
-    with_slot timed run_vm $VMOPTS "$IMAGE" --headless --test-times --test $classes "$@" \
-      >"$WORK/$k/log" 2>&1
+    # SAMALTAK_FFI_NATIVE_TRACE's lines (stderr, one per native entry: the summary's own writes are some) go after the
+    # log, so they do not split its lines (make test-ffi-headless counts them)
+    if [ -n "${SAMALTAK_FFI_NATIVE_TRACE:-}" ]; then
+      with_slot timed run_vm $VMOPTS "$IMAGE" --headless --test-times --test $classes "$@" \
+        >"$WORK/$k/log" 2>"$WORK/$k/trace"
+    else
+      with_slot timed run_vm $VMOPTS "$IMAGE" --headless --test-times --test $classes "$@" \
+        >"$WORK/$k/log" 2>&1
+    fi
     echo $? >"$WORK/$k/exit" ) &
   PIDS="$PIDS $!"
   k=$((k + 1))
@@ -193,6 +200,7 @@ while [ $k -le "$JOBS" ]; do
   last=0
   [ -n "$s" ] && [ "$got" = "$want" ] && last=$(grep -n -E '^[0-9]+ run, ' "$log" | tail -1 | cut -d: -f1)
   awk -v last="$last" 'NR != last && !/^test-time /' "$log"
+  [ -f "$WORK/$k/trace" ] && cat "$WORK/$k/trace"
   if [ -z "$s" ]; then
     missing="$missing
 st_suite: FAILED: shard $k of $JOBS gave no test summary (exit $e): $(cat "$WORK/$k/classes")"
