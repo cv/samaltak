@@ -309,7 +309,7 @@ testCodeCellCaption
 	view := AgentItemView for: (AgentItem kind: #code text: '"Find the
 	agent classes"
 Smalltalk allClasses size').
-	self assert: view title equals: 'Code-mode · Find the agent classes'.
+	self assert: view title equals: 'Find the agent classes'.
 	self assert: view source equals: 'Smalltalk allClasses size'.
 	view := AgentItemView for: (AgentItem kind: #code text: '3 "three"').
 	self assert: view title equals: 'Code-mode'.

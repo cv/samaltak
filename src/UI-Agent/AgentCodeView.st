@@ -53,10 +53,9 @@ caption
 	^words size > 60 ifTrue: [(words first: 59), '…'] ifFalse: [words]
 !
 title
-	"The header: the tool that ran me, my caption, and what replaced me in the context."
+	"The header: my caption, else the tool that ran me; then what replaced me in the context."
 	| title |
-	title := item kind == #tests ifTrue: ['Run-tests'] ifFalse: ['Code-mode'].
-	self caption isNil ifFalse: [title := title, ' · ', self caption].
+	title := self caption ifNil: [item kind == #tests ifTrue: ['Run-tests'] ifFalse: ['Code-mode']].
 	^item isEdited ifTrue: [title, ' · ', item edit] ifFalse: [title]
 ! !
 
