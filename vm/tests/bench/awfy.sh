@@ -21,6 +21,7 @@ usage: $0 [options] [benchmark[:inner] ...]
   --vm-args ARGS    extra VM arguments, e.g. '--jit baseline'
   --pharo           run on Pharo 14 (all but the Samaltak workloads)
   --pharo-init EXPR Smalltalk Pharo evaluates after the file-ins, before the benchmark
+  --init EXPR       Smalltalk Samaltak evaluates so, e.g. 'Profiler default stop'
   --suite NAME      awfy (default), micro, workloads, realworld, adverse or all (all but realworld and adverse)
   -n N              iterations per benchmark (default 30)
   -i N              inner iterations for every benchmark (default: per benchmark, see inner())
@@ -102,7 +103,7 @@ big_cpus() {
         END { for (c in f) if (f[c] == m) s = s (s == "" ? "" : ",") c; print s }'
 }
 
-VM= IMAGE= VMARGS= PHARO=0 CPUS= PIN= SUITE=awfy N=30 INNER= OUT= SUMMARY=0 MS=0 CPU=0 CPU_LABEL= GO= PHARO_INIT=
+VM= IMAGE= VMARGS= PHARO=0 CPUS= PIN= SUITE=awfy N=30 INNER= OUT= SUMMARY=0 MS=0 CPU=0 CPU_LABEL= GO= PHARO_INIT= INIT=
 while [ $# -gt 0 ]; do
     case $1 in
     --vm) VM=$2; shift ;;
@@ -110,6 +111,7 @@ while [ $# -gt 0 ]; do
     --vm-args) VMARGS=$2; shift ;;
     --pharo) PHARO=1 ;;
     --pharo-init) PHARO_INIT=$2; shift ;;
+    --init) INIT=$2; shift ;;
     --suite) SUITE=$2; shift ;;
     -n) N=$2; shift ;;
     -i) INNER=$2; shift ;;
@@ -177,7 +179,7 @@ LOG=$(mktemp)
 ALL=$(mktemp)
 trap 'rm -rf "$LOG" "$ALL" ${WORK:+"$WORK"}' EXIT
 status=0
-echo "# awfy $(date '+%Y-%m-%d %H:%M') vm=$VM image=${SRCIMAGE:-$IMAGE} vm-args='$VMARGS' iterations=$N${CPUS:+ cpus=$CPUS}${PHARO_INIT:+ pharo-init='$PHARO_INIT'}" | tee -a "$ALL" | show
+echo "# awfy $(date '+%Y-%m-%d %H:%M') vm=$VM image=${SRCIMAGE:-$IMAGE} vm-args='$VMARGS' iterations=$N${CPUS:+ cpus=$CPUS}${PHARO_INIT:+ pharo-init='$PHARO_INIT'}${INIT:+ init='$INIT'}" | tee -a "$ALL" | show
 for spec in "$@"; do
     b=${spec%%:*}
     if [ "$b" != "$spec" ]; then in=${spec#*:}; else in=${INNER:-$(inner "$b")}; fi
@@ -196,6 +198,7 @@ for spec in "$@"; do
         (cd "$WORK" && $PIN "$VM" --headless $VMARGS "$IMAGE" eval "$expr") 2>&1
     else
         [ $CPU = 1 ] && files="'SamaltakCPU' $files"
+        [ -n "$INIT" ] && run="$INIT. $run"
         [ -n "$GO" ] && run="(FileStream forceNewFileNamed: '$GO.ready') close. [File exists: '$GO'] whileFalse: [(Delay forMilliseconds: 2) wait]. $run"
         expr="[#('Samaltak' $files) do: [:n | Compiler fileIn: '$DIR/', n, '.st']. $run. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
         $PIN "$VM" $VMARGS "$IMAGE" --headless --eval "$expr" 2>&1

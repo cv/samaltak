@@ -4,6 +4,7 @@ async function bench(
   input: {
     benchmarks: string[];
     vmArgs?: string;
+    init?: string;
     against?: string | null;
     iterations?: number;
     rounds?: number;
@@ -25,7 +26,9 @@ async function bench(
   // measuring the Smalltalk thread's CPU time (cpuTime, default true; awfy.sh --cpu). Steady state: the median of an
   // invocation's second half of laps; per tree the median over rounds (default 3). change = new/base - 1; regression
   // when change > threshold % (default 5, AGENTS.md's bar) and above the rounds' spread: rerun those before believing
-  // it. Stops starting runs at timeoutS (default 250) and reports what it measured (complete: false).
+  // it. Stops starting runs at timeoutS (default 250) and reports what it measured (complete: false). init: Smalltalk
+  // each run evaluates before the benchmark (awfy.sh --init, e.g. "Profiler default stop"); with it both trees run
+  // this tree's awfy.sh and benchmark sources (the base's may predate --init).
   const t0 = Date.now();
   const timeoutS = Math.min(Math.max(input.timeoutS ?? 250, 20), 285);
   const deadline = t0 + timeoutS * 1000;
@@ -34,6 +37,8 @@ async function bench(
     throw new Error("bench: benchmarks: awfy.sh names such as Bounce, MicroFib or Json:5");
   const vmArgs = input.vmArgs ?? "";
   if (!/^[A-Za-z0-9 =_.,-]*$/.test(vmArgs)) throw new Error("bench: bad vmArgs");
+  const init = input.init ?? "";
+  if (/[\n']/.test(init)) throw new Error("bench: init: one line, no single quotes (use #symbols)");
   const iterations = Math.min(Math.max(input.iterations ?? 10, 2), 100);
   const rounds = Math.min(Math.max(input.rounds ?? 3, 1), 10);
   const threshold = input.threshold ?? 5;
@@ -137,7 +142,7 @@ async function bench(
           break outer;
         }
         const left = Math.floor((deadline - Date.now()) / 1000);
-        const cmd = `${cpu === "none" ? "" : `taskset -c ${cpu} `}sh ${q(t.dir + "/vm/tests/bench/awfy.sh")} --vm ${q(t.dir + "/vm/build/samaltak")} --image ${q(t.dir + "/build/samaltak.image")}${vmArgs ? ` --vm-args ${q(vmArgs)}` : ""}${(input.cpuTime ?? true) ? " --cpu" : ""} -n ${iterations} ${b} </dev/null 2>&1`;
+        const cmd = `${cpu === "none" ? "" : `taskset -c ${cpu} `}sh ${q((init ? here : t.dir) + "/vm/tests/bench/awfy.sh")}${init ? ` --init ${q(init)}` : ""} --vm ${q(t.dir + "/vm/build/samaltak")} --image ${q(t.dir + "/build/samaltak.image")}${vmArgs ? ` --vm-args ${q(vmArgs)}` : ""}${(input.cpuTime ?? true) ? " --cpu" : ""} -n ${iterations} ${b} </dev/null 2>&1`;
         const o = await exec(`timeout -k 5 ${left} ${cmd}`, {
           timeoutMs: (left + 10) * 1000,
           maxLines: 400,
@@ -185,6 +190,7 @@ async function bench(
     against: againstSha ? `${input.against ?? "origin/main"} ${againstSha.slice(0, 9)}` : null,
     cpu,
     vmArgs,
+    init: init || undefined,
     iterations,
     rounds,
     loadBefore: load,
