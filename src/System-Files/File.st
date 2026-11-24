@@ -155,9 +155,9 @@ primOpen: path mode: mode
 	^result <= 0 ifTrue: [nil] ifFalse: [result]
 !
 primClose: h
-	"A handle that is not an Integer is a VolumeFile (open:mode:): it does the operation."
+	"A handle that is neither an Integer nor nil is a mounted volume's file (open:mode:: a VolumeFile, FirmwareFile...): it does the operation itself."
 	| binding result |
-	h isInteger ifFalse: [^h close].
+	(h isInteger or: [h isNil]) ifFalse: [^h close].
 	binding := CloseCall ifNil: [CloseCall := PlatformFFI bind: #(call 'platform' 'platform_files_close' (i64) i32)].
 	binding isNil ifTrue: [^nil].
 	result := binding tryInvoke1: h.
@@ -167,7 +167,7 @@ primClose: h
 primRead: h into: bytes startingAt: start count: count
 	"Answer the number of bytes read (0 at the end of the file), or nil."
 	| binding result |
-	h isInteger ifFalse: [^h readInto: bytes startingAt: start count: count].
+	(h isInteger or: [h isNil]) ifFalse: [^h readInto: bytes startingAt: start count: count].
 	bytes class == ByteArray ifFalse: [
 		^PlatformIOBuffer readInto: bytes start: start count: count failure: nil
 			using: [:slice | self primRead: h into: slice startingAt: 1 count: count]].
@@ -179,7 +179,7 @@ primRead: h into: bytes startingAt: start count: count
 !
 primWrite: h from: bytes startingAt: start count: count
 	| binding result |
-	h isInteger ifFalse: [^h writeFrom: bytes startingAt: start count: count].
+	(h isInteger or: [h isNil]) ifFalse: [^h writeFrom: bytes startingAt: start count: count].
 	bytes class == ByteArray ifFalse: [
 		| slice |
 		slice := PlatformIOBuffer writeSliceFrom: bytes start: start count: count.
@@ -194,7 +194,7 @@ primWrite: h from: bytes startingAt: start count: count
 primSize: h
 	<ffiSite>
 	| result |
-	h isInteger ifFalse: [^h size].
+	(h isInteger or: [h isNil]) ifFalse: [^h size].
 	result := (self ffiSite: #(call 'platform' 'platform_files_size' (i64) nonNegativeI64)) tryInvoke1: h.
 	result == false ifTrue: [^nil].
 	^result
@@ -202,14 +202,14 @@ primSize: h
 primPosition: h
 	<ffiSite>
 	| result |
-	h isInteger ifFalse: [^h position].
+	(h isInteger or: [h isNil]) ifFalse: [^h position].
 	result := (self ffiSite: #(call 'platform' 'platform_files_position' (i64) nonNegativeI64)) tryInvoke1: h.
 	result == false ifTrue: [^nil].
 	^result
 !
 primSeek: h to: position
 	| binding result |
-	h isInteger ifFalse: [^h position: position].
+	(h isInteger or: [h isNil]) ifFalse: [^h position: position].
 	binding := SeekCall ifNil: [SeekCall := PlatformFFI bind: #(call 'platform' 'platform_files_seek' (i64 i64) i32)].
 	binding isNil ifTrue: [^nil].
 	result := binding tryInvoke2: h with: position.
@@ -218,7 +218,7 @@ primSeek: h to: position
 !
 primFlush: h
 	| binding result |
-	h isInteger ifFalse: [^h flush].
+	(h isInteger or: [h isNil]) ifFalse: [^h flush].
 	binding := FlushCall ifNil: [FlushCall := PlatformFFI bind: #(call 'platform' 'platform_files_flush' (i64) i32)].
 	binding isNil ifTrue: [^nil].
 	result := binding tryInvoke1: h.
