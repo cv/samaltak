@@ -22,6 +22,7 @@
 #if !defined(__x86_64__)
 #include <arm_neon.h>
 #endif
+#include "nvrtc.h"
 #include <sys/mman.h>
 #include <sys/time.h>
 #include <time.h>

@@ -5,7 +5,8 @@ NATIVE_DIR ?= .
 MBEDTLS_DIR := $(NATIVE_DIR)/third_party/mbedtls
 # all of mbedTLS's library; vm/native/mbedtls_config.h leaves out what we don't use, so most of the rest compiles to nothing
 MBEDTLS_SRCS := $(sort $(wildcard $(MBEDTLS_DIR)/library/*.c))
-NATIVE_GLUE_SRCS := $(NATIVE_DIR)/native/tls.c
+# tls.c: the TLS engine's glue; nvrtc.c: NVRTC behind dlopen (hosted; stubs on UEFI).
+NATIVE_GLUE_SRCS := $(NATIVE_DIR)/native/tls.c $(NATIVE_DIR)/native/nvrtc.c
 NATIVE_SRCS := $(MBEDTLS_SRCS) $(NATIVE_GLUE_SRCS)
 # The cryptography exports (native/crypto.h): libcrypto hosted, mbedTLS on UEFI; and on UEFI the C library's rest.
 NATIVE_HOSTED_SRCS := $(NATIVE_DIR)/native/crypto_openssl.c

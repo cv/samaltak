@@ -74,6 +74,11 @@ static int32_t native_getenv(const void *bytes, uint64_t n, uint64_t ticket);
 static int32_t native_ilogb(double x);
 static double native_ldexp(double x, int32_t n);
 static double native_log(double x);
+static int64_t native_nvrtc_free(int64_t job);
+static int64_t native_nvrtc_output(int64_t job, int64_t kind, uint8_t *out, uint64_t out_len);
+static int64_t native_nvrtc_poll(int64_t job);
+static int64_t native_nvrtc_start(const uint8_t *src, uint64_t src_len, const uint8_t *opts, uint64_t opts_len);
+static int64_t native_nvrtc_version(void);
 static double native_sin(double x);
 static double native_sqrt(double x);
 static int64_t native_test_writable_pair(uint8_t *first, uint64_t first_length, double marker, int32_t status, uint8_t *second, uint64_t second_length);
@@ -721,6 +726,26 @@ static int64_t native_crypto_backend_entry_witness(uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 1754\n");
     return native_crypto_backend(a1, a2);
 }
+static int64_t native_nvrtc_version_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 1764\n");
+    return native_nvrtc_version();
+}
+static int64_t native_nvrtc_start_entry_witness(const uint8_t *a1, uint64_t a2, const uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1765\n");
+    return native_nvrtc_start(a1, a2, a3, a4);
+}
+static int64_t native_nvrtc_poll_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1766\n");
+    return native_nvrtc_poll(a1);
+}
+static int64_t native_nvrtc_output_entry_witness(int64_t a1, int64_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1767\n");
+    return native_nvrtc_output(a1, a2, a3, a4);
+}
+static int64_t native_nvrtc_free_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1768\n");
+    return native_nvrtc_free(a1);
+}
 static void native_text_stdout_entry_witness(const uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 2193\n");
     native_text_stdout(a1, a2);
@@ -1028,6 +1053,36 @@ static int32_t ffi_approved_core(const char *approved_name, uint32_t packed_sign
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_backend_entry_witness;
         return 1754;
+    }
+    if (packed_signature == 3 && strcmp(approved_name, "core_nvrtc_version") == 0) {
+        *target_out = (uint64_t) native_nvrtc_version;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_nvrtc_version_entry_witness;
+        return 1764;
+    }
+    if (packed_signature == 2179 && strcmp(approved_name, "core_nvrtc_start") == 0) {
+        *target_out = (uint64_t) native_nvrtc_start;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_nvrtc_start_entry_witness;
+        return 1765;
+    }
+    if (packed_signature == 51 && strcmp(approved_name, "core_nvrtc_poll") == 0) {
+        *target_out = (uint64_t) native_nvrtc_poll;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_nvrtc_poll_entry_witness;
+        return 1766;
+    }
+    if (packed_signature == 13203 && strcmp(approved_name, "core_nvrtc_output") == 0) {
+        *target_out = (uint64_t) native_nvrtc_output;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_nvrtc_output_entry_witness;
+        return 1767;
+    }
+    if (packed_signature == 51 && strcmp(approved_name, "core_nvrtc_free") == 0) {
+        *target_out = (uint64_t) native_nvrtc_free;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_nvrtc_free_entry_witness;
+        return 1768;
     }
     if (packed_signature == 215 && strcmp(approved_name, "core_stdout_text") == 0) {
         *target_out = (uint64_t) native_text_stdout;
@@ -1698,6 +1753,36 @@ static double native_ldexp(double x, int32_t n)
 static double native_log(double x)
 {
     return log(x);
+}
+
+/* FFIPrimitives>>nativeNvrtcFree: */
+static int64_t native_nvrtc_free(int64_t job)
+{
+    return samaltak_nvrtc_free(job);
+}
+
+/* FFIPrimitives>>nativeNvrtcOutput:kind:into:length: */
+static int64_t native_nvrtc_output(int64_t job, int64_t kind, uint8_t *out, uint64_t out_len)
+{
+    return samaltak_nvrtc_output(job, kind, out, out_len);
+}
+
+/* FFIPrimitives>>nativeNvrtcPoll: */
+static int64_t native_nvrtc_poll(int64_t job)
+{
+    return samaltak_nvrtc_poll(job);
+}
+
+/* FFIPrimitives>>nativeNvrtcStart:length:options:length: */
+static int64_t native_nvrtc_start(const uint8_t *src, uint64_t src_len, const uint8_t *opts, uint64_t opts_len)
+{
+    return samaltak_nvrtc_start(src, src_len, opts, opts_len);
+}
+
+/* FFIPrimitives>>nativeNvrtcVersion */
+static int64_t native_nvrtc_version(void)
+{
+    return samaltak_nvrtc_version();
 }
 
 /* FFIPrimitives>>nativeSin: */

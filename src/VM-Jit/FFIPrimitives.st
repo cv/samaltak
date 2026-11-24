@@ -1,5 +1,5 @@
 VMPrimitiveModule subclass: #FFIPrimitives
-	instanceVariableNames: 'ffiStubs runtimeNative bigint nativeTls cryptoBackend mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingUntryable bindingArities bindingResultTags bindingSerial bindingSerials boundSites boundSiteCount boundSiteTrace boundTraceCounts ownedRows ownedReserved ownedSession ownedSerial'
+	instanceVariableNames: 'ffiStubs runtimeNative bigint nativeTls cryptoBackend nvrtcBackend mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingUntryable bindingArities bindingResultTags bindingSerial bindingSerials boundSites boundSiteCount boundSiteTrace boundTraceCounts ownedRows ownedReserved ownedSession ownedSerial'
 	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_PLATFORM_EXEC FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED FFI_BOUND_SITE_LIMIT FFI_OWNED_LIMIT FFI_OWNED_BYTE_LIMIT'
 	package: 'VM-Jit'!
 
@@ -8,7 +8,7 @@ FFIPrimitives comment: 'Prepare resolves an approved symbol and exact signature 
 !FFIPrimitives class methodsFor: 'declaring'!
 declarations
 	"Name/signature rows are in stable ID order; never repurpose an ID. Signature nibbles are the argument tags, then the result tag."
-	^#((ffiStubs FFIStubCompiler) (runtimeNative RuntimeNativeLoader) (bigint LargeIntegerPrimitives) (nativeTls NativeTLS) (cryptoBackend CryptoBackend)
+	^#((ffiStubs FFIStubCompiler) (runtimeNative RuntimeNativeLoader) (bigint LargeIntegerPrimitives) (nativeTls NativeTLS) (cryptoBackend CryptoBackend) (nvrtcBackend NvrtcBackend)
 		(bindingSession uint64_t) (bindingCount int32_t)
 		(bindingOwners 'oop[FFI_BINDING_LIMIT]') (bindingEntries 'uint64_t[FFI_BINDING_LIMIT]')
 		(bindingUntryable 'bool[FFI_BINDING_LIMIT]')
