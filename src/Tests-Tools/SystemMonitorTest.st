@@ -22,7 +22,7 @@ tearDown
 !SystemMonitorTest methodsFor: 'tests'!
 testOpensOnceFromTheWorldMenu
 	| labels |
-	labels := ((ToolsMenu worldMenuAt: nil) items select: [:i | i isItem]) collect: [:i | i label].
+	labels := ((ToolsMenu worldMenuAt: nil) allItems select: [:i | i isItem]) collect: [:i | i label].
 	self assert: (labels includes: 'System Monitor').
 	self assert: (Tools open: #monitor) == window.
 	self assert: (self windowsOf: SystemMonitor) size equals: 1

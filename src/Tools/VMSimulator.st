@@ -194,5 +194,5 @@ open
 	^self openAt: nil
 !
 initialize
-	ToolsMenu register: 'VM Simulator' description: 'the VM, run as Smalltalk' order: 48 action: [:point | self openAt: point]
+	ToolsMenu register: 'VM Simulator' description: 'the VM, run as Smalltalk' group: #tools order: 48 action: [:point | self openAt: point]
 ! !

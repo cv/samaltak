@@ -599,7 +599,7 @@ initialize
 !
 register
 	"Register in the World menu and as the #profiler opener."
-	ToolsMenu register: 'Profiler' description: 'samples', ProfilerFormat dot, 'frames' order: 60 action: [:aPoint | self openAt: aPoint].
+	ToolsMenu register: 'Profiler' description: 'samples', ProfilerFormat dot, 'frames' group: #tools order: 60 action: [:aPoint | self openAt: aPoint].
 	Tools registerOpener: #profiler with: [:arg | (arg isKindOf: Process) ifTrue: [self openSelecting: arg] ifFalse: [self open]]
 ! !
 

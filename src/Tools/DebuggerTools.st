@@ -41,7 +41,7 @@ isUIProcess: aProcess
 !
 registerWithTools
 	Tools registerOpener: #breakpoints with: [:arg | BreakpointsBrowser open].
-	ToolsMenu register: 'Breakpoints…' description: 'breakpoints · watchpoints' order: 70
+	ToolsMenu register: 'Breakpoints…' description: 'breakpoints · watchpoints' group: #tools order: 70
 		action: [:point | BreakpointsBrowser open]
 ! !
 
