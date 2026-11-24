@@ -41,7 +41,7 @@ testRendersAndAnimates
 	self assert: (self waitFor: [juggler frame > 5]) description: 'the act does not run'.
 	first := self pictureOf: stage.
 	"The flat picture of the software GPU has a few colours, the raymarched scene hundreds."
-	self assert: (self colorsIn: first) > (GPUDevice default isSoftware ifTrue: [8] ifFalse: [200]) description: 'the stage shows no scene'.
+	self assert: (self colorsIn: first) > ((Smalltalk at: #GPUDevice) default isSoftware ifTrue: [8] ifFalse: [200]) description: 'the stage shows no scene'.
 	self assert: (self waitFor: [(self pictureOf: stage) bits ~= first bits] timeout: 3000) description: 'the picture does not change while the act runs'.
 	self in: w do: [juggler windowClosed].
 	frame := juggler frame.
