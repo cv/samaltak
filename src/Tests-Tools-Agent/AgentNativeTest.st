@@ -5,6 +5,18 @@ TestCase subclass: #AgentNativeTest
 
 AgentNativeTest comment: 'Tests the Agent as a window of the host''s window manager, on hidden host windows: an application''s right-click menu offers it, it opens in a host window of its own on the application''s agentContext (the application, its window, content and world, and notes on where it runs), a second time brings it back, and closing it leaves the application running, also for an application on the desktop; AgentApp is the Agent alone.'!
 
+!AgentNativeTest methodsFor: 'support'!
+key: aCharacter command: aBoolean to: aWindow
+	"Inject a key press for aWindow's host window, with the command modifier."
+	aWindow world displayWindow class injectEvent: {UIEvent evKeyDown. nil. 0.0. 0.0. (UIEvent keyCodeFor: aCharacter). (aBoolean ifTrue: [8] ifFalse: [0]). false. aWindow world displayWindow windowId}
+!
+inspectorWorld
+	"A host window of its own showing an Inspector, or nil."
+	World allDo: [:world |
+		((world isKindOf: AppWorld) and: [world windows notEmpty and: [world windows first content isKindOf: Inspector]]) ifTrue: [^world]].
+	^nil
+! !
+
 !AgentNativeTest methodsFor: 'running'!
 setUp
 	previous := World current.
@@ -23,6 +35,35 @@ timeLimitMilliseconds
 ! !
 
 !AgentNativeTest methodsFor: 'tests'!
+testCommandIOnACodeOutputInspectsItsObject
+	"In the Agent's own host window, a code-mode output clicked (focused) and ⌘I: an Inspector on the cell's value, in a host window of its own."
+	| agent item view inspector |
+	app := TestApplication new runHidden: true.
+	agent := AgentWindow openNativeFor: app hidden: true.
+	self assert: (agent world waitUntilSettled: 5000).
+	item := AgentItem kind: #code text: '3 @ 4'.
+	item object: 3 @ 4; objectId: 'o1'; failed: false.
+	item instVarNamed: 'result' put: 'o1 3@4'.
+	agent content conversation add: item.
+	self assert: (self waitFor: [(view := agent content transcript children detect: [:v | v item == item] ifNone: [nil]) notNil]).
+	agent do: [view focus].
+	self key: $i command: true to: agent.
+	self assert: (self waitFor: [(inspector := self inspectorWorld) notNil]).
+	self assert: inspector windows first content object equals: 3 @ 4.
+	self deny: inspector isMain.
+	self assert: (inspector windows first isKindOf: AppWindow)
+!
+testCommandKeysOfAnApplication
+	"⌘I in an application's window that no view takes inspects the application, in a host window of its own; ⌘J opens its Agent, as its menu's Agent does."
+	| inspector |
+	app := TestApplication new runHidden: true.
+	self assert: (app world waitUntilSettled: 5000).
+	self key: $i command: true to: app window.
+	self assert: (self waitFor: [(inspector := self inspectorWorld) notNil]).
+	self assert: inspector windows first content object == app.
+	self key: $j command: true to: app window.
+	self assert: (self waitFor: [(AgentWindow nativeWindowFor: app) notNil])
+!
 testTheApplicationsMenuOpensTheAgentOnIt
 	| item agent view context again |
 	app := TestApplication new runHidden: true.

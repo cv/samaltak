@@ -300,7 +300,9 @@ processState
 
 !Window methodsFor: 'opening and closing'!
 open
-	^self openIn: World current
+	"Open me in the current World (World>>worldForNewWindow:: an application's AppWorld gives me a host window of my own)."
+	World current isNil ifTrue: [^self openIn: nil].
+	^self openIn: (World current worldForNewWindow: self)
 !
 openIn: aWorld
 	state == #new ifFalse: [^self].

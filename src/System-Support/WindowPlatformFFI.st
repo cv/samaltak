@@ -164,12 +164,13 @@ encodeEvent: a
 decodeEvent: b text: text into: a
 	| kind extra window |
 	kind := b uint32At: 45.
-	extra := kind caseOf: {
-		[0] -> [nil].
-		[1] -> [self signed64At: 49 in: b].
-		[2] -> [(self signed64At: 49 in: b) ~= 0].
-		[3] -> [PlatformFFI textFromBytes: text].
-		[4] -> [(b float64At: 57) @ (b float64At: 65)]}.
+	"No caseOf: here: it is VM-Lowtalk's, which an application's runtime image does not have."
+	extra := nil.
+	kind = 1 ifTrue: [extra := self signed64At: 49 in: b].
+	kind = 2 ifTrue: [extra := (self signed64At: 49 in: b) ~= 0].
+	kind = 3 ifTrue: [extra := PlatformFFI textFromBytes: text].
+	kind = 4 ifTrue: [extra := (b float64At: 57) @ (b float64At: 65)].
+	(kind between: 0 and: 4) ifFalse: [^self error: 'unknown event payload kind ', kind printString].
 	window := self signed32At: 73 in: b.
 	a basicAt: 1 put: (self signed64At: 1 in: b);
 		basicAt: 2 put: (self signed64At: 9 in: b);

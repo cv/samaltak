@@ -1,9 +1,9 @@
 Window subclass: #AppWindow
-	instanceVariableNames: 'menuBlock'
+	instanceVariableNames: 'menuBlock keyBlock'
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
-AppWindow comment: 'I am the window of an application in its AppWorld: my content fills the host window, which the host''s window manager decorates, so I draw no chrome and have no title bar, boxes or resize zones; my bounds follow the host window. Everything else (my Process, retained drawing, events, animations, do: and sync:) is a Window''s. A right-click no View answers a menu for opens my menuBlock''s (the application''s menu).'!
+AppWindow comment: 'I am the window of an application in its AppWorld: my content fills the host window, which the host''s window manager decorates, so I draw no chrome and have no title bar, boxes or resize zones; my bounds follow the host window. Everything else (my Process, retained drawing, events, animations, do: and sync:) is a Window''s. A right-click no View answers a menu for opens my menuBlock''s (the application''s menu); a key no View takes goes to my keyBlock (the application''s ⌘ keys).'!
 
 !AppWindow methodsFor: 'context menu'!
 menuBlock: aBlock
@@ -17,6 +17,19 @@ openContextMenuFrom: aView event: anEvent
 	menuBlock isNil ifTrue: [^nil].
 	menu := menuBlock cull: anEvent globalPosition.
 	(menu isNil or: [menu isEmpty]) ifFalse: [world openMenu: menu at: anEvent globalPosition]
+! !
+
+!AppWindow methodsFor: 'keys'!
+keyBlock: aBlock
+	"[:keyEvent | true if handled] for a key no View of mine takes."
+	keyBlock := aBlock
+!
+dispatchKey: anEvent
+	| handler |
+	handler := super dispatchKey: anEvent.
+	(handler isNil and: [keyBlock notNil]) ifTrue: [
+		(keyBlock value: anEvent) == true ifTrue: [^content]].
+	^handler
 ! !
 
 !AppWindow methodsFor: 'geometry'!

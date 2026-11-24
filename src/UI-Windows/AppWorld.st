@@ -80,6 +80,21 @@ quitRequested
 !
 nextWindowPosition: anExtent
 	^0 @ 0
+!
+newWindow
+	"A window the host's window manager decorates: no title bar of mine."
+	^AppWindow new
+!
+worldForNewWindow: aWindow
+	"Mine shows one window: another (a tool the application opens: an Inspector, a Browser, the Agent) gets a host window of its own, of its size, resizable, closing only it."
+	| extent world |
+	windows isEmpty ifTrue: [^self].
+	extent := (aWindow bounds isNil or: [aWindow bounds extent x < 100 or: [aWindow bounds extent y < 60]])
+		ifTrue: [600 @ 400]
+		ifFalse: [aWindow bounds extent].
+	world := AppWorld openExtent: extent title: (aWindow title ifNil: ['Samaltak']) hidden: hidden main: false resizable: true.
+	world deskColor: self deskColor.
+	^world
 ! !
 
 !AppWorld methodsFor: 'desk'!

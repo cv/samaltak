@@ -86,3 +86,21 @@ testCardDraws
 	card drawOn: canvas.
 	self assert: card remoteLabel equals: 'Claude Code, Codex, Prepaid'
 ! !
+
+!AgentsTest methodsFor: 'tests'!
+testCommandIInspectsTheAppWithTheToolsFiledIn
+	"On the runtime image, which has no tools, ⌘I in the app's window files the tools in from the source and inspects the app in a host window of its own; the platform's key event is decoded on the way (no VM-Lowtalk there)."
+	| app inspector worlds |
+	app := AgentsApp new runHidden: true.
+	[self assert: (app world waitUntilSettled: 5000).
+	 app world displayWindow class injectEvent: {UIEvent evKeyDown. nil. 0.0. 0.0. (UIEvent keyCodeFor: $i). 8. false. app world displayWindow windowId}.
+	 self assert: (self waitFor: [
+		worlds := OrderedCollection new.
+		World allDo: [:w | worlds add: w].
+		(inspector := worlds detect: [:w | w ~~ app world and: [w windows notEmpty and: [w windows first content isKindOf: (Smalltalk at: #Inspector ifAbsent: [UndefinedObject])]]] ifNone: [nil]) notNil] timeout: 20000).
+	 self assert: inspector windows first content object == app.
+	 self deny: inspector isMain]
+		ensure: [
+			inspector isNil ifFalse: [inspector stop].
+			app world isNil ifFalse: [app world stop]]
+! !
