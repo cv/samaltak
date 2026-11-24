@@ -823,7 +823,9 @@ emitNode: n block: b next: nextBlock
 		^self def: n from: r].
 	op = O_GUARDLE ifTrue: [
 		s := self deoptLabelFor: n.
-		asm comment: 'guard: at most the other, once before the loop (its indexed accesses check no bounds)'.
+		nd aux2 = 2
+			ifTrue: [asm comment: 'guard: at most the other, once before the loop (its sums check no overflow)']
+			ifFalse: [asm comment: 'guard: at most the other, once before the loop (its indexed accesses check no bounds)'].
 		y := self src: nd b into: self scratchB.
 		nd a >= 0
 			ifTrue: [
@@ -1326,27 +1328,36 @@ oopTableOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #oopTable) to: 'int64_t'
 !
 emitAddSub: n
-	| nd x y c isAdd s checked |
+	| nd x y c isAdd s checked r |
 	nd := ir node: n.
-	"no overflow check where the operands' ranges rule it out"
+	"no overflow check where the operands' ranges rule it out: the result straight into its register (the operands read first)"
 	checked := (nd flags bitAnd: NF_INRANGE) = 0.
-	checked ifTrue: [s := self deoptLabelFor: n].
+	r := X16.
+	checked
+		ifTrue: [s := self deoptLabelFor: n]
+		ifFalse: [r := self dst: n].
 	isAdd := nd op asInt32 = O_IADD.
 	x := self src: nd a into: self scratchA.
 	((ir node: nd b) op asInt32 = O_CONST and: [((ir node: nd b) aux asUInt64 - 1) asInt64 between: -4095 and: 4095])
 		ifTrue: [
 			c := ((ir node: nd b) aux asUInt64 - 1) asInt64.
 			(isAdd = (c >= 0))
-				ifTrue: [asm adds: X16 with: x imm: (c < 0 ifTrue: [c negated] ifFalse: [c])]
-				ifFalse: [asm subs: X16 with: x imm: (c < 0 ifTrue: [c negated] ifFalse: [c])]]
+				ifTrue: [checked ifTrue: [asm adds: r with: x imm: (c < 0 ifTrue: [c negated] ifFalse: [c])] ifFalse: [asm add: r with: x imm: (c < 0 ifTrue: [c negated] ifFalse: [c])]]
+				ifFalse: [checked ifTrue: [asm subs: r with: x imm: (c < 0 ifTrue: [c negated] ifFalse: [c])] ifFalse: [asm sub: r with: x imm: (c < 0 ifTrue: [c negated] ifFalse: [c])]]]
 		ifFalse: [
 			y := self src: nd b into: self scratchB.
 			asm sub: X17 with: y imm: 1.
-			isAdd
-				ifTrue: [asm adds: X16 with: x with: X17]
-				ifFalse: [asm subs: X16 with: x with: X17]].
+			checked
+				ifTrue: [
+					isAdd
+						ifTrue: [asm adds: r with: x with: X17]
+						ifFalse: [asm subs: r with: x with: X17]]
+				ifFalse: [
+					isAdd
+						ifTrue: [asm add: r with: x with: X17]
+						ifFalse: [asm sub: r with: x with: X17]]].
 	checked ifTrue: [asm b: s if: COND_VS].
-	self def: n from: X16
+	self def: n from: r
 !
 emitDivShift: n
 	"SmallInteger modulo and division (floored, aux 1 truncated: rem: quo:, aux 2 exact: /, a remainder deoptimizes; a zero divisor deoptimizes; \\ by a divisor that turns out a positive power of two: a mask) and bitShift: (a result that does not fit deoptimizes)."

@@ -1016,7 +1016,52 @@ testAffineIndicesCheckBoundsOnce
 		self assert: (o becomeSum: a copy to: 4000 at: 10 with: a copy) equals: (a inject: 0 into: [:s :x | s + x]).
 		self should: [o becomeSum: a copy to: 4000 at: 10 with: (ByteArray new: 20)] raise: Error]
 !
-
+testCountedLoopsCheckNoOverflow
+	"A loop's counter, and sums the loop adds bytes to, check no overflow: their ranges follow from the counter's start and limit, and where those are not known, from guards where the loop is entered: the start and limit at most the largest SmallInteger less twice the step, the limit less the start at most 2^24 turns for a sum of sums. At the largest SmallIntegers, and for more turns, those guards fail: the lower tier runs the loop (its sums LargeIntegers past them), and the code compiled next checks; a sum from a value not known checks every time."
+	| o b max sum adler early big |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'sumOf: b | s | s := 0. 1 to: b size do: [:i | s := s + (b at: i)]. ^s'.
+	self define: 'count: n from: k | s | s := 0. k to: n do: [:i | s := s + 1]. ^s'.
+	self define: 'whileCount: n from: k | s i | s := 0. i := k. [i <= n] whileTrue: [s := s + 1. i := i + 1]. ^s'.
+	self define: 'adler: b from: i to: j | x y | x := 1. y := 0. i to: j do: [:k | x := x + (b at: k). y := y + x]. ^y * 65536 + x'.
+	self define: 'early: b from: i to: j | x y | x := 1. y := 0. i to: j do: [:k | x := x + (b at: k \\ b size + 1). y := y + x. k >= (i + 9) ifTrue: [^y * 65536 + x]]. ^y * 65536 + x'.
+	self define: 'from: s add: b | t | t := s. 1 to: b size do: [:i | t := t + (b at: i)]. ^t'.
+	o := JitRuntimeTestSubject new.
+	b := ByteArray new: 5000.
+	1 to: b size do: [:i | b at: i put: i * 7 \\ 256].
+	max := SmallInteger maxVal.
+	sum := 0.
+	b do: [:x | sum := sum + x].
+	adler := [:from :to | | x y | x := 1. y := 0. from to: to do: [:k | x := x + (b at: k). y := y + x]. y * 65536 + x].
+	early := [:from | | x y | x := 1. y := 0. from to: from + 9 do: [:k | x := x + (b at: k \\ b size + 1). y := y + x]. y * 65536 + x].
+	4 timesRepeat: [
+		self assert: (o sumOf: b) equals: sum.
+		self assert: (o count: 3000 from: 1) equals: 3000.
+		self assert: (o count: 0 from: 1) equals: 0.
+		self assert: (o whileCount: 3000 from: 1) equals: 3000.
+		self assert: (o adler: b from: 1 to: 5000) equals: (adler value: 1 value: 5000).
+		self assert: (o adler: b from: 4000 to: 5000) equals: (adler value: 4000 value: 5000).
+		self assert: (o early: b from: 3 to: 20) equals: (early value: 3).
+		self assert: (o from: 0 add: b) equals: sum].
+	self stressed ifFalse: [
+		#(#count:from: #adler:from:to: #early:from:to:) do: [:each |
+			self assert: ((self listingOf: each) includesSubstring: 'once before the loop (its sums check no overflow)')]].
+	big := 1 bitShift: 40.
+	"thrice: a process switch at a method's entry runs it in the lower tier"
+	3 timesRepeat: [
+		self assert: (o count: max from: max - 2) equals: 3.
+		self assert: (o whileCount: max from: max - 2) equals: 3.
+		self assert: (o count: max negated - 1 from: max negated - 3) equals: 3.
+		self assert: (o early: b from: 1 to: big) equals: (early value: 1).
+		self assert: (o early: b from: max - 20 to: max) equals: (early value: max - 20).
+		self assert: (o from: max - 100 add: b) equals: max - 100 + sum.
+		self assert: (o adler: b from: 1 to: 5000) equals: (adler value: 1 value: 5000)].
+	3 timesRepeat: [
+		self assert: (o count: 3000 from: 1) equals: 3000.
+		self assert: (o whileCount: 3000 from: 1) equals: 3000.
+		self assert: (o early: b from: 3 to: 20) equals: (early value: 3).
+		self assert: (o from: 0 add: b) equals: sum]
+!
 testOuterTempsOfAClosureInlinedInALoop
 	"A loop's unit that inlines a closure another frame made guards it once, where the loop is entered; an outer temp the loop only reads is loaded there, one it stores into is stored into each time, in the frame its Context is married to or in the Context (the adder's home method has returned): what follows the loop sees the stores. A method's first long loop runs in such a unit: one method for each case."
 	| o a adder |

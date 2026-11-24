@@ -1,5 +1,5 @@
 OptModule subclass: #OptPasses
-	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter psMemEnd psMemMark psMemKill psCounted psAffine'
+	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter psMemEnd psMemMark psMemKill psCounted psAffine psTPhi psTLo psTHi psTCount psRLo psRHi psILo psIHi psCHi psCStep psCHead psCLimit psCCond psLoopK psLoopConst psLoopCap'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -12,7 +12,9 @@ declarations
 	^#((ir OptIR) (psOrder 'int32_t[OPT_MAX_BLOCKS]') (psOrderCount int32_t) (psVisitMark 'uint8_t[OPT_MAX_BLOCKS]') (psWorkList 'int32_t[OPT_MAX_NODES]')
 		(psIdom 'int32_t[OPT_MAX_BLOCKS]') (psPre 'int32_t[OPT_MAX_BLOCKS]') (psPost 'int32_t[OPT_MAX_BLOCKS]') (psChild 'int32_t[OPT_MAX_BLOCKS]') (psSibling 'int32_t[OPT_MAX_BLOCKS]')
 		(psHeads 'int32_t[4096]') (psChain 'int32_t[OPT_MAX_NODES]') (psUnboxOff bool) (psUnboxed bool)
-		(psTwin 'int32_t[OPT_MAX_NODES]') (psLoopOuter 'int32_t[OPT_MAX_BLOCKS]') (psMemEnd 'int32_t[OPT_MAX_BLOCKS]') (psMemMark 'int32_t[OPT_MAX_BLOCKS]') (psMemKill 'uint8_t[OPT_MAX_BLOCKS]') (psCounted 'int64_t[4]') (psAffine 'int64_t[8]'))
+		(psTwin 'int32_t[OPT_MAX_NODES]') (psLoopOuter 'int32_t[OPT_MAX_BLOCKS]') (psMemEnd 'int32_t[OPT_MAX_BLOCKS]') (psMemMark 'int32_t[OPT_MAX_BLOCKS]') (psMemKill 'uint8_t[OPT_MAX_BLOCKS]') (psCounted 'int64_t[4]') (psAffine 'int64_t[8]')
+		(psTPhi 'int32_t[16]') (psTLo 'int64_t[16]') (psTHi 'int64_t[16]') (psTCount int32_t) (psRLo int64_t) (psRHi int64_t) (psILo int64_t) (psIHi int64_t)
+		(psCHi int64_t) (psCStep int64_t) (psCHead bool) (psCLimit int32_t) (psCCond int32_t) (psLoopK 'int64_t[OPT_MAX_BLOCKS]') (psLoopConst 'int32_t[OPT_MAX_BLOCKS]') (psLoopCap 'uint8_t[OPT_MAX_BLOCKS]'))
 ! !
 
 !OptPasses methodsFor: 'accessing'!
@@ -1524,7 +1526,396 @@ isClosureLoad: n of: h
 	^x op asInt32 = O_LOADFIELD and: [x aux = BC_OUTER and: [(ir node: x a) op asInt32 = O_GUARDCLOSURE and: [nd aux = CTX_RECEIVER]]]
 !
 ranges
-	"Integer ranges (lo..hi; a Character's are its code point's), forward in order: a byte or a Character loaded from bytes or a string is 0 to 255, a Character's code point 0 to 16r10FFFF; sums and differences of ranges, bitAnd: with a non-negative value, \\ by a positive constant, and what guards and casts pass on. What is known in range checks nothing (NF_INRANGE; its frame state dropped): a sum or difference that stays a SmallInteger, the Character of a code point, a store of a byte or of a Character below 256 into bytes or a string."
+	"Integer ranges (lo..hi): forward through the blocks (forwardRanges), then each loop's phis of SmallIntegers narrowed by what flows into them (rangesOfLoop:) and forward again, twice: an outer loop's phi may rest on an inner loop's, a loop's sum on its counter."
+	<function>
+	self forwardRanges.
+	self findLoops.
+	0 to: ir blockCount - 1 do: [:b |
+		psLoopK at: b put: 0.
+		psLoopConst at: b put: -1.
+		psLoopCap at: b put: 0].
+	1 to: 2 do: [:r |
+		self loopRanges ifTrue: [self forwardRanges]]
+!
+loopRanges
+	"rangesOfLoop: of each loop, outer ones first; whether a phi narrowed."
+	<function>
+	| h changed |
+	changed := false.
+	0 to: psOrderCount - 1 do: [:i |
+		h := psOrder at: i.
+		(((ir block: h) flags bitAnd: BF_LOOP) ~= 0 and: [(ir block: h) loop = h]) ifTrue: [
+			(self rangesOfLoop: h) ifTrue: [changed := true]]].
+	^changed
+!
+rangesOfLoop: h
+	"Loop h's phis of SmallIntegers (up to 16) narrowed to what flows into them; and with one edge in and one around, a phi that every turn adds a range to (incrementOf:phi:loop:depth:) to where it starts plus that range times the most turns the loop may take, its counter's (counterOf:index:): from the counter's start to its limit, over its step. Where it helps, guards where the loop is entered (failing, the interpreter goes on from the loop's head and the guard's send is marked: not again) bound the counter's start and limit to the largest SmallInteger less twice the step (its sum then checks no overflow) and the limit less the start to 2^32, 2^28 or 2^24 turns (the largest that bounds as many phis as any: sums of bytes, a sum of such sums). Answer whether a phi narrowed."
+	<function>
+	| hb e p k entry index entries n nd cnt counter back limit c t0 tk best bestK kk got changed s cap e0 ehi elo lhi canGuard g d |
+	hb := ir block: h.
+	cnt := 0.
+	n := hb first.
+	[n >= 0 and: [(ir node: n) op asInt32 = O_PHI]] whileTrue: [
+		nd := ir node: n.
+		(nd fwd < 0 and: [nd tkind asInt32 = T_SMI and: [cnt < 16]]) ifTrue: [
+			psTPhi at: cnt put: n.
+			cnt := cnt + 1].
+		n := nd next].
+	psTCount := cnt asInt32.
+	cnt = 0 ifTrue: [^false].
+	entry := -1.
+	index := -1.
+	entries := 0.
+	k := 0.
+	e := hb preds.
+	[e >= 0] whileTrue: [
+		p := (ir edge: e) from.
+		(ir block: p) rpo < hb rpo ifTrue: [
+			entries := entries + 1.
+			entry := p.
+			index := k].
+		k := k + 1.
+		e := (ir edge: e) next].
+	(entries = 1 and: [hb npreds = 2]) ifFalse: [index := -1].
+	counter := -1.
+	index >= 0 ifTrue: [counter := self counterOf: h index: index].
+	canGuard := index >= 0 and: [(runtime flag: runtime hoistFlag) and: [(ir block: entry) succ1 < 0 and: [hb entryState >= 0]]].
+	psCHi := VM_INT_MAX.
+	t0 := -1.
+	c := 1.
+	s := -1.
+	counter >= 0 ifTrue: [
+		c := psCStep.
+		limit := psCLimit.
+		back := ir resolve: (ir operand: (ir node: counter) args + (1 - index)).
+		e0 := ir resolve: (ir operand: (ir node: counter) args + index).
+		cap := VM_INT_MAX - (2 * c).
+		ehi := (ir node: e0) hi.
+		elo := (ir node: e0) lo.
+		lhi := (ir node: limit) hi.
+		((ehi > cap or: [lhi > cap]) and: [canGuard and: [(psLoopCap at: h) = 0 and: [(self isMarked: back) not]]]) ifTrue: [
+			s := self state: hb entryState enteredFrom: index of: h.
+			ir full ifTrue: [^false].
+			ehi > cap ifTrue: [self rangeGuard: e0 atMost: (self constantInt: cap in: entry) for: back in: entry state: s].
+			lhi > cap ifTrue: [self rangeGuard: limit atMost: (self constantInt: cap in: entry) for: back in: entry state: s].
+			ir full ifTrue: [^false].
+			psLoopCap at: h put: 1].
+		(psLoopCap at: h) = 1 ifTrue: [
+			ehi := ehi min: cap.
+			lhi := lhi min: cap].
+		psCHead ifTrue: [psCHi := ehi max: lhi + c] ifFalse: [psCHi := ehi max: lhi].
+		(elo > VM_INT_MIN and: [lhi < VM_INT_MAX]) ifTrue: [
+			lhi < elo
+				ifTrue: [t0 := 1]
+				ifFalse: [t0 := ((lhi - elo) quo: c) + 1].
+			t0 > 16r10000000000 ifTrue: [t0 := -1]]].
+	tk := t0.
+	(psLoopK at: h) > 0 ifTrue: [tk := self trips: t0 within: (psLoopK at: h) step: c].
+	best := self evaluateLoop: h index: index trips: tk counter: counter.
+	bestK := 0.
+	(counter >= 0 and: [canGuard and: [(self isMarked: psCCond) not]]) ifTrue: [
+		kk := 16r100000000.
+		[kk >= 16r1000000] whileTrue: [
+			((psLoopK at: h) = 0 or: [kk < (psLoopK at: h)]) ifTrue: [
+				got := self evaluateLoop: h index: index trips: (self trips: t0 within: kk step: c) counter: counter.
+				got > best ifTrue: [
+					best := got.
+					bestK := kk]].
+			kk := kk quo: 16].
+		bestK > 0 ifTrue: [
+			(psLoopK at: h) = 0
+				ifTrue: [
+					s < 0 ifTrue: [
+						s := self state: hb entryState enteredFrom: index of: h.
+						ir full ifTrue: [^false]].
+					d := ir newNode: O_ISUB rep: R_OOP.
+					ir full ifTrue: [^false].
+					(ir node: d) a: limit.
+					(ir node: d) b: e0.
+					(ir node: d) tkind: T_SMI.
+					(ir node: d) state: s.
+					(ir node: d) flags: (NF_GUARD bitOr: NF_HOISTED).
+					(ir node: d) bcact: (ir node: psCCond) bcact.
+					(ir node: d) bcpc: (ir node: psCCond) bcpc.
+					ir insert: d before: (ir block: entry) last.
+					g := self constantInt: bestK in: entry.
+					self rangeGuard: d atMost: g for: psCCond in: entry state: s.
+					ir full ifTrue: [^false].
+					psLoopConst at: h put: g]
+				ifFalse: [
+					g := psLoopConst at: h.
+					(ir node: g) aux: (self intOop: bestK) asInt64.
+					(ir node: g) lo: bestK.
+					(ir node: g) hi: bestK].
+			psLoopK at: h put: bestK.
+			tk := self trips: t0 within: bestK step: c]].
+	self evaluateLoop: h index: index trips: tk counter: counter.
+	changed := false.
+	0 to: psTCount - 1 do: [:j |
+		nd := ir node: (psTPhi at: j).
+		(psTLo at: j) > nd lo ifTrue: [
+			nd lo: (psTLo at: j).
+			changed := true].
+		(psTHi at: j) < nd hi ifTrue: [
+			nd hi: (psTHi at: j).
+			changed := true]].
+	^changed
+!
+evaluateLoop: h index: index trips: t counter: counter
+	"psTLo, psTHi := the ranges of loop h's phis (psTPhi; rangesOfLoop:) if the loop goes around at most t times from where it is entered (-1: not known), over two sweeps (a phi may rest on one after it); answer how many are within half the SmallIntegers' range."
+	<function>
+	| n nd lo hi elo ehi l2 h2 good |
+	0 to: psTCount - 1 do: [:j |
+		psTLo at: j put: (ir node: (psTPhi at: j)) lo.
+		psTHi at: j put: (ir node: (psTPhi at: j)) hi].
+	1 to: 2 do: [:sweep |
+		0 to: psTCount - 1 do: [:j |
+			n := psTPhi at: j.
+			nd := ir node: n.
+			lo := VM_INT_MAX.
+			hi := VM_INT_MIN.
+			0 to: nd nargs asInt32 - 1 do: [:k |
+				self rangeOf: (ir operand: nd args + k) loop: h depth: 0.
+				lo := lo min: psRLo.
+				hi := hi max: psRHi].
+			(index >= 0 and: [nd nargs asInt32 = 2]) ifTrue: [
+				self rangeOf: (ir operand: nd args + index) loop: h depth: 0.
+				elo := psRLo.
+				ehi := psRHi.
+				(self incrementOf: (ir operand: nd args + (1 - index)) phi: n loop: h depth: 0) ifTrue: [
+					psILo >= 0
+						ifTrue: [l2 := elo]
+						ifFalse: [l2 := self add: elo times: t of: psILo].
+					psIHi <= 0
+						ifTrue: [h2 := ehi]
+						ifFalse: [h2 := self add: ehi times: t of: psIHi].
+					lo := lo max: l2.
+					hi := hi min: h2].
+				n = counter ifTrue: [hi := hi min: psCHi]].
+			psTLo at: j put: (lo max: (psTLo at: j)).
+			psTHi at: j put: (hi min: (psTHi at: j))]].
+	good := 0.
+	0 to: psTCount - 1 do: [:j |
+		((psTLo at: j) >= -16r2000000000000000 and: [(psTHi at: j) <= 16r2000000000000000]) ifTrue: [good := good + 1]].
+	^good
+!
+rangeOf: v loop: h depth: d
+	"psRLo..psRHi := the range of value v: loop h's phis at their ranges in psTLo and psTHi (evaluateLoop:trips:counter:), and sums, differences, guards and joins in the loop worked out again from theirs (to depth 8); otherwise what forwardRanges found."
+	<function>
+	| n nd op lo hi alo ahi |
+	n := ir resolve: v.
+	nd := ir node: n.
+	op := nd op asInt32.
+	psRLo := nd lo.
+	psRHi := nd hi.
+	(nd block < 0 or: [(self block: nd block isIn: h) not]) ifTrue: [^self].
+	(op = O_PHI and: [nd block = h]) ifTrue: [
+		0 to: psTCount - 1 do: [:j |
+			(psTPhi at: j) = n ifTrue: [
+				psRLo := psTLo at: j.
+				psRHi := psTHi at: j]].
+		^self].
+	d >= 8 ifTrue: [^self].
+	(op = O_IADD or: [op = O_ISUB]) ifTrue: [
+		self rangeOf: nd a loop: h depth: d + 1.
+		alo := psRLo.
+		ahi := psRHi.
+		self rangeOf: (ir node: n) b loop: h depth: d + 1.
+		op = O_IADD
+			ifTrue: [
+				lo := alo + psRLo.
+				hi := ahi + psRHi]
+			ifFalse: [
+				lo := alo - psRHi.
+				hi := ahi - psRLo].
+		nd := ir node: n.
+		(lo >= VM_INT_MIN and: [hi <= VM_INT_MAX])
+			ifTrue: [
+				psRLo := lo max: nd lo.
+				psRHi := hi min: nd hi]
+			ifFalse: [
+				psRLo := nd lo.
+				psRHi := nd hi].
+		^self].
+	(op = O_GUARDINT or: [op = O_CAST]) ifTrue: [
+		self rangeOf: nd a loop: h depth: d + 1.
+		nd := ir node: n.
+		psRLo := psRLo max: nd lo.
+		psRHi := psRHi min: nd hi.
+		^self].
+	op = O_PHI ifTrue: [
+		lo := VM_INT_MAX.
+		hi := VM_INT_MIN.
+		0 to: nd nargs asInt32 - 1 do: [:k |
+			self rangeOf: (ir operand: (ir node: n) args + k) loop: h depth: d + 1.
+			lo := lo min: psRLo.
+			hi := hi max: psRHi].
+		nd := ir node: n.
+		psRLo := lo max: nd lo.
+		psRHi := hi min: nd hi]
+!
+incrementOf: v phi: p loop: h depth: d
+	"Whether value v is phi p of loop h's head plus a range (psILo..psIHi) in the same turn: p itself, a sum with p plus something or a difference of that and something (rangeOf:loop:depth:), what guards it, a join in the loop of such values."
+	<function>
+	| n nd op lo hi |
+	n := ir resolve: v.
+	n = p ifTrue: [
+		psILo := 0.
+		psIHi := 0.
+		^true].
+	d >= 8 ifTrue: [^false].
+	nd := ir node: n.
+	op := nd op asInt32.
+	(nd block < 0 or: [(self block: nd block isIn: h) not]) ifTrue: [^false].
+	(op = O_GUARDINT or: [op = O_CAST]) ifTrue: [^self incrementOf: nd a phi: p loop: h depth: d + 1].
+	(op = O_IADD or: [op = O_ISUB]) ifTrue: [
+		(self incrementOf: nd a phi: p loop: h depth: d + 1) ifTrue: [
+			lo := psILo.
+			hi := psIHi.
+			self rangeOf: (ir node: n) b loop: h depth: 0.
+			op = O_IADD ifTrue: [^self increment: lo + psRLo to: hi + psRHi].
+			^self increment: lo - psRHi to: hi - psRLo].
+		(op = O_IADD and: [self incrementOf: (ir node: n) b phi: p loop: h depth: d + 1]) ifTrue: [
+			lo := psILo.
+			hi := psIHi.
+			self rangeOf: (ir node: n) a loop: h depth: 0.
+			^self increment: lo + psRLo to: hi + psRHi].
+		^false].
+	(op = O_PHI and: [nd block ~= h]) ifTrue: [
+		lo := VM_INT_MAX.
+		hi := VM_INT_MIN.
+		0 to: nd nargs asInt32 - 1 do: [:k |
+			(self incrementOf: (ir operand: (ir node: n) args + k) phi: p loop: h depth: d + 1) ifFalse: [^false].
+			lo := lo min: psILo.
+			hi := hi max: psIHi].
+		^self increment: lo to: hi].
+	^false
+!
+increment: lo to: hi
+	"psILo..psIHi := lo..hi if that is within the SmallIntegers' range."
+	(lo >= VM_INT_MIN and: [hi <= VM_INT_MAX]) ifFalse: [^false].
+	psILo := lo.
+	psIHi := hi.
+	^true
+!
+add: a times: t of: c
+	"a + t * c, or the end of the SmallIntegers' range it would pass (t < 0: not known)."
+	<function>
+	<returns: 'int64_t'>
+	<var: #a type: 'int64_t'>
+	<var: #t type: 'int64_t'>
+	<var: #c type: 'int64_t'>
+	(t = 0 or: [c = 0]) ifTrue: [^a].
+	c > 0
+		ifTrue: [(t < 0 or: [c > ((VM_INT_MAX - a) quo: t)]) ifTrue: [^VM_INT_MAX]]
+		ifFalse: [(t < 0 or: [c negated > ((a - VM_INT_MIN) quo: t)]) ifTrue: [^VM_INT_MIN]].
+	^a + (t * c)
+!
+trips: t within: k step: c
+	"The most turns of a loop that turns at most t times (-1: not known) whose counter's limit less its start is at most k, counting by c."
+	| x |
+	x := (k quo: c) + 1.
+	(t >= 0 and: [t < x]) ifTrue: [^t].
+	^x
+!
+counterOf: h index: index
+	"Loop h's counter, entered from predecessor index: a phi of SmallIntegers that each turn adds a constant c > 0 to (psCStep), tested at the head, below or at most a limit from before the loop (psCLimit; psCHead true), going on into the loop when it is, or on the way back, its next value below or at most the limit, going around when it is (boundsOutOf:entry:index:); psCCond the comparison. -1 if there is none."
+	<function>
+	| hb br cond phi e c prev steps n nd |
+	hb := ir block: h.
+	(hb last >= 0 and: [hb succ1 >= 0 and: [(self block: hb succ0 isIn: h) and: [(self block: hb succ1 isIn: h) not]]]) ifTrue: [
+		br := ir node: hb last.
+		br op asInt32 = O_BRANCH ifTrue: [
+			cond := ir node: (ir resolve: br a).
+			(cond op asInt32 = O_ICMP and: [cond aux = 2 or: [cond aux = 4]]) ifTrue: [
+				phi := self intValueOf: cond a.
+				((ir node: phi) block = h and: [(self isCounter: phi index: index) and: [self isLimit: (ir resolve: cond b) of: h]]) ifTrue: [
+					psCHead := true.
+					psCLimit := ir resolve: cond b.
+					psCCond := ir resolve: br a.
+					^phi]]]].
+	e := hb preds.
+	index = 0 ifTrue: [e := (ir edge: e) next].
+	c := (ir edge: e) from.
+	prev := h.
+	steps := 0.
+	[(ir block: c) succ1 < 0 and: [(ir block: c) npreds = 1 and: [steps < 4]]] whileTrue: [
+		prev := c.
+		c := (ir edge: (ir block: c) preds) from.
+		steps := steps + 1].
+	((ir block: c) succ1 >= 0 and: [(ir block: c) succ0 = prev and: [(ir block: c) last >= 0]]) ifFalse: [^-1].
+	br := ir node: (ir block: c) last.
+	br op asInt32 = O_BRANCH ifFalse: [^-1].
+	cond := ir node: (ir resolve: br a).
+	(cond op asInt32 = O_ICMP and: [cond aux = 2 or: [cond aux = 4]]) ifFalse: [^-1].
+	(self isLimit: (ir resolve: cond b) of: h) ifFalse: [^-1].
+	n := hb first.
+	[n >= 0 and: [(ir node: n) op asInt32 = O_PHI]] whileTrue: [
+		nd := ir node: n.
+		(nd fwd < 0 and: [nd nargs asInt32 = 2 and: [(ir resolve: (ir operand: nd args + (1 - index))) = (ir resolve: (ir node: (ir resolve: br a)) a) and: [self isCounter: n index: index]]]) ifTrue: [
+			psCHead := false.
+			psCLimit := ir resolve: (ir node: (ir resolve: br a)) b.
+			psCCond := ir resolve: br a.
+			^n].
+		n := (ir node: n) next].
+	^-1
+!
+isCounter: phi index: index
+	"phi is a phi of SmallIntegers whose value around the loop (not from predecessor index) is itself plus a constant from 1 to 2^20 (psCStep)."
+	| nd back c |
+	nd := ir node: phi.
+	(nd op asInt32 = O_PHI and: [nd nargs asInt32 = 2 and: [nd tkind asInt32 = T_SMI]]) ifFalse: [^false].
+	back := ir node: (ir resolve: (ir operand: nd args + (1 - index))).
+	(back op asInt32 = O_IADD and: [(self intValueOf: back a) = phi]) ifFalse: [^false].
+	c := ir node: (ir resolve: back b).
+	(c op asInt32 = O_CONST and: [(c aux bitAnd: 1) = 1 and: [c aux >= 3 and: [c aux < 16r200000]]]) ifFalse: [^false].
+	psCStep := self intVal: c aux.
+	^true
+!
+isLimit: v of: h
+	"v is a SmallInteger from before loop h."
+	| nd |
+	nd := ir node: v.
+	nd tkind asInt32 = T_SMI ifFalse: [^false].
+	nd op asInt32 = O_CONST ifTrue: [^true].
+	^nd block >= 0 and: [(self block: nd block isIn: h) not]
+!
+rangeGuard: a atMost: b for: m in: entry state: s
+	"guard:atMost:for:in:state:, for ranges of a loop's sums (rangesOfLoop:): its listing says so."
+	self guard: a atMost: b for: m in: entry state: s.
+	ir full ifFalse: [(ir node: (ir node: (ir block: entry) last) prev) aux2: 2]
+!
+isMarked: m
+	"A guard moved out of a loop has failed at node m's send."
+	^((ir flagsAtAct: (ir node: m) bcact pc: (ir node: m) bcpc) bitAnd: feedback deoptHoisted) ~= 0
+!
+constantInt: k in: entry
+	"A constant SmallInteger k, at the end of block entry."
+	<function>
+	| n nd |
+	n := ir newNode: O_CONST rep: R_OOP.
+	ir full ifTrue: [^n].
+	nd := ir node: n.
+	nd aux: (self intOop: k) asInt64.
+	nd flags: NF_PURE.
+	nd tkind: T_SMI.
+	nd lo: k.
+	nd hi: k.
+	ir insert: n before: (ir block: entry) last.
+	^n
+!
+allBefore: n
+	"Every operand of phi n comes from a block before its own in order (none from a loop's back edge)."
+	| b e |
+	b := (ir node: n) block.
+	e := (ir block: b) preds.
+	[e >= 0] whileTrue: [
+		(ir block: (ir edge: e) from) rpo >= (ir block: b) rpo ifTrue: [^false].
+		e := (ir edge: e) next].
+	^true
+!
+forwardRanges
+	"Integer ranges (lo..hi; a Character's are its code point's), forward in order: a byte or a Character loaded from bytes or a string is 0 to 255, a Character's code point 0 to 16r10FFFF, a size 0 to 2^35 (2^32 slots); sums and differences of ranges, bitAnd: with a non-negative value, \\ by a positive constant, the joins of ranges where branches meet (a loop's head's phis: rangesOfLoop:), and what guards and casts pass on. What is known in range checks nothing (NF_INRANGE; its frame state dropped): a sum or difference that stays a SmallInteger, the Character of a code point, a store of a byte or of a Character below 256 into bytes or a string."
 	<function>
 	| n nd op x y lo hi |
 	0 to: psOrderCount - 1 do: [:i |
@@ -1532,6 +1923,18 @@ ranges
 		[n >= 0] whileTrue: [
 			nd := ir node: n.
 			op := nd op asInt32.
+			op = O_SIZE ifTrue: [
+				nd lo: -8.
+				nd aux = E_PTR ifTrue: [nd hi: 16rFFFFFFFF] ifFalse: [nd hi: 16r800000000]].
+			(op = O_PHI and: [((ir block: nd block) flags bitAnd: BF_LOOP) = 0 and: [self allBefore: n]]) ifTrue: [
+				lo := VM_INT_MAX.
+				hi := VM_INT_MIN.
+				0 to: nd nargs asInt32 - 1 do: [:k |
+					x := ir node: (ir resolve: (ir operand: nd args + k)).
+					lo := lo min: x lo.
+					hi := hi max: x hi].
+				nd lo: (nd lo max: lo).
+				nd hi: (nd hi min: hi)].
 			(op = O_INDEXLOAD and: [nd aux ~= E_PTR]) ifTrue: [
 				nd lo: (self lowestOf: nd aux asInt32).
 				nd hi: (self highestOf: nd aux asInt32)].
