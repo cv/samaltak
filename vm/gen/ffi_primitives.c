@@ -55,6 +55,17 @@ static bool marshal_compare(oop array, uint64_t *words);
 static double native_atan(double x);
 static int32_t native_compare(const void *a, const void *b, uint64_t count);
 static double native_cos(double x);
+static int64_t native_crypto_aead(int64_t op_bits, const uint8_t *nonce_aad_bytes, uint64_t nonce_aad_bytes_len, uint8_t *text_bytes, uint64_t text_bytes_len);
+static int64_t native_crypto_aead_key(int64_t alg_id, const uint8_t *key_bytes, uint64_t key_bytes_len);
+static int64_t native_crypto_backend(uint8_t *out_bytes, uint64_t out_bytes_len);
+static int64_t native_crypto_chacha20(const uint8_t *key_nonce_bytes, uint64_t key_nonce_bytes_len, int64_t block_counter, uint8_t *text_bytes, uint64_t text_bytes_len);
+static int64_t native_crypto_digest(int64_t alg_id, const uint8_t *in_bytes, uint64_t in_bytes_len, uint8_t *out_bytes, uint64_t out_bytes_len);
+static int64_t native_crypto_digest_final(int64_t alg_id, uint8_t *state_bytes, uint64_t state_bytes_len, uint8_t *out_bytes, uint64_t out_bytes_len);
+static int64_t native_crypto_digest_init(int64_t alg_id, uint8_t *state_bytes, uint64_t state_bytes_len);
+static int64_t native_crypto_digest_update(int64_t alg_id, uint8_t *state_bytes, uint64_t state_bytes_len, const uint8_t *in_bytes, uint64_t in_bytes_len);
+static int64_t native_crypto_public_key(const uint8_t *spki_bytes, uint64_t spki_bytes_len);
+static int64_t native_crypto_verify(int64_t key_id, int64_t verify_params, const uint8_t *digest_bytes, uint64_t digest_bytes_len, const uint8_t *sig_bytes, uint64_t sig_bytes_len);
+static int64_t native_crypto_x25519(const uint8_t *k_bytes, uint64_t k_bytes_len, const uint8_t *u_bytes, uint64_t u_bytes_len, uint8_t *out_bytes, uint64_t out_bytes_len);
 static double native_exp(double x);
 static double native_fabs(double x);
 static double native_float_fraction_part(double x);
@@ -666,6 +677,50 @@ static int64_t native_tls_release_entry_witness(int64_t a1) {
     fprintf(stderr, "\nffi-native-entry 1736\n");
     return native_tls_release(a1);
 }
+static int64_t native_crypto_digest_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3, uint8_t *a4, uint64_t a5) {
+    fprintf(stderr, "\nffi-native-entry 1744\n");
+    return native_crypto_digest(a1, a2, a3, a4, a5);
+}
+static int64_t native_crypto_digest_init_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1745\n");
+    return native_crypto_digest_init(a1, a2, a3);
+}
+static int64_t native_crypto_digest_update_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3, const uint8_t *a4, uint64_t a5) {
+    fprintf(stderr, "\nffi-native-entry 1746\n");
+    return native_crypto_digest_update(a1, a2, a3, a4, a5);
+}
+static int64_t native_crypto_digest_final_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3, uint8_t *a4, uint64_t a5) {
+    fprintf(stderr, "\nffi-native-entry 1747\n");
+    return native_crypto_digest_final(a1, a2, a3, a4, a5);
+}
+static int64_t native_crypto_aead_key_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1748\n");
+    return native_crypto_aead_key(a1, a2, a3);
+}
+static int64_t native_crypto_aead_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3, uint8_t *a4, uint64_t a5) {
+    fprintf(stderr, "\nffi-native-entry 1749\n");
+    return native_crypto_aead(a1, a2, a3, a4, a5);
+}
+static int64_t native_crypto_x25519_entry_witness(const uint8_t *a1, uint64_t a2, const uint8_t *a3, uint64_t a4, uint8_t *a5, uint64_t a6) {
+    fprintf(stderr, "\nffi-native-entry 1750\n");
+    return native_crypto_x25519(a1, a2, a3, a4, a5, a6);
+}
+static int64_t native_crypto_public_key_entry_witness(const uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1751\n");
+    return native_crypto_public_key(a1, a2);
+}
+static int64_t native_crypto_verify_entry_witness(int64_t a1, int64_t a2, const uint8_t *a3, uint64_t a4, const uint8_t *a5, uint64_t a6) {
+    fprintf(stderr, "\nffi-native-entry 1752\n");
+    return native_crypto_verify(a1, a2, a3, a4, a5, a6);
+}
+static int64_t native_crypto_chacha20_entry_witness(const uint8_t *a1, uint64_t a2, int64_t a3, uint8_t *a4, uint64_t a5) {
+    fprintf(stderr, "\nffi-native-entry 1753\n");
+    return native_crypto_chacha20(a1, a2, a3, a4, a5);
+}
+static int64_t native_crypto_backend_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1754\n");
+    return native_crypto_backend(a1, a2);
+}
 static void native_text_stdout_entry_witness(const uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 2193\n");
     native_text_stdout(a1, a2);
@@ -907,6 +962,72 @@ static int32_t ffi_approved_core(const char *approved_name, uint32_t packed_sign
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_tls_release_entry_witness;
         return 1736;
+    }
+    if (packed_signature == 14483 && strcmp(approved_name, "core_crypto_digest") == 0) {
+        *target_out = (uint64_t) native_crypto_digest;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_digest_entry_witness;
+        return 1744;
+    }
+    if (packed_signature == 915 && strcmp(approved_name, "core_crypto_digest_init") == 0) {
+        *target_out = (uint64_t) native_crypto_digest_init;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_digest_init_entry_witness;
+        return 1745;
+    }
+    if (packed_signature == 14723 && strcmp(approved_name, "core_crypto_digest_update") == 0) {
+        *target_out = (uint64_t) native_crypto_digest_update;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_digest_update_entry_witness;
+        return 1746;
+    }
+    if (packed_signature == 14739 && strcmp(approved_name, "core_crypto_digest_final") == 0) {
+        *target_out = (uint64_t) native_crypto_digest_final;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_digest_final_entry_witness;
+        return 1747;
+    }
+    if (packed_signature == 899 && strcmp(approved_name, "core_crypto_aead_key") == 0) {
+        *target_out = (uint64_t) native_crypto_aead_key;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_aead_key_entry_witness;
+        return 1748;
+    }
+    if (packed_signature == 14483 && strcmp(approved_name, "core_crypto_aead") == 0) {
+        *target_out = (uint64_t) native_crypto_aead;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_aead_entry_witness;
+        return 1749;
+    }
+    if (packed_signature == 34963 && strcmp(approved_name, "core_crypto_x25519") == 0) {
+        *target_out = (uint64_t) native_crypto_x25519;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_x25519_entry_witness;
+        return 1750;
+    }
+    if (packed_signature == 131 && strcmp(approved_name, "core_crypto_public_key") == 0) {
+        *target_out = (uint64_t) native_crypto_public_key;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_public_key_entry_witness;
+        return 1751;
+    }
+    if (packed_signature == 211075 && strcmp(approved_name, "core_crypto_verify") == 0) {
+        *target_out = (uint64_t) native_crypto_verify;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_verify_entry_witness;
+        return 1752;
+    }
+    if (packed_signature == 33683 && strcmp(approved_name, "core_crypto_chacha20") == 0) {
+        *target_out = (uint64_t) native_crypto_chacha20;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_chacha20_entry_witness;
+        return 1753;
+    }
+    if (packed_signature == 147 && strcmp(approved_name, "core_crypto_backend") == 0) {
+        *target_out = (uint64_t) native_crypto_backend;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_crypto_backend_entry_witness;
+        return 1754;
     }
     if (packed_signature == 215 && strcmp(approved_name, "core_stdout_text") == 0) {
         *target_out = (uint64_t) native_text_stdout;
@@ -1272,6 +1393,72 @@ static int32_t native_compare(const void *a, const void *b, uint64_t count)
 static double native_cos(double x)
 {
     return cos(x);
+}
+
+/* FFIPrimitives>>nativeCryptoAead:nonceAad:length:text:length: */
+static int64_t native_crypto_aead(int64_t op_bits, const uint8_t *nonce_aad_bytes, uint64_t nonce_aad_bytes_len, uint8_t *text_bytes, uint64_t text_bytes_len)
+{
+    return samaltak_crypto_aead(op_bits, nonce_aad_bytes, nonce_aad_bytes_len, text_bytes, text_bytes_len);
+}
+
+/* FFIPrimitives>>nativeCryptoAeadKey:key:length: */
+static int64_t native_crypto_aead_key(int64_t alg_id, const uint8_t *key_bytes, uint64_t key_bytes_len)
+{
+    return samaltak_crypto_aead_key(alg_id, key_bytes, key_bytes_len);
+}
+
+/* FFIPrimitives>>nativeCryptoBackend:length: */
+static int64_t native_crypto_backend(uint8_t *out_bytes, uint64_t out_bytes_len)
+{
+    return samaltak_crypto_backend(out_bytes, out_bytes_len);
+}
+
+/* FFIPrimitives>>nativeCryptoChacha20:length:counter:text:length: */
+static int64_t native_crypto_chacha20(const uint8_t *key_nonce_bytes, uint64_t key_nonce_bytes_len, int64_t block_counter, uint8_t *text_bytes, uint64_t text_bytes_len)
+{
+    return samaltak_crypto_chacha20(key_nonce_bytes, key_nonce_bytes_len, block_counter, text_bytes, text_bytes_len);
+}
+
+/* FFIPrimitives>>nativeCryptoDigest:in:length:out:length: */
+static int64_t native_crypto_digest(int64_t alg_id, const uint8_t *in_bytes, uint64_t in_bytes_len, uint8_t *out_bytes, uint64_t out_bytes_len)
+{
+    return samaltak_crypto_digest(alg_id, in_bytes, in_bytes_len, out_bytes, out_bytes_len);
+}
+
+/* FFIPrimitives>>nativeCryptoDigestFinal:state:length:out:length: */
+static int64_t native_crypto_digest_final(int64_t alg_id, uint8_t *state_bytes, uint64_t state_bytes_len, uint8_t *out_bytes, uint64_t out_bytes_len)
+{
+    return samaltak_crypto_digest_final(alg_id, state_bytes, state_bytes_len, out_bytes, out_bytes_len);
+}
+
+/* FFIPrimitives>>nativeCryptoDigestInit:state:length: */
+static int64_t native_crypto_digest_init(int64_t alg_id, uint8_t *state_bytes, uint64_t state_bytes_len)
+{
+    return samaltak_crypto_digest_init(alg_id, state_bytes, state_bytes_len);
+}
+
+/* FFIPrimitives>>nativeCryptoDigestUpdate:state:length:in:length: */
+static int64_t native_crypto_digest_update(int64_t alg_id, uint8_t *state_bytes, uint64_t state_bytes_len, const uint8_t *in_bytes, uint64_t in_bytes_len)
+{
+    return samaltak_crypto_digest_update(alg_id, state_bytes, state_bytes_len, in_bytes, in_bytes_len);
+}
+
+/* FFIPrimitives>>nativeCryptoPublicKey:length: */
+static int64_t native_crypto_public_key(const uint8_t *spki_bytes, uint64_t spki_bytes_len)
+{
+    return samaltak_crypto_public_key(spki_bytes, spki_bytes_len);
+}
+
+/* FFIPrimitives>>nativeCryptoVerify:params:digest:length:signature:length: */
+static int64_t native_crypto_verify(int64_t key_id, int64_t verify_params, const uint8_t *digest_bytes, uint64_t digest_bytes_len, const uint8_t *sig_bytes, uint64_t sig_bytes_len)
+{
+    return samaltak_crypto_verify(key_id, verify_params, digest_bytes, digest_bytes_len, sig_bytes, sig_bytes_len);
+}
+
+/* FFIPrimitives>>nativeCryptoX25519:length:u:length:out:length: */
+static int64_t native_crypto_x25519(const uint8_t *k_bytes, uint64_t k_bytes_len, const uint8_t *u_bytes, uint64_t u_bytes_len, uint8_t *out_bytes, uint64_t out_bytes_len)
+{
+    return samaltak_crypto_x25519(k_bytes, k_bytes_len, u_bytes, u_bytes_len, out_bytes, out_bytes_len);
 }
 
 /* FFIPrimitives>>nativeExp: */

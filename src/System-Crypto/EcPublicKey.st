@@ -1,5 +1,5 @@
 Object subclass: #EcPublicKey
-	instanceVariableNames: 'curve x y'
+	instanceVariableNames: 'curve x y handle'
 	classVariableNames: ''
 	package: 'System-Crypto'!
 
@@ -9,7 +9,7 @@ EcPublicKey comment: 'I am an elliptic-curve public key, a point on an EcCurve (
 	key verify: derSignature message: bytes hash: SHA256.
 	key verify: derSignature digest: digestBytes.
 
-Not constant-time (see EcCurve): fine for verification, which handles no secrets.'!
+The VM verifies (CryptoExports: libcrypto hosted, mbedTLS on UEFI), from my DER SubjectPublicKeyInfo, under a handle it keeps; the signature''s DER and the range of r and s are checked here first, the same for both.'!
 
 !EcPublicKey methodsFor: 'accessing'!
 curve
@@ -32,23 +32,28 @@ verify: derSignature message: message hash: hashClass
 	^self verify: derSignature digest: (hashClass hash: message)
 !
 verify: derSignature digest: digest
-	"Whether derSignature is ECDSA's on the precomputed digest."
-	| rs r s n e w point affine |
+	"Whether derSignature is ECDSA's on the precomputed digest (of SHA-256, -384 or -512, by its size)."
+	| rs n hash r |
 	rs := self class decodeSignature: derSignature.
 	rs isNil ifTrue: [^false].
-	r := rs at: 1.
-	s := rs at: 2.
 	n := curve order.
-	(r between: 1 and: n - 1) ifFalse: [^false].
-	(s between: 1 and: n - 1) ifFalse: [^false].
-	e := 0.
-	digest do: [:byte | e := (e bitShift: 8) + byte].
-	digest size * 8 > n highBit ifTrue: [e := e bitShift: n highBit - (digest size * 8)].
-	w := curve inverse: s modulo: n.
-	point := curve multiply: e * w \\ n plus: {x. y. 1} times: r * w \\ n.
-	affine := curve toAffine: point.
-	affine isNil ifTrue: [^false].
-	^(affine at: 1) \\ n = r
+	(rs allSatisfy: [:each | each between: 1 and: n - 1]) ifFalse: [^false].
+	hash := #(32 48 64) indexOf: digest size.
+	hash = 0 ifTrue: [^false].
+	r := [CryptoExports
+		withKey: handle
+		make: [CryptoExports publicKey: self subjectPublicKeyInfo]
+		do: [:h | CryptoExports verify: h params: 3 + (hash bitShift: 4) digest: digest signature: derSignature]]
+			on: CryptoError do: [:e | e return: 0].
+	^r = 1
+! !
+
+!EcPublicKey methodsFor: 'encoding'!
+subjectPublicKeyInfo
+	"My DER SubjectPublicKeyInfo (RFC 5480): id-ecPublicKey, the named curve, the uncompressed point."
+	^(curve name == #p256
+		ifTrue: [#[16r30 16r59 16r30 16r13 16r06 16r07 16r2A 16r86 16r48 16rCE 16r3D 16r02 16r01 16r06 16r08 16r2A 16r86 16r48 16rCE 16r3D 16r03 16r01 16r07 16r03 16r42 16r00]]
+		ifFalse: [#[16r30 16r76 16r30 16r10 16r06 16r07 16r2A 16r86 16r48 16rCE 16r3D 16r02 16r01 16r06 16r05 16r2B 16r81 16r04 16r00 16r22 16r03 16r62 16r00]]) , self bytes
 ! !
 
 !EcPublicKey methodsFor: 'comparing'!
@@ -68,7 +73,8 @@ printOn: aStream
 setCurve: anEcCurve x: px y: py
 	curve := anEcCurve.
 	x := px.
-	y := py
+	y := py.
+	handle := Array new: 2
 ! !
 
 !EcPublicKey class methodsFor: 'instance creation'!

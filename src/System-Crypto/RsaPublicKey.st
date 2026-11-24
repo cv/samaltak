@@ -1,5 +1,5 @@
 Object subclass: #RsaPublicKey
-	instanceVariableNames: 'modulus exponent'
+	instanceVariableNames: 'modulus exponent handle'
 	classVariableNames: ''
 	package: 'System-Crypto'!
 
@@ -10,7 +10,7 @@ RsaPublicKey comment: 'I am an RSA public key (RFC 8017): a modulus and a public
 	key verifyPss: signature message: bytes hash: SHA256.	"salt length = 32"
 	key verifyPss: signature message: bytes hash: SHA256 saltLength: nil.	"any salt length"
 
-Verification uses the VM''s LargeInteger primitives (s^e mod n); it handles no secrets, so timing does not matter. Moduli of 1024 to 8192 bits are accepted (TLS uses 2048 to 4096).'!
+The VM verifies (CryptoExports: libcrypto hosted, mbedTLS on UEFI), from my DER SubjectPublicKeyInfo, under a handle it keeps. Moduli of 1024 to 8192 bits are accepted (TLS uses 2048 to 4096).'!
 
 !RsaPublicKey methodsFor: 'accessing'!
 modulus
@@ -34,20 +34,7 @@ verifyPkcs1: signature message: message hash: hashClass
 !
 verifyPkcs1: signature digest: digest hash: hashClass
 	"Whether signature is RSASSA-PKCS1-v1_5 of the precomputed digest."
-	| prefix em k t expected |
-	prefix := self class digestInfoPrefixFor: hashClass.
-	(prefix isNil or: [digest size ~= hashClass digestSize]) ifTrue: [^false].
-	em := self recover: signature length: self byteLength.
-	em isNil ifTrue: [^false].
-	k := self byteLength.
-	t := prefix size + digest size.
-	k < (t + 11) ifTrue: [^false].
-	expected := ByteArray new: k.
-	expected atAllPut: 255.
-	expected at: 1 put: 0; at: 2 put: 1; at: k - t put: 0.
-	expected replaceFrom: k - t + 1 to: k - digest size with: prefix startingAt: 1.
-	expected replaceFrom: k - digest size + 1 to: k with: digest startingAt: 1.
-	^em = expected
+	^self verify: signature digest: digest hash: hashClass scheme: 1 saltLength: nil
 !
 verifyPss: signature message: message hash: hashClass
 	"Whether signature is message's RSASSA-PSS signature with hashClass, MGF1 with hashClass and a salt as long as the hash (TLS 1.3's rsa_pss_rsae_* and rsa_pss_pss_*)."
@@ -59,29 +46,7 @@ verifyPss: signature message: message hash: hashClass saltLength: saltLength
 !
 verifyPss: signature digest: mHash hash: hashClass saltLength: saltLength
 	"EMSA-PSS-VERIFY of RFC 8017, section 9.1.2, on the precomputed digest mHash."
-	| hLen emBits emLen em maskedDB h zeroBits db i salt mPrime |
-	hLen := hashClass digestSize.
-	mHash size = hLen ifFalse: [^false].
-	emBits := modulus highBit - 1.
-	emLen := emBits + 7 // 8.
-	em := self recover: signature length: emLen.
-	em isNil ifTrue: [^false].
-	emLen < (hLen + (saltLength ifNil: [0]) + 2) ifTrue: [^false].
-	(em at: emLen) = 16rBC ifFalse: [^false].
-	maskedDB := em copyFrom: 1 to: emLen - hLen - 1.
-	h := em copyFrom: emLen - hLen to: emLen - 1.
-	zeroBits := 8 * emLen - emBits.
-	(maskedDB at: 1) < (1 bitShift: 8 - zeroBits) ifFalse: [^false].
-	db := self class mgf1: h length: maskedDB size hash: hashClass.
-	1 to: db size do: [:j | db at: j put: ((db at: j) bitXor: (maskedDB at: j))].
-	db at: 1 put: ((db at: 1) bitAnd: (255 bitShift: zeroBits negated)).
-	i := 1.
-	[i <= db size and: [(db at: i) = 0]] whileTrue: [i := i + 1].
-	(i <= db size and: [(db at: i) = 1]) ifFalse: [^false].
-	salt := db copyFrom: i + 1 to: db size.
-	(saltLength notNil and: [salt size ~= saltLength]) ifTrue: [^false].
-	mPrime := (ByteArray new: 8), mHash, salt.
-	^(hashClass hash: mPrime) = h
+	^self verify: signature digest: mHash hash: hashClass scheme: 2 saltLength: saltLength
 ! !
 
 !RsaPublicKey methodsFor: 'comparing'!
@@ -100,16 +65,29 @@ printOn: aStream
 !RsaPublicKey methodsFor: 'private'!
 setModulus: n exponent: e
 	modulus := n.
-	exponent := e
+	exponent := e.
+	handle := Array new: 2
 !
-recover: signature length: length
-	"s^e mod n of the signature as length big-endian bytes; nil unless the signature is k bytes and less than n, or if the result does not fit."
-	| s m |
-	signature size = self byteLength ifFalse: [^nil].
-	s := self class integerFromBytes: signature.
-	s >= modulus ifTrue: [^nil].
-	m := s raisedTo: exponent modulo: modulus.
-	^self class bytesOf: m length: length
+verify: signature digest: digest hash: hashClass scheme: scheme saltLength: saltLength
+	"The VM's verification (CryptoExports) of a signature k bytes long, of a digest of hashClass's size."
+	| params r |
+	(signature size = self byteLength and: [digest size = hashClass digestSize]) ifFalse: [^false].
+	(saltLength notNil and: [saltLength < 0]) ifTrue: [^false].
+	params := scheme + (hashClass algorithm bitShift: 4) + ((saltLength ifNil: [-1]) + 1 bitShift: 8).
+	r := [CryptoExports
+		withKey: handle
+		make: [CryptoExports publicKey: self subjectPublicKeyInfo]
+		do: [:h | CryptoExports verify: h params: params digest: digest signature: signature]]
+			on: CryptoError do: [:e | e return: 0].
+	^r = 1
+!
+subjectPublicKeyInfo
+	"My DER SubjectPublicKeyInfo (RFC 8017, A.1.1): rsaEncryption, then RSAPublicKey in a BIT STRING."
+	| c key |
+	c := self class.
+	key := c der: 16r30 of: (c derInteger: modulus) , (c derInteger: exponent).
+	^c der: 16r30 of: #[16r30 16r0D 16r06 16r09 16r2A 16r86 16r48 16r86 16rF7 16r0D 16r01 16r01 16r01 16r05 16r00] ,
+		(c der: 16r03 of: #[0] , key)
 ! !
 
 !RsaPublicKey class methodsFor: 'instance creation'!
@@ -137,21 +115,19 @@ bytesOf: anInteger length: length
 	1 to: anInteger digitLength do: [:i | out at: length + 1 - i put: (anInteger digitAt: i)].
 	^out
 !
-mgf1: seed length: length hash: hashClass
-	"MGF1 of RFC 8017, appendix B.2.1."
-	| out counter block |
-	out := WriteStream on: (ByteArray new: length + hashClass digestSize).
-	counter := 0.
-	[out position < length] whileTrue: [
-		block := seed, (self bytesOf: counter length: 4).
-		out nextPutAll: (hashClass hash: block).
-		counter := counter + 1].
-	^out contents copyFrom: 1 to: length
+der: tag of: contents
+	"The DER of contents with tag: tag, the length (definite, minimal), contents."
+	| n length |
+	n := contents size.
+	length := n < 128
+		ifTrue: [ByteArray with: n]
+		ifFalse: [(ByteArray with: 128 + n digitLength) , (self bytesOf: n length: n digitLength)].
+	^(ByteArray with: tag) , length , contents
 !
-digestInfoPrefixFor: hashClass
-	"The DER of DigestInfo up to the digest (RFC 8017, section 9.2, note 1), for SHA-256, -384 or -512 by digest size; nil for another."
-	hashClass digestSize = 32 ifTrue: [^#[16r30 16r31 16r30 16r0D 16r06 16r09 16r60 16r86 16r48 16r01 16r65 16r03 16r04 16r02 16r01 16r05 16r00 16r04 16r20]].
-	hashClass digestSize = 48 ifTrue: [^#[16r30 16r41 16r30 16r0D 16r06 16r09 16r60 16r86 16r48 16r01 16r65 16r03 16r04 16r02 16r02 16r05 16r00 16r04 16r30]].
-	hashClass digestSize = 64 ifTrue: [^#[16r30 16r51 16r30 16r0D 16r06 16r09 16r60 16r86 16r48 16r01 16r65 16r03 16r04 16r02 16r03 16r05 16r00 16r04 16r40]].
-	^nil
+derInteger: aPositiveInteger
+	"The DER INTEGER of aPositiveInteger: big-endian, a 0 in front if its top bit is set."
+	| bytes |
+	bytes := self bytesOf: aPositiveInteger length: (aPositiveInteger digitLength max: 1).
+	(bytes at: 1) >= 128 ifTrue: [bytes := #[0] , bytes].
+	^self der: 16r02 of: bytes
 ! !

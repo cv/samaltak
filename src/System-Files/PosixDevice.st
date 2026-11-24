@@ -56,7 +56,9 @@ check: result call: what path: aPath
 	"result, if the call was made and succeeded; else signal the OSError."
 	result isNil ifTrue: [
 		^OSError
-			signal: what, ': ', (self isAvailable ifTrue: ['bad arguments'] ifFalse: [File lastError])
+			signal: what, ': ', (self isAvailable
+				ifTrue: ['bad arguments']
+				ifFalse: [Machine hasFirmware ifTrue: ['not on UEFI'] ifFalse: [File lastError]])
 			errno: nil
 			path: aPath].
 	result < 0 ifTrue: [^OSError signal: File lastError errno: result negated path: aPath].

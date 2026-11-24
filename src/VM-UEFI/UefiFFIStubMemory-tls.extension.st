@@ -1,6 +1,6 @@
 !UefiFFIStubMemory methodsFor: 'static tls wrappers'!
 staticTlsEntry: name signature: signature
-	"The TLS engine's core_tls_* exports (FFIPrimitives-tls), or 0."
+	"The TLS engine's core_tls_* exports (FFIPrimitives-tls), else the cryptography's, or 0."
 	<function>
 	<var: #name type: 'const char *'>
 	<var: #signature type: 'uint32_t'>
@@ -18,7 +18,7 @@ staticTlsEntry: name signature: signature
 	(signature = 16r393 and: [(libc strcmp: name with: 'core_tls_close') = 0]) ifTrue: [^self cCoerce: (self functionPointer: #staticTlsClose:) to: 'uint64_t'].
 	(signature = 16r3393 and: [(libc strcmp: name with: 'core_tls_info') = 0]) ifTrue: [^self cCoerce: (self functionPointer: #staticTlsInfo:) to: 'uint64_t'].
 	(signature = 16r33 and: [(libc strcmp: name with: 'core_tls_free') = 0]) ifTrue: [^self cCoerce: (self functionPointer: #staticTlsRelease:) to: 'uint64_t'].
-	^0
+	^self staticCryptoEntry: name signature: signature
 !
 staticTlsSeed: args
 	<function>

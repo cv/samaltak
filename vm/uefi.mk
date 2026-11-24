@@ -22,7 +22,7 @@ OBJS := $(patsubst $(GEN)/%.c,$(OBJ)/%.o,$(wildcard $(GEN)/*.c))
 UEFI_NATIVE_CFLAGS := -target $(UEFI_TARGET)-unknown-none-elf -ffreestanding -fno-stack-protector -fPIE -mno-red-zone \
 	-fno-math-errno -ffp-contract=off -ftls-model=local-exec -O2 -std=gnu11 -DSAMALTAK_UEFI -MMD -MP \
 	$(if $(filter aarch64,$(UEFI_TARGET)),-march=armv8-a+crypto) -nostdlibinc -I$(NATIVE_DIR)/native/uefi-include $(NATIVE_CPPFLAGS)
-NATIVE_OBJS := $(patsubst $(NATIVE_DIR)/%.c,$(OBJ)/native-src/%.o,$(NATIVE_SRCS) $(NATIVE_DIR)/native/uefi_libc.c)
+NATIVE_OBJS := $(patsubst $(NATIVE_DIR)/%.c,$(OBJ)/native-src/%.o,$(NATIVE_SRCS) $(NATIVE_UEFI_SRCS))
 
 $(OBJ)/samaltak.elf: $(OBJS) $(NATIVE_OBJS)
 	$(UEFI_LD) -pie --no-dynamic-linker -z norelro -e efi_main -o $@ $(OBJS) $(NATIVE_OBJS)
