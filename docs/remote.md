@@ -85,10 +85,11 @@ console). That password is 8 random characters of its own, never derived from th
 - `samaltak-ctl open --uefi --vnc N` does that: the image's server is the default (`--vnc-server image`, or
   `$SAMALTAK_VNC_SERVER`), `--vnc-server qemu` QEMU's. The password: `--vnc-password-file f`, else `$UEFI_VNC_PASSWORD`,
   else `~/.samaltak-vnc` where present, else one made for the session in `<session>.vnc-password` (0600); it prints
-  the file's name, never the password. `samaltak.vncWorld({ action: "restart" })` opens the operator's World on the
-  image's server (`server: "qemu"` for QEMU's).
+  the file's name, never the password. `samaltak.vncWorld({ target: "uefi", action: "restart" })` opens a UEFI
+  World on the image's server (`server: "qemu"` for QEMU's).
 - The appliance (the Spark): the same flags with `--display-password-file /data/vnc-password` on its data volume
-  (docs/linux-appliance.md).
+  (docs/linux-appliance.md); the operator's daily World is the appliance's in QEMU, which `samaltak.vncWorld` opens by
+  default (its data volume's password is that of `~/.samaltak-vnc`).
 
 **Connecting**, through an SSH tunnel to the machine running QEMU (or to a jump host beside a bare-metal one):
 
@@ -159,7 +160,7 @@ followed RFC 6143's depth rule would fail it.
 
 The image's server against QEMU's VNC server on the same World (2026-11-23): the DGX Spark, QEMU/KVM, the UEFI World at
 1920x1080 on virtio-gpu with 4 vCPUs pinned to the big cores (`open --uefi --window-size 1920x1080 --vnc n` with
-`UEFI_GPU=virtio-gpu-pci`, as `samaltak.vncWorld` opens it; `--vnc-server qemu` for QEMU's), a fresh session for each
+`UEFI_GPU=virtio-gpu-pci`, as `samaltak.vncWorld({ target: "uefi" })` opens it; `--vnc-server qemu` for QEMU's), a fresh session for each
 run; the machine shared (load 10-21). The viewer is `tests/remote/rfb_measure.py` (rfb_client.py over loopback: RFB 3.8,
 VNC authentication, ZRLE, CopyRect, Cursor, DesktopSize, LastRect in the server's format, the next incremental request
 as soon as an update has come, as the viewers do). Keys and the pointer are RFB events, so they take each server's own
