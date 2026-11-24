@@ -1,9 +1,9 @@
 Object subclass: #FirmwareDisplay
 	instanceVariableNames: 'firmware screen queue clock devices open clipboard'
-	classVariableNames: 'Current'
+	classVariableNames: 'Current Probed'
 	package: 'System-Devices'!
 
-FirmwareDisplay comment: 'I am the windows and the input where the image drives the machine itself (UEFI): what the window and event primitives are elsewhere, with their protocol (GPUPlatform''s backend for them, docs/platform.md). One window, handle 1, the whole screen (FirmwareScreen) at one pixel a point; opening it a second time answers it again. Opening it starts the input devices: the firmware''s keyboard, and a virtio tablet or mouse (VirtioInput) if there is one, else the firmware''s pointer; they report into my InputQueue, the pointer also to the screen, which moves the arrow. The refresh is a RefreshClock; the clipboard a string. FirmwareDisplay current is nil on an operating system; a resumed image starts a new one (the old one''s devices are the previous VM''s).'!
+FirmwareDisplay comment: 'I am the windows and the input where the image drives the machine itself (UEFI): what the window and event primitives are elsewhere, with their protocol (GPUPlatform''s backend for them, docs/platform.md). One window, handle 1, the whole screen (FirmwareScreen) at one pixel a point; opening it a second time answers it again. Opening it starts the input devices: the firmware''s keyboard, and a virtio tablet or mouse (VirtioInput) if there is one, else the firmware''s pointer; they report into my InputQueue, the pointer also to the screen, which moves the arrow. The refresh is a RefreshClock; the clipboard a string. FirmwareDisplay current is nil on an operating system, unless the image drives the screen there too (KmsDisplay: KMS and evdev on Linux without a window system, asked for by SAMALTAK_SCREEN=kms); a resumed image starts a new one (the old one''s devices are the previous VM''s).'!
 
 !FirmwareDisplay methodsFor: 'initialization'!
 setFirmware: aFirmware
@@ -161,10 +161,14 @@ droppedEvents
 
 !FirmwareDisplay class methodsFor: 'accessing'!
 current
-	"The display, or nil on an operating system."
-	Current isNil ifTrue: [Firmware current ifNotNil: [:f |
-		Current := self new setFirmware: f.
-		InputQueue current: Current queue]].
+	"The display: the firmware's, else on an operating system a KmsDisplay where one is asked for (looked for once a start), else nil."
+	Current isNil ifTrue: [
+		Firmware current
+			ifNil: [Probed == true ifFalse: [
+				Probed := true.
+				Current := KmsDisplay requested]]
+			ifNotNil: [:f | Current := FirmwareDisplay new setFirmware: f].
+		Current isNil ifFalse: [InputQueue current: Current queue]].
 	^Current
 ! !
 
@@ -176,5 +180,6 @@ startUp: resuming
 	resuming ifTrue: [
 		Current isNil ifFalse: [Current abandon].
 		Current := nil.
+		Probed := false.
 		InputQueue current: nil]
 ! !

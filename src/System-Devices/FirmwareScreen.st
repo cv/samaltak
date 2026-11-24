@@ -128,7 +128,8 @@ present: pixels width: w height: h
 		s isNil ifFalse: [t := s add: #'screen.shadow' since: t bytes: (w min: width) * (h min: height) * 4].
 		self copyToScreen: (0 @ 0 extent: width @ height).
 		s isNil ifFalse: [s add: #'screen.blt' since: t bytes: width * height * 4].
-		self drawCursor].
+		self drawCursor.
+		self flushScreen].
 	tap isNil ifFalse: [tap presented: #full extent: width @ height]
 !
 present: pixels width: w height: h rects: anArray
@@ -154,6 +155,7 @@ present: pixels width: w height: h rects: anArray
 		rects do: [:r | self copyToScreen: r].
 		s isNil ifFalse: [s add: #'screen.blt' since: t bytes: area * 4].
 		(rects anySatisfy: [:r | r intersects: (cursor extent: Arrow first size @ Arrow size)]) ifTrue: [self drawCursor].
+		self flushScreen.
 		self checkShadowAgainst: pixels width: w height: h].
 	"What the caller damaged, however the Blts went."
 	tap isNil ifFalse: [tap presented: anArray extent: width @ height]
@@ -178,6 +180,7 @@ copyToScreen: aRectangle
 	| r |
 	r := aRectangle intersect: (0 @ 0 extent: width @ height).
 	(r width > 0 and: [r height > 0]) ifFalse: [^self].
+	self touched: r.
 	blt ifTrue: [^self bltFrom: shadow x: r left y: r top delta: width * 4 to: r].
 	SoftwareRaster
 		copy: frameBuffer + (r top * stride) + (r left * 4) stride: stride
@@ -195,6 +198,7 @@ moveCursorTo: aPoint
 			self copyToScreen: (cursor extent: Arrow first size @ Arrow size).
 			cursor := aPoint.
 			self drawCursor.
+			self flushScreen.
 			s isNil ifFalse: [s add: #'screen.pointer' since: t bytes: 0]]]
 !
 drawCursor
@@ -203,6 +207,7 @@ drawCursor
 	w := Arrow first size min: width - cursor x.
 	h := Arrow size min: height - cursor y.
 	(w > 0 and: [h > 0]) ifFalse: [^self].
+	self touched: (cursor extent: w @ h).
 	blt ifTrue: [
 		SoftwareRaster copy: scratch stride: Arrow first size * 4 from: shadow + ((cursor y * width + cursor x) * 4) stride: width * 4 width: w height: h bytesPerPixel: 4 mode: 0.
 		SoftwareRaster copy: scratch stride: Arrow first size * 4 from: sprite stride: Arrow first size * 4 width: w height: h bytesPerPixel: 4 mode: 2.
@@ -211,6 +216,14 @@ drawCursor
 		copy: frameBuffer + (cursor y * stride) + (cursor x * 4) stride: stride
 		from: sprite stride: Arrow first size * 4
 		width: w height: h bytesPerPixel: 4 mode: (rgb ifTrue: [3] ifFalse: [2])
+!
+touched: aRectangle
+	"aRectangle of the screen was just written (under my lock); the firmware's framebuffer needs no telling (KmsScreen collects them)."
+	^self
+!
+flushScreen
+	"The rectangles touched: since the last flush are written (under my lock): nothing to do on the firmware's screen (KmsScreen tells the kernel, DIRTYFB)."
+	^self
 !
 bltFrom: buffer x: sx y: sy delta: delta to: aRectangle
 	"The pixels of buffer (BGRA8 rows of delta bytes) from sx@sy onto aRectangle of the screen with the protocol's Blt, EfiBltBufferToVideo (2): its pixels are Blue Green Red Reserved, the shadow copy's order."

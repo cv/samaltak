@@ -1,13 +1,16 @@
 #!/bin/sh
 # The Samaltak Linux appliance (docs/linux-appliance.md): Ubuntu's NVIDIA kernel (the DGX Spark's) booted by its EFI
 # stub with an initramfs that holds busybox (PID 1 and the boot scripts), the hosted VM and image, an SDL3 built for
-# KMS/DRM (no X11, no Wayland), the Vulkan driver SDL_GPU presents with, the kernel modules and certificates.
+# KMS/DRM (no X11, no Wayland), the kernel modules and certificates. The World draws itself and presents on KMS
+# (KmsDisplay: a dumb buffer, evdev input) unless a variant brings the userspace SDL's own KMS path needs.
 #
 #   tools/linux-appliance/build.sh          (make linux-appliance)  ->  OUT/linux-appliance/{vmlinuz,initrd.zst}
 #
 # Environment: OUT (build), VM (vm/build/samaltak), IMAGE (OUT/samaltak.image), LINUX_KVER (the kernel's version,
-# 7.0.0-1024-nvidia), LINUX_GPU (mesa: lavapipe, for QEMU's virtio-gpu, which has no Vulkan; nvidia: the open kernel
-# modules, the GSP firmware and NVIDIA's Vulkan userspace, for the Spark; both: either), LINUX_MODULES (more modules,
+# 7.0.0-1024-nvidia), LINUX_GPU (virtio, the default: QEMU's virtio-gpu, the World a SoftwareGPU on the image's KMS
+# screen, no GPU userspace; mesa: instead SDL's KMS/DRM window with Mesa's EGL/GBM and lavapipe, the World's frames in
+# its surface; nvidia: the open kernel modules, the GSP firmware and NVIDIA's Vulkan userspace, for the Spark; both:
+# mesa and nvidia), LINUX_MODULES (more modules,
 # by name), LINUX_ARGS_FILE (the VM's arguments, one per line, into /etc/samaltak.args), LINUX_CONTROL_TOKEN_FILE
 # (the control service's token, into the root 0600: anyone who can read the initramfs can read it), SDL_SRC (an SDL3
 # checkout of the version the VM was built against; default: cloned into the cache), LINUX_CACHE
@@ -19,7 +22,7 @@ OUT=${OUT:-build}
 VM=${VM:-vm/build/samaltak}
 IMAGE=${IMAGE:-$OUT/samaltak.image}
 KVER=${LINUX_KVER:-7.0.0-1024-nvidia}
-GPU=${LINUX_GPU:-mesa}
+GPU=${LINUX_GPU:-virtio}
 CACHE=${LINUX_CACHE:-$HOME/.cache/samaltak/linux-appliance}
 W=$OUT/linux-appliance
 R=$W/root
@@ -27,6 +30,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 TRIPLE=$(gcc -dumpmachine | sed 's/-unknown//')
 LIB=/usr/lib/$TRIPLE
 PATH=$PATH:/sbin:/usr/sbin
+case $GPU in virtio|mesa|nvidia|both) ;; *) echo "linux-appliance: LINUX_GPU=$GPU: virtio, mesa, nvidia or both" >&2; exit 1 ;; esac
 mesa() { [ "$GPU" = mesa ] || [ "$GPU" = both ]; }
 nvidia() { [ "$GPU" = nvidia ] || [ "$GPU" = both ]; }
 say() { echo "linux-appliance: $*"; }
@@ -96,7 +100,8 @@ ln -s /etc/ssl/certs/ca-certificates.crt "$R/usr/lib/ssl/cert.pem"; ln -s /etc/s
 ln -s /etc/ssl/openssl.cnf "$R/usr/lib/ssl/openssl.cnf"
 
 # What SDL and the VM load at run time (dlopen), by GPU: Mesa's EGL/GBM (SDL's KMS/DRM windows) and lavapipe; NVIDIA's.
-dl="$LIB/libdrm.so.2 $LIB/libgbm.so.1 $LIB/libudev.so.1 $LIB/libEGL.so.1 $LIB/libGLESv2.so.2 $LIB/libvulkan.so.1"
+dl="$LIB/libudev.so.1"
+{ mesa || nvidia; } && dl="$dl $LIB/libdrm.so.2 $LIB/libgbm.so.1 $LIB/libEGL.so.1 $LIB/libGLESv2.so.2 $LIB/libvulkan.so.1"
 data=""
 if mesa; then
 	dl="$dl $LIB/libEGL_mesa.so.0 $LIB/gbm/dri_gbm.so $LIB/dri/kms_swrast_dri.so $LIB/dri/virtio_gpu_dri.so $LIB/dri/swrast_dri.so $LIB/libvulkan_lvp.so"
@@ -107,9 +112,12 @@ if nvidia; then
 	data="$data /usr/share/glvnd/egl_vendor.d/10_nvidia.json /usr/share/vulkan/icd.d/nvidia_icd.json /usr/share/egl/egl_external_platform.d/15_nvidia_gbm.json"
 fi
 for f in $data; do mkdir -p "$R$(dirname "$f")" && cp -L "$f" "$R$f"; done
-# The World's GPU: with Mesa alone (QEMU) lavapipe cannot show on KMS (no VK_KHR_display), so a SoftwareGPU draws and
-# HostFramePresenter copies its frames into SDL's window surface (GLES over GBM); NVIDIA's Vulkan shows on KMS itself.
-nvidia || echo 'export SAMALTAK_GPU=software' >> "$R/etc/samaltak.env"
+# The World's GPU and screen: virtio, a SoftwareGPU on the image's KMS screen (no SDL window); with Mesa alone (QEMU)
+# lavapipe cannot show on KMS (no VK_KHR_display), so a SoftwareGPU draws and HostFramePresenter copies its frames into
+# SDL's window surface (GLES over GBM); NVIDIA's Vulkan shows on KMS itself.
+[ "$GPU" = virtio ] && echo 'export SAMALTAK_SCREEN=kms SAMALTAK_GPU=software' >> "$R/etc/samaltak.env"
+mesa && ! nvidia && echo 'export SAMALTAK_GPU=software' >> "$R/etc/samaltak.env"
+echo "$GPU" > "$W/variant"
 # Copy files and their shared-library closure (ldd), each at the path the loader finds it under (the host's layout).
 seen=$W/libs.seen; : > "$seen"
 todo="$R/samaltak/samaltak $R/usr/local/lib/libSDL3.so.0 $dl"

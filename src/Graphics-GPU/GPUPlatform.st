@@ -3,7 +3,7 @@ Object subclass: #GPUPlatform
 	classVariableNames: 'Device Display'
 	package: 'Graphics-GPU'!
 
-GPUPlatform comment: 'I am the private gateway of Graphics-GPU to the platform''s GPU and windows (docs/platform.md): every method forwards to a backend, the VM''s primitives (GPUPrimitives: SDL3, SDL_GPU) where it has them, else, where the image drives the machine itself (UEFI), the firmware''s display (FirmwareDisplay: windows and events) and a SoftwareGPU on it. They are chosen on first use after the image starts (reset). Failures signal a GPUError carrying the platform''s explanation. Only the classes of Graphics-GPU use me.
+GPUPlatform comment: 'I am the private gateway of Graphics-GPU to the platform''s GPU and windows (docs/platform.md): every method forwards to a backend, the VM''s primitives (GPUPrimitives: SDL3, SDL_GPU) where it has them, else, where the image drives the machine itself (UEFI), the firmware''s display (FirmwareDisplay: windows and events) and a SoftwareGPU on it; so too on Linux without a window system where SAMALTAK_SCREEN=kms asks for it (KmsDisplay, FirmwareDisplay current there: KMS and evdev). They are chosen on first use after the image starts (reset). Failures signal a GPUError carrying the platform''s explanation. Only the classes of Graphics-GPU use me.
 
 Another GPU is opt-in: --gpu NAME on the command line, else the environment''s SAMALTAK_GPU. nv is an NvComputeGPU (Graphics-NV: the raster kernels on an NVIDIA GPU, docs/nv-gpu.md), software a SoftwareGPU; hosted they present through a HostFramePresenter in the VM''s windows, on UEFI on the firmware''s display. Where it cannot be made (no NVIDIA GPU, it does not open) the default is used, with a line on stderr.'!
 

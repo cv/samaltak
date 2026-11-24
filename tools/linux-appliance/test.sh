@@ -2,8 +2,10 @@
 # The Linux appliance end to end in QEMU (make linux-appliance-test, after make linux-appliance): a data volume with
 # samaltak.args, a control token and a VNC password (made here, 0600); boot; the time to the World's first frame on KMS
 # (QMP screendumps); the control service (samaltak-ctl connect: eval, an HTTPS request from the guest, a screenshot);
-# the image's RFB server (its banner); keyboard and tablet through evdev (QMP input into the Workspace); then the
-# World's quit, which powers the machine off. Screenshots and the console go to OUT/linux-appliance/test/.
+# the image's RFB server (its banner); keyboard and tablet through evdev (QMP input into the Workspace); on the virtio
+# variant (the default) that the World is on the image's KMS screen in the display's mode (no SDL window, no SDL_GPU)
+# and that its presents were damage-limited (DIRTYFB of the changed rectangles); then the World's quit, which powers
+# the machine off. Screenshots and the console go to OUT/linux-appliance/test/.
 set -eu
 OUT=${OUT:-build}
 W=$OUT/linux-appliance
@@ -17,12 +19,15 @@ PATH=$PATH:/sbin:/usr/sbin
 now() { date +%s.%N; }
 since() { echo "$(now) $1" | awk '{ printf "%.2f", $1 - $2 }'; }
 fail() { echo "linux-appliance-test: FAILED: $*"; tail -20 "$T/console.log"; exit 1; }
+VARIANT=$(cat "$W/variant" 2>/dev/null || echo mesa)
+# On KMS the screen's mode is the World's size; SDL's window needs to be told it.
+SIZE="--window-size 1920x1080"; [ "$VARIANT" = virtio ] && SIZE=""
 rm -rf "$T" && mkdir -p "$T/data"
 (umask 077
  head -c 24 /dev/urandom | base64 | tr -d '/+=\n' > "$T/control-token"
  head -c 6 /dev/urandom | base64 | tr -d '/+=\n' | cut -c1-8 > "$T/vnc-password"
  cp "$T/control-token" "$T/data/control-token"; cp "$T/vnc-password" "$T/data/vnc-password"
- printf '%s\n' --max-heap 2048 --window-size 1920x1080 --control --control-host 0.0.0.0 --control-port 7341 \
+ printf '%s\n' --max-heap 2048 $SIZE --control --control-host 0.0.0.0 --control-port 7341 \
 	--control-token-file /data/control-token --display --display-host 0.0.0.0 --display-port 5900 --display-vnc-auth \
 	--display-password-file /data/vnc-password > "$T/data/samaltak.args")
 truncate -s 512M "$T/data.img" && mkfs.ext4 -q -F -L SAMALTAK-DATA -d "$T/data" "$T/data.img"
@@ -51,6 +56,13 @@ r=$($CTL eval "| t r | t := Time millisecondClockValue. r := HTTPClient new get:
 	|| fail "HTTPS: $r"
 echo "linux-appliance-test: HTTPS from the guest: {status. ms} $r"
 $CTL eval "{Smalltalk vm getenv: 'SAMALTAK_GPU'. GPUPlatform device class name. (GPUPlatform display windowPixelSize: 1) printString}" | sed 's/^/linux-appliance-test: gpu: /' || true
+if [ "$VARIANT" = virtio ]; then
+	r=$($CTL eval "GPUPlatform display class name, ' ', GPUPlatform device class name, ' ', GPUPlatform display screen description, ' ', World current extent printString") || fail "KMS: $r"
+	echo "linux-appliance-test: screen: $r"
+	case $r in *"KmsDisplay SoftwareGPU /dev/dri/card"*" 1920x1080@"*" 1920@1080"*) ;; *) fail "not the World on KMS in the display's mode: $r" ;; esac
+	r=$($CTL eval "(GPUPlatform display input counts at: #devices) printString") || fail "evdev: $r"
+	echo "linux-appliance-test: evdev: $r"
+fi
 $CTL screenshot "$T/control-screenshot.png" > /dev/null 2>&1 && echo "linux-appliance-test: control screenshot $T/control-screenshot.png" || echo "linux-appliance-test: no control screenshot"
 
 # The RFB server.
@@ -64,6 +76,10 @@ $QMP screendump "$T/typed.png"
 echo "linux-appliance-test: clicked into the Workspace and typed '3 + 4' through evdev: $T/typed.png"
 sleep 4
 r=$($CTL eval '(World current instVarNamed: #topBar) statsText' 2>&1) && echo "linux-appliance-test: frames (the top bar's average of the last 32, while idle): $r" || true
+if [ "$VARIANT" = virtio ]; then
+	r=$($CTL eval "| s c n f | s := GPUPlatform display screen. c := s counts. n := (c at: #presents ifAbsent: [0]) max: 1. f := c at: #full ifAbsent: [0]. {n. f. c at: #rects ifAbsent: [0]. ((c at: #pixels ifAbsent: [0]) - (f * s extent x * s extent y)) // n. (c at: #us ifAbsent: [0]) // n. c at: #how. c at: #commits ifAbsent: [0]. c at: #busy ifAbsent: [0]. ((c at: #commitUs ifAbsent: [0]) + (c at: #dirtyfbUs ifAbsent: [0])) // ((c at: #commits ifAbsent: [0]) + (c at: #busy ifAbsent: [0]) + (c at: #flushes ifAbsent: [0]) max: 1)}") || fail "counts: $r"
+	echo "linux-appliance-test: KMS presents {damaged. whole frames. rectangles. pixels per damaged present. us per damaged present. flushed by. commits. busy. us per flush}: $r"
+fi
 
 # Quit: the VM exits 0, samaltak-run powers off, QEMU ends.
 tq=$(now)

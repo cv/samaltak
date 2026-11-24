@@ -1,13 +1,14 @@
 # Samaltak as a minimal Linux appliance (the DGX Spark)
 
 The hosted VM and image, unchanged, booted on Ubuntu's NVIDIA kernel (the Spark's own) with a small initramfs instead
-of a desktop: no systemd, no X11, no Wayland. The World draws on KMS/DRM through SDL3's kmsdrm backend, input comes
-from evdev through SDL, the network from Linux (DHCP by busybox), TLS from OpenSSL, the GPU from NVIDIA's open kernel
-module. The question behind it is cv/samaltak#20: the bare-metal UEFI app needs its own GB10 driver (GSP boot, RPC
+of a desktop: no systemd, no X11, no Wayland. The World draws itself and shows on KMS/DRM through the image's own
+KMS screen (`KmsDisplay`: a dumb buffer, damage-limited atomic commits), input comes from evdev read by the image
+(`EvdevInput`), the network from Linux (DHCP by busybox), TLS from OpenSSL, the GPU from NVIDIA's open kernel
+module; SDL3's kmsdrm backend remains as a variant (section 2). The question behind it is cv/samaltak#20: the bare-metal UEFI app needs its own GB10 driver (GSP boot, RPC
 transport, kernel-RM side); an appliance gets all of that from `nvidia.ko` and runs today's System-NV (Phase A, RM
 ioctls) and NvComputeGPU as they are.
 
-    make linux-appliance               # OUT/linux-appliance/{vmlinuz,initrd.zst}; LINUX_GPU=nvidia for the Spark
+    make linux-appliance               # OUT/linux-appliance/{vmlinuz,initrd.zst}; LINUX_GPU=virtio (QEMU), nvidia (the Spark)
     make linux-appliance-run           # boot it in QEMU (arm64, KVM), serial console on stdio
     make linux-appliance-test          # end to end in QEMU: World on KMS, control, HTTPS, RFB, input, power off
 
@@ -19,9 +20,9 @@ a QMP helper for screendumps and input (`qmp.py`) and the root's own files (`roo
 
 | | Linux appliance (QEMU, measured) | UEFI app (today) |
 | --- | --- | --- |
-| QEMU start to the World on the screen | **1.85-2.05 s** (KVM, AAVMF, 1920x1080 virtio-gpu) | QEMU start to `3 + 4` headless: 5.4 s (vvfat ESP, 512 MB image disk, boot manager scan) |
+| QEMU start to the World on the screen | **1.5-2.2 s** on the image's KMS screen, under a load of 23-27 (SDL's kmsdrm: 1.85-2.05 s, unloaded) (KVM, AAVMF, 1920x1080 virtio-gpu) | QEMU start to `3 + 4` headless: 5.4 s (vvfat ESP, 512 MB image disk, boot manager scan) |
 | kernel start to the VM's start (uptime) | 0.42-0.51 s; DHCP lease at 0.44 s, in the background | - |
-| artifacts | kernel 20 MB + initramfs 89 MB (QEMU, Mesa) or 136 MB (Spark: GSP firmware 60 MB, NVIDIA userspace 39 MB) | 1.06 MB EFI application + the image on a disk |
+| artifacts | kernel 20 MB + initramfs 30 MB (QEMU, the image's KMS screen; 89 MB with Mesa for SDL's) or 136 MB (Spark: GSP firmware 60 MB, NVIDIA userspace 39 MB) | 1.06 MB EFI application + the image on a disk |
 | GPU on the Spark | `nvidia.ko` boots GSP; System-NV, NvComputeGPU, CUDA, Vulkan as hosted | #20: our own GSP boot and RM transport, not done |
 | NICs, Wi-Fi, NVMe, USB | Linux's (r8127 for the Spark's 10 GbE, mt7925e, nvme, xhci) | virtio, e1000e, the firmware's SNP and Block I/O |
 | TCP/TLS | Linux, OpenSSL: an HTTPS GET of example.com from the guest in 68-284 ms | our NetworkStack, mbedTLS (the VM's TLS engine) |
@@ -138,15 +139,55 @@ shipped image is only a fallback. Kernel and NVIDIA module updates are Ubuntu's 
 | time | RTC (UEFI GetTime) | the RTC through Linux; no NTP in Ubuntu's busybox-static: SNTP in the image (planned for UEFI anyway) or a static `ntpd` |
 | randomness | EFI_RNG, RNDR | `getrandom` |
 | network | NetworkStack on our drivers | Linux; DHCP by udhcpc; Wi-Fi would add wpa_supplicant and `mt7925e`'s firmware |
-| display, input | FirmwareDisplay (GOP), HID | SDL3 kmsdrm, evdev (section 2) |
+| display, input | FirmwareDisplay (GOP: FirmwareScreen), HID | KmsDisplay (KMS: KmsScreen), evdev (EvdevInput): section 2 |
 
 ## 2. Display and input without X or Wayland
 
-SDL3's kmsdrm backend opens `/dev/dri/card0`, sets the mode and pages through GBM; SDL's evdev code reads
-`/dev/input/event*`. Under QEMU the display is virtio-gpu (KMS through `virtio_gpu`), the input virtio-keyboard and
-virtio-tablet; on the Spark `nvidia-drm` with `modeset=1` drives the GB10's display engine.
+Under QEMU the display is virtio-gpu (KMS through `virtio_gpu`), the input virtio-keyboard and virtio-tablet; on
+the Spark `nvidia-drm` with `modeset=1` drives the GB10's display engine, and USB HID devices are evdev devices.
 
-What the spike found:
+### The image's KMS screen and evdev input (the default)
+
+`SAMALTAK_SCREEN=kms` (`/etc/samaltak.env` of `LINUX_GPU=virtio` and `nvidia`) makes `FirmwareDisplay current`
+a **`KmsDisplay`** (System-Devices), the UEFI World's structure with Linux below it: one window, the screen, a
+`SoftwareGPU` (or `--gpu nv`, an `NvComputeGPU`) drawing into memory and presenting through it, the frame tap,
+RFB input and clipboard as on UEFI. No SDL window, no SDL_GPU, no Mesa, no NVIDIA userspace; SDL's video is never
+started. `kms:/dev/dri/card1` names a device; without one, the first card with a connected output, a real driver
+before `simpledrm`. A screen that cannot be opened leaves the VM's (SDL) windows to it, with a line on stderr.
+
+- **`KmsScreen`** (a `FirmwareScreen` on a mapped buffer, through `PosixDevice` ioctl and mmap, linux/drm_mode.h):
+  GETRESOURCES, GETCONNECTOR (the first connected one with modes), GETENCODER (its CRTC), CREATE_DUMB, ADDFB2
+  (XRGB8888: the bytes the World draws), MAP_DUMB and mmap, SETCRTC. **The display's mode is the World's size**: the
+  connector's preferred mode (virtio-gpu's 1920x1080 at 75 Hz in the test, without `--window-size`), or the
+  `--window-size` mode if the connector has it. The damaged rectangles (and the pointer's) go from the shadow copy
+  into the buffer and are then flushed as a **non-blocking atomic commit** of the same framebuffer with them as
+  `FB_DAMAGE_CLIPS` (universal planes and atomic client caps, the plane that shows the framebuffer, its `FB_ID` and
+  `FB_DAMAGE_CLIPS` properties, a blob of `drm_mode_rect`s); while the last commit is still being done (`EBUSY`)
+  the rectangles wait for the next one, 4 ms later at the latest. A driver without damage clips gets `DIRTYFB`, and
+  one without that (it scans out the buffer as it is) nothing. The first version used `DIRTYFB` throughout: on
+  virtio-gpu it blocks for the host's flush, **7.7 ms a frame** (the VM's one thread waits); the commit takes
+  **0.1-0.3 ms**, a damaged present 0.3-0.75 ms in all. `KmsScreen>>counts` keeps the numbers; the RefreshClock runs
+  at the mode's rate. The buffer is the one being scanned out (no page flips), so a frame can tear.
+- **`EvdevInput`** reads every `/dev/input/event*` that is a keyboard or pointer (`EvdevDevice`: EVIOCGBIT,
+  EVIOCGPROP, EVIOCGABS) with non-blocking `read(2)`s every 8 ms (the one VM change: `deviceRead` and
+  `deviceWrite` use `read(2)` and `write(2)` for a negative offset, as evdev refuses `pread`; `PosixDevice
+  read:into:count:` answers nil for EAGAIN), and looks for new nodes every 2 s: devtmpfs makes them, so **hotplug
+  works without udev**. Keys become the image's events with SDL's keycodes and Linux's modifiers (Alt is cmd, the logo
+  key alt); text by **the kernel's keymap** (its plain, shift and AltGr tables through KDGKBENT on `/dev/tty0`, so
+  busybox `loadkmap` sets the layout), the US one where it has none (the keypad); Caps Lock; Right Alt types as AltGr
+  where the keymap's AltGr table has a character. Mice move the pointer by their motion, tablets and touch screens by
+  their point, touchpads by the finger's motion (no tap-to-click: their buttons click); wheels scroll. 1.3% of a
+  core while idle under QEMU.
+
+`make linux-appliance-test` checks it on the default (`virtio`) variant: `KmsDisplay SoftwareGPU /dev/dri/card0
+(virtio_gpu) 1920x1080@75`, the World 1920@1080, evdev's `QEMU Virtio Keyboard` and `QEMU Virtio Tablet`, a click
+and typed text in the Workspace, and the presents' counts (e.g. 35 damaged presents of 128,000 pixels on average
+and 7 whole frames, 42 commits, 9 of them retried after EBUSY, 0.2 ms a flush).
+
+### SDL's kmsdrm (`LINUX_GPU=mesa`; NVIDIA's Vulkan)
+
+SDL3's kmsdrm backend opens `/dev/dri/card0`, sets the mode and pages through GBM; SDL's evdev code reads
+`/dev/input/event*`. What the spike found:
 
 - **SDL_GPU cannot present on KMS with Ubuntu's lavapipe**: SDL's kmsdrm Vulkan surface needs `VK_KHR_display`,
   and lavapipe offers only headless, xcb, xlib and wayland surfaces (QEMU 8.2 has no Venus either, so there is no
@@ -167,11 +208,12 @@ What the spike found:
   events, which only udevd sends: a USB keyboard plugged in after boot is not seen. Running systemd's `udevd` from
   the root (2 MB with its rules) or teaching SDL's hint `SDL_EVDEV_DEVICES` from an mdev hook are the options.
 - The World's window on kmsdrm is the screen: `--window-size` should be the display's mode (the test passes
-  `1920x1080`; without it SDL set the 1440x900 mode the World asked for). The image could ask SDL for the display
-  mode when the video driver is kmsdrm.
+  `1920x1080` on this variant; without it SDL set the 1440x900 mode the World asked for).
 
 Boot to the World, measured by `make linux-appliance-test` (QMP screendumps every 0.1 s until the World is on the
-screen): **1.85-2.05 s** from QEMU's start, of which about 0.7 s is AAVMF and loading the kernel and initramfs,
+screen): on the image's KMS screen **1.5-2.2 s** from QEMU's start under a load of 23-27 (an initramfs of 30 MB
+instead of 89 MB to load and unpack; the kernel's uptime at the VM's start 0.28-0.49 s); with SDL's kmsdrm
+**1.85-2.05 s** unloaded, of which about 0.7 s is AAVMF and loading the kernel and initramfs,
 0.45 s the kernel and `rcS`, and 0.7-0.9 s the VM from its start to the World's first frame. From the VM's
 exit to the power down 0.2 s (`samaltak-run` runs `rcK` and `poweroff -f` itself); the control request `Smalltalk
 quit: 0` to QEMU's end about 3 s, most of it the VM's own quit.
@@ -190,26 +232,23 @@ Two ways to get the World onto the Spark's screen:
 | userspace | NVIDIA's Vulkan ICD, EGL and GBM: 116 MB, 39 MB compressed, proprietary (redistributable), version-locked to nvidia.ko | none beyond our VM and SDL |
 | present | VK_KHR_display through SDL's kmsdrm: as in a window | the window surface (this change) needs a GLES driver on KMS (NVIDIA's EGL+GBM again); a KMS dumb-buffer presenter does not |
 | shaders | the Renderer's GLSL via shaderc, as on any Linux | the raster kernels (cubins in the image) |
-| works today | yes, on this Spark's userspace (untested on bare KMS: the Spark's display is the desktop's now) | rendering yes; presenting needs the dumb-buffer presenter |
+| works today | yes, on this Spark's userspace (untested on bare KMS: the Spark's display is the desktop's now) | rendering yes; presenting through `KmsDisplay` (section 2), proven on virtio-gpu, untested on nvidia-drm |
 
-**Recommendation:** boot the Spark first with NVIDIA's userspace (`LINUX_GPU=nvidia`): it is the shortest path to
-a World on the GB10, with `--gpu nv` available on the same boot. Then add a **KMS presenter in the image** (a
-`KmsScreen` beside `FirmwareScreen`: DRM ioctls through `PosixDevice` (open, ioctl and mmap exist), a dumb buffer
-as the back buffer, page flips) and **evdev input in the image** (the device's fds through `PosixDevice` too; one VM
-change: `deviceRead` must use `read(2)` for a negative offset, as evdev refuses `pread`): the appliance's World is
-then NvComputeGPU on the GB10 with no NVIDIA userspace and no SDL, the same structure as the UEFI World
-(FirmwareDisplay + SoftwareGPU) with Linux below it, and the root drops to about 100 MB, most of it GSP firmware.
+The KMS screen and evdev input in the image (section 2) are done: the appliance's World can be NvComputeGPU on the
+GB10 with no NVIDIA userspace and no SDL, the same structure as the UEFI World (FirmwareDisplay + SoftwareGPU) with
+Linux below it.
 
 ## 4. The spike
 
-`make linux-appliance` builds both variants on this Spark (`LINUX_GPU=mesa`, the default, for QEMU; `nvidia`; `both`)
+`make linux-appliance` builds the variants on this Spark (`LINUX_GPU=virtio`, the default, for QEMU with the image's
+KMS screen; `mesa`, QEMU with SDL's kmsdrm; `nvidia`; `both`: mesa and nvidia)
 in about 20 s once the packages are cached (the first build downloads 391 MB of .debs, most of it the kernel's
 modules package, and builds SDL in 30 s). `make linux-appliance-test` (15 s) boots the QEMU variant with a data
 volume made for it (ext4 with `samaltak.args`, a random control token and VNC password, 0600) and checks:
 
 | check | result |
 | --- | --- |
-| the World on KMS (virtio-gpu, 1920x1080) | 1.85-2.1 s after QEMU's start (4.8-5.5 s while other agents' gates loaded the machine) |
+| the World on KMS (virtio-gpu, 1920x1080) | the image's KMS screen: 1.5-2.2 s after QEMU's start (load 23-27); SDL's kmsdrm (`mesa`): 1.85-2.1 s (4.8-5.5 s while other agents' gates loaded the machine) |
 | the control service (`samaltak-ctl connect`, the token from the data volume) | `3 + 4` = 7; a screenshot |
 | HTTPS from the guest (`HTTPClient get: 'https://example.com/'`, OpenSSL, DNS from DHCP) | 200 in 68-284 ms |
 | the RFB server on 0.0.0.0:5900 (VNC authentication) | `RFB 003.008` |
@@ -258,8 +297,8 @@ nvidia.ko and nova-core as references and GB10 support in neither fully public.
 3. Check, on the console and over the control service: `nvidia.ko` loads and GSP boots (`dmesg`), `/dev/nvidia0`
    exists, r8127 gets a lease, the World on the screen through NVIDIA's Vulkan, keyboard and mouse (USB HID), then
    `--gpu nv`, and Tests-NV and NvComputeGPUTest over the control service.
-4. Then the KMS presenter and evdev in the image (section 3) and drop NVIDIA's userspace; a squashfs or UKI layout,
-   A/B slots, udevd for hotplug, SNTP.
+4. Then without NVIDIA's userspace: the image's KMS screen on nvidia-drm and evdev (section 2), `--gpu nv`; a squashfs
+   or UKI layout, A/B slots, SNTP.
 
 ## 8. The UEFI work: keep it for
 

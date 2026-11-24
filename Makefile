@@ -641,8 +641,9 @@ test-install: uefi
 	rm -rf $(INSTALL_USB) $(UEFI)/install-test
 
 # The Linux appliance (docs/linux-appliance.md): Ubuntu's NVIDIA kernel booted by its EFI stub with an initramfs of
-# busybox (PID 1), the hosted VM and image, SDL3 for KMS/DRM, into OUT/linux-appliance; LINUX_GPU=mesa (QEMU, the
-# default) or nvidia (the DGX Spark: the open kernel modules, GSP firmware, NVIDIA's Vulkan). linux-appliance-run boots
+# busybox (PID 1), the hosted VM and image, SDL3 for KMS/DRM, into OUT/linux-appliance; LINUX_GPU=virtio (QEMU, the
+# default: the image's KMS screen), mesa (QEMU, SDL's kmsdrm) or nvidia (the DGX Spark: the open kernel modules, GSP
+# firmware, NVIDIA's Vulkan). linux-appliance-run boots
 # it in QEMU (arm64, KVM), linux-appliance-test end to end: the World on KMS, control, HTTPS, RFB, input, power off.
 linux-appliance: fresh-image
 	OUT=$(OUT) tools/linux-appliance/build.sh
