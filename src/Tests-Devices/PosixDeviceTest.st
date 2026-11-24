@@ -19,6 +19,7 @@ onFirmware
 	self should: [PosixDevice munmap: 4096 length: 4096] raise: OSError.
 	self should: [PosixDevice read: 0 at: 0 into: 4096 count: 4] raise: OSError.
 	self should: [PosixDevice write: 0 at: 0 from: 4096 count: 4] raise: OSError.
+	self should: [PosixDevice read: 0 into: 4096 count: 4] raise: OSError.
 	self should: [PosixDevice close: 0] raise: OSError
 !
 errorOf: aBlock
@@ -49,6 +50,27 @@ testReadAndWriteAtAnOffset
 	self assert: (self errorOf: [PosixDevice read: -1 at: 0 into: a count: 4]) errno equals: OSError EBADF]
 		ensure: [Machine free: a. PosixDevice close: fd].
 	self assert: ((File readBytes: path) copyFrom: 5001 to: 5008) equals: #[1 2 3 4 5 6 7 8]
+!
+testReadAndWriteInSequence
+	"read(2) and write(2) at the descriptor's position (as evdev needs: it refuses pread)."
+	| path fd a |
+	Machine hasFirmware ifTrue: [^self onFirmware].
+	path := self scratchPath: 'seq'.
+	File writeBytes: ByteArray new to: path.
+	fd := self openRW: path.
+	a := Machine allocate: 16.
+	[Machine bytesAt: a put: #[1 2 3 4 5 6].
+	self assert: (PosixDevice write: fd from: a count: 3) equals: 3.
+	self assert: (PosixDevice write: fd from: a + 3 count: 3) equals: 3]
+		ensure: [PosixDevice close: fd].
+	fd := self openRW: path.
+	[Machine bytesAt: a put: (ByteArray new: 16).
+	self assert: (PosixDevice read: fd into: a count: 4) equals: 4.
+	self assert: (PosixDevice read: fd into: a + 4 count: 4) equals: 2.
+	self assert: (PosixDevice read: fd into: a count: 4) equals: 0.
+	self assert: (Machine bytesAt: a + 4 count: 2) equals: #[5 6].
+	self assert: (self errorOf: [PosixDevice read: -1 into: a count: 4]) errno equals: OSError EBADF]
+		ensure: [Machine free: a. PosixDevice close: fd]
 !
 testAnonymousMapping
 	| a |

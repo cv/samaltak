@@ -3,7 +3,7 @@ VMPlatformModule subclass: #PlatformDevices
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
-PlatformDevices comment: 'Devices of the operating system as drivers in Smalltalk reach them (the device primitives of PlatformPrimitives, PosixDevice in the image): open(2) with the caller''s flags, close(2), ioctl(2) with a word (an integer or an address of Machine memory), pread(2) and pwrite(2) at an offset (a VFIO device''s regions), mmap(2) of a descriptor (or anonymous memory) and munmap(2). The descriptors are raw (not in a handle table): the image owns them. Each answers its result, or minus errno where the call failed, the error string set to the call''s strerror. constants: fills the host''s values of the flags and requests the image names (they differ between Linux and macOS). On UEFI, VM-UEFI''s UefiNoIO replaces me: every call answers PF_NO_DEVICES, and the primitive fails.'!
+PlatformDevices comment: 'Devices of the operating system as drivers in Smalltalk reach them (the device primitives of PlatformPrimitives, PosixDevice in the image): open(2) with the caller''s flags, close(2), ioctl(2) with a word (an integer or an address of Machine memory), pread(2) and pwrite(2) at an offset (a VFIO device''s regions), read(2) and write(2) where the offset is negative (evdev, which refuses pread), mmap(2) of a descriptor (or anonymous memory) and munmap(2). The descriptors are raw (not in a handle table): the image owns them. Each answers its result, or minus errno where the call failed, the error string set to the call''s strerror. constants: fills the host''s values of the flags and requests the image names (they differ between Linux and macOS). On UEFI, VM-UEFI''s UefiNoIO replaces me: every call answers PF_NO_DEVICES, and the primitive fails.'!
 
 !PlatformDevices methodsFor: 'devices'!
 failed: what
@@ -67,7 +67,7 @@ deviceMap: length protection: prot flags: flags fd: fd offset: offset
 	^(self cCoerce: p to: 'int64_t')
 !
 deviceRead: fd address: address count: n offset: offset
-	"pread(fd, address, n, offset) -> the bytes read, or minus errno; retried on EINTR."
+	"pread(fd, address, n, offset), or read(fd, address, n) for a negative offset -> the bytes read, or minus errno; retried on EINTR."
 	<function>
 	<var: #fd type: 'int32_t'>
 	<var: #address type: 'uint64_t'>
@@ -75,13 +75,15 @@ deviceRead: fd address: address count: n offset: offset
 	<var: #offset type: 'int64_t'>
 	<returns: 'int64_t'>
 	| r |
-	[r := posixProcesses pread: fd into: (self cCoerce: address to: 'void *') count: n offset: offset.
+	[r := offset < 0
+		ifTrue: [posixIO read: fd into: (self cCoerce: address to: 'void *') count: n]
+		ifFalse: [posixProcesses pread: fd into: (self cCoerce: address to: 'void *') count: n offset: offset].
 	 r < 0 and: [posixIO errno = posixIO EINTR]] whileTrue.
-	r < 0 ifTrue: [^self failed: 'pread'].
+	r < 0 ifTrue: [^self failed: (offset < 0 ifTrue: ['read'] ifFalse: ['pread'])].
 	^r asInt64
 !
 deviceWrite: fd address: address count: n offset: offset
-	"pwrite(fd, address, n, offset) -> the bytes written, or minus errno; retried on EINTR."
+	"pwrite(fd, address, n, offset), or write(fd, address, n) for a negative offset -> the bytes written, or minus errno; retried on EINTR."
 	<function>
 	<var: #fd type: 'int32_t'>
 	<var: #address type: 'uint64_t'>
@@ -89,9 +91,11 @@ deviceWrite: fd address: address count: n offset: offset
 	<var: #offset type: 'int64_t'>
 	<returns: 'int64_t'>
 	| r |
-	[r := posixProcesses pwrite: fd from: (self cCoerce: address to: 'void *') count: n offset: offset.
+	[r := offset < 0
+		ifTrue: [posixIO write: fd bytes: (self cCoerce: address to: 'void *') count: n]
+		ifFalse: [posixProcesses pwrite: fd from: (self cCoerce: address to: 'void *') count: n offset: offset].
 	 r < 0 and: [posixIO errno = posixIO EINTR]] whileTrue.
-	r < 0 ifTrue: [^self failed: 'pwrite'].
+	r < 0 ifTrue: [^self failed: (offset < 0 ifTrue: ['write'] ifFalse: ['pwrite'])].
 	^r asInt64
 !
 deviceUnmap: address length: length

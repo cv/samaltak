@@ -25,6 +25,10 @@ ENOENT
 EBADF
 	^9
 !
+EAGAIN
+	"Linux's (macOS's is 35): a non-blocking descriptor has nothing now."
+	^11
+!
 ENOMEM
 	^12
 !

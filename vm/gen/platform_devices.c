@@ -83,13 +83,13 @@ int64_t device_read(int32_t fd, uint64_t address, uint64_t n, int64_t offset)
 {
     ssize_t r;
     for (;;) {
-        r = pread(fd, (void *)address, n, offset);
+        r = offset < 0 ? read(fd, (void *)address, n) : pread(fd, (void *)address, n, offset);
         if (!((r < 0) && (errno == EINTR))) {
             break;
         }
     }
     if (r < 0) {
-        return platform_devices_failed("pread");
+        return platform_devices_failed(offset < 0 ? "read" : "pread");
     }
     return (int64_t)r;
 }
@@ -108,13 +108,13 @@ int64_t device_write(int32_t fd, uint64_t address, uint64_t n, int64_t offset)
 {
     ssize_t r;
     for (;;) {
-        r = pwrite(fd, (void *)address, n, offset);
+        r = offset < 0 ? write(fd, (void *)address, n) : pwrite(fd, (void *)address, n, offset);
         if (!((r < 0) && (errno == EINTR))) {
             break;
         }
     }
     if (r < 0) {
-        return platform_devices_failed("pwrite");
+        return platform_devices_failed(offset < 0 ? "write" : "pwrite");
     }
     return (int64_t)r;
 }

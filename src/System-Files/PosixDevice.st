@@ -10,6 +10,8 @@ PosixDevice comment: 'I am the devices of a POSIX host (Linux, macOS) for driver
 	ioctl: fd request: anInteger argument: anInteger	-> ioctl''s result (argument: an Integer, or the address of memory outside the heap, Machine allocate:, that the call reads or fills)
 	read: fd at: offset into: address count: n	-> pread''s result: bytes of fd at offset into Machine memory (a VFIO device''s configuration region)
 	write: fd at: offset from: address count: n	-> pwrite''s result
+	read: fd into: address count: n	-> read(2)''s result, at the descriptor''s position, or nil where an O_NONBLOCK descriptor has nothing (EAGAIN): a device that refuses pread (evdev: its input_events), a pipe
+	write: fd from: address count: n	-> write(2)''s result
 	mmap: length protection: p flags: f fd: fd offset: off	-> the address of the mapping (read and write it with Machine uint32At: and its siblings; fd -1 and MAP_ANONYMOUS: zeroed memory of the process)
 	munmap: address length: n
 
@@ -98,6 +100,17 @@ read: fd at: offset into: address count: n
 write: fd at: offset from: address count: n
 	"pwrite(2): n bytes from the memory at address to fd at offset; answer how many were written."
 	^self check: (self primWrite: fd address: address count: n offset: offset) call: 'pwrite' path: nil
+!
+read: fd into: address count: n
+	"read(2) (the device primitive with offset -1): up to n bytes of fd into the memory at address; answer how many, or nil where fd is non-blocking and has none now (EAGAIN)."
+	| r |
+	r := self primRead: fd address: address count: n offset: -1.
+	(r notNil and: [r < 0 and: [r negated = OSError EAGAIN or: [r negated = 35]]]) ifTrue: [^nil].
+	^self check: r call: 'read' path: nil
+!
+write: fd from: address count: n
+	"write(2): n bytes from the memory at address to fd; answer how many were written."
+	^self check: (self primWrite: fd address: address count: n offset: -1) call: 'write' path: nil
 ! !
 
 !PosixDevice class methodsFor: 'constants'!

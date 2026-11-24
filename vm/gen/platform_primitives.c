@@ -450,7 +450,7 @@ void prim_device_read(void)
     a = &local;
     count = int_arg(2);
     offset = int_arg(3);
-    if (bad || ((count < 0) || ((offset < 0) || (!u64_of(prim_base[2], a))))) {
+    if (bad || ((count < 0) || (!u64_of(prim_base[2], a)))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
@@ -536,7 +536,7 @@ void prim_device_write(void)
     a = &local;
     count = int_arg(2);
     offset = int_arg(3);
-    if (bad || ((count < 0) || ((offset < 0) || (!u64_of(prim_base[2], a))))) {
+    if (bad || ((count < 0) || (!u64_of(prim_base[2], a)))) {
         prim_status = PS_FAIL;
         prim_error_code = -1;
         return;
