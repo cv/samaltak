@@ -281,5 +281,5 @@ extent
 !
 initialize
 	Tools registerOpener: #accounts with: [:tool | self open].
-	ToolsMenu register: 'Accounts' description: 'API key · GitHub token' order: 66 action: [:point | self openAt: point]
+	ToolsMenu register: 'Accounts' description: 'API key · GitHub token' group: #settings order: 66 action: [:point | self openAt: point]
 ! !

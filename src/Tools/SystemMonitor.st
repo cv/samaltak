@@ -349,6 +349,6 @@ openIn: aRectangle
 	^window
 !
 initialize
-	ToolsMenu register: 'System Monitor' description: 'heap', ProfilerFormat dot, 'CPU' order: 45 action: [:point | self openAt: point].
+	ToolsMenu register: 'System Monitor' description: 'heap', ProfilerFormat dot, 'CPU' group: #tools order: 45 action: [:point | self openAt: point].
 	Tools registerOpener: #monitor with: [:arg | self open]
 ! !

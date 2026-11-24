@@ -119,7 +119,7 @@ syncHistory
 
 !Paint class methodsFor: 'class initialization'!
 initialize
-	ToolsMenu register: 'Paint' description: 'pencil · shapes · fill' order: 58 action: [:point | self openAt: point].
+	ToolsMenu register: 'Paint' description: 'pencil · shapes · fill' group: #apps order: 58 action: [:point | self openAt: point].
 	Tools registerOpener: #paint with: [:argOrNil | self open]
 ! !
 

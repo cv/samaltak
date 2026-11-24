@@ -36,6 +36,15 @@ itemLabeled: aString
 !
 isEmpty
 	^items isEmpty
+!
+allItems
+	"My items and, after each submenu item, its submenu's, depth first."
+	| all |
+	all := OrderedCollection new.
+	items do: [:each |
+		all add: each.
+		each submenu isNil ifFalse: [all addAll: each submenu allItems]].
+	^all
 ! !
 
 !Menu methodsFor: 'building'!

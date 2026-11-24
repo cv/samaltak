@@ -75,7 +75,7 @@ headerFor: aPath kind: aString
 !FileBrowserTest methodsFor: 'tests'!
 testOpensAtTheWorkingDirectory
 	| labels other |
-	labels := ((ToolsMenu worldMenuAt: nil) items select: [:i | i isItem]) collect: [:i | i label].
+	labels := ((ToolsMenu worldMenuAt: nil) allItems select: [:i | i isItem]) collect: [:i | i label].
 	self assert: (labels includes: 'File Browser').
 	self assert: browser root equals: Directory current.
 	self assert: self directories equals: (Array with: Directory current).

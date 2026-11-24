@@ -453,6 +453,6 @@ openIn: aRectangle
 	^window
 !
 initialize
-	ToolsMenu register: 'Claude''s Robot' description: 'bounce juggling' order: 58 action: [:point |
+	ToolsMenu register: 'Claude''s Robot' description: 'bounce juggling' group: #apps order: 58 action: [:point |
 		self openIn: (Tools placeAt: point extent: 500 @ 480)]
 ! !
