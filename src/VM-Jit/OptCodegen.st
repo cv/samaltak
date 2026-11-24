@@ -1100,8 +1100,13 @@ emitIndexCheck: n
 		x := self src: nd a into: self scratchA.
 		asm comment: 'within bounds: checked once before the loop'.
 		i := self src: nd b into: self scratchB.
-		"the 1-based index, the element's address one displacement less an element (indexDisplacementOf:)"
-		asm asr: X17 with: i imm: 1.
+		(self isScaledIndex: n)
+			ifTrue: [
+				"arm64, 8- or 4-byte elements: X17 := the object plus the tagged index (2i + 1) times half an element, the element at scaledOffsetOf: from there"
+				asm add: X17 with: x with: i shift: SHIFT_LSL amount: ((self elementBytes: nd aux asInt32) = 8 ifTrue: [2] ifFalse: [1])]
+			ifFalse: [
+				"the 1-based index, the element's address one displacement less an element (indexDisplacementOf:)"
+				asm asr: X17 with: i imm: 1].
 		^x].
 	s := self deoptLabelFor: n.
 	x := self src: nd a into: self scratchA.
@@ -1165,14 +1170,20 @@ emitIndexLoad: n
 			(ek = E_W32 or: [ek = E_U32 or: [ek = E_U32BE]]) ifTrue: [asm ldr: W16 base: x index: X17 shift: (ek = E_W32 ifTrue: [2] ifFalse: [0]) offset: disp].
 			(ek = E_BYTE or: [ek = E_CHAR]) ifTrue: [asm ldrb: W16 base: x index: X17 offset: disp]]
 		ifFalse: [
-			asm add: X16 with: x imm: (self indexDisplacementOf: n).
+			(self isScaledIndex: n) ifTrue: [
+				ek = E_PTR ifTrue: [
+					r := self dst: n.
+					asm ldr: r base: X17 offset: (self scaledOffsetOf: n).
+					^self def: n from: r].
+				asm ldr: W16 base: X17 offset: (self scaledOffsetOf: n)].
+			(self isScaledIndex: n) ifFalse: [asm add: X16 with: x imm: (self indexDisplacementOf: n)].
 			ek = E_PTR ifTrue: [
 				r := self dst: n.
 				asm ldr: r base: X16 index: X17 extend: EXT_LSL shift: 3.
 				^self def: n from: r].
 			(ek = E_U16 or: [ek = E_U16BE or: [ek = E_I16BE]]) ifTrue: [asm ldrh: W16 base: X16 index: X17].
 			ek = E_I16 ifTrue: [asm ldrsh: X16 base: X16 index: X17].
-			ek = E_W32 ifTrue: [asm ldr: W16 base: X16 index: X17 extend: EXT_LSL shift: 2].
+			(ek = E_W32 and: [(self isScaledIndex: n) not]) ifTrue: [asm ldr: W16 base: X16 index: X17 extend: EXT_LSL shift: 2].
 			(ek = E_U32 or: [ek = E_U32BE]) ifTrue: [asm ldr: W16 base: X16 index: X17].
 			(ek = E_BYTE or: [ek = E_CHAR]) ifTrue: [asm ldrb: W16 base: X16 index: X17]].
 	(ek = E_U16BE or: [ek = E_I16BE or: [ek = E_U32BE]]) ifTrue: [
@@ -1206,8 +1217,22 @@ emitWordStore: n object: x label: s
 			asm cbnz: X16 to: s].
 	asm lsr: X16 with: v imm: 1.
 	asm isX64 ifTrue: [^asm str: W16 base: x index: X17 shift: (nd aux = E_W32 ifTrue: [2] ifFalse: [0]) offset: (self indexDisplacementOf: n)].
+	(self isScaledIndex: n) ifTrue: [^asm str: W16 base: X17 offset: (self scaledOffsetOf: n)].
 	asm add: X17 with: x with: X17 shift: SHIFT_LSL amount: (nd aux = E_W32 ifTrue: [2] ifFalse: [0]).
 	asm str: W16 base: X17 offset: (self indexDisplacementOf: n)
+!
+isScaledIndex: n
+	"Indexed access n checks no bounds and its elements are 8 or 4 bytes (arm64): emitIndexCheck: leaves the object plus the tagged index times half an element in X17, the element at scaledOffsetOf: from there."
+	| nd |
+	nd := ir node: n.
+	^asm isX64 not and: [(nd flags bitAnd: NF_NOBOUNDS) ~= 0 and: [(nd aux = E_PTR or: [nd aux = E_W32]) and: [nd aux2 < 24]]]
+!
+scaledOffsetOf: n
+	"isScaledIndex: n's element's offset from X17: its header and fixed fields less one and a half elements (the tagged index 2i + 1 times half an element is i elements and a half)."
+	| nd size |
+	nd := ir node: n.
+	size := self elementBytes: nd aux asInt32.
+	^16 + (8 * nd aux2) - (3 * size quo: 2)
 !
 isFusedLoad: v
 	"v is an indexed load of a SmallInteger element (not a pointer, not a Character) that only the unchecked sum or difference right after it reads (arm64): it leaves the element untagged in X16, which that adds or subtracts shifted (emitAddSub:)."
@@ -1232,7 +1257,7 @@ emitIndexStore: n
 		asm b: s if: COND_NE].
 	(ek = E_W32 or: [ek = E_U32]) ifTrue: [^self emitWordStore: n object: x label: s].
 	(asm isX64 and: [ek ~= E_PTR]) ifTrue: [^self emitByteStoreX64: n object: x label: s].
-	asm isX64 ifFalse: [
+	(asm isX64 or: [self isScaledIndex: n]) ifFalse: [
 		asm add: X16 with: x imm: (self indexDisplacementOf: n).
 		asm add: X16 with: X16 with: X17 shift: SHIFT_LSL amount: (ek = E_PTR ifTrue: [3] ifFalse: [0])].
 	v := self src: nd c into: self scratchB.
@@ -1258,7 +1283,10 @@ emitIndexStore: n
 		^self].
 	asm isX64
 		ifTrue: [asm str: v base: x index: X17 shift: 3 offset: (self indexDisplacementOf: n)]
-		ifFalse: [asm str: v base: X16 offset: 0].
+		ifFalse: [
+			(self isScaledIndex: n)
+				ifTrue: [asm str: v base: X17 offset: (self scaledOffsetOf: n)]
+				ifFalse: [asm str: v base: X16 offset: 0]].
 	(ir node: nd c) op asInt32 = O_CONST ifTrue: [
 		(((ir node: nd c) aux bitAnd: 7) ~= 0 or: [(self isYoung: (ir node: nd c) aux asUInt64) not]) ifTrue: [^self]].
 	done := asm newLabel.
