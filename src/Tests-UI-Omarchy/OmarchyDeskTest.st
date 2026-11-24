@@ -245,8 +245,10 @@ testDraggingACardToAnotherStack
 	self assert: (self waitFor: [desk dragged isNil]).
 	(self waitFor: [(desk placeOf: 'samaltak-test') = (1010 @ 820)]) ifFalse: [self assert: (desk placeOf: 'samaltak-test') equals: 1010 @ 820].
 	self assert: (desk placeOf: 'samaltak-test-2') equals: 10 @ 10.
-	layout := OmarchyDesk normalize: (File readText: desk path) available: #().
-	self assert: ((OmarchyDesk find: layout id: 'samaltak-test') at: 'column') equals: 2.
+	"The file is written after the cards are placed: wait for it."
+	self assert: (self waitFor: [
+		layout := OmarchyDesk normalize: (File readText: desk path) available: #().
+		((OmarchyDesk find: layout id: 'samaltak-test') at: 'column') = 2]).
 	self assert: ((OmarchyDesk find: layout id: 'samaltak-test') at: 'edge') equals: 'bottom'.
 	self assert: first clicks equals: 0
 !
