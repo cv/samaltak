@@ -16,6 +16,7 @@ static oop ffi_box_owned_integer_with_gc(big_integer_native_result *out);
 static oop ffi_box_u64(uint64_t value);
 static oop ffi_box_u64_with_gc(uint64_t value);
 static oop ffi_box_void(void);
+static bool ffi_unbox_f32(oop o, float *out);
 static bool ffi_unbox_f64(oop o, double *out);
 static bool ffi_unbox_i32(oop o, int32_t *out);
 static bool ffi_unbox_i64(oop o, int64_t *out);
@@ -650,6 +651,20 @@ oop ffi_release_counted_text(ffi_text_buffer *out)
     return nil_oop;
 }
 
+/* FFIWrapperHelpers>>ffiUnboxF32:into: */
+static bool ffi_unbox_f32(oop o, float *out)
+{
+    double local;
+    double *wide;
+    memset(&local, 0, sizeof local);
+    wide = &local;
+    if (!try_float_val(o, wide)) {
+        return false;
+    }
+    *out = (float)*wide;
+    return true;
+}
+
 /* FFIWrapperHelpers>>ffiUnboxF64:into: */
 static bool ffi_unbox_f64(oop o, double *out)
 {
@@ -734,6 +749,9 @@ uint64_t wrapped_argument_helper(int32_t tag)
     case 10:
         v = (uint64_t)ffi_borrow_integer;
         break;
+    case 16:
+        v = (uint64_t)ffi_unbox_f32;
+        break;
     default:
         v = 0ULL;
         break;
@@ -752,7 +770,7 @@ uint64_t wrapped_result_helper(int32_t tag)
         if (tag == 4) {
             return (uint64_t)ffi_box_u64_with_gc;
         }
-        if (tag == 6) {
+        if ((tag == 6) || (tag == 16)) {
             return (uint64_t)ffi_box_f64_with_gc;
         }
         if (tag == 11) {
@@ -770,6 +788,9 @@ uint64_t wrapped_result_helper(int32_t tag)
         v = (uint64_t)ffi_box_u64;
         break;
     case 6:
+        v = (uint64_t)ffi_box_f64;
+        break;
+    case 16:
         v = (uint64_t)ffi_box_f64;
         break;
     case 7:

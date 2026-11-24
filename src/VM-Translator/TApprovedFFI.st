@@ -43,9 +43,9 @@ setFunction: f spec: spec
 	(owner = 'SDLPlatform' and: [self class legacyPlatformNames includes: name]) ifTrue: [self fail: 'name reserved by a legacy FFI export'].
 	tags := spec at: 3.
 	result := spec at: 4.
-	(tags class == Array and: [tags size <= 16 and: [tags allSatisfy: [:tag | #(1 2 3 4 6 8 9 10 13 14) includes: tag]]]) ifFalse: [
+	(tags class == Array and: [tags size <= 16 and: [tags allSatisfy: [:tag | #(1 2 3 4 6 8 9 10 13 14 16) includes: tag]]]) ifFalse: [
 		self fail: 'invalid approved export argument tags'].
-	(#(1 2 3 4 6 7 11 12 15) includes: result) ifFalse: [self fail: 'invalid approved export result tag'].
+	(#(1 2 3 4 6 7 11 12 15 16) includes: result) ifFalse: [self fail: 'invalid approved export result tag'].
 	(f pragmaAt: #returns:) = (Array with: ((result = 11 or: [result = 15]) ifTrue: ['void'] ifFalse: [self scalarType: result])) ifFalse: [self fail: 'result tag does not match explicit native type'].
 	types := OrderedCollection new.
 	((tags includes: 13) or: [(tags includes: 14) or: [result = 15]])
@@ -79,6 +79,7 @@ setFunction: f spec: spec
 !
 scalarType: tag
 	tag = 12 ifTrue: [^'int64_t'].
+	tag = 16 ifTrue: [^'float'].
 	^#('int32_t' 'uint32_t' 'int64_t' 'uint64_t' nil 'double' 'void') at: tag
 !
 fail: aString

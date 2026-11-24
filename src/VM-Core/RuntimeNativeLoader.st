@@ -198,6 +198,7 @@ scalarTag: text
 	(libc strcmp: text with: 'i64') = 0 ifTrue: [^3].
 	(libc strcmp: text with: 'u64') = 0 ifTrue: [^4].
 	(libc strcmp: text with: 'f64') = 0 ifTrue: [^6].
+	(libc strcmp: text with: 'f32') = 0 ifTrue: [^16].
 	(libc strcmp: text with: 'void') = 0 ifTrue: [^7].
 	^0
 ! !

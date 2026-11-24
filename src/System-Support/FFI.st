@@ -7,7 +7,7 @@ FFI comment: 'I bind descriptors for registered native exports. A downcall descr
 
 	(FFI bind: #(call ''libm'' ''sqrt'' (f64) f64)) invoke: #(9.0).
 
-Scalar types are i32, u32, i64, u64 and f64. Use void only for a result (answers nil). For an approved export, nonNegativeI64 returns nil for a negative int64_t result or the exact Integer otherwise. For a launcher grant, bytesWithLength takes one read-only slice {aByteArray. oneBasedOffset. length} and passes a pointer and the validated length in two of at most sixteen C slots. For vetted built-in exports only, writableBytesWithLength takes the same slice shape but requires a mutable ByteArray and lets the target write inside the slice until return. For memcmp, use (byteSlice byteSlice u64); the comparison count may not exceed either slice length. No argument or result is a native address. Unknown exports, mismatched signatures and rejected arguments signal FFIError. Notification descriptors start with #notification; FFINotification handles their schema.'!
+Scalar types are i32, u32, i64, u64, f64 and f32 (a Float rounded to the nearest float; a float result answers a Float). Use void only for a result (answers nil). For an approved export, nonNegativeI64 returns nil for a negative int64_t result or the exact Integer otherwise. For a launcher grant, bytesWithLength takes one read-only slice {aByteArray. oneBasedOffset. length} and passes a pointer and the validated length in two of at most sixteen C slots. For vetted built-in exports only, writableBytesWithLength takes the same slice shape but requires a mutable ByteArray and lets the target write inside the slice until return. For memcmp, use (byteSlice byteSlice u64); the comparison count may not exceed either slice length. No argument or result is a native address. Unknown exports, mismatched signatures and rejected arguments signal FFIError. Notification descriptors start with #notification; FFINotification handles their schema.'!
 
 !FFI class methodsFor: 'binding'!
 bind: aDescriptor
@@ -55,7 +55,7 @@ newCallBinding: aDescriptor
 		| tag |
 		tag := self typeTag: (types at: i).
 		(#(7 11 12 15) includes: tag) ifTrue: [^FFIError signal: 'Result-only FFI type used as an argument'].
-		(tag >= 8) ifTrue: [slots := slots + 1].
+		(tag between: 8 and: 14) ifTrue: [slots := slots + 1].
 		tags at: i put: tag].
 	slots > 16 ifTrue: [^FFIError signal: 'FFI argument types occupy more than sixteen C slots'].
 	resultTag := self typeTag: result.
@@ -89,7 +89,7 @@ copyName: anObject
 !
 typeTag: aSymbol
 	| tag |
-	tag := #(i32 u32 i64 u64 byteSlice f64 void bytesWithLength writableBytesWithLength integerMagnitude ownedIntegerMagnitude nonNegativeI64 countedText cText ownedText) identityIndexOf: aSymbol.
+	tag := #(i32 u32 i64 u64 byteSlice f64 void bytesWithLength writableBytesWithLength integerMagnitude ownedIntegerMagnitude nonNegativeI64 countedText cText ownedText f32) identityIndexOf: aSymbol.
 	tag = 0 ifTrue: [^FFIError signal: 'Unknown FFI type; expected an FFI type Symbol'].
 	^tag
 ! !
