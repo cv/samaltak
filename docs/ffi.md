@@ -9,6 +9,7 @@ See the [primitive audit](ffi-primitive-audit.md), the
 [retained-primitives report](vm-primitives-retained.html), and the
 [cutover contract](ffi-migrations.md) for scope and image compatibility.
 [Bounded and owned output](ffi-owned-output.md) describes built-in protocols.
+[The fork's performance primitives](ffi-fork.md) says what the FFI means for them.
 
 ```smalltalk
 (FFI bind: #(call 'libm' 'sqrt' (f64) f64)) invoke: #(9.0)
