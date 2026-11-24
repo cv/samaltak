@@ -4,9 +4,9 @@ The hosted VM and image, unchanged, booted on Ubuntu's NVIDIA kernel (the Spark'
 of a desktop: no systemd, no X11, no Wayland. The World draws itself and shows on KMS/DRM through the image's own
 KMS screen (`KmsDisplay`: a dumb buffer, damage-limited atomic commits), input comes from evdev read by the image
 (`EvdevInput`), the network from Linux (DHCP by busybox), TLS from OpenSSL, the GPU from NVIDIA's open kernel
-module; SDL3's kmsdrm backend remains as a variant (section 2). The question behind it is cv/samaltak#20: the bare-metal UEFI app needs its own GB10 driver (GSP boot, RPC
-transport, kernel-RM side); an appliance gets all of that from `nvidia.ko` and runs today's System-NV (Phase A, RM
-ioctls) and NvComputeGPU as they are.
+module; SDL3's kmsdrm backend remains as a variant (section 2). The question behind it was cv/samaltak#20: the bare-metal UEFI app would need its own GB10 driver (GSP boot, RPC
+transport, kernel-RM side); an appliance gets all of that from `nvidia.ko` and runs System-NV (Phase A, RM ioctls)
+and NvComputeGPU as they are.
 
     make linux-appliance               # OUT/linux-appliance/{vmlinuz,initrd.zst}; LINUX_GPU=virtio (QEMU), nvidia (the Spark)
     make linux-appliance-run           # boot it in QEMU (arm64, KVM), serial console on stdio
@@ -26,14 +26,14 @@ uevent helper `samaltak-hotplug`, the DHCP hook). The variables are in each scri
 | QEMU start to the World on the screen | **1.2-2.2 s** on the image's KMS screen, under a load of 23-27 (SDL's kmsdrm: 1.85-2.05 s, unloaded) (KVM, AAVMF, 1920x1080 virtio-gpu) | QEMU start to `3 + 4` headless: 5.4 s (vvfat ESP, 512 MB image disk, boot manager scan) |
 | kernel start to the VM's start (uptime) | 0.42-0.51 s; DHCP lease at 0.44 s, in the background | - |
 | artifacts | kernel 20 MB + initramfs 30 MB (QEMU, the image's KMS screen; 89 MB with Mesa for SDL's) or 97 MB (Spark, `LINUX_GPU=nvidia`: GSP firmware 60 MB, no NVIDIA userspace; 136 MB with it, `nvidia-vulkan`) | 1.06 MB EFI application + the image on a disk |
-| GPU on the Spark | `nvidia.ko` boots GSP; System-NV, NvComputeGPU, CUDA, Vulkan as hosted | #20: our own GSP boot and RM transport, not done |
+| GPU on the Spark | `nvidia.ko` boots GSP; System-NV, NvComputeGPU, CUDA, Vulkan as hosted | none (#20's GSP boot was dropped) |
 | NICs, Wi-Fi, NVMe, USB | Linux's (r8127 for the Spark's 10 GbE, mt7925e, nvme, xhci) | virtio, e1000e, the firmware's SNP and Block I/O |
 | TCP/TLS | Linux, OpenSSL: an HTTPS GET of example.com from the guest in 68-284 ms | our NetworkStack, mbedTLS (the VM's TLS engine) |
 | control, RFB, agent | as hosted, on every address (token, VNC password on the data volume) | as on UEFI |
 | what you give up | owning the machine, self-containedness, a small TCB of our own | the Spark's GPU, its 10 GbE, Wi-Fi, and Linux's drivers generally |
 
-**Recommendation.** Make the appliance the way the Spark runs Samaltak on bare metal, and pause #20's Phase B
-(the GSP boot from UEFI): almost everything it builds is what `nvidia.ko` already does in the appliance. Keep the
+**Decision.** The appliance is the way the Spark runs Samaltak on bare metal; #20's Phase B (the GSP boot from
+UEFI) was dropped: almost everything it builds is what `nvidia.ko` already does in the appliance. Keep the
 UEFI app for what only it does (QEMU and other machines, firmware exploration, a system that is Smalltalk to the
 metal) and stop adding hardware drivers to it. First boot on the Spark: below, The Spark plan.
 
@@ -303,7 +303,7 @@ nothing in the design is arm64-specific (Ubuntu's generic or nvidia kernel for a
 | size | ~110-160 MB (kernel + initramfs) | ~1 MB + the image |
 | self-contained | no: Ubuntu's kernel, glibc, OpenSSL, SDL, Mesa or NVIDIA userspace | yes: one EFI binary, the image drives everything |
 | drivers | all of Linux's: GB10 (with GSP), 10 GbE, Wi-Fi, ConnectX-7, NVMe, USB | ours (virtio, e1000e) and the firmware's (SNP, Block I/O, GOP, HID) |
-| GPU | System-NV, NvComputeGPU, CUDA, Vulkan as hosted | #20, months of driver work |
+| GPU | System-NV, NvComputeGPU, CUDA, Vulkan as hosted | none: a driver's worth of work (#20, dropped) |
 | explorable to the metal | no: below the syscall line is Linux | yes: PCI, firmware tables, MMIO from the Debugger |
 | licensing | the kernel is GPLv2, the VM a separate program over syscalls (fine); shipping the kernel means pointing at Ubuntu's source; NVIDIA's userspace is proprietary but redistributable, the open modules MIT/GPL | our code plus the firmware's |
 | attack surface | Linux's (well patched, large), OpenSSL; only what we run listens: control (token), RFB (VNC auth) | our NetworkStack and TLS, young and small |
@@ -312,17 +312,18 @@ nothing in the design is arm64-specific (Ubuntu's generic or nvidia kernel for a
 
 ## 6. What changes for #20
 
-Unnecessary on the appliance (nvidia.ko does them): step 3, booting GSP (WPR, FRTS, SEC2, the booter, the RISC-V
-start); step 4, the RPC transport over the message queues and GSP's init RPCs; step 5's kernel-RM side (system memory
-described to GSP, GMMU page tables for client VA spaces, BAR mappings); the fake GSP and the VFIO development loop
-(docs/nv-gsp.md 10-14) as means to those ends; and the open questions about the firmware's handling of the GPU, SMMU
-and ATS. Step 6's exit (Tests-NV pass, `fill` gives 7) holds on the appliance on its first boot, because Phase A is
+Phase B was dropped and its code removed (kept at the tag `archive/uefi-bare-metal`). Unnecessary on the appliance
+(nvidia.ko does them): step 3, booting GSP (WPR, FRTS, SEC2, the booter, the RISC-V start); step 4, the RPC transport
+over the message queues and GSP's init RPCs; step 5's kernel-RM side (system memory described to GSP, GMMU page tables
+for client VA spaces, BAR mappings); the fake GSP and the VFIO development loop (docs/nv-gsp.md 10-14) as means to
+those ends; and the open questions about the firmware's handling of the GPU, SMMU and ATS. Step 6's exit (Tests-NV pass, `fill` gives 7) holds on the appliance on its first boot, because Phase A is
 what runs there.
 
-Still useful: the transport seam (`NvTransport`, `NvIoctlTransport`) and the fakes, as tests of System-NV without a
-GPU; the probe (step 1) as a UEFI diagnostic; docs/nv-gsp.md as the record of how GB10 boots, should Phase B come
-back. Phase B only makes sense if the product is the UEFI app owning the GPU; it is a driver's worth of work with
-nvidia.ko and nova-core as references and GB10 support in neither fully public.
+Kept: the transport seam (`NvTransport`, `NvIoctlTransport`) and its fake (`NvFakeTransport`), as tests of System-NV
+without a GPU; docs/nv-gsp.md, archived, as the record of how GB10 boots. The probe (step 1) went too: on the
+appliance `nvidia-smi` and the kernel module report the GPU. Phase B would only make sense if the product were the UEFI
+app owning the GPU: a driver's worth of work with nvidia.ko and nova-core as references and GB10 support in neither
+fully public.
 
 ## 7. The Spark's first boot
 

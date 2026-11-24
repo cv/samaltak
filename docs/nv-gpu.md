@@ -71,7 +71,7 @@ that address (`gpuUploadTexture` takes an Integer address too) into a BGRA8 text
 blits that onto the window's swapchain: 0.33 ms for the upload, about 3 ms for SDL's acquire, blit and present to the X
 server (what SDL_GPU's own frames pay too). On
 UEFI it would be `FirmwareDisplay` (FirmwareScreen draws the frame into the GOP framebuffer, as for a SoftwareGPU),
-unchanged, once System-NV runs there (docs/nv.md, Phase B): nothing in NvComputeGPU is hosted-only but NvDevice.
+unchanged, if System-NV ever ran there (it does not: docs/nv.md, Phase B): nothing in NvComputeGPU is hosted-only but NvDevice.
 
 **Launch path** (System-NV, `NvCompute>>launch:grid:block:parameters:`): the QMD and constant bank 0 templates of the
 kernel are copied and patched at offsets found once (grid, block, bank 0's address, the parameter struct), and a

@@ -168,4 +168,4 @@ output of NVRTC compiling our own code, not part of the SDK.
 - One uniform block and no textures (samplers): the image's fragment shaders have none. Another back end (PTX directly,
   SPIR-V, the SoftwareGPU on the CPU) can take the same `GlslShader`.
 - A ShaderView's own error marking in its source: errors go to the toast (as on SDL_GPU).
-- The appliance's question above; on UEFI (Phase B) the precompiled shaders would run once System-NV does.
+- The appliance's question above.

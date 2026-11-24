@@ -1,15 +1,13 @@
 # GSP on GB10: how nvidia.ko boots and drives GSP-RM
 
-**Status: paused** (the operator's decision on cv/samaltak#20). The DGX Spark runs Samaltak as a minimal Linux
-appliance (docs/linux-appliance.md): `nvidia.ko` boots GSP and is the RM, System-NV (Phase A, RM ioctls) and
-NvComputeGPU run as hosted, and the World presents on the image's own KMS screen without NVIDIA userspace. Phase B
-(steps 3-6 below: GSP boot from UEFI, the fake GSP's growth, the VFIO loop) is not being worked on. What stays useful:
-
-- the probe (step 1, section 8) as a UEFI diagnostic of the GB10's state after the firmware;
-- the transport seam (`NvTransport`, `NvIoctlTransport`) and the fakes (`NvFakeTransport`, `NvFakeGb10`, `NvFakeGsp`) as
-  tests of System-NV without a GPU, and the struct layouts with their byte-level tests (step 2, section 9);
-- this document as the record of how GB10 boots, with source references, should Phase B come back (the product then
-  being the UEFI app owning the GPU: a driver's worth of work, nvidia.ko and nova-core the references).
+**Status: archived** (cv/samaltak#20: the operator's
+[decision](https://github.com/cv/samaltak/issues/20#issuecomment-7128396274)). The DGX Spark runs Samaltak as a minimal
+Linux appliance (docs/linux-appliance.md): `nvidia.ko` boots GSP and is the RM, and System-NV (Phase A, RM ioctls:
+docs/nv-rm.md), NvComputeGPU and the NV shaders run as hosted. Phase B's code was removed from main: the probe
+(`NvProbe`, `USB_DIAG=nv`), the transport's GSP side (`NvGspTransport`), the GSP boot, the struct layouts, the fake
+GSP and GB10, `VfioPciDevice` with `tools/nv-vfio.sh`, and the day-one runbook (docs/nv-dayone.md). All of it is
+preserved at the tag `archive/uefi-bare-metal`; the classes, tools and sections named below refer to that tag. This
+document stays as the record of how GB10 boots GSP, with source references, should the UEFI app ever own the GPU.
 
 Step 0 of cv/samaltak#20 (drive the DGX Spark's GB10 from the UEFI image, without Linux): what the open kernel module
 does on this Spark to boot the GPU's RISC-V core (GSP) with NVIDIA's resource manager (GSP-RM) and to talk to it, as
