@@ -77,7 +77,8 @@ console). That password is 8 random characters of its own, never derived from th
 
 - UEFI in QEMU: `make uefi-ui UEFI_DISPLAY=1 UEFI_GPU=virtio-gpu-pci UEFI_SCREEN=1920x1080` (or `uefi-control`)
   boots with `--display --display-host 0.0.0.0 --display-vnc-auth` and the password file `UEFI_DISPLAY_PASSWORD_FILE`
-  (by default `~/.samaltak-vnc` where present) copied to the ESP (0600), and QEMU without a display (`-display none`)
+  (by default `~/.samaltak-vnc` where present) written into `samaltak.args` (`--display-password`, mode 0600, as the
+  control token: the image has no files on UEFI), and QEMU without a display (`-display none`)
   forwarding the host's `127.0.0.1:5900+N` to the guest's port 5900. `UEFI_VNC=N` still means QEMU's own VNC server
   (the fallback, its password `UEFI_VNC_PASSWORD`, also `~/.samaltak-vnc`); `UEFI_DISPLAY` wins when both are given.
   The same file for both means a viewer's saved password works with either server.

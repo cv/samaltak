@@ -306,17 +306,17 @@ UEFI_VNC_DISPLAY = -object secret,id=vncpw,file=$(UEFI_VNC_PASSWORD) -display vn
 # UEFI_DISPLAY=N: uefi-ui and uefi-control show the screen through the image's own remote display server (RFB, --display
 # on port 5900 in the guest) forwarded from 127.0.0.1:5900+N, and QEMU has no display (-display none; UEFI_DISPLAY wins
 # over UEFI_VNC). Its VNC password: the file UEFI_DISPLAY_PASSWORD_FILE (at most 8 characters; by default ~/.samaltak-vnc
-# where present, UEFI_VNC's, so a viewer's saved password works with both servers), copied to the ESP (0600) for
-# --display-password-file, never on a command line, else one the image makes and shows at start (display: password ...).
+# where present, UEFI_VNC's, so a viewer's saved password works with both servers), written into samaltak.args
+# (--display-password, mode 0600, as the control token: the image has no files on UEFI), never on a command line, else one the image makes and shows at start (display: password ...).
 # docs/remote.md, Remote display.
 UEFI_DISPLAY ?=
 UEFI_DISPLAY_PASSWORD_FILE ?= $(wildcard $(HOME)/.samaltak-vnc)
 UEFI_DISPLAY_PORT = $(shell expr 5900 + $(UEFI_DISPLAY))
 UEFI_DISPLAY_FWD = $(if $(UEFI_DISPLAY),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_DISPLAY_PORT)-:5900)
 UEFI_DISPLAY_ARGS = $(if $(UEFI_DISPLAY),--display --display-host 0.0.0.0 --display-port 5900 --display-vnc-auth)
-# The remote display's password file on an ESP: the directory $1 gets the password in the file $2 (blanks and newlines
-# dropped; 1 to 8 characters), mode 0600, and the samaltak.args $3 the option naming it; without $2 the file is removed.
-DISPLAY_PASSWORD = rm -f $(1)/samaltak-display-password$(if $(2), && p="$$(tr -d ' \n' < $(2))" && [ -n "$$p" ] && [ $$(printf %s "$$p" | wc -c) -le 8 ] || { echo "$(2): not a VNC password of 1 to 8 characters" >&2; exit 1; }; (umask 077 && printf '%s\n' "$$p" > $(1)/samaltak-display-password) && printf '%s\n' --display-password-file /esp/samaltak-display-password >> $(3))
+# The remote display's password into a samaltak.args (mode 0600): the password in the file $1 (blanks and newlines
+# dropped; 1 to 8 characters) appended to $2 as --display-password; nothing without $1.
+DISPLAY_PASSWORD = $(if $(1),p="$$(tr -d ' \n' < $(1))" && [ -n "$$p" ] && [ $$(printf %s "$$p" | wc -c) -le 8 ] || { echo "$(1): not a VNC password of 1 to 8 characters" >&2; exit 1; }; printf '%s\n' --display-password "$$p" >> $(2))
 ifeq ($(shell uname -s),Darwin)
 UEFI_WINDOW_DISPLAY := -display cocoa,zoom-to-fit=on
 UEFI_WINDOW := osascript tools/qemu-window.applescript $(subst x, ,$(UEFI_SCREEN)) &
@@ -392,14 +392,14 @@ uefi-boot:
 uefi-ui: uefi
 	$(UEFI_RUN_DIR)
 	rm -f $(UEFI_RUN)/esp/samaltak.args && umask 077 && printf '%s\n' --max-heap $(UEFI_HEAP) disk: --window-size $(UEFI_SCREEN) $(UEFI_DISPLAY_ARGS) > $(UEFI_RUN)/esp/samaltak.args
-	$(call DISPLAY_PASSWORD,$(UEFI_RUN)/esp,$(if $(UEFI_DISPLAY),$(UEFI_DISPLAY_PASSWORD_FILE)),$(UEFI_RUN)/esp/samaltak.args)
+	$(call DISPLAY_PASSWORD,$(if $(UEFI_DISPLAY),$(UEFI_DISPLAY_PASSWORD_FILE)),$(UEFI_RUN)/esp/samaltak.args)
 	cp $(OVMF_VARS) $(UEFI_RUN)/vars.fd
 	$(if $(UEFI_DISPLAY)$(UEFI_VNC),,$(UEFI_WINDOW)) tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) $(UEFI_QEMU_DISPLAY) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 uefi-control: uefi
 	$(UEFI_RUN_DIR)
 	rm -f $(UEFI_RUN)/esp/samaltak.args && umask 077 && printf '%s\n' --max-heap $(UEFI_HEAP) disk: --control --control-host 0.0.0.0 --control-port 7341 \
 		$${UEFI_CONTROL_TOKEN:+--control-token "$$UEFI_CONTROL_TOKEN"} $(UEFI_DISPLAY_ARGS) $(UEFI_CONTROL_ARGS) > $(UEFI_RUN)/esp/samaltak.args
-	$(call DISPLAY_PASSWORD,$(UEFI_RUN)/esp,$(if $(UEFI_DISPLAY),$(UEFI_DISPLAY_PASSWORD_FILE)),$(UEFI_RUN)/esp/samaltak.args)
+	$(call DISPLAY_PASSWORD,$(if $(UEFI_DISPLAY),$(UEFI_DISPLAY_PASSWORD_FILE)),$(UEFI_RUN)/esp/samaltak.args)
 	cp $(OVMF_VARS) $(UEFI_RUN)/vars.fd
 	$(UEFI_SLOT) tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) $(if $(UEFI_DISPLAY)$(UEFI_VNC),$(UEFI_QEMU_DISPLAY),-display none) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest ContextTest ExceptionTest FloatTest FractionTest \

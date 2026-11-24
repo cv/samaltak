@@ -145,14 +145,18 @@ show: aLine
 
 !SessionToken class methodsFor: 'display password'!
 displayPassword
-	"The session's password for VNC authentication (at most 8 characters): from --display-password-file path (its first line, blanks aside), else made now from SecureRandom, never from the token (announceDisplayPassword shows a made one). An error if the file cannot be read or its password is empty or longer than 8 characters."
+	"The session's password for VNC authentication (at most 8 characters): from --display-password-file path (its first line, blanks aside), else --display-password (on UEFI only, as --control-token: it has no files), else made now from SecureRandom, never from the token (announceDisplayPassword shows a made one). An error if the file cannot be read or its password is empty or longer than 8 characters."
 	| file text |
 	Password isNil ifFalse: [^Password].
 	file := Smalltalk argumentAfter: '--display-password-file'.
-	file isNil ifTrue: [
+	text := file isNil
+		ifTrue: [Smalltalk argumentAfter: '--display-password']
+		ifFalse: [[File readText: file] on: Error do: [:e | ^self error: 'cannot read the display password file ', file]].
+	text isNil ifTrue: [
 		PasswordMade := true.
 		^Password := self newDisplayPassword].
-	text := [File readText: file] on: Error do: [:e | ^self error: 'cannot read the display password file ', file].
+	(file isNil and: [Machine hasFirmware not]) ifTrue: [
+		Smalltalk vm stderrWrite: 'display: warning: --display-password is on the command line, which ps shows to everyone here: use --display-password-file', (String with: Character lf)].
 	text := text lines.
 	text := text isEmpty ifTrue: [''] ifFalse: [text first trimBoth].
 	(text isEmpty or: [text size > self displayPasswordSize]) ifTrue: [
