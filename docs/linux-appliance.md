@@ -11,16 +11,19 @@ ioctls) and NvComputeGPU as they are.
     make linux-appliance               # OUT/linux-appliance/{vmlinuz,initrd.zst}; LINUX_GPU=virtio (QEMU), nvidia (the Spark)
     make linux-appliance-run           # boot it in QEMU (arm64, KVM), serial console on stdio
     make linux-appliance-test          # end to end in QEMU: World on KMS, control, HTTPS, RFB, input, power off
+    make linux-appliance-usb           # the UKI and a USB stick image (OUT/linux-appliance/{samaltak-linux.efi,usb.img})
+    make linux-appliance-usb-test      # the stick end to end in QEMU (removable media boot, data on the stick)
 
 `tools/linux-appliance/` holds the build (`build.sh`), the QEMU runner (`run.sh`), the end-to-end test (`test.sh`),
-a QMP helper for screendumps and input (`qmp.py`) and the root's own files (`root/`: inittab, rcS, rcK,
-`samaltak-run`, the DHCP hook). The variables are in each script's header.
+the UKI and stick (`usb.sh`, `usb-test.sh`), the installer for a machine's disk (`install.sh`), a QMP helper for
+screendumps and input (`qmp.py`) and the root's own files (`root/`: inittab, rcS, rcK, `samaltak-run`, the
+uevent helper `samaltak-hotplug`, the DHCP hook). The variables are in each script's header.
 
 ## In short
 
 | | Linux appliance (QEMU, measured) | UEFI app (today) |
 | --- | --- | --- |
-| QEMU start to the World on the screen | **1.5-2.2 s** on the image's KMS screen, under a load of 23-27 (SDL's kmsdrm: 1.85-2.05 s, unloaded) (KVM, AAVMF, 1920x1080 virtio-gpu) | QEMU start to `3 + 4` headless: 5.4 s (vvfat ESP, 512 MB image disk, boot manager scan) |
+| QEMU start to the World on the screen | **1.2-2.2 s** on the image's KMS screen, under a load of 23-27 (SDL's kmsdrm: 1.85-2.05 s, unloaded) (KVM, AAVMF, 1920x1080 virtio-gpu) | QEMU start to `3 + 4` headless: 5.4 s (vvfat ESP, 512 MB image disk, boot manager scan) |
 | kernel start to the VM's start (uptime) | 0.42-0.51 s; DHCP lease at 0.44 s, in the background | - |
 | artifacts | kernel 20 MB + initramfs 30 MB (QEMU, the image's KMS screen; 89 MB with Mesa for SDL's) or 97 MB (Spark, `LINUX_GPU=nvidia`: GSP firmware 60 MB, no NVIDIA userspace; 136 MB with it, `nvidia-vulkan`) | 1.06 MB EFI application + the image on a disk |
 | GPU on the Spark | `nvidia.ko` boots GSP; System-NV, NvComputeGPU, CUDA, Vulkan as hosted | #20: our own GSP boot and RM transport, not done |
@@ -100,19 +103,35 @@ it should not be (a VM crash would panic the kernel).
 
 ### Boot
 
-The kernel is an EFI application (an arm64 EFI zboot image), so the Spark's firmware can start it directly; the
-stub loads the initramfs named on its command line (`initrd=\EFI\samaltak\initrd.zst`). Secure Boot is off on this
-Spark (`mokutil --sb-state`), and its boot options are `Boot0000` Ubuntu (`shimaa64.efi`) and `Boot0003` PXE on the
-Realtek NIC.
+Ubuntu's arm64 `vmlinuz` is a gzipped `Image` (GRUB and QEMU's `-kernel` unpack it), not an EFI zboot image, so
+the firmware cannot start it as it is; the unpacked `Image` is the EFI application. `make linux-appliance-usb`
+(`tools/linux-appliance/usb.sh`) makes a **unified kernel image**, `OUT/linux-appliance/samaltak-linux.efi`:
+systemd's EFI stub (`linuxaa64.efi.stub` of the build host's `systemd-boot-efi`, 255) with the unpacked kernel, the
+initramfs, the command line and an os-release as sections (`objcopy`, at the section-aligned addresses after the
+stub's, as `ukify` places them): 97 MB for QEMU's variant, 165 MB for the Spark's (the kernel unpacked is 67 MB).
+Secure Boot is off on this Spark (`mokutil --sb-state`), and its boot options are `Boot0000` Ubuntu
+(`shimaa64.efi`) and `Boot0003` PXE on the Realtek NIC.
 
-- **Installed on the NVMe** (like `SamaltakInstaller` and `tools/reboot-into-samaltak` today): copy the kernel
-  and initramfs to the ESP's `\EFI\samaltak-linux\`, add a `Boot####` "Samaltak" whose load options are the
-  command line (`efibootmgr --create --loader '\EFI\samaltak-linux\vmlinuz.efi' --unicode 'initrd=... quiet'`),
-  and use `BootNext` to try it once, as `reboot-into-samaltak` does. The data volume is a partition (or a file
-  on Ubuntu's ext4 root: loop-mounting needs nothing more).
-- **USB stick** (like `make usb-image`): removable media boot `\EFI\BOOT\BOOTAA64.EFI` without load options, so
-  the kernel, initramfs and command line go into one **unified kernel image** (UKI: `ukify` or `objcopy` of
-  systemd's stub, or systemd-boot with an entry). One file to sign, copy and roll back.
+- **USB stick**: `OUT/linux-appliance/usb.img`, a GPT disk to `dd` onto a stick: an ESP with the UKI as
+  `\EFI\BOOT\BOOTAA64.EFI` (removable media boot, no load options needed) and as
+  `\EFI\samaltak-linux\samaltak-linux.efi` with `install.sh`, and the data volume (ext4, `SAMALTAK-DATA`, 1 GB:
+  `samaltak.args` with control and RFB on every address, a control token and VNC password made for it, 0600, kept as
+  `OUT/linux-appliance/usb-control-token` and `usb-vnc-password`). `make linux-appliance-usb-test` boots it in
+  QEMU from a USB stick on xHCI with AAVMF, as the Spark's firmware would: removable media boot, the data volume found
+  on the stick (rcS waits for the boot disk while USB enumerates: 1.4 s), the World on KMS, control, RFB, the agent's
+  account kept across a restart of the VM by a snapshot on the stick, and power off (9.6-12 s from QEMU's start to
+  the World: the firmware reads the 97 MB UKI over emulated USB).
+- **Installed on the NVMe** next to DGX OS: `install.sh` (on the stick's ESP), run as root on DGX OS, copies the UKI
+  to the ESP's `\EFI\samaltak-linux\` (the one before it kept as `.old` where there is room: DGX OS's ESP has
+  300 MB, one Spark UKI; `--no-old`), makes the data volume an image file on DGX OS's root
+  (`/var/lib/samaltak/data.img`, from the stick's `SAMALTAK-DATA` when it is mounted), and adds a boot option
+  "Samaltak Linux" whose load options are the UKI's command line plus `samaltak.data=UUID=<root>:/var/lib/samaltak/data.img`
+  (with Secure Boot off systemd's stub uses them; rcS mounts that file system at `/host` and the file as `/data`).
+  BootOrder is put back as it was: DGX OS stays the default, and `--bootnext` (or `efibootmgr -n`,
+  `tools/reboot-into-samaltak`) boots Samaltak once. `--dry-run` shows what it would do (on this Spark: ESP
+  `/dev/nvme0n1p1`, 291 MB free).
+- Devices that come after the coldplug (USB keyboards, mice, sticks: xHCI enumerates them later) get their modules
+  from the kernel's uevent helper (`/sbin/samaltak-hotplug`: modprobe of the device's alias), so no udevd is needed.
 - **Secure Boot**, where on: the UKI signed by our key enrolled as a MOK and started through Ubuntu's shim, or our
   key in db. A bare kernel plus a separate initramfs is not verified as a whole; the UKI is.
 
@@ -211,7 +230,7 @@ SDL3's kmsdrm backend opens `/dev/dri/card0`, sets the mode and pages through GB
   `1920x1080` on this variant; without it SDL set the 1440x900 mode the World asked for).
 
 Boot to the World, measured by `make linux-appliance-test` (QMP screendumps every 0.1 s until the World is on the
-screen): on the image's KMS screen **1.5-2.2 s** from QEMU's start under a load of 23-27 (an initramfs of 30 MB
+screen): on the image's KMS screen **1.2-2.2 s** from QEMU's start under a load of 23-27 (an initramfs of 30 MB
 instead of 89 MB to load and unpack; the kernel's uptime at the VM's start 0.28-0.49 s); with SDL's kmsdrm
 **1.85-2.05 s** unloaded, of which about 0.7 s is AAVMF and loading the kernel and initramfs,
 0.45 s the kernel and `rcS`, and 0.7-0.9 s the VM from its start to the World's first frame. From the VM's
@@ -266,7 +285,7 @@ volume made for it (ext4 with `samaltak.args`, a random control token and VNC pa
 
 | check | result |
 | --- | --- |
-| the World on KMS (virtio-gpu, 1920x1080) | the image's KMS screen: 1.5-2.2 s after QEMU's start (load 23-27); SDL's kmsdrm (`mesa`): 1.85-2.1 s (4.8-5.5 s while other agents' gates loaded the machine) |
+| the World on KMS (virtio-gpu, 1920x1080) | the image's KMS screen: 1.2-2.2 s after QEMU's start (load 23-27); SDL's kmsdrm (`mesa`): 1.85-2.1 s (4.8-5.5 s while other agents' gates loaded the machine) |
 | the control service (`samaltak-ctl connect`, the token from the data volume) | `3 + 4` = 7; a screenshot |
 | HTTPS from the guest (`HTTPClient get: 'https://example.com/'`, OpenSSL, DNS from DHCP) | 200 in 68-284 ms |
 | the RFB server on 0.0.0.0:5900 (VNC authentication) | `RFB 003.008` |
@@ -305,22 +324,72 @@ GPU; the probe (step 1) as a UEFI diagnostic; docs/nv-gsp.md as the record of ho
 back. Phase B only makes sense if the product is the UEFI app owning the GPU; it is a driver's worth of work with
 nvidia.ko and nova-core as references and GB10 support in neither fully public.
 
-## 7. The Spark plan (first boot)
+## 7. The Spark's first boot
 
-1. `make linux-appliance LINUX_GPU=nvidia` (and a UKI of it for the stick); a data volume with `samaltak.args`
-   (control and RFB on every address, a token and VNC password of our own).
-2. Boot it once without touching Ubuntu: copy to the ESP's `\EFI\samaltak-linux\`, a `Boot####` entry with
-   the command line, `BootNext` (as `tools/reboot-into-samaltak`); the way back is a power cycle (BootOrder still
-   Ubuntu) or the World's reboot (exit 3 with BootNext cleared).
-3. Check, on the console and over the control service: `nvidia.ko` loads and GSP boots (`dmesg`), `/dev/nvidia0`
-   exists, r8127 gets a lease, the World on the screen: `GPUPlatform display screen description` (`/dev/dri/cardN
-   (nvidia-drm) WxH@R`), `GPUPlatform device` an NvComputeGPU, `GPUPlatform display screen counts` (`how: #none`
-   after nvidia-drm's ENOSYS), keyboard and mouse (USB HID: `GPUPlatform display input counts`), and Tests-NV and
-   NvComputeGPUTest over the control service.
-4. If the KMS screen does not come up: `LINUX_GPU=nvidia-vulkan` and the default World on NVIDIA's Vulkan; then a
-   squashfs or UKI layout, A/B slots, SNTP.
+Make the stick (on this Spark, or any arm64 Ubuntu 24.04 with the VM's build dependencies), after trying the same
+flow on QEMU's variant (`make linux-appliance-usb-test`):
 
-## 8. The UEFI work: keep it for
+    make linux-appliance-usb OUT=build/spark LINUX_GPU=nvidia     # build/spark/linux-appliance/usb.img, 1.4 GB
+    lsblk                                                          # the stick's device: not the NVMe
+    sudo dd if=build/spark/linux-appliance/usb.img of=/dev/sdX bs=4M conv=fsync
+
+Keep `build/spark/linux-appliance/usb-control-token` and `usb-vnc-password`: the stick's data volume has the same.
+Boot the Spark from the stick once (the firmware's one-time boot menu, or from DGX OS `sudo efibootmgr` lists the
+stick while it is in, then `sudo efibootmgr -n NNNN && sudo reboot`); nothing on the NVMe changes, and the way back
+is to take the stick out and power-cycle.
+
+**Checklist** (the console shows rcS's lines, `samaltak-linux: ... at N s`, before the World takes the screen):
+
+| check | how | expected |
+| --- | --- | --- |
+| the UKI starts, from the stick | the console | `samaltak-linux: init`, then `modules` |
+| nvidia.ko, GSP | the console's `samaltak-linux: nvidia at` line; `/data/log/dmesg-boot.txt` | the line; dmesg without `NVRM` errors |
+| the data volume | `samaltak-linux: data on /dev/sdX2` | not `tmpfs` |
+| the 10 GbE | `samaltak-linux: dhcp enP... <address>` | a lease (r8127) |
+| control | from another machine: `tools/samaltak-ctl connect --host <address> --port 7341 --token-file usb-control-token`, `eval '3 + 4'` | `7` |
+| the screen | `eval '{GPUPlatform display class name. GPUPlatform display screen description. GPUPlatform device class name. GPUPlatform display screen counts}'` | `KmsDisplay`, `/dev/dri/cardN (nvidia-drm) WxH@R` in the display's preferred mode, `NvComputeGPU`, `how: #none` (no flush: nvidia-drm scans the buffer out as it is), damaged presents counting up |
+| keyboard, mouse | `eval 'GPUPlatform display input counts'`; type into the Workspace, click | the USB keyboard and mouse listed (also when plugged in later) |
+| RFB | a VNC viewer on `<address>:5900`, `usb-vnc-password` | the World |
+| the GPU's tests | `eval '(NvComputeGPUTest suite run) printString'`, `eval '(NvGpuTest suite run) printString'` | all passed |
+| agent, GitHub | `samaltak-ctl agent-config --from-pi`, `github-config --from-gh` over the same connection; an Agent window | answers (HTTPS through OpenSSL); keys are never saved: send them again after each start |
+| keeping the World | `eval "Smalltalk snapshot: '/data/samaltak.image'"` | the next start resumes it (accounts without their keys) |
+| power | the World's Quit | the machine powers off |
+
+Then install it next to DGX OS: boot DGX OS with the stick in (its ESP and `SAMALTAK-DATA` mount under
+`/media/$USER/`), `sudo sh /media/$USER/SAMALTAK-USB/EFI/samaltak-linux/install.sh --bootnext --no-old` (the data
+volume is copied from the stick), take the stick out (its `SAMALTAK-DATA` would be preferred), reboot.
+
+**Recovery.**
+
+- No picture, or it hangs: power-cycle. DGX OS stays first in BootOrder (BootNext is used once; install.sh puts
+  BootOrder back); with the stick, take it out.
+- The VM keeps dying: `samaltak-run` starts it again, after 30 s once it died three times in a row; on the data
+  volume (the stick's second partition on another machine, or from DGX OS `sudo mount -o loop
+  /var/lib/samaltak/data.img /mnt`): `log/samaltak.log` (the VM's output), `log/dmesg.txt` (the kernel's log at the
+  VM's last exit), `log/dmesg-boot.txt`.
+- The screen or the GPU is the trouble: `samaltak.env` on the data volume is read after the root's: `export
+  SAMALTAK_GPU=software` (a SoftwareGPU on the KMS screen), or `export SAMALTAK_SCREEN=` (SDL's windows: needs the
+  `nvidia-vulkan` variant's userspace); or build `LINUX_GPU=nvidia-vulkan`, the default World on NVIDIA's Vulkan.
+- A shell instead of the World: `touch samaltak.norun` on the data volume; the console and tty2's shell
+  (Ctrl-Alt-F2) stay on the screen, `dmesg`, `lsmod`, `ls /dev/dri /dev/nvidia*`.
+- A snapshot that does not start: delete `samaltak.image` from the data volume (the shipped image starts).
+- Removing it: from DGX OS `sudo efibootmgr -b NNNN -B` (the "Samaltak Linux" option), `sudo rm -r
+  /boot/efi/EFI/samaltak-linux /var/lib/samaltak`.
+
+## 8. What's left
+
+- On the Spark: everything in section 7's checklist (nvidia-drm's mode and SETCRTC as master, the frames on its
+  screen, USB HID through evdev, GSP from the appliance's root), which only the hardware can show.
+- The KMS screen: page flips between two buffers (no tearing: the World draws into the scanned-out buffer now), a
+  hardware cursor plane, VT switching (the World keeps the screen; tty2's shell needs `samaltak.norun`), hotplug of
+  displays (the mode is chosen once), several outputs.
+- Input: tap-to-click and two-finger scrolling on touchpads, keymaps with dead keys and compose (the kernel's AltGr
+  table is used, its dead keys not), LEDs (Caps Lock).
+- The boot: A/B UKIs (`samaltak-a.efi`, `-b.efi`) and a BootOrder switched only after the World started; a
+  compressed kernel in the UKI (its 67 MB unpacked `Image`: systemd's stub 255 does not unpack one), so two Spark
+  UKIs fit DGX OS's ESP; Secure Boot (the UKI signed, a MOK); SNTP; Wi-Fi (`mt7925e`, wpa_supplicant).
+
+## 9. The UEFI work: keep it for
 
 QEMU and machines without a usable Linux, the firmware World (PCI, ACPI, the memory map, live), a system whose every
 layer is Smalltalk, and the tests that run the image without an operating system. mbedTLS (tls-mbedtls) and the

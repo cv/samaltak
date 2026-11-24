@@ -1,0 +1,5 @@
+#!/bin/sh
+# The kernel's uevent helper (rcS sets /proc/sys/kernel/hotplug; no udevd here): the module for a device that appears
+# after the coldplug, as a USB keyboard, mouse or stick does once xHCI has enumerated it. devtmpfs makes the nodes.
+[ "$ACTION" = add ] && [ -n "$MODALIAS" ] && exec /sbin/modprobe -q -b "$MODALIAS"
+exit 0

@@ -9,7 +9,9 @@
 # window; vnc=127.0.0.1:N: QEMU's VNC server); LINUX_CONTROL_PORT and LINUX_RFB_PORT (host ports on 127.0.0.1
 # forwarded to the guest's control service, 7341, and RFB server, 5900); LINUX_DATA (an ext4 disk image labelled
 # SAMALTAK-DATA: data-disk.sh makes one); LINUX_QMP (a QMP socket: screendump, input-send-event, system_powerdown);
-# LINUX_CMDLINE (more kernel arguments); LINUX_CPUS (4), LINUX_RAM_MB (4096). The serial console is stdio.
+# LINUX_CMDLINE (more kernel arguments); LINUX_CPUS (4), LINUX_RAM_MB (4096); LINUX_USB (a disk image, usb.sh's: booted
+# by the firmware from a USB stick on xHCI, its UKI as removable media, instead of -kernel and -initrd; LINUX_VARS: a
+# copy of AAVMF's variables, so the boot options it makes are its own). The serial console is stdio.
 set -eu
 OUT=${OUT:-build}
 W=$OUT/linux-appliance
@@ -17,9 +19,15 @@ FW=${LINUX_FIRMWARE:-/usr/share/qemu-efi-aarch64/QEMU_EFI.fd}
 fwd=""
 [ -n "${LINUX_CONTROL_PORT:-}" ] && fwd="$fwd,hostfwd=tcp:127.0.0.1:$LINUX_CONTROL_PORT-:7341"
 [ -n "${LINUX_RFB_PORT:-}" ] && fwd="$fwd,hostfwd=tcp:127.0.0.1:$LINUX_RFB_PORT-:5900"
-set -- -M virt -cpu host -enable-kvm -smp "${LINUX_CPUS:-4}" -m "${LINUX_RAM_MB:-4096}" -no-reboot \
-	-bios "$FW" -kernel "$W/vmlinuz" -initrd "$W/initrd.zst" \
-	-append "console=tty0 console=ttyAMA0 quiet loglevel=3 ${LINUX_CMDLINE:-}" \
+if [ -n "${LINUX_USB:-}" ]; then
+	VARS=${LINUX_VARS:-$W/usb-vars.fd}
+	cp /usr/share/AAVMF/AAVMF_VARS.fd "$VARS"
+	set -- -drive "if=pflash,format=raw,readonly=on,file=/usr/share/AAVMF/AAVMF_CODE.fd" -drive "if=pflash,format=raw,file=$VARS" \
+		-device qemu-xhci -drive "if=none,id=stick,format=raw,file=$LINUX_USB" -device usb-storage,drive=stick,removable=on
+else
+	set -- -bios "$FW" -kernel "$W/vmlinuz" -initrd "$W/initrd.zst" -append "console=tty0 console=ttyAMA0 quiet loglevel=3 ${LINUX_CMDLINE:-}"
+fi
+set -- -M virt -cpu host -enable-kvm -smp "${LINUX_CPUS:-4}" -m "${LINUX_RAM_MB:-4096}" -no-reboot "$@" \
 	-device virtio-gpu-pci,xres=1920,yres=1080 -device virtio-keyboard-pci -device virtio-tablet-pci \
 	-netdev "user,id=n0$fwd" -device virtio-net-pci,netdev=n0,romfile= -device virtio-rng-pci \
 	-display "${LINUX_DISPLAY:-none}" -serial stdio -monitor none

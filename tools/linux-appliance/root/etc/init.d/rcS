@@ -14,7 +14,9 @@ mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null
 t init
 hostname samaltak
 ip link set lo up
-# Coldplug: a module for each device's alias (the kernel has the rest built in).
+# Hotplug: devices that come later (USB) get their module from the kernel's uevent helper. Coldplug: a module for each
+# device's alias now (the kernel has the rest built in).
+echo /sbin/samaltak-hotplug > /proc/sys/kernel/hotplug
 for a in $(cat /sys/bus/*/devices/*/modalias 2>/dev/null | sort -u); do modprobe -q -b "$a" 2>/dev/null; done
 # The NVIDIA GPU (the Spark's GB10): the open kernel modules, KMS on, and the device nodes nvidia-modprobe and udev
 # would make on a desktop (nvidia.ko makes none in devtmpfs).
@@ -26,10 +28,30 @@ if [ -d /lib/modules/$(uname -r)/kernel/nvidia-580-open ] && grep -qx 0x10de /sy
 	t nvidia
 fi
 t modules
-# The data volume (ext4, label SAMALTAK-DATA): the image store, samaltak.args, the token, logs. Else a tmpfs.
+# The data volume (ext4): the image store, samaltak.args, the token, logs. A partition labelled SAMALTAK-DATA (the USB
+# stick's), else an image file on another file system the command line names (samaltak.data=UUID=...:/path, as
+# install.sh sets it: a file on DGX OS's root, mounted at /host), else a tmpfs.
 dev=$(findfs LABEL=SAMALTAK-DATA 2>/dev/null)
-if [ -n "$dev" ] && mount -t ext4 -o noatime "$dev" /data; then t "data on $dev"; else mount -t tmpfs -o mode=0755 data /data; t "data on tmpfs"; fi
+spec=$(sed -n 's/.*samaltak\.data=\([^ ]*\).*/\1/p' /proc/cmdline)
+# Booted through the UKI (systemd's stub sets LoaderDevicePartUUID): the disk it came from may still be enumerating
+# (a USB stick, NVMe): wait for the data volume, or the file system the command line names, up to 10 s.
+if [ -z "$dev" ] && [ -e /sys/firmware/efi/efivars/LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f ]; then
+	i=0; while [ $i -lt 50 ]; do
+		dev=$(findfs LABEL=SAMALTAK-DATA 2>/dev/null); [ -n "$dev" ] && break
+		[ -n "$spec" ] && findfs "${spec%%:*}" >/dev/null 2>&1 && break
+		sleep 0.2; i=$((i + 1))
+	done
+	t "boot disk after $i waits"
+fi
+if [ -z "$dev" ] && [ -n "$spec" ]; then
+	host=$(findfs "${spec%%:*}" 2>/dev/null)
+	mkdir -p /host
+	[ -n "$host" ] && mount -o noatime "$host" /host && [ -f "/host${spec#*:}" ] && dev=/host${spec#*:}
+fi
+opts=noatime; [ -f "$dev" ] && opts=loop,noatime
+if [ -n "$dev" ] && mount -t ext4 -o $opts "$dev" /data; then t "data on $dev"; else mount -t tmpfs -o mode=0755 data /data; t "data on tmpfs"; fi
 mkdir -p /data/log
+dmesg > /data/log/dmesg-boot.txt 2>/dev/null
 # Every wired interface, DHCP in the background (udhcpc renews the lease; default.script sets routes and DNS).
 for i in /sys/class/net/*; do
 	n=${i##*/}; [ "$n" = lo ] && continue; [ -e "$i/wireless" ] && continue

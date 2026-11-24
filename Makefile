@@ -651,6 +651,12 @@ linux-appliance-run:
 	OUT=$(OUT) tools/linux-appliance/run.sh
 linux-appliance-test: linux-appliance
 	OUT=$(OUT) tools/linux-appliance/test.sh
+# The appliance on a USB stick: a UKI (systemd's stub, kernel, initramfs, command line) and a GPT image with an ESP
+# (removable media boot, install.sh for the NVMe) and the data volume; its test boots it in QEMU from a USB stick.
+linux-appliance-usb: linux-appliance
+	OUT=$(OUT) tools/linux-appliance/usb.sh
+linux-appliance-usb-test: linux-appliance-usb
+	OUT=$(OUT) tools/linux-appliance/usb-test.sh
 
 
 # The narrated walkthrough on the real system, from a copy of the image named nuuk.image like the prototype's (a visible window; needs ffmpeg, agent-browser for the captions and

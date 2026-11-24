@@ -3,4 +3,5 @@
 echo "samaltak-linux: shutting down"
 sync
 umount /data 2>/dev/null || mount -o remount,ro /data 2>/dev/null
+umount /host 2>/dev/null || mount -o remount,ro /host 2>/dev/null
 sync

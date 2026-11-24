@@ -144,7 +144,7 @@ ln -s usr/lib "$R/lib"
 
 # Kernel modules: the devices of QEMU and of the Spark that are not built in, with what they depend on, uncompressed
 # (busybox's modprobe reads no zstd), and depmod's tables for them.
-mods="virtio-gpu virtio_input virtio_rng hid hid-generic usbhid nvme r8169 r8127 ${LINUX_MODULES:-}"
+mods="virtio-gpu virtio_input virtio_rng hid hid-generic usbhid usb-storage uas nvme r8169 r8127 ${LINUX_MODULES:-}"
 nvidia && mods="$mods nvidia nvidia-modeset nvidia-drm nvidia-uvm"
 M=lib/modules/$KVER
 mkdir -p "$R/usr/$M"
@@ -169,7 +169,7 @@ if [ -d /lib/firmware/rtl_nic ]; then mkdir -p "$R/usr/lib/firmware/rtl_nic" && 
 
 # The kernel and the initramfs.
 cp "$K/boot/vmlinuz-$KVER" "$W/vmlinuz"
-chmod 755 "$R/etc/init.d/"* "$R/sbin/samaltak-run" "$R/usr/share/udhcpc/default.script"
+chmod 755 "$R/etc/init.d/"* "$R/sbin/samaltak-run" "$R/sbin/samaltak-hotplug" "$R/usr/share/udhcpc/default.script"
 (cd "$R" && find . | LC_ALL=C sort | cpio -o -H newc -R 0:0 --quiet) | zstd -q -T0 -"${LINUX_ZSTD_LEVEL:-12}" > "$W/initrd.zst"
 [ -n "${LINUX_CONTROL_TOKEN_FILE:-}" ] && chmod 600 "$W/initrd.zst"
 say "$W/vmlinuz $(($(wc -c < "$W/vmlinuz") / 1048576)) MB, $W/initrd.zst $(($(wc -c < "$W/initrd.zst") / 1048576)) MB ($(du -sm "$R" | cut -f1) MB unpacked; gpu $GPU)"
