@@ -1,6 +1,6 @@
 OptModule subclass: #OptCodegen
-	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgRawBase cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced'
-	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_HELD CG_MAX_SITES CG_MAX_SP OUT_ARRAY OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_NOTMADE OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW'
+	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgRawBase cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced ffi'
+	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_HELD CG_MAX_SITES CG_MAX_SP OUT_ARRAY OUT_BARRIER OUT_BOTTOM OUT_BOUND_FILL OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_NOTMADE OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW'
 	package: 'VM-Jit'!
 
 OptCodegen comment: 'Emits arm64 code for the allocated IR (OptRegalloc) in block order, then the out-of-line paths (guard failures, interrupt checks, brace Arrays the runtime makes, store barriers, deoptimization after a call, resumption after a call, the stack check), then the oop pool the code loads constants from (pc-relative; GC roots) and the inline caches'' literals. Records for every safepoint and guard the deoptimization metadata (OptRuntime decodes it): kind, continuation, the send, and for each activation its method, closure, receiver, pc and where each slot''s value is (LOC_*).
@@ -23,7 +23,7 @@ declarations
 		(cgSunk 'int32_t[64]') (cgSunkCount int32_t) (cgDoubles bool) (cgChainActs 'int32_t[512]') (cgChainCount int32_t)
 		(cgSiteBl 'uint32_t[CG_MAX_SITES]') (cgSiteLit 'int32_t[CG_MAX_SITES]') (cgSiteInfo 'uint32_t[CG_MAX_SITES]') (cgSiteIndex 'int32_t[CG_MAX_SITES]') (cgSiteSel 'int32_t[CG_MAX_SITES]') (cgSiteCount int32_t)
 		(cgRetOff 'uint32_t[CG_MAX_RETS]') (cgRetIndex 'int32_t[CG_MAX_RETS]') (cgRetArgc 'int32_t[CG_MAX_RETS]') (cgRetCount int32_t)
-		(cgOrder 'int32_t[OPT_MAX_BLOCKS]') (cgPlaced 'uint8_t[OPT_MAX_BLOCKS]'))
+		(cgOrder 'int32_t[OPT_MAX_BLOCKS]') (cgPlaced 'uint8_t[OPT_MAX_BLOCKS]') (ffi FFIPrimitives))
 !
 initialize
 	CG_MAX_OUT := 4096.
@@ -45,7 +45,8 @@ initialize
 	OUT_RESUME := 9.
 	OUT_SENT := 10.
 	OUT_NOTMADE := 11.
-	OUT_ARRAY := 12
+	OUT_ARRAY := 12.
+	OUT_BOUND_FILL := 13
 ! !
 
 !OptCodegen methodsFor: 'accessing'!
@@ -1652,7 +1653,7 @@ emitStressAt: n label: l
 !
 emitSend: n
 	"A call as baseline code makes it: receiver and arguments at slotTop, the receiver in x0, x20 the callee's fp, then bl to a known method's unchecked entry (O_CALL: its primitive's machine code, or its frame and body; optimized code through the redirection), to the block stub (NF_BLOCKCALL: a closure with as many arguments), or to an inline cache's target (the miss stub until JitBaselineRuntime links it; what that cannot link the runtime sends, OptRuntime>>sendFrom:ret:). The result comes back in x0."
-	| nd argc k r off back cont done slow lazy |
+	| nd argc k r off back cont done slow lazy site miss |
 	nd := ir node: n.
 	argc := nd nargs asInt32 - 1.
 	k := self recordCall: n.
@@ -1672,6 +1673,16 @@ emitSend: n
 		asm str: r base: X20 offset: 8 * (cgSlotTop + i)].
 	r := self src: (ir operand: nd args) into: X0.
 	r ~= X0 ifTrue: [asm mov: X0 with: r].
+	cont := asm newLabel.
+	site := (nd flags bitAnd: NF_BOUNDFFI) ~= 0 ifTrue: [ffi newBoundSite] ifFalse: [self null].
+	site notNull ifTrue: [
+		nd ffiOwner ~= 0 ifTrue: [
+			ffi fillBoundSite: site owner: nd ffiOwner method: nd tcls selector: nd aux asUInt64 arity: argc].
+		miss := asm newLabel.
+		self emitBoundSite: site node: n index: k miss: miss done: cont.
+		asm bind: miss.
+		self emitBoundTraceIncrementAt: ffi boundSiteMissAddress.
+		asm ldr: X0 base: X20 offset: 8 * cgSlotTop].
 	off := 8 * (cgSlotTop + 1).
 	asm comment: 'x20 := the callee''s fp'.
 	self addFp: off.
@@ -1694,7 +1705,6 @@ emitSend: n
 	self noteRet: k argc: argc.
 	asm bind: back.
 	self subFp: off.
-	cont := asm newLabel.
 	asm bind: cont.
 	slow := self out: OUT_RESUME node: n index: k.
 	(cgOuts + (cgOutCount - 1)) resume: cont.
@@ -1713,8 +1723,9 @@ emitSend: n
 		asm ldr: X16 base: X0 offset: 8.
 		self loadConstant: nd tcls into: X17.
 		asm cmp: X16 with: X17.
-		asm b: lazy if: COND_NE.
-		"the allocation's slow path: an interrupt it requested (an allocation sample) is taken after it, as the runtime's send would"
+		asm b: lazy if: COND_NE].
+	(site notNull or: [(nd flags bitAnd: NF_ALLOC) ~= 0]) ifTrue: [
+		"An interrupt requested by the native call or result boxing is taken after it."
 		cont := asm newLabel.
 		slow := self out: OUT_SENT node: n index: k.
 		(cgOuts + (cgOutCount - 1)) resume: cont.
@@ -1726,6 +1737,120 @@ emitSend: n
 	self reloadAcross: n.
 	"only the fast paths jump here (a label resets what registers are known to hold)"
 	(nd flags bitAnd: (NF_ALLOC bitOr: NF_REPLACE)) ~= 0 ifTrue: [asm bind: done]
+!
+emitBoundSite: site node: n index: k miss: miss done: done
+	"The guard compares the current weak owner and publication serial, then its token. No OOP or unguarded dispatch target is embedded in the instructions."
+	<var: #site type: 'FFIBoundSite *'>
+	| fill o cell owner leaf argc |
+	fill := self out: OUT_BOUND_FILL node: n index: k.
+	o := cgOuts + (cgOutCount - 1).
+	o resume: miss.
+	o ffiSiteAddr: (self cCoerce: site to: 'uint64_t').
+	cell := self scratchA.
+	owner := self scratchB.
+	argc := (ir node: n) nargs asInt32 - 1.
+	asm comment: 'bound FFI site: exact owner, current publication and token'.
+	asm adr: X16 label: cgHeaderLabel.
+	asm ldr: W16 base: X16 offset: self headerFlagsOffset.
+	asm tst: W16 imm: 2.
+	asm b: miss if: COND_NE.
+	asm mov: cell imm64: (self cCoerce: site to: 'uint64_t').
+	asm ldr: owner base: cell offset: self boundOwnerAddressOffset.
+	asm cbz: owner to: fill.
+	asm ldr: owner base: owner offset: 0.
+	asm cbz: owner to: fill.
+	asm ldr: X16 base: cell offset: self boundSerialAddressOffset.
+	asm ldr: X16 base: X16 offset: 0.
+	asm ldr: X17 base: cell offset: self boundSerialOffset.
+	asm cmp: X16 with: X17.
+	asm b: fill if: COND_NE.
+	asm cmp: X0 with: owner.
+	asm b: miss if: COND_NE.
+	asm ldr: X16 base: X0 offset: (self fieldOffset: 1).
+	asm ldr: X17 base: cell offset: self boundTokenOffset.
+	asm cmp: X16 with: X17.
+	asm b: miss if: COND_NE.
+	leaf := asm newLabel.
+	asm ldr: X17 base: cell offset: self boundResultTagOffset.
+	"Only 3, 4 and 6 may allocate (all lie in [3,6])."
+	asm sub: X17 with: X17 imm: 3.
+	asm cmp: X17 imm: 3.
+	asm b: leaf if: COND_HI.
+	self emitBoundSiteCall: cell index: k argc: argc collecting: true done: done.
+	asm bind: leaf.
+	self emitBoundSiteCall: cell index: k argc: argc collecting: false done: done
+!
+boundOwnerAddressOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'FFIBoundSite *') fieldAddress: #ownerAddr) to: 'int64_t'
+!
+boundSerialAddressOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'FFIBoundSite *') fieldAddress: #serialAddr) to: 'int64_t'
+!
+boundSerialOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'FFIBoundSite *') fieldAddress: #serial) to: 'int64_t'
+!
+boundTokenOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'FFIBoundSite *') fieldAddress: #token) to: 'int64_t'
+!
+boundWrapperOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'FFIBoundSite *') fieldAddress: #entry) to: 'int64_t'
+!
+boundResultTagOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'FFIBoundSite *') fieldAddress: #resultTag) to: 'int64_t'
+!
+emitBoundSiteCall: cell index: k argc: argc collecting: collecting done: done
+	"Use contiguous outgoing VM slots (excluding receiver) as the wrapper's argument vector. The collecting path publishes its current frame; the boxing helper syncs it only if it needs it."
+	| off answered |
+	self emitBoundTraceIncrementAt: ffi boundSiteHitAddress.
+	collecting ifTrue: [
+		self emitFramePc: cgBcSize + k sp: cgSlotTop + argc + 1.
+		asm str: X19 base: X22 offset: runtime pendingBoundFrameOffset].
+	off := 8 * (cgSlotTop + 1).
+	off <= 4095
+		ifTrue: [asm add: X0 with: X20 imm: off]
+		ifFalse: [
+			asm mov: X16 imm: off.
+			asm add: X0 with: X20 with: X16].
+	asm ldr: X16 base: cell offset: self boundWrapperOffset.
+	asm isX64 ifTrue: [asm enterCFromSend].
+	asm comment: 'bound FFI site: direct wrapper'.
+	asm blr: X16.
+	self noteRet: k argc: argc.
+	asm isX64 ifTrue: [asm leaveCFromSend].
+	collecting ifTrue: [
+		asm str: XZR base: X22 offset: runtime pendingBoundFrameOffset.
+		self emitReloadPinned].
+	"Zero OOP is validation rejection, not a miss. Native 0 and void are already boxed by the wrapper."
+	answered := asm newLabel.
+	asm cbnz: X0 to: answered.
+	asm mov: X0 with: X25.
+	asm bind: answered.
+	asm b: done
+!
+emitBoundTraceIncrementAt: address
+	"Instrumentation is decided at compilation. No probe is present in normal machine code."
+	<var: #address type: 'uint64_t'>
+	address = 0 ifTrue: [^self].
+	asm mov: X16 imm64: address.
+	asm ldr: X17 base: X16 offset: 0.
+	asm add: X17 with: X17 imm: 1.
+	asm str: X17 base: X16 offset: 0
+!
+emitFillBoundSite: o
+	"Learn a prepared owner on a cold path. The original send still runs exactly once, whether the cell was filled or not."
+	| nd |
+	nd := ir node: o node.
+	asm comment: 'bound FFI site: cold fill before normal send'.
+	asm mov: X0 imm64: o ffiSiteAddr.
+	asm ldr: X1 base: X20 offset: 8 * cgSlotTop.
+	self loadConstant: nd tcls into: X2.
+	self loadConstant: nd aux asUInt64 into: X3.
+	asm mov: X4 imm: nd nargs asInt32 - 1.
+	asm isX64 ifTrue: [asm enterCFromSend].
+	asm mov: X16 imm64: ffi fillBoundSiteFunction.
+	asm blr: X16.
+	asm isX64 ifTrue: [asm leaveCFromSend].
+	asm b: o resume
 !
 emitSiteCall: n index: k
 	"An inline cache: x9 its class (megamorphic: the selector) from its literal, bl to its target, the miss stub while unlinked."
@@ -2434,6 +2559,7 @@ emitOuts
 			self emitReloadPinned.
 			asm ldr: X0 base: X20 offset: 8 * cgSlotTop.
 			asm b: o resume].
+		o kind = OUT_BOUND_FILL ifTrue: [self emitFillBoundSite: o].
 		o kind = OUT_SITE ifTrue: [
 			asm comment: 'not a closure with as many arguments: the send through an inline cache'.
 			self emitSiteCall: o node index: o index.
@@ -2632,5 +2758,5 @@ OptOut comment: 'An out-of-line path of optimized code (OptCodegen): its kind, t
 
 !OptOut class methodsFor: 'declaring'!
 fields
-	^#((kind int32_t) (node int32_t) (index int32_t) (label int32_t) (resume int32_t) (pos int32_t))
+	^#((kind int32_t) (node int32_t) (index int32_t) (label int32_t) (resume int32_t) (pos int32_t) (ffiSiteAddr uint64_t))
 ! !

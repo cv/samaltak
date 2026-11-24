@@ -16,18 +16,6 @@ primMicrosecondClock
 	<vmPrimitive: 151 name: 'microsecondClock'>
 	self answer: (self intOop: scheduler nowUs)
 !
-primUtcMicroseconds
-	<vmPrimitive: 152 name: 'utcMicroseconds'>
-	| tv |
-	tv := self local: 'Timeval'.
-	posix gettimeofday: tv zone: self null.
-	self answer: (self intOop: (tv tv_sec * 1000000) + tv tv_usec)
-!
-primThreadCpuTime
-	"The VM thread's CPU time (µs): every Process's, the GC's and the JIT's."
-	<vmPrimitive: 153 name: 'threadCpuTime'>
-	self answer: (self intOop: scheduler realThreadCpuUs)
-!
 primWorkClockStart
 	"(fps, semaphore index) The work clock starts: answer its time in µs."
 	<vmPrimitive: 567 name: 'workClockStart'>
@@ -92,6 +80,7 @@ primQuit
 	<notTryable>
 	| c |
 	c := self arg0.
+	jit printBoundSiteTrace.
 	libc fflush: libc stdout.
 	libc fflush: libc stderr.
 	platform shutdown.
@@ -204,39 +193,9 @@ primImagePath
 	p := imageFile imagePath isNull ifTrue: [self cString: ''] ifFalse: [imageFile imagePath].
 	self answer: (memory stringFromUtf8: p size: (libc strlen: p))
 !
-writeTo: f
-	| s u n |
-	s := self argCount > 0 ifTrue: [self arg: 0] ifFalse: [self receiver].
-	((self isPtr: s) and: [(memory isKindOfString: s) or: [(self rawClass: s) = memory clsBytearray]]) ifFalse: [^self fail].
-	n := self local: 'size_t'.
-	u := memory utf8BytesOf: s size: n.
-	u isNull ifTrue: [^self failCode: PRIM_ERR_NO_MEMORY].
-	libc fwrite: u size: 1 count: n value file: f.
-	libc fflush: f.
-	libc free: u.
-	self answer: self receiver
-!
-primStdoutWrite
-	<vmPrimitive: 169 name: 'stdoutWrite'>
-	self writeTo: libc stdout
-!
-primStderrWrite
-	<vmPrimitive: 170 name: 'stderrWrite'>
-	self writeTo: libc stderr
-!
 primPrimitiveNames
 	<vmPrimitive: 171 name: 'primitiveNames'>
 	self answer: primitives namesArray
-!
-primGetenv
-	<vmPrimitive: 172 name: 'getenv'>
-	| k v |
-	(memory isKindOfString: self arg0) ifFalse: [^self fail].
-	k := memory utf8Of: self arg0.
-	k isNull ifTrue: [^self failCode: PRIM_ERR_NO_MEMORY].
-	v := libc getenv: k.
-	libc free: k.
-	self answer: (v notNull ifTrue: [memory stringFromUtf8: v size: (libc strlen: v)] ifFalse: [memory nilOop])
 !
 primVMBanner
 	<vmPrimitive: 173 name: 'vmBanner'>

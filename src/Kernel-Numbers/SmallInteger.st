@@ -183,22 +183,17 @@ generality
 digitLength
 	"Answer the number of bytes of the magnitude."
 	| value length |
+	self = SmallInteger minVal ifTrue: [^8].
+	value := self abs.
 	length := 1.
-	value := self.
-	value >= 0
-		ifTrue: [[value > 255] whileTrue: [value := value bitShift: -8. length := length + 1]]
-		ifFalse: [[value < -255] whileTrue: [value := value bitShift: -8. length := length + 1]].
+	[value > 255] whileTrue: [value := value bitShift: -8. length := length + 1].
 	^length
 !
 digitAt: n
-	"Answer byte n of the magnitude, computed without negating (which could overflow for minVal)."
-	n = 1 ifTrue: [
-		^self < 0
-			ifTrue: [-256 - self bitAnd: 255]
-			ifFalse: [self bitAnd: 255]].
-	^self < 0
-		ifTrue: [(-256 - self bitShift: -8) + 1 digitAt: n - 1]
-		ifFalse: [(self bitShift: 8 - (n bitShift: 3)) bitAnd: 255]
+	"Answer byte n of the magnitude without negating minVal."
+	n > 8 ifTrue: [^0].
+	self = SmallInteger minVal ifTrue: [^n = 8 ifTrue: [64] ifFalse: [0]].
+	^(self abs bitShift: 8 - (n bitShift: 3)) bitAnd: 255
 ! !
 
 !SmallInteger class methodsFor: 'constants'!

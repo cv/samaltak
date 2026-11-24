@@ -1607,8 +1607,45 @@ sendSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 		self inlineFrameClosure: (self read: (self var: a slot: r)) info: d pc: pc act: a rcvSlot: r argc: argc.
 		^-1].
 	((self isValueSelector: sel) and: [self inlineForeignClosure: (self read: (self var: a slot: r)) pc: pc act: a rcvSlot: r argc: argc]) ifTrue: [^-1].
-	((runtime flag: runtime inlineFlag) and: [self inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r]) ifTrue: [^-1].
+	(runtime flag: runtime inlineFlag)
+		ifTrue: [(self inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r) ifTrue: [^-1]]
+		ifFalse: [
+			((runtime flag: runtime ffiSiteFlag) and: [kind = 0 and: [argc <= 6 and: [self genericBoundFFICall: sel argc: argc pc: pc act: a rcvSlot: r]]]) ifTrue: [^-1]].
 	^self callSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
+!
+genericBoundFFICall: sel argc: argc pc: pc act: a rcvSlot: r
+	"Class evidence for a bound FFI site when general inlining is disabled."
+	<function>
+	| v cls owner site m |
+	v := self read: (self var: a slot: r).
+	cls := self knownClassOf: v.
+	cls = 0 ifTrue: [
+		owner := self knownObject: v.
+		owner ~= 0 ifTrue: [cls := self classOf: owner]].
+	cls = 0 ifTrue: [
+		site := feedback siteAt: (ir act: a) method pc: pc.
+		(site isNull or: [(site flags bitAnd: feedback mega) ~= 0 or: [(site classes at: 1) ~= 0]]) ifTrue: [^false].
+		cls := site classes at: 0].
+	(cls = 0 or: [cls = memory clsContext]) ifTrue: [^false].
+	m := interpreter lookupMethod: cls selector: sel.
+	^self boundFFICall: m selector: sel receiver: v class: cls argc: argc pc: pc act: a rcvSlot: r
+!
+boundFFICall: m selector: sel receiver: v class: cls argc: argc pc: pc act: a rcvSlot: r
+	"Retain an ordinary send on an owner miss. An OSR observation is a seed, not an assertion about the receiver."
+	<function>
+	<var: #owner type: 'oop'>
+	| nd owner n |
+	(m = 0 or: [(self methodPrimitive: m) ~= 264 or: [(self loadRef: m at: CM_NUMARGS) ~= (self intOop: argc)]]) ifTrue: [^false].
+	(self noteDependency: sel) ifFalse: [^false].
+	nd := ir node: (self liveValueOf: v).
+	owner := nd op asInt32 = O_CONST ifTrue: [nd aux asUInt64] ifFalse: [self knownObject: v].
+	(owner ~= 0 and: [(self classOf: owner) ~= cls]) ifTrue: [owner := 0].
+	n := self callSelector: sel argc: argc kind: 0 special: 0 pc: pc act: a rcvSlot: r.
+	nd := ir node: n.
+	nd flags: (nd flags bitOr: NF_BOUNDFFI).
+	nd tcls: m.
+	nd ffiOwner: owner.
+	^true
 !
 inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	"Inline the send for the receiver classes it is known or speculated to have; answer whether it did."
@@ -1621,7 +1658,7 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 		^self send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r].
 	cls := self knownClassOf: rcv.
 	cls = 0 ifTrue: [cls := self frameClassOf: rcv].
-	cls ~= 0 ifTrue: [^self send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r].
+	cls ~= 0 ifTrue: [^self monomorphicSend: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r state: -1].
 	site := feedback siteAt: (ir act: a) method pc: pc.
 	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
 		libc fprintf: libc stderr format: 'opt: send at pc %d of act %d: feedback %s ' with: pc with: a with: (site isNull ifTrue: ['none'] ifFalse: ['some']).
@@ -1646,8 +1683,7 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	andInts := kind = 2 and: [(analysis specialInlinesIntegers: k) and: [(self sawIntsIn: (ir act: a) method) and: [(self sawIntAt: (ir act: a) method pc: pc) not]]].
 	s := self stateAct: a pc: pc depth: (self depthAt: pc act: a).
 	(n = 1 and: [other not and: [andInts not]]) ifTrue: [
-		g := self guard: rcv class: (site classes at: 0) state: s.
-		^self send: sel to: g class: (site classes at: 0) argc: argc kind: kind pc: pc act: a rcvSlot: r].
+		^self monomorphicSend: sel to: rcv class: (site classes at: 0) argc: argc kind: kind pc: pc act: a rcvSlot: r state: s].
 	"a type switch; any other class deoptimizes (is sent, see above)"
 	merge := ir newBlock.
 	(ir block: merge) act: a.
@@ -1689,13 +1725,29 @@ inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	obCurBlock := (ir block: merge) npreds > 0 ifTrue: [merge] ifFalse: [-1].
 	^true
 !
+monomorphicSend: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r state: s
+	"An exact or single profiled class. Check for bound FFI before putting a class deopt in front of the send."
+	<function>
+	| m v |
+	cls = memory clsContext ifTrue: [^false].
+	m := interpreter lookupMethod: cls selector: sel.
+	m = 0 ifTrue: [^false].
+	((runtime flag: runtime ffiSiteFlag) and: [kind = 0 and: [argc <= 6 and: [
+		self boundFFICall: m selector: sel receiver: rcv class: cls argc: argc pc: pc act: a rcvSlot: r]]]) ifTrue: [^true].
+	v := s >= 0 ifTrue: [self guard: rcv class: cls state: s] ifFalse: [rcv].
+	^self sendResolved: m selector: sel to: v class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
+!
 send: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
 	"The receiver's class is cls: inline the method it finds, else send. Answer false only if nothing was emitted."
-	| m p |
+	| m |
 	"a married Context's slots are its frame's: its primitives (at: and friends) answer them, not inlined code"
 	cls = memory clsContext ifTrue: [^false].
 	m := interpreter lookupMethod: cls selector: sel.
 	m = 0 ifTrue: [^false].
+	^self sendResolved: m selector: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
+!
+sendResolved: m selector: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r
+	| p |
 	self noteDependency: sel.
 	self write: (self var: a slot: r) value: rcv.
 	(kind = 0 and: [(p := self performedAt: r + 1 act: a argc: argc - 1 class: cls method: m) ~= 0]) ifTrue: [
@@ -2200,10 +2252,11 @@ isBehavior: o
 !
 noteDependency: sel
 	"The code depends on what sel finds (inlined or speculated): a method change for sel invalidates it."
-	0 to: obDepCount - 1 do: [:i | (obDeps at: i) = sel ifTrue: [^self]].
-	obDepCount < OPT_MAX_DEPS ifTrue: [
-		obDeps at: obDepCount put: sel.
-		obDepCount := obDepCount + 1]
+	0 to: obDepCount - 1 do: [:i | (obDeps at: i) = sel ifTrue: [^true]].
+	obDepCount >= OPT_MAX_DEPS ifTrue: [^false].
+	obDeps at: obDepCount put: sel.
+	obDepCount := obDepCount + 1.
+	^true
 !
 depCount
 	^obDepCount

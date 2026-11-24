@@ -1,5 +1,5 @@
 VMModule subclass: #VMCoreModule
-	instanceVariableNames: 'memory gc interpreter scheduler imageFile primitives platform vmMain jit libc libm posix'
+	instanceVariableNames: 'memory gc interpreter scheduler imageFile primitives platform vmMain jit libc libm posix nativeCountedText'
 	classVariableNames: 'K_CONST K_JIT K_LEAF K_PRIM K_QUICK K_SETTER PS_FAIL PS_NONE PS_OK PS_RESEND PS_SWITCHED'
 	package: 'VM-Core'!
 
@@ -7,7 +7,7 @@ VMCoreModule comment: 'I am the abstract class of the VM core''s modules: I conn
 
 !VMCoreModule class methodsFor: 'declaring'!
 declarations
-	^#((memory ObjectMemory) (gc GarbageCollector) (interpreter Interpreter) (scheduler Scheduler) (imageFile ImageFile) (primitives PrimitiveTable) (platform PlatformInterface) (vmMain VMMain) (jit JitRuntime) (libc LibC) (libm LibM) (posix Posix))
+	^#((memory ObjectMemory) (gc GarbageCollector) (interpreter Interpreter) (scheduler Scheduler) (imageFile ImageFile) (primitives PrimitiveTable) (platform PlatformInterface) (vmMain VMMain) (jit JitRuntime) (libc LibC) (libm LibM) (posix Posix) (nativeCountedText NativeCountedText))
 !
 isAbstractModule
 	^self == VMCoreModule

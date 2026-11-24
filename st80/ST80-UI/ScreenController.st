@@ -14,7 +14,7 @@ open
 	"Open the screen and run the desk (never returns)."
 	Smalltalk at: #Display put: DisplayScreen new.
 	(Display open: 640 @ 400) ifFalse: [
-		Transcript show: 'No display: the Smalltalk-80 guest runs in the VM Simulator.'; cr.
+		Transcript show: 'No display attached.'; cr.
 		^Smalltalk quit: 1].
 	Current := self new.
 	Current openWindows.

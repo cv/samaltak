@@ -198,7 +198,7 @@ exit_entry_of_block:;
 }
 
 /* JitBaselineRuntime>>box:bits: */
-oop box(frame *f, uint64_t b)
+oop jit_baseline_runtime_box(frame *f, uint64_t b)
 {
     oop o;
     uint64_t o_2;
@@ -383,8 +383,10 @@ uint64_t entry_slow(frame *f, uint64_t ret, uint64_t c)
     frame *g;
     oop m;
     int64_t r_method_prim;
-    uint64_t p;
+    uint64_t p_2;
+    int64_t p;
     oop o_6;
+    int64_t p_3;
     int32_t n_2;
     set_top(f, ret, 0);
     if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
@@ -449,12 +451,15 @@ uint64_t entry_slow(frame *f, uint64_t ret, uint64_t c)
             fatal_end();
         }
         m = h->method;
-        if (((({
-    p = *(uint64_t *)(m + 16 + 56);
-    r_method_prim = (p & 1) != 0 ? ((int64_t)p) >> 1 : 0;
-    r_method_prim; }) & CM_PRIM_ERROR_FLAG) != 0) && ({
+        p = ({
+    p_2 = *(uint64_t *)(m + 16 + 56);
+    r_method_prim = (p_2 & 1) != 0 ? ((int64_t)p_2) >> 1 : 0;
+    r_method_prim; });
+        if (((p & CM_PRIM_ERROR_FLAG) != 0) && ({
     o_6 = h->method;
-    *(uint64_t *)(o_6 + 16 + 40) != 1ULL; })) {
+    (*(uint64_t *)(o_6 + 16 + 40) != 1ULL) && ({
+    p_3 = p & CM_PRIM_MASK;
+    (uint64_t)primitive_table_lookup(p_3) != 0; }); })) {
             g->fp[n] = (uint64_t)state_block->ecode;
         }
     }
@@ -857,7 +862,7 @@ exit_flags_of:;
             s->target = (uint64_t)t;
             target = t->uentry;
             patch_branch_at(site, target);
-            invalidate((void *)site, 4);
+            jit_platform_invalidate((uint8_t *)(void *)site, 4);
         } else if ((s->info & BL_SITE_MEGA) != 0) {
             i_3 = (int64_t)((((cls ^ sel) >> 3) & 2047) * 8);
             if (!(mega_table[i_3] == 0)) {
@@ -879,7 +884,7 @@ exit_flags_of:;
             s->target = (uint64_t)t;
             target_2 = t->entry;
             patch_branch_at(site, target_2);
-            invalidate((void *)site, 4);
+            jit_platform_invalidate((uint8_t *)(void *)site, 4);
         } else {
             p = s->pic;
             if ((p == 0) && ((jit_flags & JIT_FLAG_PIC) != 0)) {
@@ -889,7 +894,7 @@ exit_flags_of:;
                     s->pic = p;
                     target_3 = p + sizeof(baseline_pic);
                     patch_branch_at(site, target_3);
-                    invalidate((void *)site, 4);
+                    jit_platform_invalidate((uint8_t *)(void *)site, 4);
                 }
             }
             if (!((p != 0) && ({
@@ -906,7 +911,7 @@ exit_flags_of:;
     site_2 = p + (sizeof(baseline_pic) + BL_PIC_HEAD_X64 + BL_PIC_CASE_X64 * i_4 + BL_PIC_JMP_X64);
     target_4 = t->uentry;
     patch_branch_at(site_2, target_4);
-    invalidate((void *)site_2, 4);
+    jit_platform_invalidate((uint8_t *)(void *)site_2, 4);
     r_add_case_to = true;
 exit_add_case_to:;
     r_add_case_to; }))) {
@@ -915,7 +920,7 @@ exit_add_case_to:;
                 set_slot(lit, sel);
                 target_5 = (jit_flags & JIT_FLAG_MEGA) != 0 ? bl_mega : bl_miss;
                 patch_branch_at(site, target_5);
-                invalidate((void *)site, 4);
+                jit_platform_invalidate((uint8_t *)(void *)site, 4);
                 i_5 = (int64_t)((((cls ^ sel) >> 3) & 2047) * 8);
                 if (!(mega_table[i_5] == 0)) {
                     for (k_3 = 0; k_3 <= 3; k_3++) {
@@ -1122,7 +1127,7 @@ exit_flags_of:;
             s->target = (uint64_t)t;
             target = t->uentry;
             patch_branch_at(site, target);
-            invalidate((void *)site, 4);
+            jit_platform_invalidate((uint8_t *)(void *)site, 4);
         } else if ((s->info & BL_SITE_MEGA) != 0) {
             i_3 = (int64_t)((((cls ^ sel) >> 3) & 2047) * 8);
             if (!(mega_table[i_3] == 0)) {
@@ -1144,7 +1149,7 @@ exit_flags_of:;
             s->target = (uint64_t)t;
             target_2 = t->entry;
             patch_branch_at(site, target_2);
-            invalidate((void *)site, 4);
+            jit_platform_invalidate((uint8_t *)(void *)site, 4);
         } else {
             p = s->pic;
             if ((p == 0) && ((jit_flags & JIT_FLAG_PIC) != 0)) {
@@ -1154,7 +1159,7 @@ exit_flags_of:;
                     s->pic = p;
                     target_3 = p + sizeof(baseline_pic);
                     patch_branch_at(site, target_3);
-                    invalidate((void *)site, 4);
+                    jit_platform_invalidate((uint8_t *)(void *)site, 4);
                 }
             }
             if (!((p != 0) && ({
@@ -1171,7 +1176,7 @@ exit_flags_of:;
     site_2 = p + (sizeof(baseline_pic) + 12 + 16 * i_4 + 12);
     target_4 = t->uentry;
     patch_branch_at(site_2, target_4);
-    invalidate((void *)site_2, 4);
+    jit_platform_invalidate((uint8_t *)(void *)site_2, 4);
     r_add_case_to = true;
 exit_add_case_to:;
     r_add_case_to; }))) {
@@ -1180,7 +1185,7 @@ exit_add_case_to:;
                 set_slot(lit, sel);
                 target_5 = (jit_flags & JIT_FLAG_MEGA) != 0 ? bl_mega : bl_miss;
                 patch_branch_at(site, target_5);
-                invalidate((void *)site, 4);
+                jit_platform_invalidate((uint8_t *)(void *)site, 4);
                 i_5 = (int64_t)((((cls ^ sel) >> 3) & 2047) * 8);
                 if (!(mega_table[i_5] == 0)) {
                     for (k_3 = 0; k_3 <= 3; k_3++) {
@@ -1232,7 +1237,7 @@ static uint64_t new_pic_for(uint64_t site, uint64_t c0, jit_method *t0)
         return 0;
     }
     size = (uint64_t)(sizeof(baseline_pic) + 192);
-    invalidate((void *)p, size);
+    jit_platform_invalidate((uint8_t *)(void *)p, size);
     perf_map_at(p, (uint64_t)(sizeof(baseline_pic) + 192), "pic");
     for (i = 0; i <= 5; i++) {
         register_slot((uint64_t)&pic->classes + (uint64_t)(8 * i));
@@ -1251,7 +1256,7 @@ static uint64_t new_pic_for(uint64_t site, uint64_t c0, jit_method *t0)
     site_2 = p + (sizeof(baseline_pic) + BL_PIC_HEAD_X64 + BL_PIC_CASE_X64 * i_2 + BL_PIC_JMP_X64);
     target = t0->uentry;
     patch_branch_at(site_2, target);
-    invalidate((void *)site_2, 4);
+    jit_platform_invalidate((uint8_t *)(void *)site_2, 4);
     r_add_case_to = true;
 exit_add_case_to:;
     r_add_case_to; })) {
@@ -1289,7 +1294,7 @@ static uint64_t new_pic_for(uint64_t site, uint64_t c0, jit_method *t0)
         return 0;
     }
     size = (uint64_t)(sizeof(baseline_pic) + 128);
-    invalidate((void *)p, size);
+    jit_platform_invalidate((uint8_t *)(void *)p, size);
     perf_map_at(p, (uint64_t)(sizeof(baseline_pic) + 128), "pic");
     for (i = 0; i <= 5; i++) {
         register_slot((uint64_t)&pic->classes + (uint64_t)(8 * i));
@@ -1308,7 +1313,7 @@ static uint64_t new_pic_for(uint64_t site, uint64_t c0, jit_method *t0)
     site_2 = p + (sizeof(baseline_pic) + 12 + 16 * i_2 + 12);
     target = t0->uentry;
     patch_branch_at(site_2, target);
-    invalidate((void *)site_2, 4);
+    jit_platform_invalidate((uint8_t *)(void *)site_2, 4);
     r_add_case_to = true;
 exit_add_case_to:;
     r_add_case_to; })) {
@@ -1551,6 +1556,10 @@ uint64_t jit_baseline_runtime_prim(frame *f, uint64_t fp, uint64_t fn, uint64_t 
     int32_t code;
     int64_t v_2;
     uint64_t v_3;
+    if (fn == 0) {
+        state_block->ecode = (int64_t)nil_oop;
+        return 2;
+    }
     stat_prim_calls = stat_prim_calls + 1;
     n = (int32_t)(info & 255);
     leaf = (info & 256) != 0;
@@ -1993,7 +2002,7 @@ void redirect(jit_method *h, jit_method *o)
         *(uint32_t *)(a + 1) = (uint32_t)((int64_t)o->code_start - (int64_t)(a + 5));
         *(uint8_t *)a = 0xE9;
     }
-    invalidate((void *)a, 5);
+    jit_platform_invalidate((uint8_t *)(void *)a, 5);
     end_writing();
     return;
     if (o == h) {
@@ -2007,7 +2016,7 @@ void redirect(jit_method *h, jit_method *o)
         }
         *(uint32_t *)a = (uint32_t)(0x14000000 | ((((int64_t)o->code_start - (int64_t)a) >> 2) & 0x3FFFFFF));
     }
-    invalidate((void *)a, 4);
+    jit_platform_invalidate((uint8_t *)(void *)a, 4);
     end_writing();
 }
 
@@ -2035,7 +2044,7 @@ void redirect(jit_method *h, jit_method *o)
         }
         *(uint32_t *)a = (uint32_t)(0x14000000 | ((((int64_t)o->code_start - (int64_t)a) >> 2) & 0x3FFFFFF));
     }
-    invalidate((void *)a, 4);
+    jit_platform_invalidate((uint8_t *)(void *)a, 4);
     end_writing();
 }
 
@@ -2205,7 +2214,7 @@ static jit_method *target_for(oop cls, oop sel)
     cache_entry *e;
     oop m;
     jit_method *t;
-    e = entry_for(cls, sel);
+    e = interpreter_entry_for(cls, sel);
     if (e == NULL) {
         return (jit_method *)NULL;
     }
@@ -2292,7 +2301,7 @@ exit_selector_of:;
                         s->pic = 0;
                         s->info = s->info & 3221225471LL;
                         patch_branch_at(site, bl_miss);
-                        invalidate((void *)site, 4);
+                        jit_platform_invalidate((uint8_t *)(void *)site, 4);
                     }
                 }
             }
@@ -2330,7 +2339,7 @@ exit_selector_of_2:;
                     s_2->pic = 0;
                     s_2->info = s_2->info & 3221225471LL;
                     patch_branch_at(site_2, bl_miss);
-                    invalidate((void *)site_2, 4);
+                    jit_platform_invalidate((uint8_t *)(void *)site_2, 4);
                 }
             }
         }

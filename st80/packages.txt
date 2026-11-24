@@ -1,5 +1,5 @@
-# The VM Simulator's Smalltalk-80 guest: the image's own kernel and compiler (links into src/) and a small UI on the
-# VM's guest display primitives (DisplayPrimitives). Built at each Run, booted on the simulated VM.
+# The VM Simulator's Smalltalk-80 guest: kernel and compiler (links into src/) and an image-side UI.
+# The Smalltalk-80 button builds and boots this image on the simulated VM.
 Kernel-Objects 0
 Kernel-Numbers 0
 Kernel-Collections 0

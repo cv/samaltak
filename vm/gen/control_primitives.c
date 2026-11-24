@@ -639,7 +639,7 @@ void prim_try_primitive(void)
     fn = primitive_table_lookup(((int64_t)idx) >> 1);
     bi = active_stackp() - 1 - 3;
     n = (uint32_t)*(uint64_t *)arr;
-    if ((fn == NULL) || ((!is_tryable(((int64_t)idx) >> 1)) || (bi + 1 + (int64_t)n > active_capacity()))) {
+    if ((fn == NULL) || ((!is_tryable(((int64_t)idx) >> 1, prim_base[2])) || (bi + 1 + (int64_t)n > active_capacity()))) {
         prim_result = failed;
         prim_status = PS_OK;
         return;

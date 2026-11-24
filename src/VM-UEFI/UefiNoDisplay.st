@@ -13,7 +13,8 @@ targetOS
 	^#uefi
 !
 replaces
-	^{PlatformWindows. PlatformEvents. PlatformVsync. PlatformGPU}
+	^{PlatformWindows. PlatformEvents. PlatformVsync. PlatformGPU.
+		FFIVsyncNotification. FFISDLLogAdapter. FFIExternalNotificationAdapter}
 !
 isSimulated
 	^false

@@ -144,16 +144,31 @@ isFloat: o
 	<function>
 	^(o bitAnd: 7) = 4 or: [(self isPtr: o) and: [(self rawClass: o) = clsBoxedfloat]]
 !
+smallFloatBits: o
+	| r |
+	r := o >> 3.
+	^r <= 1 ifTrue: [r << 63] ifFalse: [self rotr1: r + (896 << 53)]
+!
 floatVal: o
 	"o must be a Float."
 	<function>
-	| b r |
+	^self doubleFromBits: ((o bitAnd: 7) = 4
+		ifTrue: [self smallFloatBits: o]
+		ifFalse: [(self slotsOf: o) at: 0])
+!
+tryFloatVal: o into: out
+	"Fuse the type check and unboxing; every IEEE bit pattern is a valid result."
+	<function>
+	<var: #out type: 'double *'>
+	<returns: 'bool'>
+	| bits |
 	(o bitAnd: 7) = 4
-		ifTrue: [
-			r := o >> 3.
-			b := r <= 1 ifTrue: [r << 63] ifFalse: [self rotr1: r + (896 << 53)]]
-		ifFalse: [b := (self slotsOf: o) at: 0].
-	^self doubleFromBits: b
+		ifTrue: [bits := self smallFloatBits: o]
+		ifFalse: [
+			(o = 0 or: [(self isPtr: o) not or: [(self rawClass: o) ~= clsBoxedfloat]]) ifTrue: [^false].
+			bits := (self slotsOf: o) at: 0].
+	out value: (self doubleFromBits: bits).
+	^true
 !
 floatOop: d
 	"A SmallFloat64 if d has one, else a new BoxedFloat64 (may allocate)."
@@ -184,9 +199,9 @@ byteSize: o
 	<returns: 'size_t'>
 	| f |
 	f := self formatOf: o.
-	f >= F_BYTES ifTrue: [^((self numSlots: o) * 8) - (f - F_BYTES)].
+	f >= F_BYTES ifTrue: [^((self numSlots: o) asUInt64 * 8) - (f - F_BYTES)].
 	(f >= F_W32 and: [f < F_BYTES]) ifTrue: [^(self word32Size: o) * 4].
-	^(self numSlots: o) * 8
+	^(self numSlots: o) asUInt64 * 8
 !
 word32Size: o
 	"Element count of a 32-bit object (formats 10-11)."
@@ -194,7 +209,7 @@ word32Size: o
 	<returns: 'size_t'>
 	| f |
 	f := self formatOf: o.
-	(f = 10 or: [f = 11]) ifTrue: [^((self numSlots: o) * 2) - (f - F_W32)].
+	(f = 10 or: [f = 11]) ifTrue: [^((self numSlots: o) asUInt64 * 2) - (f - F_W32)].
 	^0
 !
 fixedFields: o
@@ -370,6 +385,9 @@ allocBytes: cls count: n
 allocWords32: cls count: n
 	"n 32-bit units, zeroed."
 	<function>
+	<var: #cls type: 'oop'>
+	<var: #n type: 'uint64_t'>
+	<returns: 'oop'>
 	^self allocObj: cls format: F_W32 + (n bitAnd: 1) asInt32 slots: (n + 1 quo: 2) asUInt32
 !
 instantiate: cls size: n error: err
@@ -570,7 +588,7 @@ utf8Decode: s size: n at: index
 		len := 4.
 		c = 16rF0 ifTrue: [lo := 16r90].
 		c = 16rF4 ifTrue: [hi := 16r8F]].
-	(len = 0 or: [i + len asUInt64 > n]) ifTrue: [^16rDC00 + c].
+	(len = 0 or: [len asUInt64 > (n - i)]) ifTrue: [^16rDC00 + c].
 	cp := c bitAnd: (16r7F >> len).
 	1 to: len - 1 do: [:k |
 		d := (s at: i + k asUInt64) asUInt32.
@@ -584,7 +602,18 @@ utf8Decode: s size: n at: index
 stringFromUtf8: str size: n
 	"ByteString or WideString."
 	<function>
-	| s count i max cp r b w |
+	| r |
+	r := self stringFromUtf8Try: str size: n.
+	r = 0 ifTrue: [self fatal: 'not enough memory for decoded text (%zu input bytes)' with: n].
+	^r
+!
+stringFromUtf8Try: str size: n
+	"Return 0 when the decoded String cannot fit. Measure code points, not source bytes: a multibyte input can be larger than the VM object's byte capacity."
+	<function>
+	<var: #str type: 'const char *'>
+	<var: #n type: 'size_t'>
+	<returns: 'oop'>
+	| s count i max cp r b w padding slots |
 	s := self cCoerce: str to: 'uint8_t *'.
 	count := 0 asUInt64.
 	max := 0 asUInt64.
@@ -595,19 +624,27 @@ stringFromUtf8: str size: n
 		cp > max ifTrue: [max := cp].
 		count := count + 1].
 	max < 256 ifTrue: [
-		r := self allocBytes: clsBytestring count: count.
+		padding := (8 - (count bitAnd: 7)) bitAnd: 7.
+		slots := (count quo: 8) + (padding ~= 0 ifTrue: [1] ifFalse: [0]).
+		r := self allocUnfilledTry: clsBytestring format: F_BYTES + padding asInt32 slots: slots.
+		r = 0 ifTrue: [^0].
 		b := self bytesOf: r.
 		i value: 0.
 		[i value < n] whileTrue: [
 			b value: (self utf8Decode: s size: n at: i) asUInt8.
 			b := b + 1].
+		padding ~= 0 ifTrue: [libc memset: b value: 0 size: padding].
 		^r].
-	r := self allocWords32: (self special: SO_WIDESTRING) count: count.
+	padding := count bitAnd: 1.
+	slots := (count quo: 2) + padding.
+	r := self allocUnfilledTry: (self special: SO_WIDESTRING) format: F_W32 + padding asInt32 slots: slots.
+	r = 0 ifTrue: [^0].
 	w := self words32Of: r.
 	i value: 0.
 	[i value < n] whileTrue: [
 		w value: (self utf8Decode: s size: n at: i) asUInt32.
 		w := w + 1].
+	padding ~= 0 ifTrue: [w value: 0].
 	^r
 !
 utf8Of: s

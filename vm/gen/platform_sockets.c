@@ -48,19 +48,13 @@ int32_t platform_sockets_accept(int32_t s, bool *would_block)
 }
 
 /* PlatformSockets>>add:kind:pointer: */
-int32_t platform_sockets_add(int fd, int kind, void *ptr)
+int32_t add(int fd, int kind, void *ptr)
 {
     int32_t h;
-    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
-    fcntl(fd, F_SETFD, FD_CLOEXEC);
-    h = platform_common_table_add_pointer(table, kind, ptr);
-    if (h >= MAX_FDS) {
-        platform_common_table_remove(table, h);
-        set_error("too many sockets and ptys");
-        return 0;
+    h = reserve_descriptor(kind, ptr);
+    if (h != 0) {
+        install_descriptor(fd, h);
     }
-    (table->v + h)->i = fd;
-    memset(sems + h, 0, sizeof(sock_sems));
     return h;
 }
 
@@ -80,6 +74,12 @@ void arm_read(int32_t h)
 void arm_write(int32_t h, bool armed)
 {
     (sems + h)->write_armed = armed;
+}
+
+/* PlatformSockets>>cancelDescriptor: */
+void cancel_descriptor(int32_t h)
+{
+    platform_common_table_remove(table, h);
 }
 
 /* PlatformSockets>>close: */
@@ -216,6 +216,15 @@ static int32_t platform_sockets_fd_of(int32_t h, int kind)
 int32_t platform_sockets_handle_count(void)
 {
     return platform_common_table_count(table, PF_FD_SOCKET) + platform_common_table_count(table, PF_FD_TLS);
+}
+
+/* PlatformSockets>>installDescriptor:at: */
+void install_descriptor(int fd, int32_t h)
+{
+    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+    fcntl(fd, F_SETFD, FD_CLOEXEC);
+    (table->v + h)->i = fd;
+    memset(sems + h, 0, sizeof(sock_sems));
 }
 
 /* PlatformSockets>>listen:port:backlog: */
@@ -529,6 +538,23 @@ ssize_t platform_sockets_recv(int32_t s, void *buf, uint64_t n)
     return platform_sockets_read(s, PF_FD_SOCKET, buf, n);
 }
 
+/* PlatformSockets>>reserveDescriptor:pointer: */
+int32_t reserve_descriptor(int kind, void *ptr)
+{
+    int32_t h;
+    h = platform_common_table_add_pointer(table, kind, ptr);
+    if (h == 0) {
+        set_error("out of memory");
+        return 0;
+    }
+    if (h >= MAX_FDS) {
+        cancel_descriptor(h);
+        set_error("too many sockets and ptys");
+        return 0;
+    }
+    return h;
+}
+
 /* PlatformSockets>>resolve:port:passive: */
 static struct addrinfo *platform_sockets_resolve(char *host, int32_t port, bool passive)
 {
@@ -597,7 +623,7 @@ static int32_t wrap(int fd)
 {
     int32_t h;
     socket_opened(fd);
-    h = platform_sockets_add(fd, PF_FD_SOCKET, NULL);
+    h = add(fd, PF_FD_SOCKET, NULL);
     if (h == 0) {
         close(fd);
     }

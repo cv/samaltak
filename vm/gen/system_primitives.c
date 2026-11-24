@@ -40,35 +40,11 @@ void prim_gc(void)
     prim_status = PS_OK;
 }
 
-/* SystemPrimitives>>primGetenv */
-void prim_getenv(void)
-{
-    char *k;
-    char *v;
-    uint64_t v_2;
-    if (!is_kind_of_string(prim_nargs > 0 ? prim_base[1] : nil_oop)) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        return;
-    }
-    k = utf8_of(prim_nargs > 0 ? prim_base[1] : nil_oop);
-    if (k == NULL) {
-        prim_status = PS_FAIL;
-        prim_error_code = PRIM_ERR_NO_MEMORY;
-        return;
-    }
-    v = getenv(k);
-    free(k);
-    v_2 = v != NULL ? string_from_utf8(v, strlen(v)) : nil_oop;
-    prim_result = v_2;
-    prim_status = PS_OK;
-}
-
 /* SystemPrimitives>>primImagePath */
 void prim_image_path(void)
 {
     char *p;
-    uint64_t v;
+    oop v;
     p = image_path == NULL ? "" : image_path;
     v = string_from_utf8(p, strlen(p));
     prim_result = v;
@@ -111,6 +87,7 @@ void prim_quit(void)
 {
     oop c;
     c = prim_nargs > 0 ? prim_base[1] : nil_oop;
+    jit_runtime_print_bound_site_trace();
     fflush(stdout);
     fflush(stderr);
     platform_interface_shutdown();
@@ -177,103 +154,6 @@ void prim_snapshot(void)
     ((oop *)(ctx + 16))[CTX_FIXED + ctx_stackp(ctx) - 1] = ok ? false_oop : nil_oop;
 }
 
-/* SystemPrimitives>>primStderrWrite */
-void prim_stderr_write(void)
-{
-    oop s;
-    size_t local;
-    size_t *n;
-    char *u;
-    oop v;
-    s = prim_nargs > 0 ? prim_base[1] : prim_base[0];
-    if (!(((s & 7) == 0) && (is_kind_of_string(s) || (*(uint64_t *)(s + 8) == cls_bytearray)))) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        goto exit_write_to;
-    }
-    memset(&local, 0, sizeof local);
-    n = &local;
-    u = utf8_bytes_of(s, n);
-    if (u == NULL) {
-        prim_status = PS_FAIL;
-        prim_error_code = PRIM_ERR_NO_MEMORY;
-        goto exit_write_to;
-    }
-    fwrite(u, 1, *n, stderr);
-    fflush(stderr);
-    free(u);
-    v = prim_base[0];
-    prim_result = v;
-    prim_status = PS_OK;
-exit_write_to:;
-}
-
-/* SystemPrimitives>>primStdoutWrite */
-void prim_stdout_write(void)
-{
-    oop s;
-    size_t local;
-    size_t *n;
-    char *u;
-    oop v;
-    s = prim_nargs > 0 ? prim_base[1] : prim_base[0];
-    if (!(((s & 7) == 0) && (is_kind_of_string(s) || (*(uint64_t *)(s + 8) == cls_bytearray)))) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        goto exit_write_to;
-    }
-    memset(&local, 0, sizeof local);
-    n = &local;
-    u = utf8_bytes_of(s, n);
-    if (u == NULL) {
-        prim_status = PS_FAIL;
-        prim_error_code = PRIM_ERR_NO_MEMORY;
-        goto exit_write_to;
-    }
-    fwrite(u, 1, *n, stdout);
-    fflush(stdout);
-    free(u);
-    v = prim_base[0];
-    prim_result = v;
-    prim_status = PS_OK;
-exit_write_to:;
-}
-
-/* SystemPrimitives>>primThreadCpuTime */
-void prim_thread_cpu_time(void)
-{
-    int64_t r_real_thread_cpu_us;
-    struct timespec local;
-    struct timespec *ts;
-    int64_t v;
-    uint64_t v_2;
-    v = ({
-    memset(&local, 0, sizeof local);
-    ts = &local;
-    clock_gettime(CLOCK_THREAD_CPUTIME_ID, ts);
-    r_real_thread_cpu_us = ts->tv_sec * 1000000 + ts->tv_nsec / 1000;
-    r_real_thread_cpu_us; });
-    v_2 = (uint64_t)((v << 1) | 1);
-    prim_result = v_2;
-    prim_status = PS_OK;
-}
-
-/* SystemPrimitives>>primUtcMicroseconds */
-void prim_utc_microseconds(void)
-{
-    struct timeval local;
-    struct timeval *tv;
-    int64_t v;
-    uint64_t v_2;
-    memset(&local, 0, sizeof local);
-    tv = &local;
-    gettimeofday(tv, NULL);
-    v = tv->tv_sec * 1000000 + tv->tv_usec;
-    v_2 = (uint64_t)((v << 1) | 1);
-    prim_result = v_2;
-    prim_status = PS_OK;
-}
-
 /* SystemPrimitives>>primVMArguments */
 void prim_vm_arguments(void)
 {
@@ -287,7 +167,7 @@ void prim_vm_arguments(void)
 void prim_vm_banner(void)
 {
     char *b;
-    uint64_t v;
+    oop v;
     b = banner();
     v = string_from_utf8(b, strlen(b));
     prim_result = v;
@@ -492,7 +372,7 @@ static oop strings_array(char **v, int32_t n)
     oop local;
     oop *root;
     int32_t i;
-    uint64_t s;
+    oop s;
     oop o;
     a = alloc_obj(cls_array, F_VAR, (uint32_t)n);
     memset(&local, 0, sizeof local);
@@ -503,7 +383,7 @@ static oop strings_array(char **v, int32_t n)
         s = string_from_utf8(v[i], strlen(v[i]));
         o = *root;
         *(uint64_t *)(o + 16 + 8 * i) = s;
-        if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
+        if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
             remember(o);
         }
     }

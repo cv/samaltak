@@ -80,14 +80,7 @@ for spec in sys.argv[4:]:
 python: script arguments: anArray
 	"Run python3 -c script with the arguments; answer its exit status."
 	| pid |
-	pid := self spawn: ({'python3'. '-c'. script} , anArray).
-	^self waitFor: pid blocking: true
-!
-spawn: argv
-	<primitive: 'spawnProcess'>
-	^self fail: 'spawnProcess failed'
-!
-waitFor: pid blocking: aBoolean
-	<primitive: 'processWait'>
-	^self fail: 'processWait failed'
+	pid := (File primSpawn: ({'python3'. '-c'. script} , anArray)) ifNil: [
+		^self fail: 'spawnProcess failed'].
+	^(File primWait: pid blocking: true) ifNil: [self fail: 'processWait failed']
 ! !

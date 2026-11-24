@@ -10,6 +10,7 @@ uint64_t eden_lo;
 bool finalization_pending;
 static uint64_t ft_top;
 uint64_t gc_epoch;
+static void (*invalidate_weak_owners)(void);
 size_t max_heap_bytes;
 static uint64_t old_alt_hi;
 static uint64_t old_alt_lo;
@@ -37,6 +38,7 @@ static uint64_t surv_top;
 static uint64_t to_hi;
 static uint64_t to_lo;
 static uint64_t to_top;
+static void (*update_weak_owners)(bool (*)(oop *));
 static int32_t verify = -1;
 static uint64_t vlo;
 static size_t weak_cap;
@@ -48,7 +50,7 @@ uint64_t young_lo;
 static void garbage_collector_after_gc(void);
 static void become_root(oop *p);
 static void clear_weak_slots(bool (*is_dead)(oop *));
-static void discard(uint64_t p, uint64_t n);
+static void garbage_collector_discard(uint64_t p, uint64_t n);
 static void for_each_root(void (*fn)(oop *));
 static uint64_t full_copy(oop o);
 static bool full_dead(oop *v);
@@ -93,6 +95,7 @@ void become_forward(oop from, oop to)
     before_gc();
     become_from = from;
     become_to = to;
+    invalidate_native_weak_owners();
     become_method(from);
     for_each_root(become_root);
     jit_runtime_all_roots(become_root);
@@ -168,7 +171,7 @@ void collect_garbage(uint64_t need)
 }
 
 /* GarbageCollector>>discard:size: */
-static void discard(uint64_t p, uint64_t n)
+static void garbage_collector_discard(uint64_t p, uint64_t n)
 {
     uint64_t m;
     m = (n + 16383) & 18446744073709535232ULL;
@@ -310,7 +313,10 @@ void full_gc(void)
         scan = scan + (16 + 8 * (uint64_t)(uint32_t)*(uint64_t *)scan);
     }
     clear_weak_slots(full_dead);
-    discard(old_lo, old_used);
+    if (update_weak_owners != NULL) {
+        update_weak_owners(full_dead);
+    }
+    garbage_collector_discard(old_lo, old_used);
     lo = old_lo;
     hi = old_hi;
     old_lo = old_alt_lo;
@@ -376,6 +382,14 @@ void garbage_collector_init(uint64_t eden_bytes, uint64_t max_heap)
     old_budget = MIN_BUDGET;
 }
 
+/* GarbageCollector>>invalidateNativeWeakOwners */
+void invalidate_native_weak_owners(void)
+{
+    if (invalidate_weak_owners != NULL) {
+        invalidate_weak_owners();
+    }
+}
+
 /* GarbageCollector>>isContext: */
 static bool garbage_collector_is_context(oop o)
 {
@@ -439,6 +453,13 @@ static bool refers_to_young(oop o)
         }
     }
     return false;
+}
+
+/* GarbageCollector>>registerWeakOwners:invalidate: */
+void register_weak_owners(void (*update)(bool (*)(oop *)), void (*invalidate)(void))
+{
+    update_weak_owners = update;
+    invalidate_weak_owners = invalidate;
 }
 
 /* GarbageCollector>>releaseFreeMemory */
@@ -637,6 +658,9 @@ void scavenge(void)
         }
     }
     clear_weak_slots(scav_dead);
+    if (update_weak_owners != NULL) {
+        update_weak_owners(scav_dead);
+    }
     for (k = 0; k <= (int64_t)weak_count - 1; k++) {
         w = weak_list[k];
         if ((!((uint64_t)(w - young_lo) < young_hi - young_lo)) && ((((*(uint64_t *)w) & H_REMEMBERED) == 0) && refers_to_young(w))) {

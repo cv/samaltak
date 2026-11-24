@@ -92,15 +92,22 @@ onRefresh: link now: now output: outputTime flags: flagsIn flagsOut: flagsOut co
 !
 vsyncStart
 	<export>
-	| link |
+	| link ref |
 	darwin installPaste.
 	link := self local: 'CVDisplayLinkRef'.
 	(coreVideo createWithActiveCGDisplays: link) ~= coreVideo kCVReturnSuccess ifTrue: [
 		common setError: 'CVDisplayLinkCreateWithActiveCGDisplays failed'.
 		^false].
-	displayLink := link value.
-	coreVideo setOutputCallback: displayLink callback: (self functionPointer: #onRefresh:now:output:flags:flagsOut:context:) userInfo: self null.
-	coreVideo start: displayLink.
+	ref := link value.
+	(coreVideo setOutputCallback: ref callback: (self functionPointer: #onRefresh:now:output:flags:flagsOut:context:) userInfo: self null) ~= coreVideo kCVReturnSuccess ifTrue: [
+		coreVideo release: ref.
+		common setError: 'CVDisplayLinkSetOutputCallback failed'.
+		^false].
+	(coreVideo start: ref) ~= coreVideo kCVReturnSuccess ifTrue: [
+		coreVideo release: ref.
+		common setError: 'CVDisplayLinkStart failed'.
+		^false].
+	displayLink := ref.
 	^true
 !
 vsyncStop

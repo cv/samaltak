@@ -111,7 +111,7 @@ static void emit_literals(void);
 static void emit_load_loop_temps(int32_t id);
 static bool emit_method_entry(void);
 static bool emit_perform_primitive(void);
-static bool emit_primitive(void);
+static bool emit_primitive(uint64_t fn);
 static void emit_quick_method(void);
 static void emit_replace_primitive(int32_t fail);
 static void emit_runtime_call(int32_t stub_label, int32_t pc, int32_t d);
@@ -58022,6 +58022,7 @@ static bool emit_method_entry(void)
     int64_t disp_4;
     uint64_t v_14;
     uint64_t p;
+    uint64_t fn;
     int64_t off;
     int32_t off_2;
     int64_t d_6;
@@ -58373,8 +58374,9 @@ exit_b_3:;
     if (((jit_flags & JIT_FLAG_QUICK) != 0) && (prim_index == 0)) {
         emit_quick_method();
     }
-    if (prim_index != 0) {
-        if (!emit_primitive()) {
+    fn = prim_index == 0 ? 0ULL : (uint64_t)primitive_table_lookup(prim_index);
+    if (fn != 0) {
+        if (!emit_primitive(fn)) {
             return false;
         }
     }
@@ -58383,7 +58385,7 @@ exit_b_3:;
         return false;
     }
     emit_frame_for(false, cur_args, cur_temps);
-    if (prim_error) {
+    if ((fn != 0) && prim_error) {
         if (asm_noting) {
             note("the primitive's error code (or nil) into the first temp", 0);
         }
@@ -58876,6 +58878,7 @@ static bool emit_method_entry(void)
     int64_t off_2;
     uint64_t a_word_3;
     uint64_t p;
+    uint64_t fn;
     int64_t off_3;
     uint64_t a_word_4;
     uint64_t a_word_5;
@@ -58997,8 +59000,9 @@ exit_offset_to_2:;
     if (((jit_flags & JIT_FLAG_QUICK) != 0) && (prim_index == 0)) {
         emit_quick_method();
     }
-    if (prim_index != 0) {
-        if (!emit_primitive()) {
+    fn = prim_index == 0 ? 0ULL : (uint64_t)primitive_table_lookup(prim_index);
+    if (fn != 0) {
+        if (!emit_primitive(fn)) {
             return false;
         }
     }
@@ -59007,7 +59011,7 @@ exit_offset_to_2:;
         return false;
     }
     emit_frame_for(false, cur_args, cur_temps);
-    if (prim_error) {
+    if ((fn != 0) && prim_error) {
         if (asm_noting) {
             note("the primitive's error code (or nil) into the first temp", 0);
         }
@@ -65716,8 +65720,8 @@ exit_offset_to_6:;
 
 #endif
 #if defined(__x86_64__)
-/* JitBaselineCompiler>>emitPrimitive */
-static bool emit_primitive(void)
+/* JitBaselineCompiler>>emitPrimitive: */
+static bool emit_primitive(uint64_t fn)
 {
     int32_t k;
     int32_t fail;
@@ -67117,8 +67121,7 @@ static bool emit_primitive(void)
     uint64_t target_63;
     int64_t disp_63;
     uint64_t v_455;
-    uint64_t value;
-    int32_t value_2;
+    int32_t value;
     uint64_t v_456;
     uint64_t v_457;
     uint64_t v_458;
@@ -77036,7 +77039,6 @@ exit_emit_rel32_to_62:;
 exit_emit_rel32_to_63:;
     amd64_assembler_store(X64_R11, X10);
 exit_adr:;
-    value = (uint64_t)primitive_table_lookup(prim_index);
     if (asm_pc + 8 <= asm_limit) {
         *(uint64_t *)asm_pc = 47688ULL;
         asm_pc = asm_pc + 2;
@@ -77044,7 +77046,7 @@ exit_adr:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_pc + 8 <= asm_limit) {
-        *(uint64_t *)asm_pc = value;
+        *(uint64_t *)asm_pc = fn;
         asm_pc = asm_pc + 8;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
@@ -77057,15 +77059,15 @@ exit_adr:;
         asm_error = ASM_ERR_FULL;
     }
     if (asm_pc + 8 <= asm_limit) {
-        *(uint64_t *)asm_pc = value;
+        *(uint64_t *)asm_pc = fn;
         asm_pc = asm_pc + 8;
     } else if (asm_error == ASM_OK) {
         asm_error = ASM_ERR_FULL;
     }
     amd64_assembler_store(X64_R11, X2);
 exit_mov_11:;
-    value_2 = cur_args | (is_leaf(prim_index) ? 256 : 0) | (prim_error ? 512 : 0);
-    v_456 = (uint64_t)value_2;
+    value = cur_args | (is_leaf(prim_index) ? 256 : 0) | (prim_error ? 512 : 0);
+    v_456 = (uint64_t)value;
     if (v_456 <= 0xFFFFFFFFLL) {
         v_457 = 185ULL | ((v_456 & 0xFFFFFFFFLL) << 8);
         if (asm_pc + 8 <= asm_limit) {
@@ -77109,7 +77111,7 @@ exit_mov_11:;
     }
 exit_mov_reg_5:;
     goto exit_mov_12;
-    amd64_assembler_move_any_imm(X3, (uint64_t)value_2);
+    amd64_assembler_move_any_imm(X3, (uint64_t)value);
 exit_mov_12:;
     a_62 = asm_labels[prim_label];
     if (a_62 != 0) {
@@ -77157,8 +77159,8 @@ exit_b_59:;
 }
 
 #else
-/* JitBaselineCompiler>>emitPrimitive */
-static bool emit_primitive(void)
+/* JitBaselineCompiler>>emitPrimitive: */
+static bool emit_primitive(uint64_t fn)
 {
     int32_t k;
     int32_t fail;
@@ -77392,7 +77394,6 @@ static bool emit_primitive(void)
     int32_t info;
     int64_t off_50;
     uint64_t a_word_72;
-    uint64_t value;
     uint64_t v_24;
     uint64_t imm_4;
     uint64_t a_word_73;
@@ -77402,7 +77403,7 @@ static bool emit_primitive(void)
     uint64_t a_word_75;
     uint64_t imm_7;
     uint64_t a_word_76;
-    int32_t value_2;
+    int32_t value;
     uint64_t a_word_77;
     uint64_t target_38;
     int64_t r_offset_to_38;
@@ -79673,8 +79674,7 @@ exit_offset_to_37:;
         asm_error = ASM_ERR_FULL;
     }
 exit_adr:;
-    value = (uint64_t)primitive_table_lookup(prim_index);
-    v_24 = value;
+    v_24 = fn;
     imm_4 = v_24 & 0xFFFF;
     if (!(imm_4 <= 0xFFFF)) {
         if (asm_error == ASM_OK) {
@@ -79735,15 +79735,15 @@ exit_move_wide_3:;
         asm_error = ASM_ERR_FULL;
     }
 exit_move_wide_4:;
-    value_2 = cur_args | (is_leaf(prim_index) ? 256 : 0) | (prim_error ? 512 : 0);
-    if ((value_2 >= 0) && (value_2 <= 0xFFFF)) {
-        if (!((value_2 >= 0) && (value_2 <= 0xFFFF))) {
+    value = cur_args | (is_leaf(prim_index) ? 256 : 0) | (prim_error ? 512 : 0);
+    if ((value >= 0) && (value <= 0xFFFF)) {
+        if (!((value >= 0) && (value <= 0xFFFF))) {
             if (asm_error == ASM_OK) {
                 asm_error = ASM_ERR_IMMEDIATE;
             }
             goto exit_move_wide_5;
         }
-        a_word_77 = 3531603968LL | (0ULL | (((uint64_t)value_2) << 5) | 3);
+        a_word_77 = 3531603968LL | (0ULL | (((uint64_t)value) << 5) | 3);
         if (asm_pc < asm_limit) {
             *(uint32_t *)asm_pc = a_word_77;
             asm_pc = asm_pc + 4;
@@ -79752,7 +79752,7 @@ exit_move_wide_4:;
         }
     exit_move_wide_5:;
     } else {
-        mov_imm(X3, (uint64_t)value_2);
+        mov_imm(X3, (uint64_t)value);
     }
     target_38 = target_of(prim_label);
     a_word_78 = 0x14000000 | ({

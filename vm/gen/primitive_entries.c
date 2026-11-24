@@ -21,18 +21,6 @@ primitive_entry vm_primitive_table[] = {
     {17, 3, "intBitShift", prim_int_bit_shift},
     {18, 3, "intRem", prim_int_rem},
     {19, 2, "intAsFloat", prim_int_as_float},
-    {20, 2, "largeAdd", prim_large_add},
-    {21, 2, "largeSub", prim_large_sub},
-    {22, 2, "largeMul", prim_large_mul},
-    {23, 2, "largeQuo", prim_large_quo},
-    {24, 2, "largeRem", prim_large_rem},
-    {25, 2, "largeFloorDiv", prim_large_floor_div},
-    {26, 2, "largeMod", prim_large_mod},
-    {27, 3, "largeCompare", prim_large_compare},
-    {28, 2, "largeBitAnd", prim_large_bit_and},
-    {29, 2, "largeBitOr", prim_large_bit_or},
-    {30, 2, "largeBitXor", prim_large_bit_xor},
-    {31, 2, "largeBitShift", prim_large_bit_shift},
     {41, 2, "floatAdd", prim_float_add},
     {42, 2, "floatSub", prim_float_sub},
     {43, 2, "floatLess", prim_float_less},
@@ -44,7 +32,6 @@ primitive_entry vm_primitive_table[] = {
     {49, 2, "floatMul", prim_float_mul},
     {50, 2, "floatDiv", prim_float_div},
     {51, 3, "floatTruncated", prim_float_truncated},
-    {52, 2, "floatFractionPart", prim_float_fraction_part},
     {53, 2, "floatExponent", prim_float_exponent},
     {54, 2, "floatTimesTwoPower", prim_float_times_two_power},
     {55, 2, "floatSqrt", prim_float_sqrt},
@@ -53,7 +40,6 @@ primitive_entry vm_primitive_table[] = {
     {58, 2, "floatArcTan", prim_float_arc_tan},
     {59, 2, "floatLn", prim_float_ln},
     {60, 2, "floatExp", prim_float_exp},
-    {61, 2, "floatPrintString", prim_float_print_string},
     {62, 2, "floatAsIEEEBits", prim_float_as_ieee_bits},
     {63, 2, "floatFromIEEEBits", prim_float_from_ieee_bits},
     {64, 2, "floatAbs", prim_float_abs},
@@ -122,8 +108,6 @@ primitive_entry vm_primitive_table[] = {
     {146, 2, "timeSlice", prim_time_slice},
     {150, 2, "millisecondClock", prim_millisecond_clock},
     {151, 2, "microsecondClock", prim_microsecond_clock},
-    {152, 2, "utcMicroseconds", prim_utc_microseconds},
-    {153, 2, "threadCpuTime", prim_thread_cpu_time},
     {160, 0, "quit", prim_quit},
     {161, 0, "snapshot", prim_snapshot},
     {162, 2, "gc", prim_gc},
@@ -133,10 +117,7 @@ primitive_entry vm_primitive_table[] = {
     {166, 2, "flushCacheForSelector", prim_flush_cache_for_selector},
     {167, 2, "vmArguments", prim_vm_arguments},
     {168, 2, "imagePath", prim_image_path},
-    {169, 2, "stdoutWrite", prim_stdout_write},
-    {170, 2, "stderrWrite", prim_stderr_write},
     {171, 2, "primitiveNames", prim_primitive_names},
-    {172, 2, "getenv", prim_getenv},
     {173, 2, "vmBanner", prim_vm_banner},
     {174, 2, "releaseMemory", prim_release_memory},
     {180, 2, "jitParameters", prim_jit_parameters},
@@ -147,30 +128,49 @@ primitive_entry vm_primitive_table[] = {
     {197, 2, "nextHandlerContext", prim_next_handler_context},
     {198, 2, "ensureMarker", prim_ensure_marker},
     {199, 2, "onDoMarker", prim_on_do_marker},
-    {200, 2, "displayOpen", prim_display_open},
-    {201, 3, "displayFill", prim_display_fill},
-    {202, 3, "displayCopy", prim_display_copy},
-    {203, 3, "displayText", prim_display_text},
-    {204, 3, "displayBits", prim_display_bits},
-    {205, 3, "displayNextEvent", prim_display_next_event},
-    {206, 3, "displayFlush", prim_display_flush},
+    {250, 2, "ffiBind", prim_ffi_bind},
+    {251, 2, "ffiInvoke", prim_ffi_invoke},
 #ifndef SAMALTAK_NO_PLATFORM
-    {400, 2, "windowOpen", prim_window_open},
+    {252, 2, "ffiVsyncBind", ffi_vsync_notification_prim_bind},
 #endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {253, 2, "ffiVsyncPoll", ffi_vsync_notification_prim_poll},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {254, 2, "ffiVsyncClose", ffi_vsync_notification_prim_close},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {255, 2, "ffiSDLLogBind", ffisdl_log_adapter_prim_bind},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {256, 2, "ffiSDLLogPoll", ffisdl_log_adapter_prim_poll},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {257, 2, "ffiSDLLogDropped", prim_dropped},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {258, 2, "ffiSDLLogClose", ffisdl_log_adapter_prim_close},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {259, 2, "ffiSDLLogProbe", prim_probe},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {260, 2, "ffiExternalNotificationBind", ffi_external_notification_adapter_prim_bind},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {261, 2, "ffiExternalNotificationPoll", ffi_external_notification_adapter_prim_poll},
+#endif
+#ifndef SAMALTAK_NO_PLATFORM
+    {262, 2, "ffiExternalNotificationClose", ffi_external_notification_adapter_prim_close},
+#endif
+    {263, 2, "ffiPrepare", prim_ffi_prepare},
+    {264, 2, "ffiBoundInvoke", prim_ffi_bound_invoke},
+    {265, 2, "ffiBoundInvokeArray", prim_ffi_bound_invoke_array},
 #ifndef SAMALTAK_NO_PLATFORM
     {401, 2, "windowClose", prim_window_close},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
-    {402, 2, "windowSize", prim_window_size},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {403, 2, "windowPixelSize", prim_window_pixel_size},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
     {404, 2, "windowDisplayScale", prim_window_display_scale},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {405, 2, "windowSetTitle", prim_window_set_title},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
     {406, 2, "windowShow", prim_window_show},
@@ -185,139 +185,19 @@ primitive_entry vm_primitive_table[] = {
     {409, 2, "setCursor", prim_set_cursor},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
-    {410, 2, "clipboardGet", prim_clipboard_get},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {411, 2, "clipboardSet", prim_clipboard_set},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {412, 2, "nextEvent", prim_next_event},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {413, 2, "injectEvent", prim_inject_event},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
     {414, 2, "inputSemaphore", prim_input_semaphore},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {415, 2, "platformLastError", prim_platform_last_error},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
     {416, 2, "vsyncSemaphore", prim_vsync_semaphore},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
-    {417, 2, "platformHandleCounts", prim_platform_handle_counts},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {418, 2, "droppedEvents", prim_dropped_events},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
     {419, 2, "windowSetTextInputArea", prim_window_set_text_input_area},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {420, 2, "clipboardData", prim_clipboard_data},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {421, 2, "windowSetSize", prim_window_set_size},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
     {422, 2, "windowSetPosition", prim_window_set_position},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
-    {430, 2, "gpuCreateDevice", prim_gpu_create_device},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {431, 2, "gpuClaimWindow", prim_gpu_claim_window},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {432, 2, "gpuSwapchainFormat", prim_gpu_swapchain_format},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {433, 2, "gpuCreateShader", prim_gpu_create_shader},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {434, 2, "gpuCreatePipeline", prim_gpu_create_pipeline},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {435, 2, "gpuCreateTexture", prim_gpu_create_texture},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {436, 2, "gpuCreateSampler", prim_gpu_create_sampler},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {437, 2, "gpuCreateBuffer", prim_gpu_create_buffer},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {438, 2, "gpuRelease", prim_gpu_release},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {439, 2, "gpuUploadBuffer", prim_gpu_upload_buffer},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {440, 2, "gpuUploadTexture", prim_gpu_upload_texture},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {441, 2, "gpuAcquireCommandBuffer", prim_gpu_acquire_command_buffer},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {442, 2, "gpuAcquireSwapchain", prim_gpu_acquire_swapchain},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {443, 2, "gpuBeginPass", prim_gpu_begin_pass},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {444, 2, "gpuSetViewport", prim_gpu_set_viewport},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {445, 2, "gpuSetScissor", prim_gpu_set_scissor},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {446, 2, "gpuBindPipeline", prim_gpu_bind_pipeline},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {447, 2, "gpuBindVertexBuffer", prim_gpu_bind_vertex_buffer},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {448, 2, "gpuBindTexture", prim_gpu_bind_texture},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {449, 2, "gpuPushUniforms", prim_gpu_push_uniforms},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {450, 2, "gpuDraw", prim_gpu_draw},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {451, 2, "gpuEndPass", prim_gpu_end_pass},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {452, 2, "gpuBlit", prim_gpu_blit},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {453, 2, "gpuSubmit", prim_gpu_submit},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {454, 2, "gpuWaitFence", prim_gpu_wait_fence},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {455, 2, "gpuFenceDone", prim_gpu_fence_done},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {456, 2, "gpuDownload", prim_gpu_download},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
     {457, 2, "gpuTextureSize", prim_gpu_texture_size},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {458, 2, "gpuWaitIdle", prim_gpu_wait_idle},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {459, 2, "gpuFenceElapsed", prim_gpu_fence_elapsed},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {460, 2, "gpuShaderLanguage", prim_gpu_shader_language},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {461, 2, "gpuCompileShader", prim_gpu_compile_shader},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
     {470, 2, "machineSystemTable", prim_machine_system_table},
@@ -359,124 +239,7 @@ primitive_entry vm_primitive_table[] = {
     {483, 2, "rasterCopy", prim_raster_copy},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
-    {500, 2, "fileOpen", prim_file_open},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {501, 2, "fileClose", prim_file_close},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {502, 2, "fileRead", prim_file_read},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {503, 2, "fileWrite", prim_file_write},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {504, 2, "fileSize", prim_file_size},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {505, 2, "filePosition", prim_file_position},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {506, 2, "fileSeek", prim_file_seek},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {507, 2, "fileFlush", prim_file_flush},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {508, 2, "fileDelete", prim_file_delete},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {509, 2, "fileRename", prim_file_rename},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {510, 2, "fileStat", prim_file_stat},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {511, 2, "dirEntries", prim_dir_entries},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {512, 2, "dirCreate", prim_dir_create},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {513, 2, "cwd", prim_cwd},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {514, 2, "mkfifo", prim_mkfifo},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {515, 2, "spawnProcess", prim_spawn_process},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {516, 2, "processWait", prim_process_wait},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {518, 0, "execProcess", prim_exec_process},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {540, 2, "socketListen", prim_socket_listen},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {541, 2, "socketConnect", prim_socket_connect},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {542, 2, "socketAccept", prim_socket_accept},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {543, 2, "socketRecv", prim_socket_recv},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {544, 2, "socketSend", prim_socket_send},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {545, 2, "socketClose", prim_socket_close},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {546, 2, "socketSemaphore", prim_socket_semaphore},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {547, 2, "socketLocalPort", prim_socket_local_port},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {548, 2, "socketResolve", prim_socket_resolve},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {549, 2, "socketConnected", prim_socket_connected},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {550, 2, "tlsStart", prim_tls_start},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {551, 2, "tlsRecv", prim_tls_recv},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {552, 2, "tlsSend", prim_tls_send},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {553, 2, "tlsClose", prim_tls_close},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {554, 2, "tlsSemaphore", prim_tls_semaphore},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {555, 2, "tlsHandshake", prim_tls_handshake},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {560, 2, "ptySpawn", prim_pty_spawn},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {561, 2, "ptyRead", prim_pty_read},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {562, 2, "ptyWrite", prim_pty_write},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
     {563, 2, "ptyResize", prim_pty_resize},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {564, 2, "ptySemaphore", prim_pty_semaphore},
-#endif
-#ifndef SAMALTAK_NO_PLATFORM
-    {565, 2, "ptyWait", prim_pty_wait},
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
     {566, 2, "ptyClose", prim_pty_close},

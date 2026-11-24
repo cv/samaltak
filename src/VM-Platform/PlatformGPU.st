@@ -1,5 +1,5 @@
 VMPlatformModule subclass: #PlatformGPU
-	instanceVariableNames: 'objs logError defaultLog watches nwatches npending watchLock watchCond watcherStarted'
+	instanceVariableNames: 'objs logAdapter watches nwatches npending watchLock watchCond watcherStarted drawBindingEpoch'
 	classVariableNames: 'K_BUF K_CMD K_DEV K_FENCE K_PASS K_PIPE K_SAMPLER K_SHADER K_SWAP K_TEX LOG_ERROR_SIZE MAX_CLAIMS'
 	package: 'VM-Platform'!
 
@@ -11,9 +11,9 @@ Fence timing: a watcher thread polls the pending fences every 200 µs while any 
 
 !PlatformGPU class methodsFor: 'declaring'!
 declarations
-	^#((objs 'pf_table[1]') (logError 'char[LOG_ERROR_SIZE]') (defaultLog SDL_LogOutputFunction)
+	^#((objs 'pf_table[1]') (logAdapter FFISDLLogAdapter)
 		(watches 'fence_watch *') (nwatches int32_t) (npending int32_t) (watchLock 'pthread_mutex_t[1]') (watchCond 'pthread_cond_t[1]')
-		(watcherStarted bool))
+		(watcherStarted bool) (drawBindingEpoch int32_t 1))
 !
 initialize
 	K_DEV := 1.
@@ -70,18 +70,16 @@ pass: h
 	o isNull ifTrue: [^self null].
 	^o ptr
 !
-captureLog: userdata category: category priority: priority message: message
-	"Metal shader compile errors go to the SDL log, not SDL_GetError: keep the last one."
-	<function>
-	priority >= sdl SDL_LOG_PRIORITY_ERROR ifTrue: [sdl strlcpy: logError from: message size: LOG_ERROR_SIZE].
-	defaultLog call: userdata with: category with: priority with: message
-!
 sdlFail: what
 	"Set the error from SDL (or the log); answer 0."
 	<function>
-	| e |
+	| e captured |
 	e := sdl getError.
-	common setError: '%s: %s' with: what with: ((e at: 0) ~= 0 ifTrue: [e] ifFalse: [logError]).
+	(e at: 0) = 0 ifTrue: [
+		captured := self local: 'char[LOG_ERROR_SIZE]'.
+		logAdapter copyShaderError: captured size: LOG_ERROR_SIZE.
+		e := captured].
+	common setError: '%s: %s' with: what with: e.
 	^0
 !
 sdlFormat: f
@@ -138,9 +136,9 @@ createDevice: debug
 	platform init.
 	"SDL_CreateGPUDevice needs the video subsystem"
 	windows videoInit ifFalse: [^0].
-	defaultLog isNull ifTrue: [
-		defaultLog := sdl getDefaultLogOutputFunction.
-		sdl setLogOutputFunction: (self functionPointer: #captureLog:category:priority:message:) userdata: self null].
+	logAdapter enableShaderCapture ifFalse: [
+		common setError: 'out of memory installing SDL log capture'.
+		^0].
 	d := self cCoerce: (libc calloc: 1 size: (self sizeof: 'gpu_dev')) to: 'gpu_dev *'.
 	d isNull ifTrue: [
 		common setError: 'out of memory'.
@@ -274,7 +272,7 @@ createShader: d handle: dev code: code size: n format: format entry: entry stage
 	<var: #d type: 'gpu_dev *'>
 	<var: #code type: 'Uint8 *'>
 	<var: #format type: 'SDL_GPUShaderFormat'>
-	| ci s |
+	| ci s h |
 	ci := self local: 'SDL_GPUShaderCreateInfo'.
 	ci code_size: n.
 	ci code: code.
@@ -286,15 +284,20 @@ createShader: d handle: dev code: code size: n format: format entry: entry stage
 	ci num_storage_buffers: storageBuffers.
 	ci num_uniform_buffers: uniformBuffers.
 	sdl clearError.
-	logError at: 0 put: 0.
+	logAdapter clearShaderError.
 	s := sdlGpu createShader: d dev info: ci.
 	s isNull ifTrue: [^self sdlFail: 'SDL_CreateGPUShader'].
-	^self add: K_SHADER pointer: s device: dev
+	h := self add: K_SHADER pointer: s device: dev.
+	(objs v + h) i: (stage = PF_STAGE_FRAGMENT ifTrue: [PF_STAGE_FRAGMENT] ifFalse: [PF_STAGE_VERTEX]).
+	"Only pipelines with no declared shader resources are eligible for a checked procedural draw."
+	(objs v + h) w: ((samplers = 0 and: [uniformBuffers = 0 and: [storageBuffers = 0 and: [storageTextures = 0]]])
+		ifTrue: [1] ifFalse: [0]).
+	^h
 !
 createPipeline: dev vertexShader: vs fragmentShader: fs stride: stride attributes: attrs count: nattrs primitive: prim blend: blend targetFormat: targetFormat
 	"Attribute i becomes location i in vertex buffer slot 0."
 	<export>
-	| d v f va vb ct bs ci p |
+	| d v f va vb ct bs ci p procedural h |
 	d := self device: dev.
 	v := self get: vs kind: K_SHADER what: 'vertex shader'.
 	f := self get: fs kind: K_SHADER what: 'fragment shader'.
@@ -346,7 +349,13 @@ createPipeline: dev vertexShader: vs fragmentShader: fs stride: stride attribute
 	ci target_info num_color_targets: 1.
 	p := sdlGpu createGraphicsPipeline: d dev info: ci.
 	p isNull ifTrue: [^self sdlFail: 'SDL_CreateGPUGraphicsPipeline'].
-	^self add: K_PIPE pointer: p device: dev
+	procedural := nattrs = 0 and: [v dev = dev and: [f dev = dev and: [
+		v i = PF_STAGE_VERTEX and: [f i = PF_STAGE_FRAGMENT and: [v w = 1 and: [f w = 1]]]]]].
+	h := self add: K_PIPE pointer: p device: dev.
+	h > 0 ifTrue: [
+		(objs v + h) fmt: targetFormat.
+		(objs v + h) w: (procedural ifTrue: [1] ifFalse: [0])].
+	^h
 !
 createTexture: dev width: w height: h format: format usage: usage
 	"usage: PF_TEXUSE_* bits."
@@ -440,8 +449,12 @@ uploadReserve: d bytes: n offset: off
 	<function>
 	<var: #cap type: 'uint32_t'>
 	| need cap ci p |
+	"The rounded allocation is grown by powers of two in uint32_t; never wrap either size or cursor."
+	n > 16r80000000 ifTrue: [
+		common setError: 'GPU upload exceeds transfer buffer capacity'.
+		^self null].
 	need := (n + 15) bitAnd: 15 bitInvert32.
-	d upUsed + need > d upCap ifTrue: [
+	d upUsed asUInt64 + need > d upCap ifTrue: [
 		self uploadFlush: d.
 		need > d upCap ifTrue: [
 			cap := 16r400000.
@@ -503,8 +516,9 @@ uploadTexture: tex data: data length: len x: x y: y width: w height: h bytesPerR
 	o := self get: tex kind: K_TEX what: 'texture'.
 	o isNull ifTrue: [^false].
 	row := w asUInt64 * (self bytesPerPixel: o fmt) asUInt64.
-	(x < 0 or: [y < 0 or: [w <= 0 or: [h <= 0 or: [x + w > o w or: [y + h > o h
-		or: [bytesPerRow asUInt64 < row or: [len < (((h - 1) asUInt64 * bytesPerRow asUInt64) + row)]]]]]]]) ifTrue: [
+	(x < 0 or: [y < 0 or: [w <= 0 or: [h <= 0 or: [x asInt64 + w > o w or: [y asInt64 + h > o h
+		or: [bytesPerRow <= 0 or: [row * h asUInt64 > 16r80000000
+		or: [bytesPerRow asUInt64 < row or: [len < (((h - 1) asUInt64 * bytesPerRow asUInt64) + row)]]]]]]]]]) ifTrue: [
 			common setError: 'bad texture upload region'.
 			^false].
 	d := self deviceOf: o.
@@ -536,11 +550,12 @@ download: tex x: x y: y width: w height: h into: dst length: dstLen
 	"Synchronous; BGRA8 is converted to RGBA8."
 	<var: #dst type: 'void *'>
 	<export>
-	| o n d ci cb cp region info f p s t v |
+	| o n d ci cb cp region info f p s t pixel v |
 	o := self get: tex kind: K_TEX what: 'texture'.
 	o isNull ifTrue: [^false].
 	n := (w asUInt64 * h asUInt64) * (self bytesPerPixel: o fmt) asUInt64.
-	(x < 0 or: [y < 0 or: [w <= 0 or: [h <= 0 or: [x + w > o w or: [y + h > o h or: [dstLen < n]]]]]]) ifTrue: [
+	(x < 0 or: [y < 0 or: [w <= 0 or: [h <= 0 or: [x asInt64 + w > o w or: [y asInt64 + h > o h
+		or: [n > 16rFFFFFFFF or: [dstLen < n]]]]]]]) ifTrue: [
 		common setError: 'bad download region'.
 		^false].
 	d := self deviceOf: o.
@@ -587,10 +602,12 @@ download: tex x: x y: y width: w height: h into: dst length: dstLen
 	o fmt = PF_TEX_BGRA8
 		ifTrue: [
 			s := self cCoerce: p to: 'uint32_t *'.
-			t := self cCoerce: dst to: 'uint32_t *'.
+			t := self cCoerce: dst to: 'uint8_t *'.
+			pixel := self local: 'uint32_t'.
 			0 to: (n quo: 4) asInt64 - 1 do: [:i |
 				v := s at: i.
-				t at: i put: (((v bitAnd: 16rFF00FF00) bitOr: ((v >> 16) bitAnd: 16rFF)) bitOr: ((v bitAnd: 16rFF) asUInt64 << 16))]]
+				pixel value: (((v bitAnd: 16rFF00FF00) bitOr: ((v >> 16) bitAnd: 16rFF)) bitOr: ((v bitAnd: 16rFF) asUInt64 << 16)) asUInt32.
+				libc memcpy: t + (i * 4) from: pixel size: 4]]
 		ifFalse: [libc memcpy: dst from: p size: n].
 	sdlGpu unmapTransferBuffer: d dev buffer: d downTb.
 	^true
@@ -638,7 +655,7 @@ acquireSwapchain: cmd window: win width: w height: h
 beginPass: cmd target: tex clear: clear
 	"clear: RGBA, NULL = load."
 	<export>
-	| c t ci p dev h |
+	| c t ci p dev h fmt trackedTarget |
 	c := self get: cmd kind: K_CMD what: 'command buffer'.
 	t := self target: tex.
 	(c isNull or: [t isNull]) ifTrue: [^0].
@@ -654,8 +671,18 @@ beginPass: cmd target: tex clear: clear
 	p := sdlGpu beginRenderPass: c ptr targets: ci count: 1 depthStencil: self null.
 	p isNull ifTrue: [^self sdlFail: 'SDL_BeginGPURenderPass'].
 	dev := c dev.
+	fmt := t fmt.
+	"Track an ordinary owned color attachment under the current lifetime epoch."
+	trackedTarget := (t kind = K_TEX and: [t dev = dev and: [(t i bitAnd: PF_TEXUSE_COLOR_TARGET) ~= 0]])
+		ifTrue: [drawBindingEpoch] ifFalse: [0].
 	h := self add: K_PASS pointer: p device: dev.
-	(objs v + h) i: cmd.
+	h > 0 ifTrue: [
+		(objs v + h) i: cmd.
+		(objs v + h) h: trackedTarget.
+		(objs v + h) fmt: fmt.
+		"An overlapping legacy pass invalidates certification for this command until it is consumed."
+		c := objs v + cmd.
+		c w: (c w = 0 ifTrue: [h] ifFalse: [-1])].
 	^h
 !
 setViewport: pass x: x y: y width: w height: h
@@ -693,11 +720,12 @@ setScissor: pass x: x y: y width: w height: h
 bindPipeline: pass pipeline: pipe
 	<export>
 	| p o |
-	p := self pass: pass.
+	p := self get: pass kind: K_PASS what: 'render pass'.
 	p isNull ifTrue: [^false].
 	o := self get: pipe kind: K_PIPE what: 'pipeline'.
 	o isNull ifTrue: [^false].
-	sdlGpu bindGraphicsPipeline: p pipeline: o ptr.
+	sdlGpu bindGraphicsPipeline: p ptr pipeline: o ptr.
+	p w: ((p dev = o dev and: [p fmt = o fmt]) ifTrue: [pipe] ifFalse: [-1]).
 	^true
 !
 bindVertexBuffer: pass slot: slot buffer: buf offset: offset
@@ -751,10 +779,12 @@ draw: pass vertices: vertexCount first: firstVertex
 !
 endPass: pass
 	<export>
-	| p |
-	p := self pass: pass.
+	| p c |
+	p := self get: pass kind: K_PASS what: 'render pass'.
 	p isNull ifTrue: [^false].
-	sdlGpu endRenderPass: p.
+	sdlGpu endRenderPass: p ptr.
+	c := common table: objs at: p i asInt32 kind: K_CMD.
+	(c notNull and: [c w = pass]) ifTrue: [c w: 0].
 	common table: objs remove: pass.
 	^true
 !
@@ -913,8 +943,12 @@ release: h
 	dv := (self deviceOf: o) dev.
 	o kind caseOf: {
 		[K_SHADER] -> [sdlGpu releaseShader: dv shader: o ptr].
-		[K_PIPE] -> [sdlGpu releaseGraphicsPipeline: dv pipeline: o ptr].
-		[K_TEX] -> [sdlGpu releaseTexture: dv texture: o ptr].
+		[K_PIPE] -> [
+			self invalidateDrawBindings.
+			sdlGpu releaseGraphicsPipeline: dv pipeline: o ptr].
+		[K_TEX] -> [
+			self invalidateDrawBindings.
+			sdlGpu releaseTexture: dv texture: o ptr].
 		[K_SAMPLER] -> [sdlGpu releaseSampler: dv sampler: o ptr].
 		[K_BUF] -> [sdlGpu releaseBuffer: dv buffer: o ptr].
 		[K_FENCE] -> [

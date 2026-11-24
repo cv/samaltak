@@ -26,7 +26,7 @@ bool word_hash = true;
 
 static uint64_t alloc_old_try(oop cls, int32_t fmt, uint32_t n);
 static uint64_t alloc_slow(oop *cls, uint64_t bytes);
-static uint64_t alloc_words32(oop cls, uint64_t n);
+static oop alloc_words32(oop cls, uint64_t n);
 static uint32_t fnv_hash(oop s);
 static bool large_magnitude(oop o, uint64_t *mag, bool *neg);
 static uint32_t next_hash(void);
@@ -270,7 +270,7 @@ uint64_t alloc_unfilled_try(oop cls, int32_t fmt, uint64_t n)
 }
 
 /* ObjectMemory>>allocWords32:count: */
-static uint64_t alloc_words32(oop cls, uint64_t n)
+static oop alloc_words32(oop cls, uint64_t n)
 {
     return alloc_obj(cls, F_W32 + (int32_t)(n & 1), (uint32_t)((n + 1) / 2));
 }
@@ -281,12 +281,12 @@ size_t byte_size(oop o)
     int32_t f;
     f = (int32_t)(((*(uint64_t *)o) >> H_FMT_SHIFT) & H_FMT_MASK);
     if (f >= F_BYTES) {
-        return (uint32_t)*(uint64_t *)o * 8 - (f - F_BYTES);
+        return (uint64_t)(uint32_t)*(uint64_t *)o * 8 - (f - F_BYTES);
     }
     if ((f >= F_W32) && (f < F_BYTES)) {
         return word32_size(o) * 4;
     }
-    return (uint32_t)*(uint64_t *)o * 8;
+    return (uint64_t)(uint32_t)*(uint64_t *)o * 8;
 }
 
 /* ObjectMemory>>classOf: */
@@ -353,13 +353,13 @@ uint64_t float_oop(double d)
 /* ObjectMemory>>floatVal: */
 double float_val(oop o)
 {
+    oop r_small_float_bits;
     oop r;
     oop x;
     oop v;
-    oop b;
-    if ((o & 7) == 4) {
-        r = o >> 3;
-        b = ({
+    return lt_double_from_bits((o & 7) == 4 ? ({
+    r = o >> 3;
+    r_small_float_bits = ({
     if (r <= 1) {
         v = r << 63;
     } else {
@@ -367,10 +367,7 @@ double float_val(oop o)
         v = (x >> 1) | ((uint64_t)(x << 63));
     }
     v; });
-    } else {
-        b = ((oop *)(o + 16))[0];
-    }
-    return lt_double_from_bits(b);
+    r_small_float_bits; }) : ((oop *)(o + 16))[0]);
 }
 
 /* ObjectMemory>>fnvHash: */
@@ -666,7 +663,20 @@ uint32_t string_char_at(oop s, uint64_t i)
 }
 
 /* ObjectMemory>>stringFromUtf8:size: */
-uint64_t string_from_utf8(const char *str, size_t n)
+oop string_from_utf8(const char *str, size_t n)
+{
+    oop r;
+    r = string_from_utf8_try(str, n);
+    if (r == 0) {
+        fatal_begin();
+        fprintf(stderr, "not enough memory for decoded text (%zu input bytes)", n);
+        fatal_end();
+    }
+    return r;
+}
+
+/* ObjectMemory>>stringFromUtf8Try:size: */
+oop string_from_utf8_try(const char *str, size_t n)
 {
     uint8_t *s;
     uint64_t count;
@@ -674,6 +684,8 @@ uint64_t string_from_utf8(const char *str, size_t n)
     size_t local;
     size_t *i;
     size_t cp;
+    uint64_t padding;
+    uint64_t slots;
     uint64_t r;
     uint8_t *b;
     uint32_t *w;
@@ -691,21 +703,37 @@ uint64_t string_from_utf8(const char *str, size_t n)
         count = count + 1;
     }
     if (max < 256) {
-        r = alloc_bytes(cls_bytestring, count);
+        padding = (8 - (count & 7)) & 7;
+        slots = count / 8 + (padding != 0 ? 1 : 0);
+        r = alloc_unfilled_try(cls_bytestring, F_BYTES + (int32_t)padding, slots);
+        if (r == 0) {
+            return 0;
+        }
         b = (uint8_t *)(r + 16);
         *i = 0;
         while (*i < n) {
             *b = (uint8_t)utf8_decode(s, n, i);
             b = b + 1;
         }
+        if (padding != 0) {
+            memset(b, 0, padding);
+        }
         return r;
     }
-    r = alloc_words32(object_memory_special(SO_WIDESTRING), count);
+    padding = count & 1;
+    slots = count / 2 + padding;
+    r = alloc_unfilled_try(object_memory_special(SO_WIDESTRING), F_W32 + (int32_t)padding, slots);
+    if (r == 0) {
+        return 0;
+    }
     w = (uint32_t *)(r + 16);
     *i = 0;
     while (*i < n) {
         *w = (uint32_t)utf8_decode(s, n, i);
         w = w + 1;
+    }
+    if (padding != 0) {
+        *w = 0;
     }
     return r;
 }
@@ -763,6 +791,36 @@ size_t string_size(oop s)
         return word32_size(s);
     }
     return 0;
+}
+
+/* ObjectMemory>>tryFloatVal:into: */
+bool try_float_val(oop o, double *out)
+{
+    oop r_small_float_bits;
+    oop r;
+    oop x;
+    oop v;
+    oop bits;
+    if ((o & 7) == 4) {
+        bits = ({
+    r = o >> 3;
+    r_small_float_bits = ({
+    if (r <= 1) {
+        v = r << 63;
+    } else {
+        x = r + 8070450532247928832LL;
+        v = (x >> 1) | ((uint64_t)(x << 63));
+    }
+    v; });
+    r_small_float_bits; });
+    } else {
+        if ((o == 0) || ((!((o & 7) == 0)) || (*(uint64_t *)(o + 8) != cls_boxedfloat))) {
+            return false;
+        }
+        bits = ((oop *)(o + 16))[0];
+    }
+    *out = lt_double_from_bits(bits);
+    return true;
 }
 
 /* ObjectMemory>>u64Of:into: */
@@ -882,7 +940,7 @@ static size_t utf8_decode(uint8_t *s, size_t n, size_t *index)
             hi = 0x8F;
         }
     }
-    if ((len == 0) || (i + (uint64_t)len > n)) {
+    if ((len == 0) || ((uint64_t)len > n - i)) {
         return 0xDC00 + c;
     }
     cp = c & (127LL >> len);
@@ -921,7 +979,7 @@ size_t word32_size(oop o)
     int32_t f;
     f = (int32_t)(((*(uint64_t *)o) >> H_FMT_SHIFT) & H_FMT_MASK);
     if ((f == 10) || (f == 11)) {
-        return (uint32_t)*(uint64_t *)o * 2 - (f - F_W32);
+        return (uint64_t)(uint32_t)*(uint64_t *)o * 2 - (f - F_W32);
     }
     return 0;
 }

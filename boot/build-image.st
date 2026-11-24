@@ -1,7 +1,8 @@
-"Build a seed image with the current ImageBuilder: boot/build-image.sh runs this in boot/seed.image with @SRC@ (the source tree), @OUT@ (the image to write) and @PACKAGES@ (a list of the packages to build, e.g. src/runtime.txt; empty: all) filled in. It files in the builder's current sources first (the code generator it compiles with included), so a seed that predates them still builds with them. A file whose superclasses are in a later file is filed in again on the next pass."
-| packages files pending failed say |
+"File in the current builder before building an image. The final three VM arguments are the source directory, output file and package list (empty: all)."
+| args packages files pending failed say |
 say := [:aString | Smalltalk vm stderrWrite: aString , (String with: Character lf)].
-[packages := #('src/Kernel-Objects/VMConstants.st' 'src/Compiler/Behavior.extension.st' 'src/Compiler/BytecodeEncoder.st' 'src/Compiler/CodeGenerator.st' 'src/VM-Lowtalk' 'src/VM-Core/VMCoreModule.st' 'src/VM-Core' 'src/VM-Jit' 'src/VM-Platform' 'src/VM-Translator' 'src/VM-ImageBuilder').
+[args := Smalltalk vm arguments.
+ packages := #('src/Kernel-Objects/VMConstants.st' 'src/System-Support/FFIError.st' 'src/System-Support/FFIBinding.st' 'src/System-Support/FFI.st' 'src/Compiler/Behavior.extension.st' 'src/Compiler/BytecodeEncoder.st' 'src/Compiler/CodeGenerator.st' 'src/VM-Lowtalk' 'src/VM-Core/VMCoreModule.st' 'src/VM-Core' 'src/VM-Jit' 'src/VM-Platform' 'src/VM-Translator' 'src/VM-ImageBuilder').
  files := OrderedCollection new.
  (packages select: [:each | File exists: each]) do: [:each |
 	(File isDirectory: each)
@@ -13,11 +14,11 @@ say := [:aString | Smalltalk vm stderrWrite: aString , (String with: Character l
  pending := files.
  [failed := pending select: [:f | [Compiler fileIn: f. false] on: Error do: [:e | e return: true]].
   failed notEmpty and: [failed size < pending size]] whileTrue: [pending := failed].
- failed do: [:f | Compiler fileIn: f].
+ failed do: [:f | say value: 'image builder: loading ' , f. Compiler fileIn: f].
  VMConstants initialize.
  (Smalltalk allClasses select: [:c | (#('VM-Lowtalk' 'VM-Core' 'VM-Jit' 'VM-Platform' 'VM-Translator' 'VM-ImageBuilder') includes: c packageName) and: [c class includesSelector: #initialize]])
 	do: [:c | c initialize].
- say value: (ImageBuilder buildFrom: '@SRC@' packages: '@PACKAGES@' to: '@OUT@').
+ say value: (ImageBuilder buildFrom: (args at: args size - 2) packages: args last to: (args at: args size - 1)).
  Smalltalk quit: 0]
 	on: Error
 	do: [:e |

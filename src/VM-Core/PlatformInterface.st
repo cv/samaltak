@@ -29,6 +29,19 @@ wait: timeoutUs
 shutdown
 	"At quit."
 	self subclassResponsibility
+!
+ffiTarget: id
+	"An approved fixed-ABI downcall target in this platform profile, or zero."
+	<var: #id type: 'int32_t'>
+	<returns: 'uint64_t'>
+	self subclassResponsibility
+!
+ffiApprovedPlatform: approvedName signature: packedSignature into: targetOut
+	<var: #approvedName type: 'const char *'>
+	<var: #packedSignature type: 'uint32_t'>
+	<var: #targetOut type: 'uint64_t *'>
+	<returns: 'int32_t'>
+	self subclassResponsibility
 ! !
 
 PlatformInterface subclass: #HeadlessPlatform
@@ -52,4 +65,18 @@ wait: timeoutUs
 !
 shutdown
 	<export>
+!
+ffiTarget: id
+	<export>
+	<var: #id type: 'int32_t'>
+	<returns: 'uint64_t'>
+	^0
+!
+ffiApprovedPlatform: approvedName signature: packedSignature into: targetOut
+	<export>
+	<var: #approvedName type: 'const char *'>
+	<var: #packedSignature type: 'uint32_t'>
+	<var: #targetOut type: 'uint64_t *'>
+	<returns: 'int32_t'>
+	^0
 ! !

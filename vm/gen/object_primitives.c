@@ -1367,6 +1367,9 @@ void prim_set_immutable(void)
         h = (*(uint64_t *)r) | H_IMMUTABLE;
         *(uint64_t *)r = h;
     } else {
+        if (old) {
+            invalidate_native_weak_owners();
+        }
         h_2 = (*(uint64_t *)r) & 17870283321406128127ULL;
         *(uint64_t *)r = h_2;
     }

@@ -187,10 +187,12 @@ displayNl
 	self displayString displayNl
 !
 stdout: aString
-	<primitive: 'stdoutWrite'>
+	<ffiSite>
+	(self ffiSite: #(call 'vm:core' 'core_stdout_text' (countedText) void)) tryInvoke1: aString
 !
 stderr: aString
-	<primitive: 'stderrWrite'>
+	<ffiSite>
+	(self ffiSite: #(call 'vm:core' 'core_stderr_text' (countedText) void)) tryInvoke1: aString
 ! !
 
 !Object methodsFor: 'errors'!

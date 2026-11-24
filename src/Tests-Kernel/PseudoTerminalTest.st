@@ -68,6 +68,16 @@ testSizeAndResize
 	out := self outputUntil: '30 100'.
 	self assert: (out includesSubstring: '30 100') description: out
 !
+testResizeKeepsLegacyIntegerContract
+	| handle wideHandle |
+	self spawn: #('cat').
+	handle := pty instVarNamed: 'handle'.
+	wideHandle := (1 bitShift: 62) + handle.
+	self assert: (PseudoTerminal primResize: wideHandle rows: 25 columns: 81) identicalTo: PseudoTerminal.
+	self assert: (PseudoTerminal primResize: handle rows: 16r100000019 columns: 81) isNil.
+	self assert: (PseudoTerminal primResize: handle rows: 25.0 columns: 81) isNil.
+	self assert: (PseudoTerminal primResize: (1 bitShift: 63) rows: 25 columns: 81) isNil
+!
 testEnvironmentAndDirectory
 	| out |
 	pty := PseudoTerminal spawn: #('sh' '-c' 'printf "[$FOO $TERM]"; pwd') environment: #('PATH=/bin:/usr/bin' 'FOO=bar') directory: '/' rows: 24 columns: 80.

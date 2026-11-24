@@ -8,12 +8,14 @@ OS := $(shell echo $(UNAME_S) | tr a-z A-Z)
 ifeq ($(UNAME_S),Darwin)
   OS_CFLAGS := -D_DARWIN_C_SOURCE
   OS_LIBS := -framework CoreVideo -lobjc
+  DEAD_STRIP := -Wl,-dead_strip
 else
   # gcc's extra warnings about the generated code are not bugs (see ../Makefile)
   OS_CFLAGS := -D_GNU_SOURCE -fsigned-char -Wno-type-limits -Wno-parentheses -Wno-maybe-uninitialized -Wno-format-truncation
   OS_LIBS := $(shell pkg-config --libs shaderc 2>/dev/null || echo -lshaderc_shared)
   OS_LIBS += $(shell pkg-config --libs wayland-client 2>/dev/null || echo -lwayland-client)
   OS_CFLAGS += $(shell pkg-config --cflags wayland-client 2>/dev/null)
+  DEAD_STRIP := -Wl,--gc-sections
 endif
 # OpenSSL 3, as in ../Makefile
 SSL_CFLAGS := $(shell pkg-config --cflags openssl 2>/dev/null)
@@ -31,9 +33,11 @@ INTERNALS := $(addprefix $(GEN)/,$(filter-out platform_primitives.c,$(VM_PLATFOR
 test: $(BUILD)/gpu_test
 	$(BUILD)/gpu_test
 
-$(BUILD)/gpu_test: tests/gpu_test.c $(INTERNALS) $(GEN)/samaltak.h
+# Some platform modules also contain VM primitives. Drop the unreachable VM entry points,
+# but keep the native helpers used by the standalone harness (e.g. vsync and shader logging).
+$(BUILD)/gpu_test: tests/gpu_test.c $(INTERNALS) $(GEN)/samaltak.h $(GEN)/sources.mk Makefile
 	@mkdir -p $(BUILD)
-	$(CC) $(CFLAGS) $(OS_CFLAGS) -I$(GEN) $(SDL_CFLAGS) $(SSL_CFLAGS) -o $@ tests/gpu_test.c $(INTERNALS) $(SDL_LIBS) $(SSL_LIBS) $(OS_LIBS) -lpthread
+	$(CC) $(CFLAGS) $(OS_CFLAGS) -ffunction-sections -fdata-sections -I$(GEN) $(SDL_CFLAGS) $(SSL_CFLAGS) -o $@ tests/gpu_test.c $(INTERNALS) $(DEAD_STRIP) $(SDL_LIBS) $(SSL_LIBS) $(OS_LIBS) -lpthread
 
 # Through the real VM (built into its own directory so it never clobbers vm/build/samaltak).
 st-test:

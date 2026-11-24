@@ -1,5 +1,5 @@
 VMCoreModule subclass: #VMMain
-	instanceVariableNames: 'headless argc argv argsStart'
+	instanceVariableNames: 'headless argc argv argsStart runtimeNative'
 	classVariableNames: ''
 	package: 'VM-Core'!
 
@@ -7,7 +7,7 @@ VMMain comment: 'The entry point: samaltak [--max-heap MB] [--eden MB] [--jit MO
 
 !VMMain class methodsFor: 'declaring'!
 declarations
-	^#((headless bool) (argc int32_t) (argv 'char **') (argsStart int32_t))
+	^#((headless bool) (argc int32_t) (argv 'char **') (argsStart int32_t) (runtimeNative RuntimeNativeLoader))
 ! !
 
 !VMMain methodsFor: 'accessing'!
@@ -38,8 +38,8 @@ usage
   --jit-osr N        backward jumps before a running method is compiled and entered
   --jit-opt N        with --jit opt: entries and backward jumps in compiled code before a method is optimized
   --jit-flags        ablations: baseline: ic pic mega regs arith fuse float access prims blocks quick
-                     barrier; opt: inline blocks prims unbox calls alloc gvn hoist live; listings: notes;
-                     stress: eager deopt (-name turns one off)
+                     barrier; opt: inline blocks prims unbox calls alloc gvn hoist live ffi-site;
+                     listings: notes; stress: eager deopt (-name turns one off)
 ' to: libc stderr.
 	libc exit: 64
 !
@@ -76,6 +76,10 @@ main: n argv: v
 	argv := v.
 	argsStart := (i + 1) asInt32.
 	i + 1 to: n - 1 do: [:k | (libc strcmp: (v at: k) with: '--headless') = 0 ifTrue: [headless := true]].
+	runtimeNative configure ifFalse: [
+		libc fputs: 'samaltak: invalid or unresolved SAMALTAK_NATIVE_GRANTS manifest
+' to: libc stderr.
+		libc exit: 64].
 	memory memoryInit: eden maxHeap: maxHeap.
 	imageFile loadImage: image.
 	scheduler init.

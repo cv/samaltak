@@ -1,5 +1,5 @@
 PlatformInterface subclass: #SDLPlatform
-	instanceVariableNames: 'common events windows gpu files sockets vsync sdl posixIO posixThreads initDone wakeEvent inWait wPipe wMu wCv wState wFds wNfds wStarted wStop'
+	instanceVariableNames: 'common events windows gpu files sockets ptys tls vsync sdl posixIO posixThreads initDone wakeEvent inWait wPipe wMu wCv wState wFds wNfds wStarted wStop ownedFFI pagedOutput'
 	classVariableNames: 'POLL_FDS'
 	package: 'VM-Platform'!
 
@@ -10,10 +10,10 @@ While Smalltalk runs, platform_interface_poll pumps SDL at most once per ms, pol
 !SDLPlatform class methodsFor: 'declaring'!
 declarations
 	^#((common PlatformCommon) (events PlatformEvents) (windows PlatformWindows) (gpu PlatformGPU) (files PlatformFiles)
-		(sockets PlatformSockets) (vsync PlatformVsync) (sdl SDL) (posixIO PosixIO) (posixThreads PosixThreads)
+		(sockets PlatformSockets) (ptys PlatformPtys) (tls PlatformTLS) (vsync PlatformVsync) (sdl SDL) (posixIO PosixIO) (posixThreads PosixThreads)
 		(initDone bool) (wakeEvent atomic_int) (inWait atomic_bool) (wPipe 'int32_t[2]' #(-1 -1))
 		(wMu 'pthread_mutex_t[1]') (wCv 'pthread_cond_t[1]') (wState int32_t) (wFds 'struct pollfd[POLL_FDS]') (wNfds int32_t)
-		(wStarted bool) (wStop atomic_bool))
+		(wStarted bool) (wStop atomic_bool) (ownedFFI FFIPrimitives) (pagedOutput PlatformPagedOutput))
 !
 initialize
 	"the wake pipe and up to 128 sockets"
@@ -41,7 +41,8 @@ poll
 	"Pumping Cocoa costs tens of µs; at most once per ms is plenty for input."
 	(windows videoInited and: [sdl getTicksNS - events lastPumpNs >= 1000000]) ifTrue: [events pump].
 	sockets anyArmed ifTrue: [sockets poll: 0].
-	events signalReady
+	events signalReady.
+	vsync signalNotifications
 !
 wait: timeoutUs
 	<export>
@@ -74,9 +75,102 @@ wait: timeoutUs
 !
 shutdown
 	<export>
+	pagedOutput discard.
 	gpu shutdown.
 	windows shutdown.
 	windows videoInited ifTrue: [sdl quit]
+! !
+
+!SDLPlatform methodsFor: 'FFI'!
+ffiApprovedPlatform: approvedName signature: packedSignature into: targetOut
+	<export>
+	<approvedFFIDispatch>
+	<var: #approvedName type: 'const char *'>
+	<var: #packedSignature type: 'uint32_t'>
+	<var: #targetOut type: 'uint64_t *'>
+	<returns: 'int32_t'>
+	^0
+!
+ffiTarget: stableID
+	"Only called after the descriptor's name and signature have been checked."
+	<export>
+	<var: #stableID type: 'int32_t'>
+	<returns: 'uint64_t'>
+	^stableID caseOf: {
+		[32] -> [self cCoerce: (self functionPointer: #ffiWindowClose:) to: 'uint64_t'].
+		[33] -> [self cCoerce: (self functionPointer: #ffiWindowDisplayScale:) to: 'uint64_t'].
+		[34] -> [self cCoerce: (self functionPointer: #ffiWindowRefreshRate:) to: 'uint64_t'].
+		[35] -> [self cCoerce: (self functionPointer: #ffiWindow:show:) to: 'uint64_t'].
+		[36] -> [self cCoerce: (self functionPointer: #ffiSetCursor:) to: 'uint64_t'].
+		[37] -> [self cCoerce: (self functionPointer: #ffiWindow:x:y:width:height:cursor:) to: 'uint64_t'].
+		[38] -> [self cCoerce: (self functionPointer: #ffiPty:rows:columns:) to: 'uint64_t'].
+		[39] -> [self cCoerce: (self functionPointer: #ffiPtyClose:) to: 'uint64_t'].
+		[40] -> [self cCoerce: (self functionPointer: #ffiPtyForeground:) to: 'uint64_t']}
+		otherwise: [0]
+!
+ffiWindowClose: w
+	<function>
+	<var: #w type: 'int64_t'>
+	<returns: 'int32_t'>
+	^((windows close: w asInt32) ifTrue: [1] ifFalse: [0]) asInt32
+!
+ffiWindowDisplayScale: w
+	<function>
+	<var: #w type: 'int64_t'>
+	<returns: 'double'>
+	^windows displayScale: w asInt32
+!
+ffiWindowRefreshRate: w
+	<function>
+	<var: #w type: 'int64_t'>
+	<returns: 'double'>
+	^windows refreshRate: w asInt32
+!
+ffiWindow: w show: flag
+	<function>
+	<var: #w type: 'int64_t'>
+	<var: #flag type: 'int32_t'>
+	<returns: 'int32_t'>
+	^((windows show: w asInt32 visible: flag ~= 0) ifTrue: [1] ifFalse: [0]) asInt32
+!
+ffiSetCursor: kind
+	<function>
+	<var: #kind type: 'int64_t'>
+	<returns: 'int32_t'>
+	^((windows setCursor: kind asInt32) ifTrue: [1] ifFalse: [0]) asInt32
+!
+ffiWindow: win x: x y: y width: w height: h cursor: cursor
+	<function>
+	<var: #win type: 'int64_t'>
+	<var: #x type: 'int64_t'>
+	<var: #y type: 'int64_t'>
+	<var: #w type: 'int64_t'>
+	<var: #h type: 'int64_t'>
+	<var: #cursor type: 'int64_t'>
+	<returns: 'int32_t'>
+	^((windows setTextInputArea: win asInt32 x: x asInt32 y: y asInt32 width: w asInt32 height: h asInt32 cursor: cursor asInt32)
+		ifTrue: [1] ifFalse: [0]) asInt32
+!
+ffiPty: h rows: rows columns: cols
+	<function>
+	<var: #h type: 'int64_t'>
+	<var: #rows type: 'int64_t'>
+	<var: #cols type: 'int64_t'>
+	<returns: 'int32_t'>
+	(rows > 0 and: [cols > 0 and: [rows < 65536 and: [cols < 65536]]]) ifFalse: [^0].
+	^((ptys resize: h asInt32 rows: rows asInt32 columns: cols asInt32) ifTrue: [1] ifFalse: [0]) asInt32
+!
+ffiPtyClose: h
+	<function>
+	<var: #h type: 'int64_t'>
+	<returns: 'int32_t'>
+	^((ptys close: h asInt32) ifTrue: [1] ifFalse: [0]) asInt32
+!
+ffiPtyForeground: h
+	<function>
+	<var: #h type: 'int64_t'>
+	<returns: 'int32_t'>
+	^(ptys foreground: h asInt32) asInt32
 ! !
 
 !SDLPlatform methodsFor: 'waking'!

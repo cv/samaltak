@@ -5,23 +5,41 @@ Number subclass: #Integer
 
 Integer comment: 'I am the abstract class of integers. SmallIntegers are immediate; LargePositiveInteger and LargeNegativeInteger hold the magnitude as little-endian bytes (no leading zero bytes) and are only used outside the SmallInteger range.
 
-Arithmetic, comparison, shifts and bit operations are VM primitives (LargeIntegerPrimitives: 32-bit limbs, schoolbook multiplication, Knuth''s algorithm D) that take SmallIntegers too, so SmallInteger primitives fall back to me on overflow; results that fit are SmallIntegers. They fail only for arguments that are no Integers, zero divisors and results too large for memory. The rest (printing, hashing, highBit, asFloat) reads the magnitude through digitAt: and digitLength, which SmallInteger implements too.'!
+SmallInteger handles exact immediate results; the methods here handle arbitrary precision and normalize results back into SmallIntegers when they fit. The native magnitude calls may be unavailable; the portable arithmetic uses the same little-endian digits and only SmallInteger intermediates.'!
 
 !Integer methodsFor: 'arithmetic'!
-+ aNumber
-	<primitive: 'largeAdd'>
-	aNumber isInteger ifFalse: [^self retry: #+ coercing: aNumber].
-	^self primitiveFailed
++ operand
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'vm:core' 'core_bigint_add' (integerMagnitude integerMagnitude) ownedIntegerMagnitude))
+		tryInvoke2: self with: operand.
+	result == false ifTrue: [
+		operand isInteger ifFalse: [^self retry: #+ coercing: operand].
+		^self portableAdd: operand subtract: false].
+	result isNil ifTrue: [^self primitiveFailed].
+	^result
 !
-- aNumber
-	<primitive: 'largeSub'>
-	aNumber isInteger ifFalse: [^self retry: #- coercing: aNumber].
-	^self primitiveFailed
+- operand
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'vm:core' 'core_bigint_sub' (integerMagnitude integerMagnitude) ownedIntegerMagnitude))
+		tryInvoke2: self with: operand.
+	result == false ifTrue: [
+		operand isInteger ifFalse: [^self retry: #- coercing: operand].
+		^self portableAdd: operand subtract: true].
+	result isNil ifTrue: [^self primitiveFailed].
+	^result
 !
-* aNumber
-	<primitive: 'largeMul'>
-	aNumber isInteger ifFalse: [^self retry: #* coercing: aNumber].
-	^OutOfMemory signalForClass: LargePositiveInteger size: self digitLength + aNumber digitLength
+* operand
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'vm:core' 'core_bigint_mul' (integerMagnitude integerMagnitude) ownedIntegerMagnitude))
+		tryInvoke2: self with: operand.
+	result == false ifTrue: [
+		operand isInteger ifFalse: [^self retry: #* coercing: operand].
+		^self portableMultiply: operand].
+	result isNil ifTrue: [^OutOfMemory signalForClass: LargePositiveInteger size: self digitLength + operand digitLength].
+	^result
 !
 / aNumber
 	"Answer an Integer if the division is exact, else a Fraction."
@@ -29,33 +47,57 @@ Arithmetic, comparison, shifts and bit operations are VM primitives (LargeIntege
 	aNumber = 0 ifTrue: [^ZeroDivide new dividend: self; signal].
 	^(Fraction numerator: self denominator: aNumber) reduced
 !
-quo: aNumber
+quo: operand
 	"Answer the quotient truncated toward zero."
-	<primitive: 'largeQuo'>
-	aNumber isInteger ifFalse: [^super quo: aNumber].
-	aNumber = 0 ifTrue: [^ZeroDivide new dividend: self; signal].
-	^self primitiveFailed
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'vm:core' 'core_bigint_quo' (integerMagnitude integerMagnitude) ownedIntegerMagnitude))
+		tryInvoke2: self with: operand.
+	result == false ifTrue: [
+		operand isInteger ifFalse: [^super quo: operand].
+		^self portableDivide: operand mode: 0].
+	result isNil ifTrue: [^self primitiveFailed].
+	result == true ifTrue: [^ZeroDivide new dividend: self; signal].
+	^result
 !
-rem: aNumber
+rem: operand
 	"Answer the remainder of truncated division; it has the receiver's sign."
-	<primitive: 'largeRem'>
-	aNumber isInteger ifFalse: [^super rem: aNumber].
-	aNumber = 0 ifTrue: [^ZeroDivide new dividend: self; signal].
-	^self primitiveFailed
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'vm:core' 'core_bigint_rem' (integerMagnitude integerMagnitude) ownedIntegerMagnitude))
+		tryInvoke2: self with: operand.
+	result == false ifTrue: [
+		operand isInteger ifFalse: [^super rem: operand].
+		^self portableDivide: operand mode: 1].
+	result isNil ifTrue: [^self primitiveFailed].
+	result == true ifTrue: [^ZeroDivide new dividend: self; signal].
+	^result
 !
-// aNumber
+// operand
 	"Answer the quotient truncated toward negative infinity."
-	<primitive: 'largeFloorDiv'>
-	aNumber isInteger ifFalse: [^super // aNumber].
-	aNumber = 0 ifTrue: [^ZeroDivide new dividend: self; signal].
-	^self primitiveFailed
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'vm:core' 'core_bigint_floordiv' (integerMagnitude integerMagnitude) ownedIntegerMagnitude))
+		tryInvoke2: self with: operand.
+	result == false ifTrue: [
+		operand isInteger ifFalse: [^super // operand].
+		^self portableDivide: operand mode: 2].
+	result isNil ifTrue: [^self primitiveFailed].
+	result == true ifTrue: [^ZeroDivide new dividend: self; signal].
+	^result
 !
-\\ aNumber
-	"Answer the modulo; it has the sign of aNumber."
-	<primitive: 'largeMod'>
-	aNumber isInteger ifFalse: [^super \\ aNumber].
-	aNumber = 0 ifTrue: [^ZeroDivide new dividend: self; signal].
-	^self primitiveFailed
+\\ operand
+	"Answer the modulo; it has the sign of operand."
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'vm:core' 'core_bigint_mod' (integerMagnitude integerMagnitude) ownedIntegerMagnitude))
+		tryInvoke2: self with: operand.
+	result == false ifTrue: [
+		operand isInteger ifFalse: [^super \\ operand].
+		^self portableDivide: operand mode: 3].
+	result isNil ifTrue: [^self primitiveFailed].
+	result == true ifTrue: [^ZeroDivide new dividend: self; signal].
+	^result
 !
 negated
 	^0 - self
@@ -101,10 +143,16 @@ hashMultiply
 	"See SmallInteger>>hashMultiply; of me, only the low 60 bits count."
 	^(self bitAnd: 16rFFFFFFFFFFFFFFF) hashMultiply
 !
-compareInteger: anInteger
-	"Answer -1, 0 or 1 comparing the receiver with anInteger."
-	<primitive: 'largeCompare'>
-	^self primitiveFailed
+compareInteger: operand
+	"Answer -1, 0 or 1 comparing the receiver with operand."
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'vm:core' 'core_bigint_compare' (integerMagnitude integerMagnitude) i32))
+		tryInvoke2: self with: operand.
+	result == false ifTrue: [
+		operand isInteger ifFalse: [^self primitiveFailed].
+		^self portableCompareInteger: operand].
+	^result
 ! !
 
 !Integer methodsFor: 'testing'!
@@ -211,20 +259,38 @@ timesRepeat: aBlock
 ! !
 
 !Integer methodsFor: 'bit manipulation'!
-bitAnd: anInteger
-	<primitive: 'largeBitAnd'>
-	anInteger isInteger ifFalse: [^self error: 'bit operations need Integers'].
-	^self primitiveFailed
+bitAnd: operand
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'vm:core' 'core_bigint_bitand' (integerMagnitude integerMagnitude) ownedIntegerMagnitude))
+		tryInvoke2: self with: operand.
+	result == false ifTrue: [
+		operand isInteger ifFalse: [^self error: 'bit operations need Integers'].
+		^self portableBitOp: #bitAnd: with: operand].
+	result isNil ifTrue: [^self primitiveFailed].
+	^result
 !
-bitOr: anInteger
-	<primitive: 'largeBitOr'>
-	anInteger isInteger ifFalse: [^self error: 'bit operations need Integers'].
-	^self primitiveFailed
+bitOr: operand
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'vm:core' 'core_bigint_bitor' (integerMagnitude integerMagnitude) ownedIntegerMagnitude))
+		tryInvoke2: self with: operand.
+	result == false ifTrue: [
+		operand isInteger ifFalse: [^self error: 'bit operations need Integers'].
+		^self portableBitOp: #bitOr: with: operand].
+	result isNil ifTrue: [^self primitiveFailed].
+	^result
 !
-bitXor: anInteger
-	<primitive: 'largeBitXor'>
-	anInteger isInteger ifFalse: [^self error: 'bit operations need Integers'].
-	^self primitiveFailed
+bitXor: operand
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'vm:core' 'core_bigint_bitxor' (integerMagnitude integerMagnitude) ownedIntegerMagnitude))
+		tryInvoke2: self with: operand.
+	result == false ifTrue: [
+		operand isInteger ifFalse: [^self error: 'bit operations need Integers'].
+		^self portableBitOp: #bitXor: with: operand].
+	result isNil ifTrue: [^self primitiveFailed].
+	^result
 !
 bitInvert
 	^-1 - self
@@ -250,11 +316,17 @@ anyMask: mask
 noMask: mask
 	^(self bitAnd: mask) = 0
 !
-bitShift: shift
+bitShift: operand
 	"Shift left (positive shift) or right (negative shift, rounding toward negative infinity)."
-	<primitive: 'largeBitShift'>
-	shift isInteger ifFalse: [^self error: 'bitShift: needs an Integer'].
-	^OutOfMemory signalForClass: LargePositiveInteger size: self digitLength + (shift // 8)
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'vm:core' 'core_bigint_bitshift' (integerMagnitude integerMagnitude) ownedIntegerMagnitude))
+		tryInvoke2: self with: operand.
+	result == false ifTrue: [
+		operand isInteger ifFalse: [^self error: 'bitShift: needs an Integer'].
+		^self portableBitShift: operand].
+	result isNil ifTrue: [^OutOfMemory signalForClass: LargePositiveInteger size: self digitLength + (operand // 8)].
+	^result
 !
 << shift
 	^self bitShift: shift

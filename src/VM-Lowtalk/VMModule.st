@@ -55,6 +55,10 @@ isArchInterface
 isSimulated
 	"Whether a simulation may run me. Where several modules implement an interface, a simulation connects one that is simulated."
 	^true
+!
+simulationClass
+	"The class instantiated by VMSimulation. Translation uses the original module."
+	^self
 ! !
 
 !VMModule methodsFor: 'simulation'!

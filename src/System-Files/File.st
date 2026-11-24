@@ -1,6 +1,6 @@
 Object subclass: #File
 	instanceVariableNames: ''
-	classVariableNames: ''
+	classVariableNames: 'ReadCall WriteCall CloseCall SeekCall FlushCall OpenCall DeleteCall DirCreateCall MkfifoCall RenameCall StatCall DirEntriesCall CwdCall NameSizeCall NameCopyCall NameReleaseCall SpawnCall ProcessWaitCall ExecCall'
 	package: 'System-Files'!
 
 File comment: 'I am the facade for the platform''s file primitives; everything is on my class side. Paths are Strings (UTF-8 on the OS side), joined with /. Handles are SmallIntegers owned by FileStream. Failures signal FileError with the platform''s reason.'!
@@ -119,80 +119,218 @@ signalErrorFor: aPath
 ! !
 
 !File class methodsFor: 'primitives'!
-primOpen: aPath mode: mode
+primOpen: path mode: mode
 	"mode: 0 read, 1 read/write (created if missing), 2 append, 3 create/truncate, 4 create/truncate, created with mode 600. Answer a handle or nil."
-	<primitive: 'fileOpen'>
-	^nil
+	| binding bytes result |
+	binding := OpenCall ifNil: [OpenCall := PlatformFFI bind: #(call 'platform' 'platform_files_open' (bytesWithLength i64) i32)].
+	binding isNil ifTrue: [^nil].
+	bytes := PlatformFFI osTextBytes: path.
+	bytes isNil ifTrue: [^nil].
+	result := binding tryInvoke2: {bytes. 1. bytes size} with: mode.
+	result == false ifTrue: [^nil].
+	^result <= 0 ifTrue: [nil] ifFalse: [result]
 !
-primClose: handle
-	<primitive: 'fileClose'>
-	^nil
+primClose: h
+	| binding result |
+	binding := CloseCall ifNil: [CloseCall := PlatformFFI bind: #(call 'platform' 'platform_files_close' (i64) i32)].
+	binding isNil ifTrue: [^nil].
+	result := binding tryInvoke1: h.
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
-primRead: handle into: aByteArray startingAt: start count: count
+primRead: h into: bytes startingAt: start count: count
 	"Answer the number of bytes read (0 at the end of the file), or nil."
-	<primitive: 'fileRead'>
-	^nil
+	| binding result |
+	bytes class == ByteArray ifFalse: [
+		^PlatformIOBuffer readInto: bytes start: start count: count failure: nil
+			using: [:slice | self primRead: h into: slice startingAt: 1 count: count]].
+	binding := ReadCall ifNil: [ReadCall := PlatformFFI bind: #(call 'platform' 'platform_files_read' (i64 writableBytesWithLength) i64)].
+	binding isNil ifTrue: [^nil].
+	result := binding tryInvoke2: h with: {bytes. start. count}.
+	result == false ifTrue: [^nil].
+	^result < 0 ifTrue: [nil] ifFalse: [result]
 !
-primWrite: handle from: aByteArray startingAt: start count: count
-	<primitive: 'fileWrite'>
-	^nil
+primWrite: h from: bytes startingAt: start count: count
+	| binding result |
+	bytes class == ByteArray ifFalse: [
+		| slice |
+		slice := PlatformIOBuffer writeSliceFrom: bytes start: start count: count.
+		slice isNil ifTrue: [^nil].
+		^self primWrite: h from: slice startingAt: 1 count: count].
+	binding := WriteCall ifNil: [WriteCall := PlatformFFI bind: #(call 'platform' 'platform_files_write' (i64 bytesWithLength) i64)].
+	binding isNil ifTrue: [^nil].
+	result := binding tryInvoke2: h with: {bytes. start. count}.
+	result == false ifTrue: [^nil].
+	^result < 0 ifTrue: [nil] ifFalse: [result]
 !
-primSize: handle
-	<primitive: 'fileSize'>
-	^nil
+primSize: h
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'platform' 'platform_files_size' (i64) nonNegativeI64)) tryInvoke1: h.
+	result == false ifTrue: [^nil].
+	^result
 !
-primPosition: handle
-	<primitive: 'filePosition'>
-	^nil
+primPosition: h
+	<ffiSite>
+	| result |
+	result := (self ffiSite: #(call 'platform' 'platform_files_position' (i64) nonNegativeI64)) tryInvoke1: h.
+	result == false ifTrue: [^nil].
+	^result
 !
-primSeek: handle to: position
-	<primitive: 'fileSeek'>
-	^nil
+primSeek: h to: position
+	| binding result |
+	binding := SeekCall ifNil: [SeekCall := PlatformFFI bind: #(call 'platform' 'platform_files_seek' (i64 i64) i32)].
+	binding isNil ifTrue: [^nil].
+	result := binding tryInvoke2: h with: position.
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
-primFlush: handle
-	<primitive: 'fileFlush'>
-	^nil
+primFlush: h
+	| binding result |
+	binding := FlushCall ifNil: [FlushCall := PlatformFFI bind: #(call 'platform' 'platform_files_flush' (i64) i32)].
+	binding isNil ifTrue: [^nil].
+	result := binding tryInvoke1: h.
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
-primDelete: aPath
-	<primitive: 'fileDelete'>
-	^nil
+primDelete: path
+	| binding bytes result |
+	binding := DeleteCall ifNil: [DeleteCall := PlatformFFI bind: #(call 'platform' 'platform_files_delete' (bytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	bytes := PlatformFFI osTextBytes: path.
+	bytes isNil ifTrue: [^nil].
+	result := binding tryInvoke1: {bytes. 1. bytes size}.
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
 primRename: oldPath to: newPath
-	<primitive: 'fileRename'>
-	^nil
+	| binding a b result |
+	binding := RenameCall ifNil: [RenameCall := PlatformFFI bind: #(call 'platform' 'platform_files_rename' (bytesWithLength bytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	a := PlatformFFI osTextBytes: oldPath.
+	b := PlatformFFI osTextBytes: newPath.
+	(a isNil or: [b isNil]) ifTrue: [^nil].
+	result := binding tryInvoke2: {a. 1. a size} with: {b. 1. b size}.
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
-primStat: aPath
-	<primitive: 'fileStat'>
+primStat: path
+	| binding bytes out result |
+	binding := StatCall ifNil: [StatCall := PlatformFFI bind: #(call 'platform' 'platform_files_stat' (bytesWithLength writableBytesWithLength) i32)].
+	binding isNil ifTrue: [^self missingStat].
+	bytes := PlatformFFI osTextBytes: path.
+	bytes isNil ifTrue: [^self missingStat].
+	out := ByteArray new: 18.
+	result := binding tryInvoke2: {bytes. 1. bytes size} with: {out. 1. out size}.
+	result == false ifTrue: [^self missingStat].
+	result = 0 ifTrue: [^self missingStat].
+	^{out first ~= 0. out second ~= 0. FFIWire int64At: 3 in: out. FFIWire int64At: 11 in: out}
+!
+missingStat
 	^Array with: false with: false with: 0 with: 0
 !
-primDirEntries: aPath
-	<primitive: 'dirEntries'>
-	^nil
+primDirEntries: path
+	| binding bytes result |
+	binding := DirEntriesCall ifNil: [DirEntriesCall := PlatformFFI bind: #(call 'platform' 'platform_files_dir_entries' (bytesWithLength writableBytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	bytes := PlatformFFI osTextBytes: path.
+	bytes isNil ifTrue: [^nil].
+	result := self captureNames: [:receipt | binding tryInvoke2: {bytes. 1. bytes size} with: receipt].
+	result == false ifTrue: [^nil].
+	^result
 !
-primDirCreate: aPath
-	<primitive: 'dirCreate'>
-	^nil
+primDirCreate: path
+	| binding bytes result |
+	binding := DirCreateCall ifNil: [DirCreateCall := PlatformFFI bind: #(call 'platform' 'platform_files_dir_create' (bytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	bytes := PlatformFFI osTextBytes: path.
+	bytes isNil ifTrue: [^nil].
+	result := binding tryInvoke1: {bytes. 1. bytes size}.
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
+!
+primMkfifo: path
+	| binding bytes result |
+	binding := MkfifoCall ifNil: [MkfifoCall := PlatformFFI bind: #(call 'platform' 'platform_files_mkfifo' (bytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	bytes := PlatformFFI osTextBytes: path.
+	bytes isNil ifTrue: [^nil].
+	result := binding tryInvoke1: {bytes. 1. bytes size}.
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
 primCwd
-	<primitive: 'cwd'>
-	^nil
+	| binding result |
+	binding := CwdCall ifNil: [CwdCall := PlatformFFI bind: #(call 'platform' 'platform_files_cwd' (writableBytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	result := self captureNames: [:receipt | binding tryInvoke1: receipt].
+	result == false ifTrue: [^nil].
+	^result ifNotNil: [result first]
 !
 primLastError
-	<primitive: 'platformLastError'>
-	^nil
+	^WindowPlatformFFI lastError
 !
 primSpawn: argv
 	"Start argv first (looked up in PATH) with the other Strings as arguments, sharing the VM's standard streams. Answer its pid or nil."
-	<primitive: 'spawnProcess'>
-	^nil
+	| binding request result |
+	binding := SpawnCall ifNil: [
+		SpawnCall := PlatformFFI bind: #(call 'platform' 'platform_process_spawn' (bytesWithLength) i64)].
+	binding isNil ifTrue: [^nil].
+	request := ProcessLaunchRecord arguments: argv.
+	request isNil ifTrue: [^nil].
+	result := binding tryInvoke1: {request. 1. request size}.
+	(result == false or: [result <= 0]) ifTrue: [^nil].
+	^result
 !
 primWait: pid blocking: aBoolean
 	"Answer the exit status of the child pid (128 + signal number if killed), nil while it runs (aBoolean false); fail: nil."
-	<primitive: 'processWait'>
-	^nil
+	| binding out result |
+	(aBoolean == true or: [aBoolean == false]) ifFalse: [^nil].
+	binding := ProcessWaitCall ifNil: [
+		ProcessWaitCall := PlatformFFI bind: #(call 'platform' 'platform_process_wait' (i64 i32 writableBytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	out := ByteArray new: 5.
+	result := binding tryInvoke3: pid with: (aBoolean ifTrue: [1] ifFalse: [0]) with: {out. 1. out size}.
+	(result = 1 and: [out first = 1]) ifFalse: [^nil].
+	^FFIWire int32At: 2 in: out
 !
 primExec: argv
 	"Replace the VM's process by argv first (looked up in PATH) with the other Strings as arguments: same pid and standard streams, all other descriptors closed. Answers nil only if that failed."
-	<primitive: 'execProcess'>
+	| binding request |
+	binding := ExecCall ifNil: [
+		ExecCall := PlatformFFI bind: #(call 'platform' 'platform_process_exec' (bytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	request := ProcessLaunchRecord arguments: argv.
+	request isNil ifTrue: [^nil].
+	binding tryInvoke1: {request. 1. request size}.
 	^nil
+! !
+
+!File class methodsFor: 'FFI name results'!
+captureNames: producer
+	"An immutable native observation. Size and copy only read that observation. Never enumerate or getcwd twice."
+	| size copy release receipt ticket status names count bytes length |
+	size := NameSizeCall ifNil: [NameSizeCall := PlatformFFI bind: #(call 'platform' 'platform_files_name_size' (u64 u32) i64)].
+	copy := NameCopyCall ifNil: [NameCopyCall := PlatformFFI bind: #(call 'platform' 'platform_files_name_copy' (u64 u32 writableBytesWithLength) i32)].
+	release := NameReleaseCall ifNil: [NameReleaseCall := PlatformFFI bind: #(call 'platform' 'platform_files_name_release' (u64) i32)].
+	(size isNil or: [copy isNil or: [release isNil]]) ifTrue: [^false].
+	receipt := ByteArray new: 12.
+	[
+		status := producer value: {receipt. 1. 12}.
+		status == false ifTrue: [^false].
+		status = 0 ifTrue: [^nil].
+		ticket := FFIWire uint64At: 1 in: receipt.
+		count := FFIWire uint32At: 9 in: receipt.
+		names := Array new: count.
+		1 to: count do: [:i |
+			length := size tryInvoke2: ticket with: i - 1.
+			(length == false or: [length < 0]) ifTrue: [^nil].
+			bytes := ByteArray new: length.
+			(copy tryInvoke3: ticket with: i - 1 with: {bytes. 1. length}) = 1 ifFalse: [^nil].
+			names at: i put: (PlatformFFI textFromBytes: bytes)].
+		^names
+	] ensure: [
+		ticket := FFIWire uint64At: 1 in: receipt.
+		ticket = 0 ifFalse: [
+			(release tryInvoke1: ticket) == false ifTrue: [FFIError signal: 'File name result release rejected']]]
 ! !

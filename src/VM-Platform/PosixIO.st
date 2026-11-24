@@ -372,3 +372,9 @@ cName
 fields
 	^#((fd int) (events int16_t) (revents int16_t))
 ! !
+
+!PosixIO methodsFor: 'entropy'!
+getEntropy: buffer size: size
+	<c: 'int getentropy(void *buffer, size_t size)'>
+	^self notSimulated
+! !

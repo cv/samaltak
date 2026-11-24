@@ -8,7 +8,7 @@ fails=0
 pass() { echo "ok   $1"; }
 fail() { echo "FAIL $1"; fails=$((fails + 1)); }
 
-cp -R vm/tests/mini/Mini-Kernel vm/tests/mini/Mini-Tests "$TMP"/
+cp -RL vm/tests/mini/Mini-Kernel vm/tests/mini/Mini-Tests "$TMP"/
 mkdir "$TMP/Lower" "$TMP/Middle" "$TMP/Upper"
 printf "Object subclass: #LowThing\n\tinstanceVariableNames: ''\n\tclassVariableNames: ''\n\tpackage: 'Lower'!\n" >"$TMP/Lower/LowThing.st"
 printf "Object subclass: #MidThing\n\tinstanceVariableNames: ''\n\tclassVariableNames: ''\n\tpackage: 'Middle'!\n\n!MidThing methodsFor: 'x'!\nlow\n\t^LowThing\n! !\n" >"$TMP/Middle/MidThing.st"

@@ -1,6 +1,6 @@
 Object subclass: #PseudoTerminal
 	instanceVariableNames: 'handle pid exitStatus semaphore semaphoreIndex session'
-	classVariableNames: 'LastActivity Open Session'
+	classVariableNames: 'CloseCall ForegroundCall LastActivity Open ResizeCall Session PtyReadCall PtyWriteCall PtySemaphoreCall PtyWaitCall PtySpawnCall'
 	package: 'System-Files'!
 
 PseudoTerminal comment: 'I am the master side of a pseudo-terminal whose slave side runs a child process (a shell), over the platform''s pty primitives (vm/platform/README.md). Reading and writing never block: readInto: answers nil when nothing is pending, write:from:count: nil when the terminal is full. My semaphore is signaled (once, then re-armed by the next read or blocked write) when output arrives, the child side closes, or a blocked write may continue: drain until nil, then wait.
@@ -145,9 +145,12 @@ printOn: aStream
 !PseudoTerminal class methodsFor: 'instance creation'!
 spawn: argv environment: anArrayOrNil directory: aPathOrNil rows: rows columns: columns
 	"Run argv (its first element looked up in PATH) on a new terminal of rows × columns in aPathOrNil (nil: the VM's directory) with anArrayOrNil (''NAME=value'' Strings; nil: the VM's environment)."
-	| result |
-	result := self primSpawn: argv asArray environment: (anArrayOrNil ifNotNil: [:env | env asArray]) directory: aPathOrNil rows: rows columns: columns.
-	result isNil ifTrue: [^FileError signal: 'Cannot start ', argv first printString, ' on a pty: ', File lastError path: argv first].
+	| args result program |
+	args := argv asArray.
+	result := self primSpawn: args environment: (anArrayOrNil ifNotNil: [:env | env asArray]) directory: aPathOrNil rows: rows columns: columns.
+	result isNil ifTrue: [
+		program := args at: 1 ifAbsent: [nil].
+		^FileError signal: 'Cannot start ', program printString, ' on a pty: ', File lastError path: program].
 	^self new setHandle: (result at: 1) pid: (result at: 2)
 ! !
 
@@ -181,37 +184,101 @@ anyRunsAJob
 !PseudoTerminal class methodsFor: 'primitives'!
 primForeground: aHandle
 	"Answer the foreground process group of aHandle's terminal, nil on failure."
+	| binding result |
+	binding := ForegroundCall ifNil: [
+		ForegroundCall := PlatformFFI bind: #(call 'platform' 'pty_foreground' (i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: aHandle].
+	result == false ifTrue: [^self legacyForeground: aHandle].
+	^result < 0 ifTrue: [nil] ifFalse: [result]
+!
+primSpawn: argv environment: env directory: cwd rows: rows columns: columns
+	| binding request out result launch |
+	binding := PtySpawnCall ifNil: [
+		PtySpawnCall := PlatformFFI bind: #(call 'platform' 'platform_pty_spawn' (bytesWithLength i32 i32 writableBytesWithLength) i32)].
+	binding isNil ifTrue: [^nil].
+	(rows isInteger and: [columns isInteger and: [
+		(rows between: 1 and: 65535) and: [columns between: 1 and: 65535]]]) ifFalse: [^nil].
+	request := ProcessLaunchRecord arguments: argv environment: env directory: cwd.
+	request isNil ifTrue: [^nil].
+	out := ByteArray new: 16.
+	launch := Array new: 2.
+	result := binding tryInvoke4: {request. 1. request size} with: rows with: columns with: {out. 1. out size}.
+	result = 1 ifFalse: [^nil].
+	launch at: 1 put: (FFIWire int64At: 1 in: out).
+	launch at: 2 put: (FFIWire int64At: 9 in: out).
+	^launch
+!
+primRead: h into: bytes start: start count: count
+	"Answer the byte count, 0 at end, nil if it would block, false on failure."
+	| binding result |
+	bytes class == ByteArray ifFalse: [
+		^PlatformIOBuffer readInto: bytes start: start count: count failure: false
+			using: [:slice | self primRead: h into: slice start: 1 count: count]].
+	binding := PtyReadCall ifNil: [
+		PtyReadCall := PlatformFFI bind: #(call 'platform' 'pty_read' (i64 writableBytesWithLength) i64)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke2: h with: {bytes. start. count}].
+	result == false ifTrue: [^false].
+	^result = -1 ifTrue: [nil] ifFalse: [result < 0 ifTrue: [false] ifFalse: [result]]
+!
+primWrite: h from: bytes start: start count: count
+	"Answer the byte count written, nil if it would block, false on failure."
+	| binding result |
+	bytes class == ByteArray ifFalse: [
+		| slice |
+		slice := PlatformIOBuffer writeSliceFrom: bytes start: start count: count.
+		slice isNil ifTrue: [^false].
+		^self primWrite: h from: slice start: 1 count: count].
+	binding := PtyWriteCall ifNil: [
+		PtyWriteCall := PlatformFFI bind: #(call 'platform' 'pty_write' (i64 bytesWithLength) i64)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke2: h with: {bytes. start. count}].
+	result == false ifTrue: [^false].
+	^result = -1 ifTrue: [nil] ifFalse: [result < 0 ifTrue: [false] ifFalse: [result]]
+!
+primResize: aHandle rows: rows columns: columns
+	| binding result |
+	binding := ResizeCall ifNil: [
+		ResizeCall := PlatformFFI bind: #(call 'platform' 'pty_resize' (i64 i64 i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke3: aHandle with: rows with: columns].
+	result == false ifTrue: [^self legacyResize: aHandle rows: rows columns: columns].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
+!
+primSemaphore: h read: r write: w
+	| binding result |
+	binding := PtySemaphoreCall ifNil: [
+		PtySemaphoreCall := PlatformFFI bind: #(call 'platform' 'pty_semaphore' (i64 i64 i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke3: h with: r with: w].
+	result == false ifTrue: [^FileError signal: 'ptySemaphore: ', File lastError path: nil].
+	^result = 0 ifTrue: [FileError signal: 'ptySemaphore: ', File lastError path: nil] ifFalse: [self]
+!
+primWait: h blocking: block
+	"Answer the exit status, nil while running, false on failure."
+	| binding result |
+	(block == true or: [block == false]) ifFalse: [^false].
+	binding := PtyWaitCall ifNil: [
+		PtyWaitCall := PlatformFFI bind: #(call 'platform' 'pty_wait' (i64 i32) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke2: h with: (block ifTrue: [1] ifFalse: [0])].
+	result == false ifTrue: [^false].
+	^result = -1 ifTrue: [nil] ifFalse: [result < 0 ifTrue: [false] ifFalse: [result]]
+!
+primClose: aHandle
+	| binding result |
+	binding := CloseCall ifNil: [
+		CloseCall := PlatformFFI bind: #(call 'platform' 'pty_close' (i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: aHandle].
+	result == false ifTrue: [^self legacyClose: aHandle].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
+! !
+
+!PseudoTerminal class methodsFor: 'fallback primitives'!
+legacyForeground: aHandle
 	<primitive: 'ptyForeground'>
 	^nil
 !
-primSpawn: argv environment: env directory: cwd rows: rows columns: columns
-	<primitive: 'ptySpawn'>
-	^nil
-!
-primRead: aHandle into: bytes start: start count: count
-	"Answer the byte count, 0 at end, nil if it would block, false on failure."
-	<primitive: 'ptyRead'>
-	^false
-!
-primWrite: aHandle from: bytes start: start count: count
-	"Answer the byte count written, nil if it would block, false on failure."
-	<primitive: 'ptyWrite'>
-	^false
-!
-primResize: aHandle rows: rows columns: columns
+legacyResize: aHandle rows: rows columns: columns
 	<primitive: 'ptyResize'>
 	^nil
 !
-primSemaphore: aHandle read: readIndex write: writeIndex
-	<primitive: 'ptySemaphore'>
-	^FileError signal: 'ptySemaphore: ', File lastError path: nil
-!
-primWait: aHandle blocking: aBoolean
-	"Answer the exit status, nil while running, false on failure."
-	<primitive: 'ptyWait'>
-	^false
-!
-primClose: aHandle
+legacyClose: aHandle
 	<primitive: 'ptyClose'>
 	^nil
 ! !

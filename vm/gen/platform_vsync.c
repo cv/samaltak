@@ -2,14 +2,51 @@
 /* PlatformVsync (VM-Platform) */
 #include "samaltak.h"
 
+static bool notifying;
 static atomic_int pending;
 static bool running;
+static atomic_bool semaphore_armed;
 static int32_t vsync_sem;
+
+/* PlatformVsync>>notifications: */
+bool notifications(bool enabled)
+{
+    bool r_ensure_running;
+    platform_interface_init();
+    if (enabled) {
+        if (!({
+    if (running) {
+        r_ensure_running = true;
+        goto exit_ensure_running;
+    }
+    if (!ffi_vsync_notification_prepare()) {
+        set_error("cannot initialize vsync notification lock");
+        r_ensure_running = false;
+        goto exit_ensure_running;
+    }
+    if (!vsync_start()) {
+        r_ensure_running = false;
+        goto exit_ensure_running;
+    }
+    running = true;
+    r_ensure_running = true;
+exit_ensure_running:;
+    r_ensure_running; })) {
+            return false;
+        }
+    }
+    notifying = enabled;
+    if (running && ((vsync_sem == 0) && (!notifying))) {
+        vsync_stop();
+        running = false;
+    }
+    return true;
+}
 
 /* PlatformVsync>>pending */
 bool platform_vsync_pending(void)
 {
-    return (vsync_sem != 0) && (atomic_load_explicit(&pending, memory_order_relaxed) != 0);
+    return ((vsync_sem != 0) && (atomic_load_explicit(&pending, memory_order_relaxed) != 0)) || ffi_vsync_notification_pending_signals();
 }
 
 /* PlatformVsync>>poll */
@@ -21,30 +58,57 @@ void platform_vsync_poll(void)
 }
 
 /* PlatformVsync>>refreshed */
-void refreshed(void)
+void platform_vsync_refreshed(void)
 {
-    if (atomic_exchange(&pending, 1) == 0) {
+    ffi_vsync_notification_refreshed();
+    if (atomic_load_explicit(&semaphore_armed, memory_order_relaxed) && (atomic_exchange(&pending, 1) == 0)) {
         request_interrupt_check();
-        wake();
+        sdl_platform_wake();
     }
 }
 
 /* PlatformVsync>>semaphore: */
 bool semaphore(int32_t index)
 {
+    bool r_ensure_running;
     platform_interface_init();
-    vsync_sem = index;
-    if ((index != 0) && (!running)) {
-        if (!vsync_start()) {
+    if (index != 0) {
+        if (!({
+    if (running) {
+        r_ensure_running = true;
+        goto exit_ensure_running;
+    }
+    if (!ffi_vsync_notification_prepare()) {
+        set_error("cannot initialize vsync notification lock");
+        r_ensure_running = false;
+        goto exit_ensure_running;
+    }
+    if (!vsync_start()) {
+        r_ensure_running = false;
+        goto exit_ensure_running;
+    }
+    running = true;
+    r_ensure_running = true;
+exit_ensure_running:;
+    r_ensure_running; })) {
             return false;
         }
-        running = true;
-        return true;
     }
-    if ((index == 0) && running) {
-        vsync_stop();
-        running = false;
+    vsync_sem = index;
+    atomic_store_explicit(&semaphore_armed, index != 0, memory_order_relaxed);
+    if (index == 0) {
+        atomic_exchange(&pending, 0);
+        if (running && ((vsync_sem == 0) && (!notifying))) {
+            vsync_stop();
+            running = false;
+        }
     }
     return true;
+}
+
+/* PlatformVsync>>signalNotifications */
+void signal_notifications(void)
+{
+    ffi_vsync_notification_signal_ready();
 }
 

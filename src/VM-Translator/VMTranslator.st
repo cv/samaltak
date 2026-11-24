@@ -1,5 +1,5 @@
 Object subclass: #VMTranslator
-	instanceVariableNames: 'registry moduleClasses modules externs functions errors headerName queue queued arch os calledLibraries usedStructs'
+	instanceVariableNames: 'registry moduleClasses modules externs functions errors headerName queue queued arch os calledLibraries usedStructs approvedFFI'
 	classVariableNames: ''
 	package: 'VM-Translator'!
 
@@ -169,6 +169,8 @@ translateForArch
 	self checkTargetOSes.
 	self checkTargetArchs.
 	self assignCNames.
+	approvedFFI := TApprovedFFI fromFunctions: (self translatedModules inject: OrderedCollection new into: [:all :m |
+		all addAll: m functions values; yourself]).
 	self inferSignatures.
 	self translatedModules do: [:m |
 		(m functions values asSortedCollection: [:a :b | a selector <= b selector]) do: [:f |
@@ -717,7 +719,10 @@ cFileFor: aTModule functions: cFunctions
 	(cFunctions anySatisfy: [:f | f function isStatic]) ifTrue: [s lf].
 	cFunctions do: [:f |
 		s nextPutAll: '/* '; nextPutAll: f function printString; nextPutAll: ' */'; lf.
-		f printOn: s.
+		(f function hasPragma: #approvedFFIDispatch)
+			ifTrue: [TApprovedFFI printLookup: f
+				rows: (approvedFFI select: [:row | row owner = aTModule name]) on: s]
+			ifFalse: [f printOn: s].
 		s lf].
 	aTModule moduleClass targetOS notNil ifTrue: [s nextPutAll: '#endif'; lf].
 	^s contents

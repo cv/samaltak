@@ -38,4 +38,18 @@ wait: timeoutUs
 !
 shutdown
 	<export>
+!
+ffiTarget: id
+	<export>
+	<var: #id type: 'int32_t'>
+	<returns: 'uint64_t'>
+	^0
+!
+ffiApprovedPlatform: approvedName signature: packedSignature into: targetOut
+	<export>
+	<var: #approvedName type: 'const char *'>
+	<var: #packedSignature type: 'uint32_t'>
+	<var: #targetOut type: 'uint64_t *'>
+	<returns: 'int32_t'>
+	^0
 ! !

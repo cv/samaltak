@@ -277,8 +277,23 @@ emitCascade: aCascadeNode forValue: forValue
 	cascadeReceiver := saved
 !
 emitMessage: aMessageNode forValue: forValue
+	((aMessageNode selector == #ffiSite: and: [cascadeReceiver isNil]) and: [
+		(aMessageNode receiver isVariable and: [aMessageNode receiver isSelf]) and: [
+			methodNode pragmas anySatisfy: [:p | p selector == #ffiSite]]]) ifTrue: [
+		^self emitFFISite: aMessageNode forValue: forValue].
 	(self isInlinable: aMessageNode) ifTrue: [^self emitInlined: aMessageNode forValue: forValue].
 	self emitSend: aMessageNode forValue: forValue
+!
+emitFFISite: aMessageNode forValue: forValue
+	"An annotated literal call descriptor becomes an unprepared binding, not a send."
+	| literal site |
+	literal := aMessageNode arguments first.
+	literal isLiteral ifFalse: [^self error: 'An FFI site needs a literal call descriptor' node: literal].
+	site := [FFI newCallBinding: literal value]
+		on: FFIError do: [:e | self error: e messageText node: literal].
+	forValue ifTrue: [
+		encoder noteNode: aMessageNode.
+		encoder pushLiteral: site]
 !
 emitSend: aMessageNode forValue: forValue
 	| receiver isSuper saved |

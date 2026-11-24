@@ -2,9 +2,13 @@
 /* PlatformFiles (VM-Platform) */
 #include "samaltak.h"
 
+static pf_owned_names owned_names[16];
+static uint64_t owned_names_serial;
+static uint64_t owned_names_session;
 static pf_table table[1];
 
 static int32_t platform_files_fd_of(int32_t f);
+static pf_owned_names *owned_names_row(uint64_t ticket);
 
 /* PlatformFiles>>close: */
 bool platform_files_close(int32_t f)
@@ -78,11 +82,15 @@ char **dir_entries(char *path, int *n)
     while (ok && ((e = readdir(d)) != NULL)) {
         if (!((strcmp(e->d_name, ".") == 0) || (strcmp(e->d_name, "..") == 0))) {
             if (*n == cap) {
-                cap = cap * 2;
-                nv = (char **)realloc(v, sizeof(char *) * (uint64_t)cap);
-                ok = nv != NULL;
-                if (ok) {
-                    v = nv;
+                if (cap == 0x7FFFFFFF) {
+                    ok = false;
+                } else {
+                    cap = cap > 0x3FFFFFFF ? 0x7FFFFFFF : cap * 2;
+                    nv = (char **)realloc(v, sizeof(char *) * (uint64_t)cap);
+                    ok = nv != NULL;
+                    if (ok) {
+                        v = nv;
+                    }
                 }
             }
             if (ok) {
@@ -214,6 +222,96 @@ int32_t platform_files_open(char *path, int32_t mode)
     return h;
 }
 
+/* PlatformFiles>>ownedName:at: */
+const char *owned_name(uint64_t ticket, uint32_t index)
+{
+    pf_owned_names *row;
+    row = owned_names_row(ticket);
+    if ((row == NULL) || (index >= row->count)) {
+        return (const char *)NULL;
+    }
+    return row->names[index];
+}
+
+/* PlatformFiles>>ownedNamesPublish:names:count:receipt: */
+void owned_names_publish(pf_owned_names *row, char **names, uint32_t count, uint8_t *out)
+{
+    uint64_t ticket;
+    int i;
+    int i_2;
+    owned_names_serial = owned_names_serial + 1;
+    if (owned_names_serial == owned_names_session) {
+        owned_names_serial = owned_names_serial + 1;
+    }
+    ticket = owned_names_session ^ owned_names_serial;
+    row->count = count;
+    row->names = names;
+    row->ticket = ticket;
+    for (i = 0; i <= 3; i++) {
+        out[i + 8] = (uint8_t)(count >> (i * 8));
+    }
+    for (i_2 = 0; i_2 <= 7; i_2++) {
+        out[i_2] = (uint8_t)(ticket >> (i_2 * 8));
+    }
+}
+
+/* PlatformFiles>>ownedNamesRoom:capacity: */
+pf_owned_names *owned_names_room(uint8_t *receipt, uint64_t cap)
+{
+    int i;
+    uint64_t local;
+    uint64_t *nonce;
+    int i_2;
+    pf_owned_names *row;
+    if (cap != 12) {
+        return (pf_owned_names *)NULL;
+    }
+    for (i = 0; i <= 11; i++) {
+        if (receipt[i] != 0) {
+            return (pf_owned_names *)NULL;
+        }
+    }
+    if (owned_names_session == 0) {
+        memset(&local, 0, sizeof local);
+        nonce = &local;
+        if (getentropy(nonce, 8) != 0) {
+            return (pf_owned_names *)NULL;
+        }
+        owned_names_session = (*nonce) & 4611686018427387903ULL;
+        if (owned_names_session == 0) {
+            return (pf_owned_names *)NULL;
+        }
+    }
+    if (owned_names_serial >= 4611686018427387902ULL) {
+        return (pf_owned_names *)NULL;
+    }
+    for (i_2 = 0; i_2 <= 15; i_2++) {
+        row = owned_names + i_2;
+        if (row->ticket == 0) {
+            return row;
+        }
+    }
+    set_error("too many outstanding file name results");
+    return (pf_owned_names *)NULL;
+}
+
+/* PlatformFiles>>ownedNamesRow: */
+static pf_owned_names *owned_names_row(uint64_t ticket)
+{
+    int i;
+    pf_owned_names *row;
+    if (ticket == 0) {
+        return (pf_owned_names *)NULL;
+    }
+    for (i = 0; i <= 15; i++) {
+        row = owned_names + i;
+        if (row->ticket == ticket) {
+            return row;
+        }
+    }
+    return (pf_owned_names *)NULL;
+}
+
 /* PlatformFiles>>position: */
 off_t position(int32_t f)
 {
@@ -231,7 +329,7 @@ off_t position(int32_t f)
 }
 
 /* PlatformFiles>>processWait:block:status:done: */
-bool process_wait(int64_t pid, bool block, int *status, bool *done)
+bool process_wait(int64_t pid, bool block, int32_t *status, bool *done)
 {
     int local;
     int *st;
@@ -274,6 +372,27 @@ ssize_t platform_files_read(int32_t f, void *buf, uint64_t n)
         platform_common_fail_os_path_code("read", (char *)NULL, errno);
     }
     return r;
+}
+
+/* PlatformFiles>>releaseOwnedNames: */
+int32_t release_owned_names(uint64_t ticket)
+{
+    pf_owned_names *row;
+    char **names;
+    int64_t i;
+    row = owned_names_row(ticket);
+    if (row == NULL) {
+        return 0;
+    }
+    names = row->names;
+    for (i = 0; i <= (int64_t)row->count - 1; i++) {
+        free(names[i]);
+    }
+    free(names);
+    row->ticket = 0;
+    row->names = (char **)NULL;
+    row->count = 0;
+    return 1;
 }
 
 /* PlatformFiles>>rename:to: */

@@ -161,7 +161,7 @@ static void *vsync_run(void *arg)
                 *now = *next;
             }
             clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, next, (struct timespec *)NULL);
-            refreshed();
+            platform_vsync_refreshed();
         } else {
             nanosleep(nap, (struct timespec *)NULL);
             clock_gettime(CLOCK_MONOTONIC, next);

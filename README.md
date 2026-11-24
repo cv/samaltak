@@ -39,6 +39,7 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - `docs/lowtalk.md` — the Smalltalk subset the VM is written in, its translation to C and its simulation
 - `docs/ui.md` — the layers from GPU to tools
 - `docs/platform.md` — the platform layer and its primitives
+- [FFI](docs/ffi.md) — native call descriptors and launcher grants
 - `docs/apps.md` — applications as Linux windows, run from source (AppWorld, Application, OmarchyTheme, apps/Weather)
 - `docs/uefi.md` — the headless VM as a UEFI application (bare metal, QEMU)
 - `prototypes/` — the HTML prototypes the UI started from

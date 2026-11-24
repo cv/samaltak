@@ -93,9 +93,41 @@ The interpreter's frames are the canonical state. Machine code runs on the same 
 
 **Stress.** `--jit-flags eager` optimizes at the first count; `deopt` makes optimized code take every 37th slow path it passes (guards, interrupt checks, returns from calls) and deoptimize there, without feedback. `make test-jit` runs the image's tests under `--jit opt` with eager and with eager,deopt; `vm/tests/run.sh` the mini kernel's under both (with the GC stress) and the default thresholds; `JitOptRuntimeTest` covers deoptimization of a failed speculation (and none where nothing was speculated: `perform:`, `doesNotUnderstand:`, SmallIntegers beside Floats, BoxedFloat64s, SmallInteger arithmetic that baseline code sent, SmallIntegers where LargeIntegers were), invalidation of inlined code while it runs, closures that store temps across loops, closures a loop's unit inlines from its frame, calls into machine code (no sends through the runtime: `optRuntimeSends`), process primitives that switch no process, `perform:` of a constant (inlined), `at:` of a String argument (inline after one deoptimization), a count shared with a method that failed to compile, brace Arrays (inlined, across interrupt checks where the collector runs, more than 64 elements), a loop's values across interrupt checks where Processes switch and the collector runs, a loop's counter beside Float arithmetic (a SmallInteger: no Float path, converted without a test; a sum that overflows), a loop's unit that took the frame's SmallIntegers entered with them again and with a Float, Float loops on doubles (across those interrupt checks; a loop's unit entered with a SmallInteger, a Fraction or nil, and one compiled for a SmallFloat64 entered with one, a SmallInteger or a BoxedFloat64; a loop that sends; more running Floats than d registers; running Floats without boxes in their loops: boxed where they are returned or stored after it, by the interpreter out of SmallFloat64's range; across nested loops, a conditional's phi and a swap; where a guard fails in the loop; one the loop sends, boxed there), deoptimization with dead temps (straight code, branches, loops, nested Float loops, blocks, a loop's unit) and a frame made a Context with nil in its dead temps, the stress, the listing.
 
-**Flags** (`--jit-flags`, all on by default): `inline` (methods), `blocks` (closures), `prims`, `unbox` (Floats on doubles), `calls` (direct and block calls), `alloc`, `gvn`, `hoist`, `live` (frame states name only the temps still read; off: every temp); `eager` and `deopt` are off.
+**Flags** (`--jit-flags`, all on by default): `inline` (methods), `blocks` (closures), `prims`, `unbox` (Floats on doubles), `calls` (direct and block calls), `ffi-site` ([bound FFI sites](#bound-ffi-sites)), `alloc`, `gvn`, `hoist`, `live` (frame states name only the temps still read; off: every temp); `eager` and `deopt` are off.
 
 Not done: loop-invariant code motion other than guards' and SmallInteger sums' and differences' (an argument's unboxing stays in the loop, check and all: NBody's `dt`), ranges of loop counters, and bounds checks of indices other than a counter, c minus it, or what ranges bound (`i + k - 1` keeps its check), escape analysis beyond closures, unboxed Floats across calls, in fields and in elements (a store boxes, a load unboxes under a check: NBody's `advance`), in a loop's variable that starts as a SmallInteger (`sum := 0`: in the method's unit not a phi of SmallFloat64s, boxed every time around) or that arithmetic with a SmallInteger path reads (SpectralNorm's `vBv / vv`: its boxes stay in the loop), SmallIntegers known for a method's arguments or what it loads (a counter compared with such a limit beside Float arithmetic keeps both paths there), inlining of closures made elsewhere other than in a loop's variant (a method's unit calls a block passed in through the block stub).
+
+### Bound FFI sites
+
+The optimizing tier can specialize an ordinary positional FFI send with a
+known receiver class or monomorphic feedback. It checks the resolved
+method's primitive (`ffiBoundInvoke`) and arity, not the selector's spelling.
+A selector dependency invalidates the code on method installation or removal.
+Array invocation, `super` sends, and reflective dispatch do not use this path.
+
+The compiler can seed a site with a known, already prepared binding.
+Otherwise an empty or revoked site can learn one at run time. The cold
+helper checks lookup and arity again, neither prepares nor invokes the
+binding, and leaves the original send to run. Preparation and snapshot
+rebinding remain on the normal invoke path.
+
+The guard checks that the code is live and that the receiver matches the
+binding's weak owner slot, publication serial and session-tagged token.
+The collector updates or clears the weak slot; the serial prevents slot
+reuse from validating an old site. A different live binding takes the
+original send without replacing the cached binding. Site storage is
+bounded; if unavailable the compiler emits the ordinary send. Sites are
+discarded with the JIT cache and are not saved in snapshots.
+
+A hit calls the cached wrapper entry with the outgoing positional arguments
+in the caller's slots, without pushing a Smalltalk callee frame. The wrapper
+still validates its arguments. Its rejection sentinel becomes `false`;
+native zero and `void` already have Smalltalk results. For `i32`, `u32`
+and `void`, conversion cannot collect. For `i64`, `u64` and `f64`, the
+caller marks its safepoint and spills live values; the boxing helper makes
+the frame visible to the collector before it can allocate. After the wrapper returns, the continuation
+reloads live values and handles interrupts or deoptimization **after** the
+send, never by replaying native work. Native targets must not reenter the VM.
 
 ## Machine code
 
