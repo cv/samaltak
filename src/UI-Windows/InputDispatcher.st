@@ -232,7 +232,7 @@ pointerDown: anEvent
 	w isNil ifTrue: [^world desktopClickedAt: p button: anEvent button].
 	zone == #close ifTrue: [^pressed := Array with: w with: zone].
 	world activate: w.
-	zone == #collapse ifTrue: [^pressed := Array with: w with: zone].
+	(zone == #collapse or: [zone == #chip]) ifTrue: [^pressed := Array with: w with: zone].
 	zone == #title ifTrue: [
 		anEvent clickCount = 2 ifTrue: [^w toggleCollapse].
 		^gesture := DragGesture window: w grabOffset: p - w bounds origin].
@@ -282,7 +282,8 @@ pointerUp: anEvent
 		w := pressed first.
 		((w zoneAt: p) == pressed last and: [w isOpen]) ifTrue: [
 			pressed last == #close ifTrue: [w close].
-			pressed last == #collapse ifTrue: [w toggleCollapse]].
+			pressed last == #collapse ifTrue: [w toggleCollapse].
+			pressed last == #chip ifTrue: [w openAgent]].
 		pressed := nil.
 		^self].
 	captureWindow isNil ifFalse: [
