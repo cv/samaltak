@@ -2,12 +2,12 @@
 /* JitPrimitives (VM-Jit) */
 #include "samaltak.h"
 
-static uint64_t flags_string(void);
+static oop flags_string(void);
 static oop listing_of(jit_method *h, int32_t md);
-static uint64_t string_from(const char *s);
+static oop string_from(const char *s);
 
 /* JitPrimitives>>flagsString */
-static uint64_t flags_string(void)
+static oop flags_string(void)
 {
     char local[256];
     char *buf;
@@ -58,7 +58,7 @@ static oop listing_of(jit_method *h, int32_t md)
     oop o_7;
     uint64_t o_8;
     int64_t v_5;
-    uint64_t s;
+    oop s;
     oop o_9;
     uint64_t o_10;
     int64_t i_3;
@@ -123,7 +123,7 @@ static oop listing_of(jit_method *h, int32_t md)
             o_10 = *(uint64_t *)(o_9 + 16 + 24);
             i_3 = 3 * i_2 + 1;
             *(uint64_t *)(o_10 + 16 + 8 * i_3) = s;
-            if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!(o_10 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)o_10) & H_REMEMBERED) == 0)))) {
+            if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!(o_10 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)o_10) & H_REMEMBERED) == 0)))) {
                 remember(o_10);
             }
         }
@@ -145,14 +145,14 @@ static oop listing_of(jit_method *h, int32_t md)
         o_15 = *(uint64_t *)(o_14 + 16 + 32);
         i_5 = 2 * i_4 + 1;
         *(uint64_t *)(o_15 + 16 + 8 * i_5) = s;
-        if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!(o_15 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)o_15) & H_REMEMBERED) == 0)))) {
+        if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!(o_15 - young_lo < young_hi - young_lo)) && (((*(uint64_t *)o_15) & H_REMEMBERED) == 0)))) {
             remember(o_15);
         }
     }
     s = string_from(mode_name(md));
     o_16 = *r;
     *(uint64_t *)(o_16 + 16 + 40) = s;
-    if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_16 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_16) & H_REMEMBERED) == 0)))) {
+    if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_16 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_16) & H_REMEMBERED) == 0)))) {
         remember(o_16);
     }
     pop_root();
@@ -237,7 +237,7 @@ void prim_jit_parameters(void)
 {
     oop local;
     oop *r;
-    uint64_t s;
+    oop s;
     oop o;
     oop o_2;
     oop o_3;
@@ -269,13 +269,13 @@ void prim_jit_parameters(void)
     s = string_from(mode_name(jit_mode));
     o = *r;
     *(uint64_t *)(o + 16 + 0) = s;
-    if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
+    if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
         remember(o);
     }
     s = flags_string();
     o_2 = *r;
     *(uint64_t *)(o_2 + 16 + 8) = s;
-    if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_2 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_2) & H_REMEMBERED) == 0)))) {
+    if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_2 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_2) & H_REMEMBERED) == 0)))) {
         remember(o_2);
     }
     o_3 = *r;
@@ -299,7 +299,7 @@ void prim_jit_parameters(void)
     s = string_from("x86_64");
     o_6 = *r;
     *(uint64_t *)(o_6 + 16 + 40) = s;
-    if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_6 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_6) & H_REMEMBERED) == 0)))) {
+    if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_6 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_6) & H_REMEMBERED) == 0)))) {
         remember(o_6);
     }
     o_7 = *r;
@@ -416,7 +416,7 @@ void prim_jit_parameters(void)
 {
     oop local;
     oop *r;
-    uint64_t s;
+    oop s;
     oop o;
     oop o_2;
     oop o_3;
@@ -448,13 +448,13 @@ void prim_jit_parameters(void)
     s = string_from(mode_name(jit_mode));
     o = *r;
     *(uint64_t *)(o + 16 + 0) = s;
-    if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
+    if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
         remember(o);
     }
     s = flags_string();
     o_2 = *r;
     *(uint64_t *)(o_2 + 16 + 8) = s;
-    if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_2 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_2) & H_REMEMBERED) == 0)))) {
+    if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_2 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_2) & H_REMEMBERED) == 0)))) {
         remember(o_2);
     }
     o_3 = *r;
@@ -478,7 +478,7 @@ void prim_jit_parameters(void)
     s = string_from("arm64");
     o_6 = *r;
     *(uint64_t *)(o_6 + 16 + 40) = s;
-    if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!((uint64_t)(o_6 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_6) & H_REMEMBERED) == 0)))) {
+    if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o_6 - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o_6) & H_REMEMBERED) == 0)))) {
         remember(o_6);
     }
     o_7 = *r;
@@ -726,7 +726,7 @@ void prim_jit_send_sites(void)
 }
 
 /* JitPrimitives>>stringFrom: */
-static uint64_t string_from(const char *s)
+static oop string_from(const char *s)
 {
     return string_from_utf8(s, strlen(s));
 }

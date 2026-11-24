@@ -2,24 +2,34 @@
 /* PlatformTLS (VM-Platform) */
 #include "samaltak.h"
 
+static tls_send_retry *retry_head;
 static SSL_CTX *ssl_context;
 
 static bool platform_tls_context(void);
 static void fail_ssl(char *what);
 static int platform_tls_failed(SSL *ssl, int32_t h, char *what);
+static void free_retry(tls_send_retry *pending);
+static int64_t platform_tls_retry(tls_send_retry *pending, SSL *ssl, const void *buf, uint64_t n);
+static tls_send_retry *send_retry_of(int32_t h);
 static SSL *ssl_of(int32_t h);
+static int64_t platform_tls_write(SSL *ssl, int32_t h, const void *buf, uint64_t n);
 
 /* PlatformTLS>>close: */
 bool platform_tls_close(int32_t h)
 {
     SSL *ssl;
     bool ok;
+    tls_send_retry *retry;
     ssl = ssl_of(h);
     if (ssl == NULL) {
         return false;
     }
     ok = platform_sockets_close_kind(h, PF_FD_TLS);
     SSL_free(ssl);
+    retry = send_retry_of(h);
+    if (retry != NULL) {
+        free_retry(retry);
+    }
     return ok;
 }
 
@@ -83,6 +93,22 @@ static int platform_tls_failed(SSL *ssl, int32_t h, char *what)
     return -2;
 }
 
+/* PlatformTLS>>freeRetry: */
+static void free_retry(tls_send_retry *pending)
+{
+    tls_send_retry *previous;
+    if (pending == retry_head) {
+        retry_head = pending->next;
+    } else {
+        previous = retry_head;
+        while (previous->next != pending) {
+            previous = previous->next;
+        }
+        previous->next = pending->next;
+    }
+    free(pending);
+}
+
 /* PlatformTLS>>handshake: */
 int handshake(int32_t h)
 {
@@ -141,30 +167,91 @@ int64_t platform_tls_recv(int32_t h, void *buf, uint64_t n)
     return platform_tls_failed(ssl, h, "TLS recv");
 }
 
+/* PlatformTLS>>recvBorrowed:into:count: */
+int64_t recv_borrowed(int32_t h, void *buf, uint64_t n)
+{
+    uint8_t local[16384];
+    uint8_t *scratch;
+    uint64_t count;
+    int64_t r;
+    memset(&local, 0, sizeof local);
+    scratch = local;
+    count = n < 16384 ? n : 16384ULL;
+    r = platform_tls_recv(h, scratch, count);
+    if (r > 0) {
+        memcpy(buf, scratch, (uint64_t)r);
+    }
+    return r;
+}
+
+/* PlatformTLS>>retry:ssl:bytes:count: */
+static int64_t platform_tls_retry(tls_send_retry *pending, SSL *ssl, const void *buf, uint64_t n)
+{
+    const uint8_t *staged;
+    int64_t r;
+    staged = (const uint8_t *)(pending + 1);
+    if ((n != pending->count) || ((n > 0) && (memcmp(buf, staged, n) != 0))) {
+        set_error("TLS send retry requires the same bytes and count");
+        return -2;
+    }
+    r = platform_tls_write(ssl, pending->handle, staged, n);
+    if (r != -1) {
+        free_retry(pending);
+    }
+    return r;
+}
+
 /* PlatformTLS>>semaphores:read:write: */
 bool platform_tls_semaphores(int32_t h, int32_t read_index, int32_t write_index)
 {
     return platform_sockets_semaphores_kind_read_write(h, PF_FD_TLS, read_index, write_index);
 }
 
-/* PlatformTLS>>send:bytes:count: */
-int64_t platform_tls_send(int32_t h, const void *buf, uint64_t n)
+/* PlatformTLS>>sendOwned:bytes:count: */
+int64_t send_owned(int32_t h, const void *buf, uint64_t n)
 {
     SSL *ssl;
-    size_t local;
-    size_t *done;
+    tls_send_retry *retry;
+    uint8_t *staged;
+    int64_t r;
     ssl = ssl_of(h);
     if (ssl == NULL) {
         return -2;
     }
-    memset(&local, 0, sizeof local);
-    done = &local;
-    ERR_clear_error();
-    if (SSL_write_ex(ssl, buf, n, done) == 1) {
-        arm_write(h, *done < n);
-        return (int64_t)*done;
+    retry = send_retry_of(h);
+    if (retry != NULL) {
+        return platform_tls_retry(retry, ssl, buf, n);
     }
-    return platform_tls_failed(ssl, h, "TLS send");
+    retry = (tls_send_retry *)malloc(sizeof(tls_send_retry) + (n == 0 ? 1ULL : n));
+    if (retry == NULL) {
+        set_error("out of memory staging TLS send");
+        return -2;
+    }
+    staged = (uint8_t *)(retry + 1);
+    if (n > 0) {
+        memcpy(staged, buf, n);
+    }
+    r = platform_tls_write(ssl, h, staged, n);
+    if (r == -1) {
+        retry->handle = h;
+        retry->count = n;
+        retry->next = retry_head;
+        retry_head = retry;
+    } else {
+        free(retry);
+    }
+    return r;
+}
+
+/* PlatformTLS>>sendRetryOf: */
+static tls_send_retry *send_retry_of(int32_t h)
+{
+    tls_send_retry *retry;
+    retry = retry_head;
+    while ((retry != NULL) && (retry->handle != h)) {
+        retry = retry->next;
+    }
+    return retry;
 }
 
 /* PlatformTLS>>sslOf: */
@@ -206,5 +293,20 @@ int32_t platform_tls_start(int32_t s, char *host_name)
     o->kind = PF_FD_TLS;
     o->ptr = ssl;
     return s;
+}
+
+/* PlatformTLS>>write:handle:bytes:count: */
+static int64_t platform_tls_write(SSL *ssl, int32_t h, const void *buf, uint64_t n)
+{
+    size_t local;
+    size_t *done;
+    memset(&local, 0, sizeof local);
+    done = &local;
+    ERR_clear_error();
+    if (SSL_write_ex(ssl, buf, n, done) == 1) {
+        arm_write(h, *done < n);
+        return (int64_t)*done;
+    }
+    return platform_tls_failed(ssl, h, "TLS send");
 }
 

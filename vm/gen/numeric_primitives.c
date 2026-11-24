@@ -2,8 +2,6 @@
 /* NumericPrimitives (VM-Core) */
 #include "samaltak.h"
 
-static uint64_t print_string_of(double a);
-
 /* NumericPrimitives>>primCharFromValue */
 void prim_char_from_value(void)
 {
@@ -265,29 +263,6 @@ void prim_float_exponent(void)
     v = ilogb(float_val(ro));
     v_2 = (uint64_t)((((int64_t)v) << 1) | 1);
     prim_result = v_2;
-    prim_status = PS_OK;
-exit_float_receiver_do:;
-}
-
-/* NumericPrimitives>>primFloatFractionPart */
-void prim_float_fraction_part(void)
-{
-    double local;
-    double *ip;
-    oop ro;
-    double d;
-    uint64_t v;
-    memset(&local, 0, sizeof local);
-    ip = &local;
-    ro = prim_base[0];
-    if (!is_float(ro)) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        goto exit_float_receiver_do;
-    }
-    d = modf(float_val(ro), ip);
-    v = float_oop(d);
-    prim_result = v;
     prim_status = PS_OK;
 exit_float_receiver_do:;
 }
@@ -562,23 +537,6 @@ void prim_float_not_eq(void)
     prim_result = v;
     prim_status = PS_OK;
 exit_float_args_do:;
-}
-
-/* NumericPrimitives>>primFloatPrintString */
-void prim_float_print_string(void)
-{
-    oop ro;
-    uint64_t v;
-    ro = prim_base[0];
-    if (!is_float(ro)) {
-        prim_status = PS_FAIL;
-        prim_error_code = -1;
-        goto exit_float_receiver_do;
-    }
-    v = print_string_of(float_val(ro));
-    prim_result = v;
-    prim_status = PS_OK;
-exit_float_receiver_do:;
 }
 
 /* NumericPrimitives>>primFloatSin */
@@ -1228,123 +1186,5 @@ void prim_int_sub(void)
         prim_error_code = -1;
     }
 exit_int_args_do:;
-}
-
-/* NumericPrimitives>>printStringOf: */
-static uint64_t print_string_of(double a)
-{
-    int lo;
-    int hi;
-    int mid;
-    int nd;
-    char local[64];
-    char *out;
-    char local_2[40];
-    char *buf;
-    char local_3[24];
-    char *digits;
-    bool neg;
-    char *s;
-    int exp;
-    char *o;
-    int i;
-    int i_2;
-    int i_3;
-    int i_4;
-    int i_5;
-    memset(&local, 0, sizeof local);
-    out = local;
-    if (a != a) {
-        return string_from_utf8("nan", 3);
-    }
-    if (!(a - a == 0.0)) {
-        return a < 0.0 ? string_from_utf8("-inf", 4) : string_from_utf8("inf", 3);
-    }
-    if (a == 0.0) {
-        return (lt_bits_of_double(a) >> 63) != 0 ? string_from_utf8("-0.0", 4) : string_from_utf8("0.0", 3);
-    }
-    memset(&local_2, 0, sizeof local_2);
-    buf = local_2;
-    memset(&local_3, 0, sizeof local_3);
-    digits = local_3;
-    lo = 1;
-    hi = 17;
-    while (lo < hi) {
-        mid = (lo + hi) / 2;
-        snprintf(buf, 40, "%.*e", mid - 1, a);
-        if (strtod(buf, (char **)NULL) == a) {
-            hi = mid;
-        } else {
-            lo = mid + 1;
-        }
-    }
-    snprintf(buf, 40, "%.*e", lo - 1, a);
-    neg = buf[0] == 45;
-    s = neg ? buf + 1 : buf;
-    nd = 0;
-    while ((s[0] != 0) && (s[0] != 101)) {
-        if (s[0] != 46) {
-            digits[nd] = s[0];
-            nd = nd + 1;
-        }
-        s = s + 1;
-    }
-    while ((nd > 1) && (digits[nd - 1] == 48)) {
-        nd = nd - 1;
-    }
-    digits[nd] = 0;
-    exp = atoi(s + 1);
-    o = out;
-    if (neg) {
-        o[0] = 45;
-        o = o + 1;
-    }
-    if ((exp >= -5) && (exp < 16)) {
-        if (exp < 0) {
-            o[0] = 48;
-            o[1] = 46;
-            o = o + 2;
-            for (i = 1; i <= -exp - 1; i++) {
-                o[0] = 48;
-                o = o + 1;
-            }
-            for (i_2 = 0; i_2 <= nd - 1; i_2++) {
-                o[0] = digits[i_2];
-                o = o + 1;
-            }
-        } else {
-            for (i_3 = 0; i_3 <= exp; i_3++) {
-                o[0] = i_3 < nd ? digits[i_3] : 48;
-                o = o + 1;
-            }
-            o[0] = 46;
-            o = o + 1;
-            if (nd > exp + 1) {
-                for (i_4 = exp + 1; i_4 <= nd - 1; i_4++) {
-                    o[0] = digits[i_4];
-                    o = o + 1;
-                }
-            } else {
-                o[0] = 48;
-                o = o + 1;
-            }
-        }
-        o[0] = 0;
-    } else {
-        o[0] = digits[0];
-        o[1] = 46;
-        o = o + 2;
-        if (nd > 1) {
-            for (i_5 = 1; i_5 <= nd - 1; i_5++) {
-                o[0] = digits[i_5];
-                o = o + 1;
-            }
-        } else {
-            o[0] = 48;
-            o = o + 1;
-        }
-        snprintf(o, 16, "e%d", exp);
-    }
-    return string_from_utf8(out, strlen(out));
 }
 

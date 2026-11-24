@@ -72,6 +72,7 @@ test-jit-none: $(TEST_IMAGE)
 test-jit-baseline: $(TEST_IMAGE)
 	tests/st_suite.sh $(OUT)/samaltak.image --jit baseline --jit-threshold 0
 test-jit-opt: $(TEST_IMAGE)
+	tests/vm/bound_ffi_site_test.sh $(OUT)/samaltak.image $(VM)
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-flags eager
 test-jit-deopt: $(TEST_IMAGE)
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-flags eager,deopt
@@ -83,6 +84,8 @@ test-jit-cache: $(TEST_IMAGE)
 # each Smalltalk suite over SAMALTAK_TEST_JOBS VMs (default min(nproc / 2, 8); 1: one VM). TEST_IMAGE: what the test
 # targets build first (TEST_IMAGE, at the top).
 test: test-core
+	$(MAKE) test-ffi-headless
+	$(MAKE) test-ffi-no-platform
 	$(MAKE) test-jit
 	$(MAKE) test-tools
 	$(MAKE) test-uefi
@@ -92,7 +95,7 @@ PLATFORM_CHECK = @[ -f vm/build/.variant-platform ] || { echo "make test: FAILED
 # suite first, each part's output shown when it ends; every part's VMs hold the machine's test slots (tests/st_suite.sh,
 # tests/with-slot).
 # Every part runs to its end (-k).
-TEST_CORE_PARTS := suite vm gen layering cli-quit resume-rng verify-gc heap weather agents wodify pi-functions
+TEST_CORE_PARTS := suite vm gen layering fresh-seed ffi cli-quit resume-rng verify-gc heap weather agents wodify pi-functions
 TEST_CORE_JOBS ?= $(words $(TEST_CORE_PARTS))
 # make -j N -O, but one at a time on make 3.81 (macOS's), which has no -O
 TEST_PARTS_SYNC = $(if $(filter 3.%,$(MAKE_VERSION)),-j1,-j$(1) -O --no-print-directory)
@@ -107,6 +110,12 @@ test-core-part-gen:
 	tests/with-slot tests/vm/gen_test.sh $(OUT)/samaltak.image
 test-core-part-pi-functions:
 	tests/tools/pi_functions_test.sh
+test-core-part-fresh-seed:
+	tests/with-slot tests/boot/fresh_seed_test.sh $(VM)
+test-core-part-ffi:
+	tests/with-slot tests/vm/runtime_native_grants_test.sh $(OUT)/samaltak.image $(VM)
+	tests/with-slot tests/vm/wrapped_ffi_specialization_test.sh $(OUT)/samaltak.image $(VM)
+	tests/with-slot tests/vm/ffi_external_notification_test.sh $(OUT)/samaltak.image $(VM)
 test-core-part-layering:
 	tests/with-slot tests/boot/layering_test.sh
 test-core-part-cli-quit:
@@ -123,6 +132,92 @@ test-core-part-agents: fresh-runtime
 	tests/st_suite.sh $(OUT)/runtime.image -- Agents --load apps/Agents
 test-core-part-wodify: fresh-runtime
 	tests/st_suite.sh $(OUT)/runtime.image -- Wodify --load apps/Wodify
+# Native-entry and semantic smoke, not the performance gate (shared CI CPUs are noisy).
+test-ffi-bigint-owned: $(TEST_IMAGE)
+	tests/vm/bigint_owned_ffi_test.sh "$(OUT)/samaltak.image" "$(VM)" "$(OUT)/ffi-bigint-owned-logs"
+
+FFI_HEADLESS_LOGS ?= $(OUT)/ffi-headless-logs
+FFI_NO_PLATFORM_LOGS ?= $(OUT)/ffi-no-platform-logs
+FFI_NO_PLATFORM_VM := vm/build/ffi-no-platform/samaltak
+FFI_NO_VIDEO = env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u SAMALTAK_NATIVE_GRANTS SDL_VIDEO_DRIVER=ffi_no_video SDL_VIDEODRIVER=ffi_no_video
+
+test-ffi-headless: $(TEST_IMAGE) test-ffi-bigint-owned
+	$(PLATFORM_CHECK)
+	mkdir -p "$(FFI_HEADLESS_LOGS)"
+	python3 tests/vm/ffi_cutover.py check "$(OUT)/samaltak.image" "$(VM)" --backend sdl --logs "$(FFI_HEADLESS_LOGS)"
+	tests/vm/ffi_migration_manifest_test.sh $(OUT)/samaltak.image $(VM)
+	tests/vm/ffi_migration_gate_test.sh $(OUT)/samaltak.image $(VM) sdl release
+	tests/vm/ffi_migration_owned_test.sh $(OUT)/samaltak.image $(VM) sdl release
+	tests/vm/file_ffi_snapshot_test.sh $(OUT)/samaltak.image $(VM)
+	tests/vm/core_getenv_large_test.sh $(OUT)/samaltak.image $(VM)
+	python3 tests/vm/core_ffi_test.py $(OUT)/samaltak.image $(VM) --trace --logs "$(FFI_HEADLESS_LOGS)/core"
+	tests/vm/window_ffi_test.sh $(OUT)/samaltak.image $(VM) --logs "$(FFI_HEADLESS_LOGS)"
+	@set -eu; for mode in none baseline opt; do \
+		flags=; [ "$$mode" != opt ] || flags='--jit-flags eager'; \
+		log="$(FFI_HEADLESS_LOGS)/file-$$mode.log"; \
+		$(FFI_NO_VIDEO) SAMALTAK_FFI_NATIVE_TRACE=1 tests/st_suite.sh "$(OUT)/samaltak.image" \
+			--jit "$$mode" --jit-threshold 0 $$flags -- FileFFITest ApprovedFFIRegistryTest FFISeededSiteTest >"$$log" 2>&1 \
+			|| { cat "$$log"; exit 1; }; \
+		python3 tests/vm/socket_ffi_test.py $(VM) $(OUT)/samaltak.image --jit "$$mode" --trace --logs "$(FFI_HEADLESS_LOGS)"; \
+	done
+	python3 tests/vm/process_ffi_test.py "$(OUT)/samaltak.image" "$(VM)" --logs "$(FFI_HEADLESS_LOGS)"
+	python3 tests/vm/ffi_exec_probe_test.py "$(OUT)/samaltak.image" "$(VM)"
+	python3 tests/vm/ffi_cutover.py coverage --profile hosted-headless \
+		--none "$(FFI_HEADLESS_LOGS)/core/none.stderr" "$(FFI_HEADLESS_LOGS)/file-none.log" "$(FFI_HEADLESS_LOGS)/window-none.stderr" "$(FFI_HEADLESS_LOGS)/socket-none.stderr" "$(OUT)/ffi-bigint-owned-logs/production-none.err" "$(FFI_HEADLESS_LOGS)/process-none.stderr" "$(FFI_HEADLESS_LOGS)/exec-none.stderr" \
+		--baseline "$(FFI_HEADLESS_LOGS)/core/baseline.stderr" "$(FFI_HEADLESS_LOGS)/file-baseline.log" "$(FFI_HEADLESS_LOGS)/window-baseline.stderr" "$(FFI_HEADLESS_LOGS)/socket-baseline.stderr" "$(OUT)/ffi-bigint-owned-logs/production-baseline.err" "$(FFI_HEADLESS_LOGS)/process-baseline.stderr" "$(FFI_HEADLESS_LOGS)/exec-baseline.stderr" \
+		--opt "$(FFI_HEADLESS_LOGS)/core/opt.stderr" "$(FFI_HEADLESS_LOGS)/file-opt.log" "$(FFI_HEADLESS_LOGS)/window-opt.stderr" "$(FFI_HEADLESS_LOGS)/socket-opt.stderr" "$(OUT)/ffi-bigint-owned-logs/production-opt.err" "$(FFI_HEADLESS_LOGS)/process-opt.stderr" "$(FFI_HEADLESS_LOGS)/exec-opt.stderr"
+	@logs=$$(mktemp -d "$(FFI_HEADLESS_LOGS)/paired.XXXXXXXX"); \
+		python3 vm/tests/bench/ffi-paired.py --vm $(VM) --image $(OUT)/samaltak.image --logs "$$logs" --proof-only
+
+test-ffi-no-platform: $(TEST_IMAGE)
+	$(MAKE) -C vm BUILD=build/ffi-no-platform NO_PLATFORM=1
+	mkdir -p "$(FFI_NO_PLATFORM_LOGS)"
+	python3 tests/vm/ffi_cutover.py check "$(OUT)/samaltak.image" "$(FFI_NO_PLATFORM_VM)" --backend no-platform --logs "$(FFI_NO_PLATFORM_LOGS)"
+	tests/vm/ffi_migration_gate_test.sh $(OUT)/samaltak.image $(FFI_NO_PLATFORM_VM) no-platform release
+	python3 tests/vm/core_ffi_test.py $(OUT)/samaltak.image $(FFI_NO_PLATFORM_VM) --trace --logs "$(FFI_NO_PLATFORM_LOGS)/core"
+	tests/vm/bigint_owned_ffi_test.sh "$(OUT)/samaltak.image" "$(FFI_NO_PLATFORM_VM)" "$(FFI_NO_PLATFORM_LOGS)"
+	python3 tests/vm/ffi_cutover.py coverage --profile no-platform \
+		--none "$(FFI_NO_PLATFORM_LOGS)/core/none.stderr" "$(FFI_NO_PLATFORM_LOGS)/production-none.err" \
+		--baseline "$(FFI_NO_PLATFORM_LOGS)/core/baseline.stderr" "$(FFI_NO_PLATFORM_LOGS)/production-baseline.err" \
+		--opt "$(FFI_NO_PLATFORM_LOGS)/core/opt.stderr" "$(FFI_NO_PLATFORM_LOGS)/production-opt.err"
+
+# Only this target builds a VM with test exports; use a separate object tree and binary.
+test-ffi-gpu-paged: $(TEST_IMAGE)
+	$(PLATFORM_CHECK)
+	$(MAKE) -C vm BUILD=build/ffi-test-exports CPPFLAGS="$(CPPFLAGS) -DSAMALTAK_FFI_TEST_EXPORTS=1"
+	@set -eu; unset DISPLAY WAYLAND_DISPLAY XAUTHORITY SAMALTAK_NATIVE_GRANTS; \
+		export LC_ALL=C SDL_VIDEO_DRIVER=ffi_no_video SDL_VIDEODRIVER=ffi_no_video; \
+		result=$$(SAMALTAK_FFI_TEST_EXPORTS=1 $(VM) "$(OUT)/samaltak.image" --headless \
+			--eval "(PlatformFFI bind: #(call 'platform' 'platform_gpu_test_shader_pages' (writableBytesWithLength) i32)) isNil"); \
+		test "$$result" = true || { echo "Release VM did not deny the paged shader fixture: $$result" >&2; exit 1; }; \
+		for mode in none baseline opt; do \
+			echo "Paged shader fixture: $$mode"; \
+			result=$$(vm/build/ffi-test-exports/samaltak \
+				--jit "$$mode" --jit-threshold 0 --jit-flags eager "$(OUT)/samaltak.image" --headless \
+				--eval "$$(cat tests/vm/gpu_shader_paged_test.st)"); \
+			test "$$result" = true || { printf '%s\n' "$$result" >&2; exit 1; }; \
+		done
+
+# Run only in display CI (real SDL window + software Vulkan through the test runner's X server).
+FFI_DISPLAY_LOGS ?= $(OUT)/ffi-display-logs
+test-ffi-display: $(TEST_IMAGE)
+	@test "$$GITHUB_ACTIONS" = true && test -n "$$DISPLAY"
+	mkdir -p "$(FFI_DISPLAY_LOGS)"
+	tests/vm/window_ffi_test.sh $(OUT)/samaltak.image $(VM) --display-ci --logs "$(FFI_DISPLAY_LOGS)"
+	@set -eu; for mode in none baseline opt; do \
+		flags=; [ "$$mode" != opt ] || flags='--jit-flags eager'; \
+		log="$(FFI_DISPLAY_LOGS)/gpu-$$mode.log"; \
+		SAMALTAK_FFI_NATIVE_TRACE=1 tests/st_suite.sh "$(OUT)/samaltak.image" --jit "$$mode" --jit-threshold 0 \
+			$$flags -- GPUFFIRegressionTest >"$$log" 2>&1 || { cat "$$log"; exit 1; }; \
+	done
+	python3 tests/vm/ffi_cutover.py coverage --profile display \
+		--none "$(FFI_DISPLAY_LOGS)/gpu-none.log" "$(FFI_DISPLAY_LOGS)/window-none.stderr" \
+		--baseline "$(FFI_DISPLAY_LOGS)/gpu-baseline.log" "$(FFI_DISPLAY_LOGS)/window-baseline.stderr" \
+		--opt "$(FFI_DISPLAY_LOGS)/gpu-opt.log" "$(FFI_DISPLAY_LOGS)/window-opt.stderr"
+	@logs=$$(mktemp -d "$(FFI_DISPLAY_LOGS)/paired.XXXXXXXX"); \
+		python3 vm/tests/bench/ffi-paired.py --vm $(VM) --image $(OUT)/samaltak.image \
+			--logs "$$logs" --display-ci --proof-only
+
 # System-NV on a real NVIDIA GPU (hosted Linux, /dev/nvidiactl; the GB10): not part of make test, which runs where
 # there is none. Fails, saying so, without a GPU. NvGspFirmwareFileTest reads the driver's installed gsp_ga10x.bin
 # (docs/nv-gsp.md 11). NvGpuMeasure reports launch latency and copy bandwidth. Then the
@@ -324,7 +419,7 @@ uefi-control: uefi
 UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest ContextTest ExceptionTest FloatTest FractionTest \
 	HashingTest ImmutabilityTest IntegerTest LazyContextTest MarriedContextTest MessageNotUnderstoodTest ObjectTest ProcessTest \
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \
-	Amd64DisassemblerTest Arm64DisassemblerTest ByteSearchTest \
+	Amd64DisassemblerTest Arm64DisassemblerTest ByteSearchTest FFIBindingTest \
 	SHA256Test SHA384Test SHA512Test HMACTest HKDFTest ChaCha20Test Poly1305Test ChaCha20Poly1305Test AesTest AesGcmTest SecureRandomTest WycheproofAeadTest NativeCryptoTest \
 	X25519Test RsaPublicKeyTest EcPublicKeyTest EcPrivateKeyTest HmacHkdfWycheproofTest Asn1DerTest X509CertificateTest TrustStoreTest CertificateValidatorTest \
 	MountTableTest FirmwareVolumesTest GitHubClientTest SourceFilerGitHubTest SourceUpdateTest PosixDeviceTest ZLibTest PNGCodecTest AgentImageTest \
@@ -346,7 +441,7 @@ UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot:
 # (UEFI_RUN), its output shown when it ends (make -O); the snapshot's three boots one after another in theirs. Every
 # part runs to its end (-k), and the boot directories stay for a look when one fails.
 UEFI_TEST_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2); echo $$(( n > 1 ? n / 2 : 1 )))
-UEFI_TEST_PARTS = tests lowspace mp cpu1 reset world world-gpu files fat rfb net $(if $(filter-out virtio-net-pci,$(UEFI_NIC)),nic) snapshot
+UEFI_TEST_PARTS = tests cutover lowspace mp cpu1 reset world world-gpu files fat rfb net $(if $(filter-out virtio-net-pci,$(UEFI_NIC)),nic) snapshot
 # make 3.81 (macOS's) has no -O: there the parts run one after another
 UEFI_TEST_SYNC = $(call TEST_PARTS_SYNC,$(UEFI_TEST_JOBS))
 UEFI_PART_RUN = $(UEFI)/run-$(patsubst test-uefi-part-%,%,$@)
@@ -362,6 +457,11 @@ test-uefi:
 	$(MAKE) uefi $(UEFI_EXT4_DISK) $(UEFI_EXT4_GPT_DISK)
 	$(MAKE) -k $(UEFI_TEST_SYNC) $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS))
 	rm -rf $(UEFI)/image.disk $(UEFI)/run-*
+test-uefi-part-cutover:
+	$(MAKE) $(UEFI_PART_BOOT) UEFI_ARGS="--headless --eval \"$$(tr '\n' ' ' < tests/boot/uefi_cutover.st)\""
+	grep -Fq 'UEFI cutover OK' $(UEFI_PART_LOG)
+	grep -Fq 'UEFI-stdout-π' $(UEFI_PART_LOG)
+	grep -Fq 'UEFI-stderr-é' $(UEFI_PART_LOG)
 test-uefi-part-tests:
 	$(MAKE) $(UEFI_PART_BOOT) UEFI_ARGS='--headless --test $(UEFI_TESTS)'
 	grep -q "^samaltak: $(UEFI_CPUS) CPUs" $(UEFI_PART_LOG)
@@ -576,6 +676,8 @@ jit-video: vm image
 
 clean:
 	$(MAKE) -C vm clean
-	rm -rf build
+	rm -rf build vm/build/ffi-test-exports vm/build/ffi-no-platform
 
 .PHONY: $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS)) $(addprefix test-core-part-,$(TEST_CORE_PARTS)) $(addprefix test-tools-part-,$(TEST_TOOLS_PARTS)) all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-fat test-uefi-nic usb-image usb-disk usb-run usb-boot test-usb-image test-install test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels test video mindblown-video jit-video clean
+
+.PHONY: test-ffi-bigint-owned test-ffi-gpu-paged test-ffi-headless test-ffi-no-platform test-ffi-display

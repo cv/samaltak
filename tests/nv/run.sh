@@ -16,7 +16,7 @@ python3 tools/nv-kernels.py extract "$NV/raster.cubin"
 for m in off fma; do
 	c=off; [ $m = fma ] && c=fast
 	$CC -O2 -std=gnu11 -D_GNU_SOURCE -fsigned-char -Ivm/gen -ffp-contract=$c \
-		-Drasterize=ref_${m}_rasterize -Dblit_pixels=ref_${m}_blit_pixels -Dcopy=ref_${m}_copy -Dplatform_raster_fill=ref_${m}_fill -Dquad_bounds=ref_${m}_quad_bounds \
+		-Drasterize=ref_${m}_rasterize -Dblit_pixels=ref_${m}_blit_pixels -Dplatform_raster_copy=ref_${m}_copy -Dplatform_raster_fill=ref_${m}_fill -Dquad_bounds=ref_${m}_quad_bounds \
 		-Dplatform_raster_forced_bands=ref_${m}_forced_bands \
 		-c vm/gen/platform_raster.c -o "$NV/ref_$m.o"
 done

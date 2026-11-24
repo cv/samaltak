@@ -36,7 +36,7 @@ void ref_off_rasterize(raster_state *, uint8_t *, int64_t, int64_t);
 void ref_fma_rasterize(raster_state *, uint8_t *, int64_t, int64_t);
 void ref_off_blit_pixels(uint8_t *, int64_t, int64_t, int32_t, int64_t *, uint8_t *, int64_t, int64_t, int32_t, int64_t *, bool);
 void ref_fma_blit_pixels(uint8_t *, int64_t, int64_t, int32_t, int64_t *, uint8_t *, int64_t, int64_t, int32_t, int64_t *, bool);
-void ref_off_copy(uint8_t *, int64_t, uint8_t *, int64_t, int64_t, int64_t, int64_t, int64_t);
+void ref_off_copy(uint8_t *, int64_t, uint8_t *, int64_t, int64_t, int64_t, int64_t, int64_t, bool);
 void ref_off_fill(uint8_t *, int64_t, int, uint32_t);
 }
 static_assert(sizeof(raster_state) == 160, "RasterState as the VM lays it out");
@@ -554,7 +554,7 @@ static int fuzz(int cases)
 				CK(cuMemcpyHtoD(dTex, src.data(), src.size()));
 				RasterCopyParams p{dTgt, (int64_t)W * 4, dTex, (int64_t)w * bpp, w, h, bpp, mode};
 				launch(fCopy, (unsigned)((w + 255) / 256), (unsigned)h, 256, &p);
-				ref_off_copy(ref.data(), (int64_t)W * 4, src.data(), (int64_t)w * bpp, w, h, bpp, mode);
+				ref_off_copy(ref.data(), (int64_t)W * 4, src.data(), (int64_t)w * bpp, w, h, bpp, mode, false);
 			}
 		}
 		if (batching) {

@@ -756,13 +756,21 @@ callCFromSend: function
 	"callC: for a stub entered only where no unboxed Float has to stay in xmm8-xmm15 (a primitive's, entered by a send: baseline code boxes them before one, optimized code loads its doubles again after a call): they are not kept."
 	<export>
 	<var: #function type: 'uint64_t'>
+	self enterCFromSend.
+	self movabs: X64_RAX imm: function.
+	self blr: X9.
+	self leaveCFromSend
+!
+enterCFromSend
+	"Align the native stack for a SysV call, keeping the JIT stack pointer. The caller spills any live xmm values. Split from the call so optimized code can record its exact return PC."
 	"mov r11, rsp; and rsp, -16; sub rsp, 16; mov [rsp + 8], r11"
 	self movReg: X64_R11 from: X64_RSP.
 	self op: 16r83 len: 1 pre: 0 w: 1 reg: 4 rm: X64_RSP imm: -16 isz: 1.
 	self op: 16r83 len: 1 pre: 0 w: 1 reg: 5 rm: X64_RSP imm: 16 isz: 1.
-	self op: 16r89 len: 1 pre: 0 w: 1 reg: X64_R11 base: X64_RSP disp: 8 imm: 0 isz: 0 byte: false.
-	self movabs: X64_RAX imm: function.
-	self op: 16rFF len: 1 pre: 0 w: 0 reg: 2 rm: X64_RAX byte: false.
+	self op: 16r89 len: 1 pre: 0 w: 1 reg: X64_R11 base: X64_RSP disp: 8 imm: 0 isz: 0 byte: false
+!
+leaveCFromSend
+	"Restore the JIT stack and move the SysV result (rax) to x0 (rdi)."
 	self op: 16r8B len: 1 pre: 0 w: 1 reg: X64_RSP base: X64_RSP disp: 8 imm: 0 isz: 0 byte: false.
 	self movReg: X64_RDI from: X64_RAX.
 	asmFlags := X64_FL_NONE

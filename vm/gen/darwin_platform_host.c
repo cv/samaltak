@@ -83,7 +83,7 @@ bool move_desktop_window(SDL_Window *sw, int32_t x, int32_t y)
 /* DarwinPlatformHost>>onRefresh:now:output:flags:flagsOut:context: */
 static CVReturn on_refresh(CVDisplayLinkRef link, const CVTimeStamp *now, const CVTimeStamp *output_time, CVOptionFlags flags_in, CVOptionFlags *flags_out, void *context)
 {
-    refreshed();
+    platform_vsync_refreshed();
     return kCVReturnSuccess;
 }
 
@@ -133,6 +133,7 @@ bool vsync_start(void)
 {
     CVDisplayLinkRef local;
     CVDisplayLinkRef *link;
+    CVDisplayLinkRef ref;
     samaltak_install_paste();
     memset(&local, 0, sizeof local);
     link = &local;
@@ -140,9 +141,18 @@ bool vsync_start(void)
         set_error("CVDisplayLinkCreateWithActiveCGDisplays failed");
         return false;
     }
-    display_link = *link;
-    CVDisplayLinkSetOutputCallback(display_link, on_refresh, NULL);
-    CVDisplayLinkStart(display_link);
+    ref = *link;
+    if (CVDisplayLinkSetOutputCallback(ref, on_refresh, NULL) != kCVReturnSuccess) {
+        CVDisplayLinkRelease(ref);
+        set_error("CVDisplayLinkSetOutputCallback failed");
+        return false;
+    }
+    if (CVDisplayLinkStart(ref) != kCVReturnSuccess) {
+        CVDisplayLinkRelease(ref);
+        set_error("CVDisplayLinkStart failed");
+        return false;
+    }
+    display_link = ref;
     return true;
 }
 

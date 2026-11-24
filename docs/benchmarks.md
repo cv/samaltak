@@ -273,6 +273,64 @@ Steady state (median of the last half of 30 iterations) and first iteration, ms,
 
 Pidigits is LargeInteger arithmetic in C. Its iterations take 490 to 535 ms under either tier, the level changing between invocations and within one (`baseline`'s second: 495, then 525). Megamorphic: `opt` 104.6 ms, `baseline` 99.9; every send is megamorphic, so `opt` inlines nothing.
 
+## Bound FFI call sites
+
+The [headless site benchmark](../vm/tests/bench/bound-ffi-site.py) compares
+`--jit opt` with and without `--jit-flags -ffi-site` on the same hosted
+VM and image. Each fresh process uses one real PTY and the same schedule
+as its paired process. Binding, startup, and warmup are outside the steady
+measurements; timing includes the loop, dispatch, native work, GC, and
+scheduling. A separate `--diagnostic` run checks which sites execute; trace
+and GC stress are off for timing.
+
+The PTY cases distinguish the legacy primitive, a Smalltalk forwarding
+method around it (the facade-shape control), a positional binding call
+without the facade, and the production facade. Resize alternates 24×80 and
+25×81; preflight verifies both dimensions. The scalar cases use one send
+site and the same branch: every 64th call selects either the usual binding
+(matched) or a different binding of the same class (identity miss).
+
+```sh
+make -j2 CC=cc NO_PGO=1 image
+vm/tests/bench/bound-ffi-site.py --vm vm/build/samaltak --image build/samaltak.image \
+  --cpu 0 --pairs 3 --rounds 8 --sizes 25000 100000 --seed 203 \
+  > site-ffi.csv 2> site-ffi.txt
+```
+
+Sample: Linux x86-64, AMD EPYC 7B13, pinned to CPU 0 with no other test
+jobs on its SMT sibling. Hosted SDL 3.2.24 build, GCC 12.2
+(`-O2 -g -flto=auto`, no PGO), measured on the tree based on `314ab3f`
+before the later rebase. The `off` baseline uses the same binary and image
+(SHA-256 prefixes `bc085ca9d457`, `073d8cda9702`), not a separate revision.
+Both modes use
+default JIT thresholds (baseline 2, OSR 50, optimizing 1000), a 64 MiB
+JIT cache, and 16 MiB eden. The runner alternates which mode goes first,
+discarding 64,000 warmup calls per variant and two batches at each size.
+
+Median wall-clock ns/call at 100,000 calls/batch, 24 paired batches per
+row. Change is the median paired on−off difference; brackets are the
+observed range of differences, not confidence intervals.
+
+| Case | Off | On | Paired change [min, max] |
+| --- | ---: | ---: | ---: |
+| PTY foreground, legacy primitive | 818.8 | 809.5 | −5.1 [−34.4, +26.8] |
+| PTY foreground, positional | 843.9 | 780.8 | −51.9 [−120.5, −29.8] |
+| PTY foreground, facade | 844.3 | 781.1 | −63.7 [−138.7, −44.1] |
+| PTY resize, legacy primitive | 1038.9 | 1031.7 | −7.5 [−78.1, +14.0] |
+| PTY resize, positional | 1081.4 | 1003.4 | −76.1 [−87.6, −39.6] |
+| PTY resize, facade | 1095.8 | 1008.7 | −80.8 [−146.6, −54.9] |
+| Scalar, matched | 27.5 | 9.5 | −17.6 [−23.5, −13.6] |
+| Scalar, identity miss every 64th | 27.5 | 10.3 | −18.2 [−21.9, −12.7] |
+
+At 25,000 calls/batch the facade differences were similar (−61.6 ns for
+foreground and −83.8 ns for resize). The controls varied in both directions.
+These are whole-call measurements on one host, not the price of an
+individual guard, miss, or syscall. The tiny scalar target makes dispatch
+a larger fraction of the loop than in the PTY cases.
+
+See [wrapped FFI](../vm/tests/bench/wrapped-ffi.md) for generated-wrapper measurements
+and [paired FFI benchmarks](../vm/tests/bench/ffi-paired.md) for matched-revision comparisons.
+
 ## The Benchmarks Game's Pharo programs
 
 The [Benchmarks Game](https://benchmarksgame-team.pages.debian.net/benchmarksgame/)'s own Pharo programs, unchanged (`vm/tests/bench/benchmarksgame/`, Revised BSD, `LICENSE.md`): the 13 of its 15 that run on Pharo (knucleotide-pharo-5 and regexredux-pharo-1 fail there). Samaltak files in `benchmarksgame/Samaltak.st` first (Pharo's `Stdio` streams, Zinc's stream wrappers, ScaledDecimal printing, `asciiValue`, `findString:`, the global `newline` revcomp-pharo-1 reads undeclared) and reads each program with `d` exponents written `e` and `StdioStream instance methodsFor:` as `StdioStream methodsFor:`; Pharo files in the program as `benchmarksgame/pharo14.py` writes it (one method per preamble, the package `BenchmarksGame`: Pharo 14 rejects `benchmarks game`, `newline` declared). Each run is a fresh process; run is `BenchmarksGame do: N` timed inside the image (JIT and GC included), process the whole process (start, image load, file-in, quit). knucleotide and revcomp read fasta 2,500,000 (25 MB). Median of 3 rounds, Pharo 14 and `opt` alternating first, 1-minute load below 3 before each run, M2 Max (`vm/tests/bench/results/benchmarksgame-2026-11-15.txt`), ms:

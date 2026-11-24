@@ -73,12 +73,20 @@ strlcpy: dst from: src size: maxlen
 ! !
 
 !SDL methodsFor: 'log'!
-getDefaultLogOutputFunction
-	<c: 'SDL_LogOutputFunction SDL_GetDefaultLogOutputFunction(void)'>
+getLogOutputFunction: callback userdata: userdata
+	<c: 'void SDL_GetLogOutputFunction(SDL_LogOutputFunction *callback, void **userdata)'>
 	^self notSimulated
 !
 setLogOutputFunction: callback userdata: userdata
 	<c: 'void SDL_SetLogOutputFunction(SDL_LogOutputFunction callback, void *userdata)'>
+	^self notSimulated
+!
+logWarn: category format: fmt with: value
+	<c: 'void SDL_LogWarn(int category, const char *fmt, ...)'>
+	^self notSimulated
+!
+SDL_LOG_CATEGORY_APPLICATION
+	<cMacro: 'int SDL_LOG_CATEGORY_APPLICATION'>
 	^self notSimulated
 !
 SDL_LOG_PRIORITY_ERROR

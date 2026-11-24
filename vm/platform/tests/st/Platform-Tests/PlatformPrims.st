@@ -4,133 +4,102 @@ Object subclass: #PlatformPrims
 	package: 'Platform-Tests'!
 
 !PlatformPrims class methodsFor: 'input'!
-nextEvent: anArray
-	<primitive: 'nextEvent'>
-	^#failed
+nextEvent: array
+	^GPUPrimitives nextEvent: array
 !
-injectEvent: anArray
-	<primitive: 'injectEvent'>
-	^#failed
+injectEvent: array
+	^[GPUPrimitives injectEvent: array] on: GPUError do: [:e | #failed]
 !
 inputSemaphore: index
-	<primitive: 'inputSemaphore'>
-	^#failed
+	^GPUPrimitives inputSemaphore: index
 !
 lastError
-	<primitive: 'platformLastError'>
-	^#failed
+	^GPUPrimitives lastError
 !
 windowOpen: w h: h title: t flags: f
-	<primitive: 'windowOpen'>
-	^#failed
+	^GPUPrimitives openWindow: w height: h title: t flags: f
 !
 windowSize: win
-	<primitive: 'windowSize'>
-	^#failed
+	^GPUPrimitives windowSize: win
 !
 windowClose: win
-	<primitive: 'windowClose'>
-	^#failed
+	^GPUPrimitives closeWindow: win
 ! !
 
 !PlatformPrims class methodsFor: 'files'!
 fileOpen: path mode: m
-	<primitive: 'fileOpen'>
-	^#failed
+	^(File primOpen: path mode: m) ifNil: [#failed]
 !
 fileRead: f into: b start: s count: n
-	<primitive: 'fileRead'>
-	^#failed
+	^File primRead: f into: b startingAt: s count: n
 !
 fileWrite: f from: b start: s count: n
-	<primitive: 'fileWrite'>
-	^#failed
+	^File primWrite: f from: b startingAt: s count: n
 !
 fileSeek: f to: pos
-	<primitive: 'fileSeek'>
-	^#failed
+	^File primSeek: f to: pos
 !
 fileClose: f
-	<primitive: 'fileClose'>
-	^#failed
+	^File primClose: f
 !
 fileStat: path
-	<primitive: 'fileStat'>
-	^#failed
+	^File stat: path
 !
 fileDelete: path
-	<primitive: 'fileDelete'>
-	^#failed
+	^File delete: path
 ! !
 
 !PlatformPrims class methodsFor: 'sockets'!
 socketListen: host port: p backlog: b
-	<primitive: 'socketListen'>
-	^#failed
+	^RemoteSocket primListen: host port: p backlog: b
 !
 socketConnect: host port: p
-	<primitive: 'socketConnect'>
-	^#failed
+	^RemoteSocket primConnect: host port: p
 !
 socketAccept: s
-	<primitive: 'socketAccept'>
-	^#failed
+	^RemoteSocket primAccept: s
 !
 socketRecv: s into: b start: st count: n
-	<primitive: 'socketRecv'>
-	^#failed
+	^RemoteSocket primRecv: s into: b start: st count: n
 !
 socketSend: s from: b start: st count: n
-	<primitive: 'socketSend'>
-	^#failed
+	^RemoteSocket primSend: s from: b start: st count: n
 !
 socketClose: s
-	<primitive: 'socketClose'>
-	^#failed
+	^RemoteSocket primClose: s
 !
 socketSemaphore: s read: i
-	<primitive: 'socketSemaphore'>
-	^#failed
+	^RemoteSocket primSemaphore: s read: i write: 0
 !
 socketLocalPort: s
-	<primitive: 'socketLocalPort'>
-	^#failed
+	^RemoteSocket primLocalPort: s
 ! !
 
 !PlatformPrims class methodsFor: 'gpu'!
 gpuCreateDevice: debug
-	<primitive: 'gpuCreateDevice'>
-	^#failed
+	^GPUPrimitives createDevice: debug
 !
 gpuCreateTexture: dev w: w h: h format: f usage: u
-	<primitive: 'gpuCreateTexture'>
-	^#failed
+	^GPUPrimitives createTexture: dev width: w height: h format: f usage: u
 !
 gpuAcquireCommandBuffer: dev
-	<primitive: 'gpuAcquireCommandBuffer'>
-	^#failed
+	^GPUPrimitives acquireCommandBuffer: dev
 !
 gpuBeginPass: cmd target: tex clear: rgba
-	<primitive: 'gpuBeginPass'>
-	^#failed
+	^GPUPrimitives beginPass: cmd target: tex clear: rgba
 !
 gpuEndPass: pass
-	<primitive: 'gpuEndPass'>
-	^#failed
+	^GPUPrimitives endPass: pass
 !
 gpuSubmit: cmd fence: aBoolean
-	<primitive: 'gpuSubmit'>
-	^#failed
+	^GPUPrimitives submit: cmd fence: aBoolean
 !
 gpuWaitFence: f
-	<primitive: 'gpuWaitFence'>
-	^#failed
+	^GPUPrimitives waitFence: f
 !
 gpuDownload: tex x: x y: y w: w h: h into: bytes
-	<primitive: 'gpuDownload'>
-	^#failed
+	^[GPUPrimitives download: tex x: x y: y width: w height: h into: bytes] on: GPUError do: [:e | #failed]
 !
 gpuRelease: h
-	<primitive: 'gpuRelease'>
-	^#failed
+	^GPUPrimitives release: h
 ! !

@@ -804,7 +804,7 @@ entrySlow: f ret: ret callee: c
 	<var: #ret type: 'uint64_t'>
 	<var: #c type: 'uint64_t'>
 	<returns: 'uint64_t'>
-	| nfp n h g moved inv |
+	| nfp n h g moved inv p |
 	self setTop: f ret: ret mode: 0.
 	jit sync: f.
 	nfp := self calleeFp: f ret: ret.
@@ -823,8 +823,11 @@ entrySlow: f ret: ret callee: c
 		ifFalse: [
 			g := interpreter pushFrame: h method argc: n code: c ecode: -1.
 			g isNull ifTrue: [self fatal: 'baseline: no room for a frame below the stack limit'].
-			(((interpreter methodPrim: h method) bitAnd: CM_PRIM_ERROR_FLAG) ~= 0 and: [(self loadRef: h method at: CM_NUMTEMPS) ~= (self intOop: 0)]) ifTrue: [
-				"a failed primitive's error code into the first temp, as the frame's code puts it"
+			p := interpreter methodPrim: h method.
+			((p bitAnd: CM_PRIM_ERROR_FLAG) ~= 0 and: [
+				(self loadRef: h method at: CM_NUMTEMPS) ~= (self intOop: 0) and: [
+				(self primFunctionOf: (p bitAnd: CM_PRIM_MASK)) ~= 0]]) ifTrue: [
+				"Match the compiled prologue: only a registered primitive can supply an error code."
 				g fp at: n put: jit state ecode asUInt64]].
 	jit resetStress.
 	jit clearInterrupt.
@@ -843,6 +846,10 @@ prim: f fp: fp fn: fn info: info
 	<var: #info type: 'uint64_t'>
 	<returns: 'uint64_t'>
 	| n leaf base moved inv status v code |
+	"A compiled method from an older image can name an unregistered primitive."
+	fn = 0 ifTrue: [
+		jit state ecode: memory nilOop asInt64.
+		^2].
 	statPrimCalls := statPrimCalls + 1.
 	n := (info bitAnd: 255) asInt32.
 	leaf := (info bitAnd: 256) ~= 0.

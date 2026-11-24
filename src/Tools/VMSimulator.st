@@ -68,8 +68,6 @@ isRunning
 !VMSimulator methodsFor: 'running'!
 run
 	"The mini kernel guest, its output in the output pane."
-	screenPane visible: false.
-	outputPane visible: true.
 	self runOn: self class defaultArguments
 !
 runSmalltalk80
@@ -79,6 +77,10 @@ runOn: aString
 	"Start the simulated VM on these arguments in its own Process (stopping one still running), below the windows' priority."
 	| argv |
 	self stop.
+	screenPane visible: false.
+	outputPane visible: true.
+	screen hasKeyboardFocus ifTrue: [output focus].
+	screen reset.
 	argv := aString substrings.
 	output text: ''.
 	simulation := nil.
@@ -98,8 +100,9 @@ runSimulation: argv
 		source isNil ifFalse: [
 			ms := Time millisecondsToRun: [ImageBuilder buildFrom: source to: image].
 			lock critical: [pending nextPutAll: '[' , source , ' built in ' , ms printString , ' ms]' , (String with: Character lf)]].
-		sim := VMSimulation modules: (VMModule vmModules select: [:c | c packageName ~= 'VM-Platform']).
-		sim display: screen.
+		sim := VMGuestSimulation
+			modules: (VMModule vmModules select: [:c | c packageName ~= 'VM-Platform'])
+			display: screen.
 		sim onOutput: [:text | lock critical: [pending nextPutAll: text]].
 		started := sim microsecondClock.
 		simulation := sim.
@@ -131,10 +134,10 @@ screenSpeed
 showScreen
 	"The guest opened its display: only the toolbar and it show, at 2 points a pixel if the screen leaves room (the window grows; it never shrinks), else 1."
 	| w chrome want |
-	screen focus.
 	screenPane isVisible ifTrue: [^self].
 	screenPane visible: true.
 	outputPane visible: false.
+	screen focus.
 	w := self window.
 	w isNil ifTrue: [^self].
 	chrome := w bounds extent - screen extent.

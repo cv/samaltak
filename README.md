@@ -40,6 +40,7 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - `docs/ui.md` — the layers from GPU to tools
 - `docs/graphics-damage.md` — how much of each frame changes on the four presentation paths (SDL_GPU, NV, UEFI, VNC), measured with DamageProbe and StageTimes; the design of damage-limited composition and presentation
 - `docs/platform.md` — the platform layer and its primitives
+- [FFI](docs/ffi.md) — native call descriptors and launcher grants
 - `docs/apps.md` — applications as Linux windows, run from source (AppWorld, Application, OmarchyTheme, apps/Weather)
 - `docs/uefi.md` — the headless VM as a UEFI application (bare metal, QEMU)
 - `docs/remote.md` — the control service's token: samaltak-ctl open and connect, a bare-metal machine from another one; the remote display (VNC): starting it, connecting from Screen Sharing and TigerVNC, security, measurements against QEMU's VNC

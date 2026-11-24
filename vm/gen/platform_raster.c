@@ -54,7 +54,7 @@ static int32_t int32_of(int64_t t);
 static bool is_quad(uint8_t *v);
 static void pattern_x(int64_t x, int64_t y, int64_t w, int64_t h);
 static int pixel_bytes(int32_t format);
-static bool prepare(raster_state *st);
+static bool platform_raster_prepare(raster_state *st);
 static uint32_t *platform_raster_row(int64_t py, int64_t px);
 static uint32_t sample_u(double u, double v);
 static bool scaled_x(int64_t x, int64_t y, int64_t w, int64_t h, double u0, double v0, double du, double dv);
@@ -541,7 +541,7 @@ static void convert(uint8_t *d, int32_t df, uint8_t *s, int32_t sf, int64_t n)
 
 #endif
 /* PlatformRaster>>copy:stride:from:stride:width:height:bytesPerPixel:mode:parallel: */
-void copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode, bool parallel)
+void platform_raster_copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode, bool parallel)
 {
     int64_t r_row_bands;
     int64_t n;
@@ -714,7 +714,7 @@ static void draw_band(void *job, int64_t i)
 {
     raster_job *j;
     j = (raster_job *)job;
-    if (!prepare(j->st)) {
+    if (!platform_raster_prepare(j->st)) {
         return;
     }
     rs_band_y0 = i == 0 ? -1099511627776LL : j->y0 + (j->y1 - j->y0) * i / j->bands;
@@ -2298,7 +2298,7 @@ static int pixel_bytes(int32_t format)
 }
 
 /* PlatformRaster>>prepare: */
-static bool prepare(raster_state *st)
+static bool platform_raster_prepare(raster_state *st)
 {
     int64_t x0;
     int64_t y0;
@@ -2426,7 +2426,7 @@ void rasterize(raster_state *st, uint8_t *base, int64_t first, int64_t count)
     if (count < 3) {
         return;
     }
-    if (!prepare(st)) {
+    if (!platform_raster_prepare(st)) {
         return;
     }
     memset(&local, 0, sizeof local);

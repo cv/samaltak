@@ -10991,7 +10991,7 @@ exit_source_26:;
     }
     r_stub_9 = a_38;
     r_stub_9; });
-    function_10 = (uint64_t)box;
+    function_10 = (uint64_t)jit_baseline_runtime_box;
     bl_box = ({
     a_39 = ({
     if (symbol_count < STUB_MAX_SYMBOLS) {
@@ -22584,7 +22584,7 @@ exit_b_56:;
     code_cache_allocate(asm_pc - asm_start);
     size = asm_pc - asm_start;
     end_writing();
-    invalidate((void *)start, size);
+    jit_platform_invalidate((uint8_t *)(void *)start, size);
     return true;
 }
 
@@ -25888,7 +25888,7 @@ exit_offset_to_13:;
     }
     r_stub_9 = a_9;
     r_stub_9; });
-    function_10 = (uint64_t)box;
+    function_10 = (uint64_t)jit_baseline_runtime_box;
     bl_box = ({
     a_10 = ({
     if (symbol_count < STUB_MAX_SYMBOLS) {
@@ -28010,7 +28010,7 @@ exit_offset_to_25:;
     code_cache_allocate(asm_pc - asm_start);
     size = asm_pc - asm_start;
     end_writing();
-    invalidate((void *)start, size);
+    jit_platform_invalidate((uint8_t *)(void *)start, size);
     return true;
 }
 
@@ -35004,7 +35004,7 @@ exit_mov_21:;
     asm_jump_end = asm_pc;
     r_stub_x64_9 = a_39;
     r_stub_x64_9; });
-    function_10 = (uint64_t)box;
+    function_10 = (uint64_t)jit_baseline_runtime_box;
     bl_box = ({
     a_40 = ({
     if (symbol_count < STUB_MAX_SYMBOLS) {
@@ -45279,7 +45279,7 @@ exit_b_58:;
     code_cache_allocate(asm_pc - asm_start);
     size = asm_pc - asm_start;
     end_writing();
-    invalidate((void *)start, size);
+    jit_platform_invalidate((uint8_t *)(void *)start, size);
     return true;
 }
 

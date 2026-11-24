@@ -2,6 +2,18 @@
 /* HeadlessPlatform (VM-Core) */
 #include "samaltak.h"
 
+/* HeadlessPlatform>>ffiApprovedPlatform:signature:into: */
+int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signature, uint64_t *target_out)
+{
+    return 0;
+}
+
+/* HeadlessPlatform>>ffiTarget: */
+uint64_t ffi_target(int32_t id)
+{
+    return 0;
+}
+
 /* HeadlessPlatform>>init */
 void platform_interface_init(void)
 {

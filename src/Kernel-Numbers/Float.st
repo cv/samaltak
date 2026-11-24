@@ -85,8 +85,11 @@ truncated
 	^self asExactFraction truncated
 !
 fractionPart
-	<primitive: 'floatFractionPart'>
-	^self - self truncated asFloat
+	<ffiSite>
+	| answer |
+	answer := (self ffiSite: #(call 'vm:core' 'core_float_fraction_part' (f64) f64)) tryInvoke1: self.
+	answer == false ifTrue: [^self - self truncated asFloat].
+	^answer
 !
 integerPart
 	^self - self fractionPart
@@ -256,8 +259,16 @@ printOn: aStream base: base
 !
 primPrintString
 	"Answer the shortest decimal representation that reads back as the receiver."
-	<primitive: 'floatPrintString'>
-	^self primitiveFailed
+	<ffiSite>
+	| buffer count string |
+	buffer := ByteArray new: 64.
+	count := (self ffiSite: #(call 'vm:core' 'core_float_print_string' (f64 writableBytesWithLength) i32))
+		tryInvoke2: self with: {buffer. 1. 64}.
+	count == false ifTrue: [^self primitiveFailed].
+	count < 0 ifTrue: [^self primitiveFailed].
+	string := ByteString new: count.
+	string replaceFrom: 1 to: count with: buffer startingAt: 1.
+	^string
 !
 printString
 	^String new: 24 streamContents: [:s | self printOn: s]

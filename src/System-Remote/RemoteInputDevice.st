@@ -89,7 +89,7 @@ deliver: anEvent
 	injector isNil ifFalse: [^injector value: anEvent].
 	(InputQueue inject: anEvent) ifTrue: [^self].
 	(self primInjectEvent: anEvent) == false ifTrue: [
-		^RemoteError signal: 'injectEvent failed: ', RemoteSocket lastError]
+		^RemoteError signal: 'Platform event injection unavailable or invalid event']
 !
 settle
 	"Wait (at most settleMilliseconds) until the image processed the input: no user process runnable and the UI's idle conditions hold."
@@ -99,8 +99,7 @@ settle
 
 !RemoteInputDevice methodsFor: 'primitives'!
 primInjectEvent: anEvent
-	<primitive: 'injectEvent'>
-	^false
+	^WindowPlatformFFI tryInjectEvent: anEvent
 ! !
 
 !RemoteInputDevice class methodsFor: 'accessing'!

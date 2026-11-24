@@ -456,7 +456,8 @@ truncated
 	^self error: 'truncated failed'
 !
 fractionPart
-	<primitive: 'floatFractionPart'>
+	<ffiSite>
+	^(self ffiSite: #(call 'vm:core' 'core_float_fraction_part' (f64) f64)) tryInvoke1: self
 !
 exponent
 	<primitive: 'floatExponent'>
@@ -489,7 +490,15 @@ asFloat
 	^self
 !
 printString
-	<primitive: 'floatPrintString'>
+	<ffiSite>
+	| buffer count string |
+	buffer := ByteArray new: 64.
+	count := (self ffiSite: #(call 'vm:core' 'core_float_print_string' (f64 writableBytesWithLength) i32))
+		tryInvoke2: self with: {buffer. 1. 64}.
+	(count == false or: [count < 0]) ifTrue: [^self error: 'Float print failed'].
+	string := ByteString new: count.
+	1 to: count do: [:i | string at: i put: (Character value: (buffer at: i))].
+	^string
 ! !
 
 !Float class methodsFor: 'instances'!

@@ -67,15 +67,15 @@ jitWorkerWake
 ! !
 
 JitPlatform subclass: #DarwinJitPlatform
-	instanceVariableNames: 'darwin posixThreads workerMutex workerCond'
+	instanceVariableNames: 'darwin posixThreads workerMutex workerCond cache jitMapping jitMappingAttempted'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-DarwinJitPlatform comment: 'The code cache on macOS (Apple Silicon): one MAP_JIT mapping; a thread either writes it or executes it (pthread_jit_write_protect_np); sys_icache_invalidate after writing. Simulated, write protection is unsupported, so no machine code runs.'!
+DarwinJitPlatform comment: 'One MAP_JIT mapping on macOS (Apple Silicon), with a fixed FFI prefix outside the ordinary code cache. A thread either writes or executes it (pthread_jit_write_protect_np); sys_icache_invalidate after writing. Simulated, write protection is unsupported, so no machine code runs.'!
 
 !DarwinJitPlatform class methodsFor: 'declaring'!
 declarations
-	^#((darwin DarwinJit) (posixThreads PosixThreads) (workerMutex 'pthread_mutex_t[1]') (workerCond 'pthread_cond_t[1]'))
+	^#((darwin DarwinJit) (posixThreads PosixThreads) (workerMutex 'pthread_mutex_t[1]') (workerCond 'pthread_cond_t[1]') (cache CodeCache) (jitMapping 'void *') (jitMappingAttempted bool))
 !
 targetOS
 	^#darwin
@@ -88,8 +88,32 @@ canRunCode
 !
 map: near size: size
 	<export>
-	posix munmap: near length: size.
-	^posix mmap: near length: size protection: ((posix PROT_READ bitOr: posix PROT_WRITE) bitOr: posix PROT_EXEC) flags: ((posix MAP_PRIVATE bitOr: posix MAP_ANON) bitOr: darwin MAP_JIT) file: -1 offset: 0
+	| p |
+	size > cache maxCacheBytes ifTrue: [^posix MAP_FAILED].
+	p := self ensureJitMappingNear: near.
+	p = posix MAP_FAILED ifTrue: [^p].
+	^self cCoerce: (self cCoerce: p to: 'uint8_t *') + cache ffiArenaBytes to: 'void *'
+!
+ffiArenaBase
+	<function>
+	<returns: 'void *'>
+	^self ensureJitMappingNear: cache mappingHint
+!
+ensureJitMappingNear: near
+	"Either user may be first. Never remap over published code or reopen a hole after mmap failure."
+	<function>
+	<var: #near type: 'void *'>
+	<returns: 'void *'>
+	| total |
+	jitMappingAttempted ifTrue: [^jitMapping].
+	jitMappingAttempted := true.
+	jitMapping := posix MAP_FAILED.
+	total := cache maxCacheBytes + cache ffiArenaBytes.
+	(posix munmap: near length: total) = 0 ifTrue: [
+		jitMapping := posix mmap: near length: total
+			protection: ((posix PROT_READ bitOr: posix PROT_WRITE) bitOr: posix PROT_EXEC)
+			flags: ((posix MAP_PRIVATE bitOr: posix MAP_ANON) bitOr: darwin MAP_JIT) file: -1 offset: 0].
+	^jitMapping
 !
 beginWriting
 	<export>

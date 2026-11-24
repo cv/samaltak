@@ -1,5 +1,5 @@
 VMPlatformModule subclass: #PlatformTLS
-	instanceVariableNames: 'sslContext openSSL'
+	instanceVariableNames: 'sslContext openSSL retryHead'
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
@@ -7,7 +7,7 @@ PlatformTLS comment: 'TLS client connections (OpenSSL 3) in the socket table (ki
 
 !PlatformTLS class methodsFor: 'declaring'!
 declarations
-	^#((sslContext 'SSL_CTX *') (openSSL OpenSSL))
+	^#((sslContext 'SSL_CTX *') (openSSL OpenSSL) (retryHead 'tls_send_retry *'))
 ! !
 
 !PlatformTLS methodsFor: 'private'!
@@ -125,13 +125,91 @@ recv: h into: buf count: n
 	(openSSL read: ssl into: buf count: n done: done) = 1 ifTrue: [^done value asInt64].
 	^self failed: ssl handle: h what: 'TLS recv'
 !
-send: h bytes: buf count: n
-	"-1 would block, -2 error."
+recvBorrowed: h into: buf count: n
+	"OpenSSL returns at most one application-data record per read. Keep the writable heap slice at the copy boundary, not in OpenSSL."
+	<function>
+	<var: #buf type: 'void *'>
+	<var: #n type: 'uint64_t'>
+	<returns: 'int64_t'>
+	| scratch count r |
+	scratch := self local: 'uint8_t[16384]'.
+	count := n < 16384 ifTrue: [n] ifFalse: [16384 asUInt64].
+	r := self recv: h into: scratch count: count.
+	r > 0 ifTrue: [libc memcpy: buf from: scratch size: r asUInt64].
+	^r
+!
+sendOwned: h bytes: buf count: n
+	"Never pass a heap borrow to OpenSSL. Allocate ownership before the write: on WANT_READ/WRITE keep the same bytes and length until completion or close."
+	<function>
 	<var: #buf type: 'const void *'>
-	<export>
-	| ssl done |
+	<var: #n type: 'uint64_t'>
+	<returns: 'int64_t'>
+	| ssl retry staged r |
 	ssl := self sslOf: h.
 	ssl isNull ifTrue: [^-2].
+	retry := self sendRetryOf: h.
+	retry notNull ifTrue: [^self retry: retry ssl: ssl bytes: buf count: n].
+	retry := self cCoerce: (libc malloc: (self sizeof: 'tls_send_retry') + (n = 0 ifTrue: [1 asUInt64] ifFalse: [n])) to: 'tls_send_retry *'.
+	retry isNull ifTrue: [
+		common setError: 'out of memory staging TLS send'.
+		^-2].
+	staged := self cCoerce: retry + 1 to: 'uint8_t *'.
+	n > 0 ifTrue: [libc memcpy: staged from: buf size: n].
+	r := self write: ssl handle: h bytes: staged count: n.
+	r = -1
+		ifTrue: [
+			retry handle: h.
+			retry count: n.
+			retry next: retryHead.
+			retryHead := retry]
+		ifFalse: [libc free: retry].
+	^r
+!
+sendRetryOf: h
+	"The list is empty outside candidate writes that returned WANT_*."
+	<function>
+	<var: #h type: 'int32_t'>
+	<returns: 'tls_send_retry *'>
+	| retry |
+	retry := retryHead.
+	[retry notNull and: [retry handle ~= h]] whileTrue: [retry := retry next].
+	^retry
+!
+retry: pending ssl: ssl bytes: buf count: n
+	<function>
+	<var: #pending type: 'tls_send_retry *'>
+	<var: #ssl type: 'SSL *'>
+	<var: #buf type: 'const void *'>
+	<var: #n type: 'uint64_t'>
+	<returns: 'int64_t'>
+	| staged r |
+	staged := self cCoerce: pending + 1 to: 'const uint8_t *'.
+	(n ~= pending count or: [n > 0 and: [(libc memcmp: buf with: staged size: n) ~= 0]]) ifTrue: [
+		common setError: 'TLS send retry requires the same bytes and count'.
+		^-2].
+	r := self write: ssl handle: pending handle bytes: staged count: n.
+	r ~= -1 ifTrue: [self freeRetry: pending].
+	^r
+!
+freeRetry: pending
+	<function>
+	<var: #pending type: 'tls_send_retry *'>
+	| previous |
+	pending = retryHead
+		ifTrue: [retryHead := pending next]
+		ifFalse: [
+			previous := retryHead.
+			[previous next ~= pending] whileTrue: [previous := previous next].
+			previous next: pending next].
+	libc free: pending
+!
+write: ssl handle: h bytes: buf count: n
+	<function>
+	<var: #ssl type: 'SSL *'>
+	<var: #buf type: 'const void *'>
+	<var: #n type: 'uint64_t'>
+	<returns: 'int64_t'>
+	| done |
 	done := self local: 'size_t'.
 	openSSL clearError.
 	(openSSL write: ssl bytes: buf count: n done: done) = 1 ifTrue: [
@@ -141,14 +219,31 @@ send: h bytes: buf count: n
 !
 close: h
 	<export>
-	| ssl ok |
+	| ssl ok retry |
 	ssl := self sslOf: h.
 	ssl isNull ifTrue: [^false].
 	ok := sockets close: h kind: PF_FD_TLS.
 	openSSL freeSSL: ssl.
+	retry := self sendRetryOf: h.
+	retry notNull ifTrue: [self freeRetry: retry].
 	^ok
 !
 semaphores: h read: readIndex write: writeIndex
 	<export>
 	^sockets semaphores: h kind: PF_FD_TLS read: readIndex write: writeIndex
+! !
+
+VMStruct subclass: #TLSSendRetry
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-Platform'!
+
+TLSSendRetry comment: 'Allocated together with the native bytes immediately after the header. Only linked while a candidate write waits for OpenSSL readiness; no heap borrow or TLS start allocation.'!
+
+!TLSSendRetry class methodsFor: 'declaring'!
+cName
+	^'tls_send_retry'
+!
+fields
+	^#((next 'tls_send_retry *') (handle int32_t) (count uint64_t))
 ! !

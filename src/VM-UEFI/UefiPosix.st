@@ -190,6 +190,13 @@ pthreadDetach: thread
 	<returns: 'int'>
 	^0
 !
+getEntropy: buffer size: size
+	<function>
+	<var: #buffer type: 'void *'>
+	<var: #size type: 'size_t'>
+	<returns: 'int'>
+	^-1
+!
 getpid
 	<function>
 	<returns: 'pid_t'>

@@ -371,7 +371,7 @@ int64_t ctx_stackp(oop ctx)
 }
 
 /* Interpreter>>entryFor:selector: */
-cache_entry *entry_for(oop a_class, oop a_selector)
+cache_entry *interpreter_entry_for(oop a_class, oop a_selector)
 {
     cache_entry *g;
     g = cache + (((a_class >> 3) ^ (a_selector >> 3) ^ (a_selector >> 12)) & 4095);

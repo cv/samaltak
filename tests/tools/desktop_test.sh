@@ -40,7 +40,7 @@ contains "code pane shows gcd:" "$($CTL snapshot @w6.code | head -1)" 'gcd: anIn
 contains "status bar" "$($CTL snapshot @w6.status)" 'Integer>>gcd:'
 $CTL click @w6.methods.gcd.breakpoint-toggle >/dev/null
 check "gutter click sets a real breakpoint" "'Integer>>gcd: (break)'" "$($CTL eval '(Breakpoint forClass: Integer selector: #gcd:) description')"
-contains "gutter shows it" "$($CTL snapshot @w6.methods | grep '@w6.methods.gcd ')" 'breakpoint=break'
+contains "gutter shows it" "$($CTL snapshot @w6.methods.gcd)" 'breakpoint=break'
 $CTL click @w6.methods.gcd.breakpoint-toggle >/dev/null
 check "second click removes it" "nil" "$($CTL eval 'Breakpoint forClass: Integer selector: #gcd:')"
 $CTL screenshot "$OUT/tools-test-browser.png" >/dev/null

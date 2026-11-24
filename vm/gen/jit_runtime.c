@@ -666,7 +666,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
     if (err == ASM_ERR_FULL) {
         record_notes(false);
         end_writing();
-        invalidate((void *)start, 0);
+        jit_platform_invalidate((uint8_t *)(void *)start, 0);
         flush_pending = true;
         resume_charging();
         return (jit_method *)NULL;
@@ -680,7 +680,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
     record_notes(false);
     size = cache_top - start;
     end_writing();
-    invalidate((void *)start, size);
+    jit_platform_invalidate((uint8_t *)(void *)start, size);
     if (h == NULL) {
         flush_pending = true;
         resume_charging();
@@ -737,7 +737,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
     if (err == ASM_ERR_FULL) {
         record_notes(false);
         end_writing();
-        invalidate((void *)start, 0);
+        jit_platform_invalidate((uint8_t *)(void *)start, 0);
         flush_pending = true;
         resume_charging();
         return (jit_method *)NULL;
@@ -751,7 +751,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
     record_notes(false);
     size = cache_top - start;
     end_writing();
-    invalidate((void *)start, size);
+    jit_platform_invalidate((uint8_t *)(void *)start, size);
     if (h == NULL) {
         flush_pending = true;
         resume_charging();
@@ -884,7 +884,7 @@ uint64_t jit_runtime_context_field(frame *f)
 void defaults(void)
 {
     jit_mode = JIT_OPT;
-    jit_flags = 15990775U;
+    jit_flags = 32767991U;
 }
 
 #if defined(__x86_64__)
@@ -1860,6 +1860,9 @@ char *flag_name(uint32_t bit)
     if (bit == JIT_FLAG_CALLS) {
         return "calls";
     }
+    if (bit == JIT_FLAG_FFI_SITE) {
+        return "ffi-site";
+    }
     if (bit == JIT_FLAG_EAGER) {
         return "eager";
     }
@@ -1893,6 +1896,7 @@ static void flush_code(void)
     for (i_2 = 0; i_2 <= 2047; i_2++) {
         state_block->oop_table[i_2] = 0;
     }
+    reset_bound_sites();
     opt_runtime_flushed();
     jit_baseline_runtime_flushed();
     flush_method_cache();
@@ -2465,6 +2469,10 @@ bool parse_flags(char *s)
         r_flag_named = JIT_FLAG_CALLS;
         goto exit_flag_named;
     }
+    if ((strlen("ffi-site") == (uint64_t)n) && (memcmp(name, "ffi-site", (uint64_t)n) == 0)) {
+        r_flag_named = JIT_FLAG_FFI_SITE;
+        goto exit_flag_named;
+    }
     if ((strlen("eager") == (uint64_t)n) && (memcmp(name, "eager", (uint64_t)n) == 0)) {
         r_flag_named = JIT_FLAG_EAGER;
         goto exit_flag_named;
@@ -2650,6 +2658,12 @@ int64_t primitive_number_named(char *name)
         }
     }
     return -1;
+}
+
+/* JitRuntime>>printBoundSiteTrace */
+void jit_runtime_print_bound_site_trace(void)
+{
+    ffi_primitives_print_bound_site_trace();
 }
 
 /* JitRuntime>>pushContext: */
@@ -3258,6 +3272,7 @@ void jit_runtime_start(void)
 {
     primitive_entry *t;
     int i;
+    configure_bound_site_trace();
     t = vm_primitive_table;
     for (i = 0; i <= vm_primitive_count - 1; i++) {
         if (strcmp((t + i)->name, "perform") == 0) {
@@ -3276,6 +3291,29 @@ void jit_runtime_start(void)
         fprintf(stderr, "cannot open a %lld MB code cache", (long long)jit_cache_mb);
         fatal_end();
     }
+}
+
+/* JitRuntime>>syncPendingBoundFrame */
+void sync_pending_bound_frame(void)
+{
+    uint64_t f;
+    frame *f_2;
+    oop o;
+    uint64_t o_2;
+    f = state_block->pending_bound_frame;
+    if (f == 0) {
+        return;
+    }
+    state_block->pending_bound_frame = 0;
+    f_2 = (frame *)f;
+    if ((jit_mode == JIT_BASELINE) || (jit_mode == JIT_OPT)) {
+        f_2->method = ((jit_method *)f_2->code)->method;
+        canonicalize_below(f_2);
+    }
+    sync_frame(f_2);
+    o = f_2->method;
+    o_2 = *(uint64_t *)(o + 16 + 16);
+    f_2->lits = (oop *)(o_2 + 16);
 }
 
 /* JitRuntime>>tierUp:loop: */

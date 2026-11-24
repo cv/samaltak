@@ -443,6 +443,8 @@ printNode: n
 		0 to: nd nargs asInt32 - 1 do: [:i | libc fprintf: libc stderr format: ' v%d' with: (optOperands at: nd args + i)].
 		libc fputs: ' ]' to: libc stderr].
 	libc fprintf: libc stderr format: ' aux=%lld' with: nd aux.
+	(nd flags bitAnd: NF_BOUNDFFI) ~= 0 ifTrue: [
+		libc fputs: (nd ffiOwner = 0 ifTrue: [' bound-ffi (learn)'] ifFalse: [' bound-ffi (seed)']) to: libc stderr].
 	nd state >= 0 ifTrue: [libc fprintf: libc stderr format: ' st=%d' with: nd state].
 	nd reg >= 0 ifTrue: [libc fprintf: libc stderr format: ' r%d' with: nd reg asInt32].
 	nd slot >= 0 ifTrue: [libc fprintf: libc stderr format: ' s%d' with: nd slot asInt32].
@@ -455,14 +457,14 @@ VMStruct subclass: #OptNode
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-OptNode comment: 'An IR node (OptModule): opcode, result representation, type kind and flags; its block and neighbours there; fixed operands a b c and nargs operands from args in the operand array; a frame state; aux and aux2 (constants, field indices, selectors, sites); tcls (an exact class it is known to have, or 0); fwd (what replaces it, -1); uses; the integer range lo..hi; register allocation (reg, slot, the live interval lstart..lend, pos).'!
+OptNode comment: 'An IR node (OptModule): opcode, result representation, type kind and flags; its block and neighbours there; fixed operands a b c and nargs operands from args in the operand array; a frame state; aux and aux2 (constants, field indices, selectors, sites); tcls (exact result class, or a resolved method for NF_BOUNDFFI); ffiOwner (an optional observed receiver for NF_BOUNDFFI); fwd (what replaces it, -1); uses; the integer range lo..hi; register allocation (reg, slot, the live interval lstart..lend, pos).'!
 
 !OptNode class methodsFor: 'declaring'!
 fields
 	^#((op uint16_t) (rep uint8_t) (tkind uint8_t) (flags uint16_t) (nargs uint16_t)
 		(block int32_t) (next int32_t) (prev int32_t)
 		(a int32_t) (b int32_t) (c int32_t) (args int32_t) (state int32_t) (fwd int32_t) (uses int32_t)
-		(aux int64_t) (aux2 int64_t) (tcls uint64_t) (lo int64_t) (hi int64_t)
+		(aux int64_t) (aux2 int64_t) (tcls uint64_t) (ffiOwner oop) (lo int64_t) (hi int64_t)
 		(reg int16_t) (slot int16_t) (pos int32_t) (lstart int32_t) (lend int32_t) (live int32_t) (nlive int32_t) (bcact int32_t) (bcpc int32_t))
 ! !
 

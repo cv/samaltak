@@ -14,13 +14,6 @@
 #define SAMALTAK_X18_FREE 1
 #endif
 #endif
-#define guest_display_open(w, h, cell) ((void)(w), (void)(h), (void)(cell), false)
-#define guest_display_fill(x, y, w, h, rule) ((void)(x), (void)(y), (void)(w), (void)(h), (void)(rule))
-#define guest_display_copy(x, y, w, h, to_x, to_y) ((void)(x), (void)(y), (void)(w), (void)(h), (void)(to_x), (void)(to_y))
-#define guest_display_text(bytes, n, x, y, rule) ((void)(bytes), (void)(n), (void)(x), (void)(y), (void)(rule))
-#define guest_display_bits(bytes, x, y, w, h, rule) ((void)(bytes), (void)(x), (void)(y), (void)(w), (void)(h), (void)(rule))
-#define guest_display_next_event(event) ((void)(event), false)
-#define guest_display_flush() ((void)0)
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -33,6 +26,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <limits.h>
+#include <dlfcn.h>
 #if defined(__x86_64__)
 #include <emmintrin.h>
 #endif
@@ -81,7 +75,6 @@
 #include <crt_externs.h>
 #endif
 #ifdef __linux__
-#include <dlfcn.h>
 #include <shaderc/shaderc.h>
 #include <wayland-client.h>
 #endif
@@ -89,6 +82,7 @@
 
 typedef uint64_t oop;
 typedef void (*prim_fn)(void);
+typedef bool (*prim_try_guard)(oop);
 #ifndef SAMALTAK_NO_PLATFORM
 typedef int (*x_error_handler)(void *, void *);
 typedef x_error_handler (*x_set_error_handler)(x_error_handler);
@@ -170,8 +164,10 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define BL_PIC_JMP_X64 10
 #define BL_SITE_MEGA 1073741824
 #define BL_UENTRY 20
+#define CACHE_BYTES 134217728
+#define CACHE_FFI_BYTES 2359296
 #define CACHE_SIZE 4096
-#define CACHE_SPACE 134234112
+#define CACHE_SPACE 136593408
 #define CD_INSTVARS 3
 #define CD_ORGANIZATION 4
 #define CG_MAX_HELD 32
@@ -292,6 +288,20 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define FB_MEGA 1
 #define FB_NONINT 4
 #define FB_OVERFLOW 8
+#define FFI_BINDING_LIMIT 4096
+#define FFI_BOUND_REJECTED 1
+#define FFI_BOUND_SITE_LIMIT 4096
+#define FFI_DYNAMIC 65536
+#define FFI_MEMCMP 11
+#define FFI_OWNED_BYTE_LIMIT 67108864
+#define FFI_OWNED_LIMIT 16
+#define FFI_PLATFORM_BASE 32
+#define FFI_PLATFORM_EXEC 1542
+#define FFI_STUB_BYTES 256
+#define FFI_STUB_LIMIT 1024
+#define FFI_STUB_TABLE_SIZE 4096
+#define FFI_WRAPPED_BYTES 2048
+#define FFI_WRAPPED_LIMIT 1024
 #define F_BYTES 16
 #define F_EMPTY 0
 #define F_FIXED 1
@@ -324,13 +334,14 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define JIT_FLAG_COLD 8388608
 #define JIT_FLAG_DEOPT 524288
 #define JIT_FLAG_EAGER 262144
+#define JIT_FLAG_FFI_SITE 16777216
 #define JIT_FLAG_FLOAT 2048
 #define JIT_FLAG_FUSE 2
 #define JIT_FLAG_GVN 131072
 #define JIT_FLAG_HOIST 1048576
 #define JIT_FLAG_IC 16
 #define JIT_FLAG_INLINE 16384
-#define JIT_FLAG_LAST 8388608
+#define JIT_FLAG_LAST 16777216
 #define JIT_FLAG_LIVE 2097152
 #define JIT_FLAG_MEGA 64
 #define JIT_FLAG_NOTES 8
@@ -384,12 +395,18 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define LOC_SMI 3
 #define LOC_SUNK 6
 #define LOG_ERROR_SIZE 2048
+#define MAX_BYTES 240
 #define MAX_CLAIMS 16
+#define MAX_DROPS 2147483647
 #define MAX_FDS 1024
 #define MAX_FRAMES 65536
+#define MAX_PAGED_OUTPUTS 16
 #define MAX_POLLED 256
 #define MAX_PRIM 1024
+#define MAX_RECORDS 64
 #define MAX_ROOTS 1024
+#define MAX_STORAGE 15360
+#define MAX_VSYNC_BINDINGS 16
 #define MD_KEYS 1
 #define MD_TALLY 0
 #define MD_VALUES 2
@@ -397,8 +414,17 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define MIN_BUDGET 67108864
 #define MSG_ARGS 1
 #define MSG_SELECTOR 0
+#define NATIVE_GRANT_ARITY_MAX 6
+#define NATIVE_GRANT_BUFFER_SIZE 4097
+#define NATIVE_GRANT_BYTES 4096
+#define NATIVE_GRANT_LIMIT 32
+#define NATIVE_GRANT_NAME_MAX 127
+#define NATIVE_NOTIFY_CONTEXT 250
+#define NATIVE_NOTIFY_I32 250
+#define NATIVE_NOTIFY_VOID 251
 #define NF_ALLOC 8
 #define NF_BLOCKCALL 16
+#define NF_BOUNDFFI 16384
 #define NF_DEAD 2
 #define NF_EQONLY 8192
 #define NF_GUARD 4
@@ -472,6 +498,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define OUT_ARRAY 12
 #define OUT_BARRIER 3
 #define OUT_BOTTOM 6
+#define OUT_BOUND_FILL 15
 #define OUT_BOX 14
 #define OUT_DEOPT 1
 #define OUT_INTERRUPT 2
@@ -577,6 +604,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define PF_MOD_CTRL 2
 #define PF_MOD_SHIFT 1
 #define PF_NO_DEVICES -1073741824
+#define PF_OWNED_NAMES 16
 #define PF_POLL_US 1000
 #define PF_PRIM_LINES 2
 #define PF_PRIM_LINE_STRIP 3
@@ -667,6 +695,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define SCHED_ACTIVE 1
 #define SCHED_LISTS 0
 #define SEM_EXCESS 2
+#define SHADER_ERROR_SIZE 2048
 #define SHIFT_ASR 2
 #define SHIFT_LSL 0
 #define SHIFT_LSR 1
@@ -873,7 +902,11 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 
 typedef struct baseline_pic baseline_pic;
 typedef struct baseline_site baseline_site;
+typedef struct big_integer_native_result big_integer_native_result;
 typedef struct cache_entry cache_entry;
+typedef struct ffi_bound_site ffi_bound_site;
+typedef struct ffi_owned_row ffi_owned_row;
+typedef struct ffi_text_buffer ffi_text_buffer;
 typedef struct feedback_site feedback_site;
 typedef struct frame frame;
 typedef struct image_header image_header;
@@ -887,12 +920,17 @@ typedef struct opt_node opt_node;
 typedef struct opt_out opt_out;
 typedef struct opt_state opt_state;
 typedef struct primitive_entry primitive_entry;
+typedef struct runtime_native_grant runtime_native_grant;
 #ifndef SAMALTAK_NO_PLATFORM
+typedef struct ffi_vsync_subscription ffi_vsync_subscription;
 typedef struct fence_watch fence_watch;
 typedef struct gpu_dev gpu_dev;
 typedef struct lookup_request lookup_request;
 typedef struct pf_event pf_event;
 typedef struct pf_obj pf_obj;
+typedef struct pf_output_lease pf_output_lease;
+typedef struct pf_owned_names pf_owned_names;
+typedef struct pf_process_request pf_process_request;
 typedef struct pf_stat pf_stat;
 typedef struct pf_table pf_table;
 typedef struct pf_vattr pf_vattr;
@@ -900,6 +938,7 @@ typedef struct pty_child pty_child;
 typedef struct raster_job raster_job;
 typedef struct raster_state raster_state;
 typedef struct sock_sems sock_sems;
+typedef struct tls_send_retry tls_send_retry;
 #endif
 
 struct baseline_pic {
@@ -922,6 +961,15 @@ struct baseline_site {
 };
 _Static_assert(sizeof(baseline_site) == 32, "the simulator lays out BaselineSite as C does");
 
+struct big_integer_native_result {
+    const uint64_t *data;
+    uint64_t *allocation;
+    int64_t count;
+    int32_t status;
+    uint64_t small[4];
+};
+_Static_assert(sizeof(big_integer_native_result) == 64, "the simulator lays out BigIntegerNativeResult as C does");
+
 struct cache_entry {
     oop cls;
     oop sel;
@@ -941,6 +989,33 @@ struct cache_entry {
     uint8_t set_ivar[4];
 };
 _Static_assert(sizeof(cache_entry) == 64, "the simulator lays out CacheEntry as C does");
+
+struct ffi_bound_site {
+    uint64_t owner_addr;
+    uint64_t serial_addr;
+    uint64_t serial;
+    uint64_t entry;
+    uint64_t result_tag;
+    oop token;
+};
+_Static_assert(sizeof(ffi_bound_site) == 48, "the simulator lays out FFIBoundSite as C does");
+
+struct ffi_owned_row {
+    uint64_t ticket;
+    uint32_t state;
+    uint32_t capacity;
+    uint8_t *bytes;
+    uint32_t payload_bytes;
+};
+_Static_assert(sizeof(ffi_owned_row) == 32, "the simulator lays out FFIOwnedRow as C does");
+
+struct ffi_text_buffer {
+    const uint8_t *data;
+    uint64_t count;
+    void *allocation;
+    uint8_t small[512];
+};
+_Static_assert(sizeof(ffi_text_buffer) == 536, "the simulator lays out FFITextBuffer as C does");
 
 struct feedback_site {
     oop method;
@@ -1059,12 +1134,13 @@ struct jit_state {
     uint64_t cstack_limit;
     int64_t stress;
     uint64_t dump[64];
+    uint64_t pending_bound_frame;
     oop oop_table[2048];
 };
-_Static_assert(sizeof(jit_state) == 17216, "the simulator lays out JitState as C does");
+_Static_assert(sizeof(jit_state) == 17224, "the simulator lays out JitState as C does");
 
 struct large_operand {
-    uint64_t *limbs;
+    const uint64_t *limbs;
     int64_t count;
     bool neg;
     uint64_t small[1];
@@ -1143,6 +1219,7 @@ struct opt_node {
     int64_t aux;
     int64_t aux2;
     uint64_t tcls;
+    oop ffi_owner;
     int64_t lo;
     int64_t hi;
     int16_t reg;
@@ -1155,7 +1232,7 @@ struct opt_node {
     int32_t bcact;
     int32_t bcpc;
 };
-_Static_assert(sizeof(opt_node) == 120, "the simulator lays out OptNode as C does");
+_Static_assert(sizeof(opt_node) == 128, "the simulator lays out OptNode as C does");
 
 struct opt_out {
     int32_t kind;
@@ -1165,8 +1242,9 @@ struct opt_out {
     int32_t resume;
     int32_t pos;
     int32_t aux;
+    uint64_t ffi_site_addr;
 };
-_Static_assert(sizeof(opt_out) == 28, "the simulator lays out OptOut as C does");
+_Static_assert(sizeof(opt_out) == 40, "the simulator lays out OptOut as C does");
 
 struct opt_state {
     int32_t parent;
@@ -1186,7 +1264,30 @@ struct primitive_entry {
 };
 _Static_assert(sizeof(primitive_entry) == 24, "the simulator lays out PrimitiveEntry as C does");
 
+struct runtime_native_grant {
+    const char *library;
+    const char *symbol;
+    const char *path;
+    size_t library_size;
+    size_t symbol_size;
+    uint8_t types[6];
+    int32_t arity;
+    int32_t result_type;
+    void *target;
+    const char *unregister_name;
+};
+_Static_assert(sizeof(runtime_native_grant) == 72, "the simulator lays out RuntimeNativeGrant as C does");
+
 #ifndef SAMALTAK_NO_PLATFORM
+struct ffi_vsync_subscription {
+    uint64_t entry;
+    uint64_t generation;
+    uint32_t pending;
+    int32_t semaphore_index;
+    bool needs_signal;
+};
+_Static_assert(sizeof(ffi_vsync_subscription) == 32, "the simulator lays out FFIVsyncSubscription as C does");
+
 struct fence_watch {
     SDL_GPUFence *f;
     SDL_GPUDevice *d;
@@ -1241,6 +1342,31 @@ struct pf_obj {
     int64_t i;
 };
 _Static_assert(sizeof(pf_obj) == 40, "the simulator lays out PfObj as C does");
+
+struct pf_output_lease {
+    uint64_t ticket;
+    uint8_t *payload;
+    uint64_t payload_bytes;
+};
+_Static_assert(sizeof(pf_output_lease) == 24, "the simulator lays out PfOutputLease as C does");
+
+struct pf_owned_names {
+    uint64_t ticket;
+    char **names;
+    uint32_t count;
+};
+_Static_assert(sizeof(pf_owned_names) == 24, "the simulator lays out PfOwnedNames as C does");
+
+struct pf_process_request {
+    const uint8_t *input;
+    uint64_t remaining;
+    char *storage;
+    char *next;
+    char **argv;
+    char **envp;
+    char *cwd;
+};
+_Static_assert(sizeof(pf_process_request) == 56, "the simulator lays out PfProcessRequest as C does");
 
 struct pf_stat {
     bool exists;
@@ -1334,6 +1460,13 @@ struct sock_sems {
 };
 _Static_assert(sizeof(sock_sems) == 12, "the simulator lays out SockSems as C does");
 
+struct tls_send_retry {
+    tls_send_retry *next;
+    int32_t handle;
+    uint64_t count;
+};
+_Static_assert(sizeof(tls_send_retry) == 24, "the simulator lays out TLSSendRetry as C does");
+
 #endif
 extern primitive_entry vm_primitive_table[];
 extern int vm_primitive_count;
@@ -1383,6 +1516,8 @@ extern int32_t prim_index;
 extern uint64_t cache_base;
 extern uint64_t cache_limit;
 extern uint64_t cache_top;
+extern bool bound_site_trace;
+extern uint64_t bound_trace_counts[3];
 extern uint64_t eden_box[2];
 extern uint64_t eden_hi;
 extern uint64_t eden_lo;
@@ -1753,7 +1888,7 @@ void amd64_assembler_test_any_with(int64_t rn, int64_t rm);
 void test_bit_any(int64_t n, int64_t rt);
 void ubfiz(int64_t rd, int64_t rn, int64_t lsb, int64_t wd);
 void ubfx_any(int64_t rd, int64_t rn, int64_t lsb, int64_t wd);
-void wide(int32_t digit, int64_t rd, int64_t rn, int64_t rm);
+void amd64_assembler_wide(int32_t digit, int64_t rd, int64_t rn, int64_t rm);
 #else
 uint64_t target_of(int32_t a_label);
 #endif
@@ -1765,6 +1900,7 @@ bool analyze(oop m);
 void analyze_liveness(void);
 uint64_t code_cache_allocate(uint64_t size);
 void code_cache_flush(void);
+void *mapping_hint(void);
 bool open_with_size(uint64_t size);
 void prim_allocation_sample_info(void);
 void prim_allocation_sample_take(void);
@@ -1805,24 +1941,46 @@ int64_t deflate_coder_count(uint16_t *lits, uint16_t *dists, int64_t count, uint
 int64_t deflate_coder_write(uint16_t *lits, uint16_t *dists, int64_t count, uint32_t *table, uint8_t *out, int64_t start, uint64_t pending, int64_t pending_count);
 uint32_t adler32(uint8_t *p, int64_t n);
 int64_t matches(uint8_t *input, int64_t n, int64_t start, uint32_t *head, uint32_t *prev, uint16_t *lits, uint16_t *dists, int64_t max_tokens, int64_t max_chain);
-void prim_display_bits(void);
-void prim_display_copy(void);
-void prim_display_fill(void);
-void prim_display_flush(void);
-void prim_display_next_event(void);
-void prim_display_open(void);
-void prim_display_text(void);
+void configure_bound_site_trace(void);
+size_t copy_name(oop name, uint8_t *buf);
+void fill_bound_site(ffi_bound_site *site, oop owner, oop expected, oop selector, int32_t n);
+ffi_bound_site *new_bound_site(void);
+bool owned_can_produce(uint64_t ticket);
+bool owned_publish(uint64_t ticket, const uint8_t *bytes, uint64_t size);
+void prim_ffi_bind(void);
+void prim_ffi_bound_invoke(void);
+void prim_ffi_bound_invoke_array(void);
+void prim_ffi_invoke(void);
+void prim_ffi_prepare(void);
+void ffi_primitives_print_bound_site_trace(void);
+void reset_bound_sites(void);
+bool can_publish_code(void);
+uint64_t downcall(uint64_t target, uint8_t *types, int32_t n, int32_t result);
+uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int32_t n, int32_t result, int32_t operation);
+uint64_t publish_code(const uint8_t *bytes, uint32_t size);
+uint64_t ffi_stub_compiler_static_core_entry(const char *name, uint32_t signature);
+oop ffi_box_owned_text(ffi_text_buffer *out);
+oop ffi_box_owned_text_with_gc(ffi_text_buffer *out);
+bool ffi_prepare_c_text(oop o, ffi_text_buffer *out);
+bool ffi_prepare_counted_text(oop o, ffi_text_buffer *out);
+oop ffi_release_counted_text(ffi_text_buffer *out);
+uint64_t wrapped_argument_helper(int32_t tag);
+uint64_t wrapped_result_helper(int32_t tag);
 void become_forward(oop from, oop to);
 void collect_garbage(uint64_t need);
 void full_gc(void);
 void garbage_collector_init(uint64_t eden_bytes, uint64_t max_heap);
+void invalidate_native_weak_owners(void);
 uint64_t old_alloc_try(uint64_t bytes, size_t limit);
+void register_weak_owners(void (*update)(bool (*)(oop *)), void (*invalidate)(void));
 void release_free_memory(void);
 void release_pages(void *address, uint64_t n);
 void remember(oop o);
 void scavenge(void);
 void walk_old_space(void (*fn)(uint64_t, void *), void *data);
 void walk_young_space(void (*fn)(uint64_t, void *), void *data);
+int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signature, uint64_t *target_out);
+uint64_t ffi_target(int32_t id);
 void platform_interface_init(void);
 void platform_interface_poll(void);
 int quit_status(int code);
@@ -1843,7 +2001,7 @@ bool interpreter_context(oop c, int64_t k, oop v);
 oop interpreter_context_field(int64_t i, oop c);
 oop context_slot(int64_t k, oop c);
 int64_t ctx_stackp(oop ctx);
-cache_entry *entry_for(oop a_class, oop a_selector);
+cache_entry *interpreter_entry_for(oop a_class, oop a_selector);
 void entry_safepoint(void);
 void fatal_begin(void);
 _Noreturn void fatal_end(void);
@@ -1878,7 +2036,7 @@ uint64_t write_tables(jit_method *h, uint64_t p);
 void jit_baseline_runtime_after_gc(void);
 void jit_baseline_runtime_all_roots(void (*fn)(oop *));
 uint64_t jit_baseline_runtime_block(frame *f, oop c, uint64_t ret);
-oop box(frame *f, uint64_t b);
+oop jit_baseline_runtime_box(frame *f, uint64_t b);
 void canonicalize_below(frame *f);
 uint64_t entry_slow(frame *f, uint64_t ret, uint64_t c);
 int64_t feedback_cases_of(oop m, int64_t i);
@@ -1961,6 +2119,7 @@ int64_t opt_stat(int32_t i);
 bool parse_flags(char *s);
 void perf_map_at(uint64_t start, uint64_t n, const char *name);
 int64_t primitive_number_named(char *name);
+void jit_runtime_print_bound_site_trace(void);
 uint64_t push_context(frame *f);
 void release_memory(void);
 void jit_runtime_resume(frame *f);
@@ -1969,23 +2128,14 @@ void set_flags(uint32_t f);
 bool set_mode(int32_t m);
 oop special_fast(int32_t k, oop *base);
 void jit_runtime_start(void);
+void sync_pending_bound_frame(void);
 uint64_t jit_runtime_tier_up(frame *f, int64_t loop);
 uint64_t jit_runtime_widow(frame *f);
 uint64_t write_barrier(oop o, oop v);
 void jit_runtime_young_roots(void (*fn)(oop *));
 bool jit_stubs_generate(void);
-void prim_large_add(void);
-void prim_large_bit_and(void);
-void prim_large_bit_or(void);
-void prim_large_bit_shift(void);
-void prim_large_bit_xor(void);
-void prim_large_compare(void);
-void prim_large_floor_div(void);
-void prim_large_mod(void);
-void prim_large_mul(void);
-void prim_large_quo(void);
-void prim_large_rem(void);
-void prim_large_sub(void);
+void magnitude_operation(int32_t op, const uint64_t *left, int64_t an, const uint64_t *right, int64_t bn, uint64_t max_heap, big_integer_native_result *out);
+char *copy_terminated(const void *bytes, uint64_t count);
 void prim_char_from_value(void);
 void prim_char_value(void);
 void prim_float_abs(void);
@@ -1997,7 +2147,6 @@ void prim_float_div(void);
 void prim_float_eq(void);
 void prim_float_exp(void);
 void prim_float_exponent(void);
-void prim_float_fraction_part(void);
 void prim_float_from_ieee_bits(void);
 void prim_float_greater(void);
 void prim_float_greater_eq(void);
@@ -2007,7 +2156,6 @@ void prim_float_less_eq(void);
 void prim_float_ln(void);
 void prim_float_mul(void);
 void prim_float_not_eq(void);
-void prim_float_print_string(void);
 void prim_float_sin(void);
 void prim_float_sqrt(void);
 void prim_float_sub(void);
@@ -2058,9 +2206,11 @@ void refresh_specials(void);
 void reset_alloc_limit(void);
 oop object_memory_special(int index);
 uint32_t string_char_at(oop s, uint64_t i);
-uint64_t string_from_utf8(const char *str, size_t n);
+oop string_from_utf8(const char *str, size_t n);
+oop string_from_utf8_try(const char *str, size_t n);
 uint32_t string_hash(oop s);
 size_t string_size(oop s);
+bool try_float_val(oop o, double *out);
 bool u64_of(oop o, uint64_t *out);
 char *utf8_bytes_of(oop s, size_t *size);
 char *utf8_of(oop s);
@@ -2163,10 +2313,15 @@ void opt_runtime_young_roots(void (*fn)(oop *));
 int64_t pixel_diff_blocks(uint8_t *src, int64_t w, int64_t h, uint8_t *dst, int64_t stride, int64_t left, int64_t top, int64_t bs, uint8_t *marks);
 void pixel_packer_pack(uint8_t *s, int64_t stride, int64_t w, int64_t h, int64_t swap, uint8_t *d);
 void filter_png(uint8_t *rgba, int64_t w, int64_t h, int64_t n, uint8_t *raw);
+void install_trace_function(prim_fn fn, int n);
+void install_try_guard(prim_try_guard guard, int n);
 bool is_leaf(int64_t n);
-bool is_tryable(int64_t n);
+bool is_tryable(int64_t n, oop owner);
 prim_fn primitive_table_lookup(int64_t n);
 oop names_array(void);
+bool configure(void);
+void *lookup_library(const uint8_t *library, size_t lib_length, const uint8_t *symbol, size_t sym_length, const uint8_t *types, int32_t n, int32_t result);
+void *notification_unregister(void);
 uint64_t active_process(void);
 void alloc_sample_hit(oop a_class, uint64_t bytes);
 void handle_interrupts(void);
@@ -2204,7 +2359,6 @@ void work_clock_stop(void);
 void prim_flush_cache_for_selector(void);
 void prim_flush_method_cache(void);
 void prim_gc(void);
-void prim_getenv(void);
 void prim_image_path(void);
 void prim_microsecond_clock(void);
 void prim_millisecond_clock(void);
@@ -2213,10 +2367,6 @@ void prim_quit(void);
 void prim_release_memory(void);
 void prim_scavenge(void);
 void prim_snapshot(void);
-void prim_stderr_write(void);
-void prim_stdout_write(void);
-void prim_thread_cpu_time(void);
-void prim_utc_microseconds(void);
 void prim_vm_arguments(void);
 void prim_vm_banner(void);
 void prim_vm_stats(void);
@@ -2235,10 +2385,14 @@ char *banner(void);
 int main(int n, char **v);
 int64_t zrle_coder_tiles(uint8_t *px, int64_t w, int64_t h, int64_t bpp, int64_t cp, int64_t off, uint32_t *s, uint8_t *out);
 #ifdef __APPLE__
+bool can_map_ffi_stubs(void);
+uint64_t publish_ffi_stub(const uint8_t *bytes, uint32_t size);
+uint64_t ffi_stub_memory_static_core_entry(const char *name, uint32_t signature);
 void begin_writing(void);
 bool can_run_code(void);
 void end_writing(void);
-void invalidate(void *start, uint64_t size);
+void *ffi_arena_base(void);
+void jit_platform_invalidate(uint8_t *start, uint64_t size);
 bool jit_start_thread(void *(*fn)(void *));
 bool jit_threads_available(void);
 void jit_worker_lock(void);
@@ -2252,10 +2406,13 @@ void ticker_start(void);
 int64_t thread_cycles(void);
 #endif
 #ifdef __linux__
+bool can_map_ffi_stubs(void);
+uint64_t publish_ffi_stub(const uint8_t *bytes, uint32_t size);
+uint64_t ffi_stub_memory_static_core_entry(const char *name, uint32_t signature);
 void begin_writing(void);
 bool can_run_code(void);
 void end_writing(void);
-void invalidate(void *start, uint64_t size);
+void jit_platform_invalidate(uint8_t *start, uint64_t size);
 bool jit_start_thread(void *(*fn)(void *));
 bool jit_threads_available(void);
 void jit_worker_lock(void);
@@ -2269,6 +2426,24 @@ void ticker_start(void);
 int64_t thread_cycles(void);
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
+void ffi_external_notification_adapter_prim_bind(void);
+void ffi_external_notification_adapter_prim_close(void);
+void ffi_external_notification_adapter_prim_poll(void);
+void clear_shader_error(void);
+void copy_shader_error(char *dst, size_t size);
+bool enable_shader_capture(void);
+void ffisdl_log_adapter_prim_bind(void);
+void ffisdl_log_adapter_prim_close(void);
+void prim_dropped(void);
+void ffisdl_log_adapter_prim_poll(void);
+void prim_probe(void);
+bool ffi_vsync_notification_pending_signals(void);
+bool ffi_vsync_notification_prepare(void);
+void ffi_vsync_notification_prim_bind(void);
+void ffi_vsync_notification_prim_close(void);
+void ffi_vsync_notification_prim_poll(void);
+void ffi_vsync_notification_refreshed(void);
+void ffi_vsync_notification_signal_ready(void);
 void parallel_run(void (*fn)(void *, int64_t), void *ctx, int64_t n);
 int64_t parallel_workers(void);
 void platform_common_fail_os_code(char *what, int code);
@@ -2291,10 +2466,11 @@ int64_t device_unmap(uint64_t address, uint64_t length);
 int64_t device_write(int32_t fd, uint64_t address, uint64_t n, int64_t offset);
 int64_t dropped(void);
 bool platform_events_next(pf_event *out);
+bool peek_for_ffi(pf_event *out);
 void pump(void);
 void platform_events_push(pf_event *e);
 void set_semaphore(int32_t index);
-void signal_ready(void);
+void platform_events_signal_ready(void);
 void update_poll_interval(void);
 bool platform_files_close(int32_t f);
 char *platform_files_cwd(void);
@@ -2306,9 +2482,13 @@ bool platform_files_flush(int32_t f);
 int32_t platform_files_handle_count(void);
 bool platform_files_mkfifo(char *path);
 int32_t platform_files_open(char *path, int32_t mode);
+const char *owned_name(uint64_t ticket, uint32_t index);
+void owned_names_publish(pf_owned_names *row, char **names, uint32_t count, uint8_t *out);
+pf_owned_names *owned_names_room(uint8_t *receipt, uint64_t cap);
 off_t position(int32_t f);
-bool process_wait(int64_t pid, bool block, int *status, bool *done);
+bool process_wait(int64_t pid, bool block, int32_t *status, bool *done);
 ssize_t platform_files_read(int32_t f, void *buf, uint64_t n);
+int32_t release_owned_names(uint64_t ticket);
 bool platform_files_rename(char *from, char *to);
 bool seek(int32_t f, int64_t pos);
 off_t platform_files_size(int32_t f);
@@ -2321,7 +2501,7 @@ int begin_pass(int32_t cmd, int32_t tex, float *clear);
 bool bind_pipeline(int32_t pass, int32_t pipe);
 bool bind_texture(int32_t pass, int32_t slot, int32_t tex, int32_t sampler);
 bool bind_vertex_buffer(int32_t pass, int32_t slot, int32_t buf, uint32_t offset);
-bool blit(int32_t cmd, int32_t src, int *sr, int32_t dst, int *dr, bool linear);
+bool blit(int32_t cmd, int32_t src, int32_t *sr, int32_t dst, int32_t *dr, bool linear);
 int bytes_per_pixel(int32_t format);
 bool claim_window(int32_t dev, int32_t win);
 void *platform_gpu_compile_shader(char *source, int32_t stage, size_t *size_out);
@@ -2330,13 +2510,21 @@ int32_t create_device(bool debug);
 int32_t create_pipeline(int32_t dev, int32_t vs, int32_t fs, int32_t stride, pf_vattr *attrs, int32_t nattrs, int32_t prim, int32_t blend, int32_t target_format);
 int32_t create_sampler(int32_t dev, bool linear, bool repeat);
 int32_t platform_gpu_create_shader_source_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures(int32_t dev, void *source, char *entry, int32_t stage, int32_t samplers, int32_t uniform_buffers, int32_t storage_buffers, int32_t storage_textures);
-int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures(int32_t dev, const uint8_t *code, size_t n, char *entry, int32_t stage, int32_t samplers, int32_t uniform_buffers, int32_t storage_buffers, int32_t storage_textures);
+int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures(int32_t dev, const uint8_t *code, uint64_t n, char *entry, int32_t stage, int32_t samplers, int32_t uniform_buffers, int32_t storage_buffers, int32_t storage_textures);
 int32_t create_texture(int32_t dev, int32_t w, int32_t h, int32_t format, int32_t usage);
-bool download(int32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, void *dst, size_t dst_len);
+bool download(int32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, void *dst, uint64_t dst_len);
 bool draw(int32_t pass, int32_t vertex_count, int32_t first_vertex);
 bool end_pass(int32_t pass);
 int fence_done(int32_t fence);
 int64_t fence_elapsed(int32_t fence);
+pf_obj *ffi_bound_draw_pass(int32_t pass);
+bool ffi_can_begin_pass(int32_t cmd, int32_t tex);
+bool ffi_can_bind_buffer(int32_t buffer, int32_t pass, uint32_t off);
+bool ffi_can_bind_pipeline(int32_t pipeline, int32_t pass);
+bool ffi_can_bind_texture(int32_t texture, int32_t sampler, int32_t pass);
+bool ffi_can_blit(int32_t cmd, int32_t src, int32_t *sr, int32_t dst, int32_t *dr);
+bool ffi_can_create_pipeline(int32_t dev, int32_t vs, int32_t fs, int32_t stride, pf_vattr *attrs, int32_t count);
+int32_t ffi_draw_eligibility(int32_t pass, int32_t n, int32_t first);
 void platform_gpu_handle_counts(int64_t *out);
 void platform_gpu_init(void);
 bool push_uniforms(int32_t cmd_or_pass, int32_t stage, int32_t slot, const void *data, uint32_t n);
@@ -2349,7 +2537,7 @@ int submit(int32_t cmd, bool want_fence, bool *ok);
 int swapchain_format(int32_t dev, int32_t win);
 bool texture_size(int32_t tex, int *w, int *h, int *format);
 bool upload_buffer(int32_t buf, const void *data, uint32_t n, uint32_t dst_offset);
-bool upload_texture(int32_t tex, const void *data, size_t len, int32_t x, int32_t y, int32_t w, int32_t h, int32_t bytes_per_row);
+bool upload_texture(int32_t tex, const void *data, uint64_t len, int32_t x, int32_t y, int32_t w, int32_t h, int32_t bytes_per_row);
 bool wait_fence(int32_t fence);
 bool wait_idle(int32_t dev);
 void window_closing(int32_t win);
@@ -2361,10 +2549,11 @@ bool frame_semaphore(int32_t index);
 bool platform_nic_open(uint8_t *mac);
 int64_t receive(uint8_t *buf, int64_t n);
 bool platform_nic_send(const uint8_t *frame, int64_t n);
-void prim_clipboard_data(void);
-void prim_clipboard_get(void);
-void prim_clipboard_set(void);
-void prim_cwd(void);
+bool adopt(pf_output_lease *row, uint8_t *payload, uint64_t n, uint8_t *out);
+bool platform_paged_output_copy(uint64_t ticket, uint64_t offset, uint8_t *out, uint64_t cap);
+void platform_paged_output_discard(void);
+bool platform_paged_output_release(uint64_t ticket);
+pf_output_lease *room_for(uint8_t *out, uint64_t cap);
 void prim_device_close(void);
 void prim_device_constants(void);
 void prim_device_ioctl(void);
@@ -2373,54 +2562,8 @@ void prim_device_open(void);
 void prim_device_read(void);
 void prim_device_unmap(void);
 void prim_device_write(void);
-void prim_dir_create(void);
-void prim_dir_entries(void);
-void prim_dropped_events(void);
-void prim_exec_process(void);
-void prim_file_close(void);
-void prim_file_delete(void);
-void prim_file_flush(void);
-void prim_file_open(void);
-void prim_file_position(void);
-void prim_file_read(void);
-void prim_file_rename(void);
-void prim_file_seek(void);
-void prim_file_size(void);
-void prim_file_stat(void);
-void prim_file_write(void);
-void prim_gpu_acquire_command_buffer(void);
-void prim_gpu_acquire_swapchain(void);
-void prim_gpu_begin_pass(void);
-void prim_gpu_bind_pipeline(void);
-void prim_gpu_bind_texture(void);
-void prim_gpu_bind_vertex_buffer(void);
-void prim_gpu_blit(void);
-void prim_gpu_claim_window(void);
-void prim_gpu_compile_shader(void);
-void prim_gpu_create_buffer(void);
-void prim_gpu_create_device(void);
-void prim_gpu_create_pipeline(void);
-void prim_gpu_create_sampler(void);
-void prim_gpu_create_shader(void);
-void prim_gpu_create_texture(void);
-void prim_gpu_download(void);
-void prim_gpu_draw(void);
-void prim_gpu_end_pass(void);
-void prim_gpu_fence_done(void);
-void prim_gpu_fence_elapsed(void);
-void prim_gpu_push_uniforms(void);
-void prim_gpu_release(void);
-void prim_gpu_set_scissor(void);
-void prim_gpu_set_viewport(void);
-void prim_gpu_shader_language(void);
-void prim_gpu_submit(void);
-void prim_gpu_swapchain_format(void);
 void prim_gpu_texture_size(void);
-void prim_gpu_upload_buffer(void);
-void prim_gpu_upload_texture(void);
-void prim_gpu_wait_fence(void);
-void prim_gpu_wait_idle(void);
-void prim_inject_event(void);
+void prim_gpu_upload_texture_address(void);
 void prim_input_semaphore(void);
 void prim_machine_allocate(void);
 void prim_machine_barrier(void);
@@ -2431,24 +2574,14 @@ void prim_machine_read(void);
 void prim_machine_system_table(void);
 void prim_machine_watch(void);
 void prim_machine_write(void);
-void prim_mkfifo(void);
-void prim_next_event(void);
 void prim_nic_open(void);
 void prim_nic_receive(void);
 void prim_nic_semaphore(void);
 void prim_nic_send(void);
 void prim_nic_status(void);
-void prim_platform_handle_counts(void);
-void prim_platform_last_error(void);
-void prim_process_wait(void);
 void prim_pty_close(void);
 void prim_pty_foreground(void);
-void prim_pty_read(void);
 void prim_pty_resize(void);
-void prim_pty_semaphore(void);
-void prim_pty_spawn(void);
-void prim_pty_wait(void);
-void prim_pty_write(void);
 void prim_raster_bands(void);
 void prim_raster_blit(void);
 void prim_raster_copy(void);
@@ -2456,43 +2589,21 @@ void prim_raster_draw(void);
 void prim_raster_fill(void);
 void prim_raster_quad_bounds(void);
 void prim_set_cursor(void);
-void prim_socket_accept(void);
-void prim_socket_close(void);
-void prim_socket_connect(void);
-void prim_socket_connected(void);
-void prim_socket_listen(void);
-void prim_socket_local_port(void);
-void prim_socket_recv(void);
-void prim_socket_resolve(void);
-void prim_socket_semaphore(void);
-void prim_socket_send(void);
-void prim_spawn_process(void);
-void prim_tls_close(void);
-void prim_tls_handshake(void);
-void prim_tls_recv(void);
-void prim_tls_semaphore(void);
-void prim_tls_send(void);
-void prim_tls_start(void);
 void prim_vsync_semaphore(void);
 void prim_window_close(void);
 void prim_window_display_scale(void);
 void prim_window_hide(void);
-void prim_window_open(void);
-void prim_window_pixel_size(void);
 void prim_window_refresh_rate(void);
 void prim_window_set_position(void);
-void prim_window_set_size(void);
 void prim_window_set_text_input_area(void);
-void prim_window_set_title(void);
 void prim_window_show(void);
-void prim_window_size(void);
 bool platform_ptys_close(int32_t p);
 pid_t foreground(int32_t p);
 bool resize(int32_t p, int32_t rows, int32_t cols);
 int32_t platform_ptys_spawn(char **argv, char **envp, char *cwd, int32_t rows, int32_t cols, int64_t *pid_out);
-bool platform_ptys_wait(int32_t p, bool block, int *status, bool *done);
+bool platform_ptys_wait(int32_t p, bool block, int32_t *status, bool *done);
 void blit_pixels(uint8_t *src, int64_t src_w, int64_t src_h, int32_t src_fmt, int64_t *sr, uint8_t *dst, int64_t dst_w, int64_t dst_h, int32_t dst_fmt, int64_t *dr, bool linear);
-void copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode, bool parallel);
+void platform_raster_copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_t src_stride, int64_t w, int64_t h, int64_t bpp, int64_t mode, bool parallel);
 void platform_raster_fill(uint8_t *pixels, int64_t n, int bpp, uint32_t v);
 int64_t platform_raster_forced_bands(int64_t n);
 void quad_bounds(uint8_t *v, int64_t n, uint8_t *o);
@@ -2502,12 +2613,14 @@ int32_t platform_sockets_add(int fd, int kind, void *ptr);
 bool any_armed(void);
 void arm_read(int32_t h);
 void arm_write(int32_t h, bool armed);
+void cancel_descriptor(int32_t h);
 bool platform_sockets_close(int32_t s);
 bool platform_sockets_close_kind(int32_t h, int kind);
 int32_t platform_sockets_connect(char *host, int32_t port);
 int connected(int32_t s);
 pf_obj *fd_get(int32_t h, int kind);
 int32_t platform_sockets_handle_count(void);
+void install_descriptor(int fd, int32_t h);
 int32_t platform_sockets_listen(char *host, int32_t port, int32_t backlog);
 int local_port(int32_t s);
 int32_t platform_sockets_lookup(char *host_name);
@@ -2518,19 +2631,23 @@ ssize_t pty_read(int32_t p, void *buf, uint64_t n);
 bool pty_semaphores(int32_t p, int32_t read_index, int32_t write_index);
 ssize_t pty_write(int32_t p, const void *buf, uint64_t n);
 ssize_t platform_sockets_recv(int32_t s, void *buf, uint64_t n);
+int32_t reserve_descriptor(int kind, void *ptr);
 bool platform_sockets_semaphores_kind_read_write(int32_t h, int kind, int32_t read_index, int32_t write_index);
 bool platform_sockets_semaphores_read_write(int32_t s, int32_t read_index, int32_t write_index);
 ssize_t platform_sockets_send(int32_t s, const void *buf, uint64_t n);
 bool platform_tls_close(int32_t h);
 int handshake(int32_t h);
 int64_t platform_tls_recv(int32_t h, void *buf, uint64_t n);
+int64_t recv_borrowed(int32_t h, void *buf, uint64_t n);
 bool platform_tls_semaphores(int32_t h, int32_t read_index, int32_t write_index);
-int64_t platform_tls_send(int32_t h, const void *buf, uint64_t n);
+int64_t send_owned(int32_t h, const void *buf, uint64_t n);
 int32_t platform_tls_start(int32_t s, char *host_name);
+bool notifications(bool enabled);
 bool platform_vsync_pending(void);
 void platform_vsync_poll(void);
-void refreshed(void);
+void platform_vsync_refreshed(void);
 bool semaphore(int32_t index);
+void signal_notifications(void);
 void *clipboard_data(char *mime, size_t *size);
 char *clipboard_get(void);
 bool clipboard_set(char *s);
@@ -2555,12 +2672,14 @@ bool platform_windows_size(int32_t win, int *w, int *h);
 bool video_init(void);
 bool video_inited(void);
 void catch_quit_signals(void);
+int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signature, uint64_t *target_out);
+uint64_t ffi_target(int32_t id);
 void platform_interface_init(void);
 void platform_interface_poll(void);
 int quit_status(int code);
 void platform_interface_shutdown(void);
 void platform_interface_wait(int64_t timeout_us);
-void wake(void);
+void sdl_platform_wake(void);
 #ifdef __APPLE__
 SDL_Keymod alt_keymod(void);
 void closing_desktop_window(SDL_Window *sw);

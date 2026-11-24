@@ -1,16 +1,18 @@
 VMPlatformModule subclass: #PlatformFiles
-	instanceVariableNames: 'table'
-	classVariableNames: 'K_FILE'
+	instanceVariableNames: 'table ownedNames ownedNamesSession ownedNamesSerial'
+	classVariableNames: 'K_FILE PF_OWNED_NAMES'
 	package: 'VM-Platform'!
 
 PlatformFiles comment: 'Files (raw file descriptors, unbuffered; handles of kind K_FILE, i = the descriptor), directories, FIFOs, child processes.'!
 
 !PlatformFiles class methodsFor: 'declaring'!
 declarations
-	^#((table 'pf_table[1]'))
+	^#((table 'pf_table[1]') (ownedNames 'pf_owned_names[PF_OWNED_NAMES]')
+		(ownedNamesSession uint64_t) (ownedNamesSerial uint64_t))
 !
 initialize
-	K_FILE := 1
+	K_FILE := 1.
+	PF_OWNED_NAMES := 16
 ! !
 
 !PlatformFiles methodsFor: 'private'!
@@ -189,10 +191,13 @@ dirEntries: path count: n
 	[ok and: [(e := posixIO readdir: d) notNull]] whileTrue: [
 		((libc strcmp: e d_name with: '.') = 0 or: [(libc strcmp: e d_name with: '..') = 0]) ifFalse: [
 			n value = cap ifTrue: [
-				cap := cap * 2.
-				nv := self cCoerce: (libc realloc: v size: (self sizeof: 'char *') * cap asUInt64) to: 'char **'.
-				ok := nv notNull.
-				ok ifTrue: [v := nv]].
+				cap = 16r7FFFFFFF
+					ifTrue: [ok := false]
+					ifFalse: [
+						cap := cap > 16r3FFFFFFF ifTrue: [16r7FFFFFFF] ifFalse: [cap * 2].
+						nv := self cCoerce: (libc realloc: v size: (self sizeof: 'char *') * cap asUInt64) to: 'char **'.
+						ok := nv notNull.
+						ok ifTrue: [v := nv]]].
 			ok ifTrue: [
 				s := libc strdup: e d_name.
 				ok := s notNull.

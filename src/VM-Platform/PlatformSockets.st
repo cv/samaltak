@@ -86,20 +86,37 @@ fdOf: h kind: kind
 	^o i asInt32
 !
 add: fd kind: kind pointer: ptr
-	"Make fd non-blocking and close-on-exec; its handle, 0 when the table is full (fd left open)."
+	"Make fd non-blocking and close-on-exec; its handle, 0 on failure (fd left open)."
 	<var: #ptr type: 'void *'>
 	<export>
 	| h |
-	posixIO fcntl: fd command: posixIO F_SETFL value: ((posixIO fcntl: fd command: posixIO F_GETFL) bitOr: posixIO O_NONBLOCK).
-	posixIO fcntl: fd command: posixIO F_SETFD value: posixIO FD_CLOEXEC.
+	h := self reserveDescriptor: kind pointer: ptr.
+	h ~= 0 ifTrue: [self installDescriptor: fd at: h].
+	^h
+!
+reserveDescriptor: kind pointer: ptr
+	"Reserve a handle before acquiring a descriptor. Install or cancel before returning to the VM."
+	<var: #ptr type: 'void *'>
+	<export>
+	| h |
 	h := common table: table add: kind pointer: ptr.
+	h = 0 ifTrue: [common setError: 'out of memory'. ^0].
 	h >= MAX_FDS ifTrue: [
-		common table: table remove: h.
+		self cancelDescriptor: h.
 		common setError: 'too many sockets and ptys'.
 		^0].
-	(table v + h) i: fd.
-	libc memset: sems + h value: 0 size: (self sizeof: 'sock_sems').
 	^h
+!
+installDescriptor: fd at: h
+	<export>
+	posixIO fcntl: fd command: posixIO F_SETFL value: ((posixIO fcntl: fd command: posixIO F_GETFL) bitOr: posixIO O_NONBLOCK).
+	posixIO fcntl: fd command: posixIO F_SETFD value: posixIO FD_CLOEXEC.
+	(table v + h) i: fd.
+	libc memset: sems + h value: 0 size: (self sizeof: 'sock_sems')
+!
+cancelDescriptor: h
+	<export>
+	common table: table remove: h
 !
 close: h kind: kind
 	<export>

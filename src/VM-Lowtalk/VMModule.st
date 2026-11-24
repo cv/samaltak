@@ -59,6 +59,10 @@ isSimulated
 threadLocalVariables
 	"Those of my instance variables that each CPU has a copy of where the VM runs code on more than one (UEFI: _Thread_local in its translation, docs/uefi.md, More than one CPU); elsewhere plain globals. Module-private and zero-initialized."
 	^#()
+!
+simulationClass
+	"The class instantiated by VMSimulation. Translation uses the original module."
+	^self
 ! !
 
 !VMModule methodsFor: 'simulation'!

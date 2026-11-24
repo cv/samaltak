@@ -2,8 +2,7 @@
 /* PlatformGPU (VM-Platform) */
 #include "samaltak.h"
 
-static SDL_LogOutputFunction default_log;
-static char log_error[2048];
+static int32_t draw_binding_epoch = 1;
 static int32_t npending;
 static int32_t nwatches;
 static pf_table objs[1];
@@ -12,11 +11,15 @@ static pthread_mutex_t watch_lock[1];
 static bool watcher_started;
 static fence_watch *watches;
 
-static void capture_log(void *userdata, int category, SDL_LogPriority priority, const char *message);
 static gpu_dev *device(int32_t h);
 static gpu_dev *device_of(pf_obj *o);
 static void *fence_watcher(void *unused);
+static int32_t ffi_attribute_width(int32_t format);
+static bool ffi_command_outside_pass(int32_t cmd);
+static bool ffi_rect(int32_t *rect, pf_obj *tex);
+static pf_obj *ffi_resource(int32_t handle, int kind, int32_t pass);
 static pf_obj *get(int32_t h, int kind, char *what);
+static void invalidate_draw_bindings(void);
 static int64_t mono_us(void);
 static SDL_GPURenderPass *platform_gpu_pass(int32_t h);
 static void platform_gpu_release(int32_t h);
@@ -111,6 +114,8 @@ int begin_pass(int32_t cmd, int32_t tex, float *clear)
     SDL_GPUColorTargetInfo *ci;
     SDL_GPURenderPass *p;
     int32_t dev;
+    int32_t fmt;
+    int32_t tracked_target;
     int32_t r_add;
     int32_t h_2;
     int32_t h;
@@ -135,21 +140,29 @@ int begin_pass(int32_t cmd, int32_t tex, float *clear)
         return sdl_fail("SDL_BeginGPURenderPass");
     }
     dev = c->dev;
+    fmt = t->fmt;
+    tracked_target = (t->kind == K_TEX) && ((t->dev == dev) && ((t->i & PF_TEXUSE_COLOR_TARGET) != 0)) ? draw_binding_epoch : 0;
     h = ({
     h_2 = platform_common_table_add_pointer(objs, K_PASS, p);
     (objs->v + h_2)->dev = dev;
     r_add = h_2;
     r_add; });
-    (objs->v + h)->i = cmd;
+    if (h > 0) {
+        (objs->v + h)->i = cmd;
+        (objs->v + h)->h = tracked_target;
+        (objs->v + h)->fmt = fmt;
+        c = objs->v + cmd;
+        c->w = c->w == 0 ? h : -1;
+    }
     return h;
 }
 
 /* PlatformGPU>>bindPipeline:pipeline: */
 bool bind_pipeline(int32_t pass, int32_t pipe)
 {
-    SDL_GPURenderPass *p;
+    pf_obj *p;
     pf_obj *o;
-    p = platform_gpu_pass(pass);
+    p = get(pass, K_PASS, "render pass");
     if (p == NULL) {
         return false;
     }
@@ -157,7 +170,8 @@ bool bind_pipeline(int32_t pass, int32_t pipe)
     if (o == NULL) {
         return false;
     }
-    SDL_BindGPUGraphicsPipeline(p, (SDL_GPUGraphicsPipeline *)o->ptr);
+    SDL_BindGPUGraphicsPipeline((SDL_GPURenderPass *)p->ptr, (SDL_GPUGraphicsPipeline *)o->ptr);
+    p->w = (p->dev == o->dev) && (p->fmt == o->fmt) ? pipe : -1;
     return true;
 }
 
@@ -210,7 +224,7 @@ bool bind_vertex_buffer(int32_t pass, int32_t slot, int32_t buf, uint32_t offset
 }
 
 /* PlatformGPU>>blit:source:rect:destination:rect:linear: */
-bool blit(int32_t cmd, int32_t src, int *sr, int32_t dst, int *dr, bool linear)
+bool blit(int32_t cmd, int32_t src, int32_t *sr, int32_t dst, int32_t *dr, bool linear)
 {
     pf_obj *c;
     pf_obj *s;
@@ -247,15 +261,6 @@ bool blit(int32_t cmd, int32_t src, int *sr, int32_t dst, int *dr, bool linear)
 int bytes_per_pixel(int32_t format)
 {
     return format == PF_TEX_R8 ? 1 : 4;
-}
-
-/* PlatformGPU>>captureLog:category:priority:message: */
-static void capture_log(void *userdata, int category, SDL_LogPriority priority, const char *message)
-{
-    if (priority >= SDL_LOG_PRIORITY_ERROR) {
-        SDL_strlcpy(log_error, message, LOG_ERROR_SIZE);
-    }
-    default_log(userdata, category, priority, message);
 }
 
 /* PlatformGPU>>claimWindow:window: */
@@ -352,9 +357,9 @@ int32_t create_device(bool debug)
     if (!video_init()) {
         return 0;
     }
-    if (default_log == NULL) {
-        default_log = SDL_GetDefaultLogOutputFunction();
-        SDL_SetLogOutputFunction(capture_log, NULL);
+    if (!enable_shader_capture()) {
+        set_error("out of memory installing SDL log capture");
+        return 0;
     }
     d = (gpu_dev *)calloc(1, sizeof(gpu_dev));
     if (d == NULL) {
@@ -390,7 +395,9 @@ int32_t create_pipeline(int32_t dev, int32_t vs, int32_t fs, int32_t stride, pf_
     SDL_GPUGraphicsPipelineCreateInfo *ci;
     SDL_GPUPrimitiveType v_2;
     SDL_GPUGraphicsPipeline *p;
+    bool procedural;
     int32_t r_add;
+    int32_t h_2;
     int32_t h;
     d = device(dev);
     v = get(vs, K_SHADER, "vertex shader");
@@ -475,11 +482,17 @@ int32_t create_pipeline(int32_t dev, int32_t vs, int32_t fs, int32_t stride, pf_
     if (p == NULL) {
         return sdl_fail("SDL_CreateGPUGraphicsPipeline");
     }
-    return ({
-    h = platform_common_table_add_pointer(objs, K_PIPE, p);
-    (objs->v + h)->dev = dev;
-    r_add = h;
+    procedural = (nattrs == 0) && ((v->dev == dev) && ((f->dev == dev) && ((v->i == PF_STAGE_VERTEX) && ((f->i == PF_STAGE_FRAGMENT) && ((v->w == 1) && (f->w == 1))))));
+    h = ({
+    h_2 = platform_common_table_add_pointer(objs, K_PIPE, p);
+    (objs->v + h_2)->dev = dev;
+    r_add = h_2;
     r_add; });
+    if (h > 0) {
+        (objs->v + h)->fmt = target_format;
+        (objs->v + h)->w = procedural ? 1 : 0;
+    }
+    return h;
 }
 
 /* PlatformGPU>>createSampler:linear:repeat: */
@@ -530,6 +543,7 @@ int32_t platform_gpu_create_shader_source_entry_stage_samplers_uniform_buffers_s
     SDL_GPUShaderCreateInfo *ci;
     SDL_GPUShader *s;
     int32_t r_add;
+    int32_t h_3;
     int32_t h_2;
     size_t local_2;
     size_t *size;
@@ -541,7 +555,8 @@ int32_t platform_gpu_create_shader_source_entry_stage_samplers_uniform_buffers_s
     SDL_GPUShaderCreateInfo *ci_2;
     SDL_GPUShader *s_2;
     int32_t r_add_2;
-    int32_t h_3;
+    int32_t h_5;
+    int32_t h_4;
     int h;
     d = device(dev);
     if (d == NULL) {
@@ -564,17 +579,20 @@ int32_t platform_gpu_create_shader_source_entry_stage_samplers_uniform_buffers_s
     ci->num_storage_buffers = storage_buffers;
     ci->num_uniform_buffers = uniform_buffers;
     SDL_ClearError();
-    log_error[0] = 0;
+    clear_shader_error();
     s = SDL_CreateGPUShader(d->dev, ci);
     if (s == NULL) {
         r_create_shader = sdl_fail("SDL_CreateGPUShader");
         goto exit_create_shader;
     }
-    r_create_shader = ({
-    h_2 = platform_common_table_add_pointer(objs, K_SHADER, s);
-    (objs->v + h_2)->dev = dev;
-    r_add = h_2;
+    h_2 = ({
+    h_3 = platform_common_table_add_pointer(objs, K_SHADER, s);
+    (objs->v + h_3)->dev = dev;
+    r_add = h_3;
     r_add; });
+    (objs->v + h_2)->i = stage == PF_STAGE_FRAGMENT ? PF_STAGE_FRAGMENT : PF_STAGE_VERTEX;
+    (objs->v + h_2)->w = (samplers == 0) && ((uniform_buffers == 0) && ((storage_buffers == 0) && (storage_textures == 0))) ? 1 : 0;
+    r_create_shader = h_2;
 exit_create_shader:;
     r_create_shader; });
     }
@@ -599,17 +617,20 @@ exit_create_shader:;
     ci_2->num_storage_buffers = storage_buffers;
     ci_2->num_uniform_buffers = uniform_buffers;
     SDL_ClearError();
-    log_error[0] = 0;
+    clear_shader_error();
     s_2 = SDL_CreateGPUShader(d->dev, ci_2);
     if (s_2 == NULL) {
         r_create_shader_2 = sdl_fail("SDL_CreateGPUShader");
         goto exit_create_shader_2;
     }
-    r_create_shader_2 = ({
-    h_3 = platform_common_table_add_pointer(objs, K_SHADER, s_2);
-    (objs->v + h_3)->dev = dev;
-    r_add_2 = h_3;
+    h_4 = ({
+    h_5 = platform_common_table_add_pointer(objs, K_SHADER, s_2);
+    (objs->v + h_5)->dev = dev;
+    r_add_2 = h_5;
     r_add_2; });
+    (objs->v + h_4)->i = stage == PF_STAGE_FRAGMENT ? PF_STAGE_FRAGMENT : PF_STAGE_VERTEX;
+    (objs->v + h_4)->w = (samplers == 0) && ((uniform_buffers == 0) && ((storage_buffers == 0) && (storage_textures == 0))) ? 1 : 0;
+    r_create_shader_2 = h_4;
 exit_create_shader_2:;
     r_create_shader_2; });
     free(spirv);
@@ -617,7 +638,7 @@ exit_create_shader_2:;
 }
 
 /* PlatformGPU>>createShader:spirv:size:entry:stage:samplers:uniformBuffers:storageBuffers:storageTextures: */
-int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures(int32_t dev, const uint8_t *code, size_t n, char *entry, int32_t stage, int32_t samplers, int32_t uniform_buffers, int32_t storage_buffers, int32_t storage_textures)
+int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffers_storage_buffers_storage_textures(int32_t dev, const uint8_t *code, uint64_t n, char *entry, int32_t stage, int32_t samplers, int32_t uniform_buffers, int32_t storage_buffers, int32_t storage_textures)
 {
     gpu_dev *d;
     Uint8 *code_2;
@@ -627,6 +648,7 @@ int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffe
     SDL_GPUShaderCreateInfo *ci;
     SDL_GPUShader *s;
     int32_t r_add;
+    int32_t h_2;
     int32_t h;
     d = device(dev);
     if (d == NULL) {
@@ -651,17 +673,20 @@ int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffe
     ci->num_storage_buffers = storage_buffers;
     ci->num_uniform_buffers = uniform_buffers;
     SDL_ClearError();
-    log_error[0] = 0;
+    clear_shader_error();
     s = SDL_CreateGPUShader(d->dev, ci);
     if (s == NULL) {
         r_create_shader = sdl_fail("SDL_CreateGPUShader");
         goto exit_create_shader;
     }
-    r_create_shader = ({
-    h = platform_common_table_add_pointer(objs, K_SHADER, s);
-    (objs->v + h)->dev = dev;
-    r_add = h;
+    h = ({
+    h_2 = platform_common_table_add_pointer(objs, K_SHADER, s);
+    (objs->v + h_2)->dev = dev;
+    r_add = h_2;
     r_add; });
+    (objs->v + h)->i = stage == PF_STAGE_FRAGMENT ? PF_STAGE_FRAGMENT : PF_STAGE_VERTEX;
+    (objs->v + h)->w = (samplers == 0) && ((uniform_buffers == 0) && ((storage_buffers == 0) && (storage_textures == 0))) ? 1 : 0;
+    r_create_shader = h;
 exit_create_shader:;
     r_create_shader; });
 }
@@ -725,7 +750,7 @@ static gpu_dev *device_of(pf_obj *o)
 }
 
 /* PlatformGPU>>download:x:y:width:height:into:length: */
-bool download(int32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, void *dst, size_t dst_len)
+bool download(int32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, void *dst, uint64_t dst_len)
 {
     pf_obj *o;
     uint64_t n;
@@ -742,7 +767,9 @@ bool download(int32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, void *dst
     SDL_GPUFence **f;
     uint8_t *p;
     uint32_t *s;
-    uint32_t *t;
+    uint8_t *t;
+    uint32_t local_5;
+    uint32_t *pixel;
     int64_t i;
     uint32_t v;
     o = get(tex, K_TEX, "texture");
@@ -750,7 +777,7 @@ bool download(int32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, void *dst
         return false;
     }
     n = (uint64_t)w * (uint64_t)h * (uint64_t)bytes_per_pixel(o->fmt);
-    if ((x < 0) || ((y < 0) || ((w <= 0) || ((h <= 0) || ((x + w > o->w) || ((y + h > o->h) || (dst_len < n))))))) {
+    if ((x < 0) || ((y < 0) || ((w <= 0) || ((h <= 0) || (((int64_t)x + w > o->w) || (((int64_t)y + h > o->h) || ((n > 0xFFFFFFFFLL) || (dst_len < n)))))))) {
         set_error("bad download region");
         return false;
     }
@@ -808,10 +835,13 @@ bool download(int32_t tex, int32_t x, int32_t y, int32_t w, int32_t h, void *dst
     }
     if (o->fmt == PF_TEX_BGRA8) {
         s = (uint32_t *)p;
-        t = (uint32_t *)dst;
+        t = (uint8_t *)dst;
+        memset(&local_5, 0, sizeof local_5);
+        pixel = &local_5;
         for (i = 0; i <= (int64_t)(n / 4) - 1; i++) {
             v = s[i];
-            t[i] = (v & 0xFF00FF00LL) | ((v >> 16) & 0xFF) | (((uint64_t)(v & 0xFF)) << 16);
+            *pixel = (uint32_t)((v & 0xFF00FF00LL) | ((v >> 16) & 0xFF) | (((uint64_t)(v & 0xFF)) << 16));
+            memcpy(t + i * 4, pixel, 4);
         }
     } else {
         memcpy(dst, p, n);
@@ -835,12 +865,17 @@ bool draw(int32_t pass, int32_t vertex_count, int32_t first_vertex)
 /* PlatformGPU>>endPass: */
 bool end_pass(int32_t pass)
 {
-    SDL_GPURenderPass *p;
-    p = platform_gpu_pass(pass);
+    pf_obj *p;
+    pf_obj *c;
+    p = get(pass, K_PASS, "render pass");
     if (p == NULL) {
         return false;
     }
-    SDL_EndGPURenderPass(p);
+    SDL_EndGPURenderPass((SDL_GPURenderPass *)p->ptr);
+    c = platform_common_table_at_kind(objs, (int32_t)p->i, K_CMD);
+    if ((c != NULL) && (c->w == pass)) {
+        c->w = 0;
+    }
     platform_common_table_remove(objs, pass);
     return true;
 }
@@ -907,6 +942,229 @@ static void *fence_watcher(void *unused)
     __builtin_unreachable();
 }
 
+/* PlatformGPU>>ffiAttributeWidth: */
+static int32_t ffi_attribute_width(int32_t format)
+{
+    int v;
+    switch (format) {
+    case PF_VA_FLOAT2:
+        v = 8;
+        break;
+    case PF_VA_FLOAT3:
+        v = 12;
+        break;
+    case PF_VA_FLOAT4:
+        v = 16;
+        break;
+    case PF_VA_FLOAT:
+        v = 4;
+        break;
+    case PF_VA_UBYTE4_NORM:
+        v = 4;
+        break;
+    case PF_VA_UBYTE4:
+        v = 4;
+        break;
+    case PF_VA_UINT:
+        v = 4;
+        break;
+    case PF_VA_INT:
+        v = 4;
+        break;
+    default:
+        v = 0;
+        break;
+    }
+    return v;
+}
+
+/* PlatformGPU>>ffiBoundDrawPass: */
+pf_obj *ffi_bound_draw_pass(int32_t pass)
+{
+    pf_obj *p;
+    pf_obj *c;
+    p = get(pass, K_PASS, "render pass");
+    if (p == NULL) {
+        return (pf_obj *)NULL;
+    }
+    c = platform_common_table_at_kind(objs, (int32_t)p->i, K_CMD);
+    if ((c == NULL) || ((c->w != pass) || (p->w <= 0))) {
+        set_error("no compatible graphics pipeline bound to the active pass");
+        return (pf_obj *)NULL;
+    }
+    return p;
+}
+
+/* PlatformGPU>>ffiCanBeginPass:target: */
+bool ffi_can_begin_pass(int32_t cmd, int32_t tex)
+{
+    pf_obj *c;
+    pf_obj *t;
+    c = get(cmd, K_CMD, "command buffer");
+    t = platform_gpu_target(tex);
+    if ((c == NULL) || (t == NULL)) {
+        return false;
+    }
+    if ((c->dev != t->dev) || ((t->kind == K_SWAP) && (t->i != cmd))) {
+        set_error("render target does not belong to this command buffer");
+        return false;
+    }
+    if ((t->kind == K_TEX) && ((t->i & PF_TEXUSE_COLOR_TARGET) == 0)) {
+        set_error("texture cannot be a color target");
+        return false;
+    }
+    return ffi_command_outside_pass(cmd);
+}
+
+/* PlatformGPU>>ffiCanBindBuffer:to:offset: */
+bool ffi_can_bind_buffer(int32_t buffer, int32_t pass, uint32_t off)
+{
+    pf_obj *b;
+    b = ffi_resource(buffer, K_BUF, pass);
+    if (b == NULL) {
+        return false;
+    }
+    if ((uint64_t)off >= (uint64_t)b->i) {
+        set_error("vertex buffer offset out of bounds");
+        return false;
+    }
+    return true;
+}
+
+/* PlatformGPU>>ffiCanBindPipeline:to: */
+bool ffi_can_bind_pipeline(int32_t pipeline, int32_t pass)
+{
+    return ffi_resource(pipeline, K_PIPE, pass) != NULL;
+}
+
+/* PlatformGPU>>ffiCanBindTexture:sampler:to: */
+bool ffi_can_bind_texture(int32_t texture, int32_t sampler, int32_t pass)
+{
+    pf_obj *t;
+    t = ffi_resource(texture, K_TEX, pass);
+    if (t == NULL) {
+        return false;
+    }
+    if ((t->i & PF_TEXUSE_SAMPLER) == 0) {
+        set_error("texture cannot be sampled");
+        return false;
+    }
+    return ffi_resource(sampler, K_SAMPLER, pass) != NULL;
+}
+
+/* PlatformGPU>>ffiCanBlit:source:rect:destination:rect: */
+bool ffi_can_blit(int32_t cmd, int32_t src, int32_t *sr, int32_t dst, int32_t *dr)
+{
+    pf_obj *c;
+    pf_obj *s;
+    pf_obj *t;
+    c = get(cmd, K_CMD, "command buffer");
+    s = get(src, K_TEX, "texture");
+    t = platform_gpu_target(dst);
+    if ((c == NULL) || ((s == NULL) || (t == NULL))) {
+        return false;
+    }
+    if ((c->dev != s->dev) || ((c->dev != t->dev) || ((t->kind == K_SWAP) && (t->i != cmd)))) {
+        set_error("blit textures do not belong to this command buffer");
+        return false;
+    }
+    if ((src == dst) || (((s->i & PF_TEXUSE_SAMPLER) == 0) || ((t->kind == K_TEX) && ((t->i & PF_TEXUSE_COLOR_TARGET) == 0)))) {
+        set_error("invalid GPU blit texture usage");
+        return false;
+    }
+    if (!(ffi_rect(sr, s) && ffi_rect(dr, t))) {
+        set_error("invalid GPU blit rectangle");
+        return false;
+    }
+    return ffi_command_outside_pass(cmd);
+}
+
+/* PlatformGPU>>ffiCanCreatePipeline:vertex:fragment:stride:attributes:count: */
+bool ffi_can_create_pipeline(int32_t dev, int32_t vs, int32_t fs, int32_t stride, pf_vattr *attrs, int32_t count)
+{
+    pf_obj *v;
+    pf_obj *f;
+    int32_t i;
+    pf_vattr *attr;
+    int32_t bytes;
+    v = get(vs, K_SHADER, "vertex shader");
+    f = get(fs, K_SHADER, "fragment shader");
+    if ((v == NULL) || (f == NULL)) {
+        return false;
+    }
+    if ((v->dev != dev) || ((f->dev != dev) || ((v->i != PF_STAGE_VERTEX) || (f->i != PF_STAGE_FRAGMENT)))) {
+        set_error("pipeline shaders have the wrong owner or stage");
+        return false;
+    }
+    for (i = 0; i <= count - 1; i++) {
+        attr = attrs + i;
+        bytes = ffi_attribute_width(attr->format);
+        if ((bytes == 0) || ((attr->offset < 0) || ((int64_t)attr->offset + bytes > stride))) {
+            set_error("vertex attribute exceeds pipeline stride or has invalid type");
+            return false;
+        }
+    }
+    return true;
+}
+
+/* PlatformGPU>>ffiCommandOutsidePass: */
+static bool ffi_command_outside_pass(int32_t cmd)
+{
+    int32_t i;
+    for (i = 1; i <= objs->n - 1; i++) {
+        if (((objs->v + i)->kind == K_PASS) && ((objs->v + i)->i == cmd)) {
+            set_error("command buffer has an active render pass");
+            return false;
+        }
+    }
+    return true;
+}
+
+/* PlatformGPU>>ffiDrawEligibility:count:first: */
+int32_t ffi_draw_eligibility(int32_t pass, int32_t n, int32_t first)
+{
+    pf_obj *p;
+    pf_obj *pipeline;
+    p = ffi_bound_draw_pass(pass);
+    if (p == NULL) {
+        return -1;
+    }
+    if ((p->h == 0) || ((p->h != draw_binding_epoch) || ((n < 0) || ((first < 0) || ((int64_t)n + first > 0x7FFFFFFF))))) {
+        return 0;
+    }
+    pipeline = platform_common_table_at_kind(objs, p->w, K_PIPE);
+    if (pipeline == NULL) {
+        return 0;
+    }
+    return pipeline->w == 1 ? 1 : 0;
+}
+
+/* PlatformGPU>>ffiRect:liesInside: */
+static bool ffi_rect(int32_t *rect, pf_obj *tex)
+{
+    return (rect[0] >= 0) && ((rect[1] >= 0) && ((rect[2] > 0) && ((rect[3] > 0) && (((int64_t)rect[0] + rect[2] <= tex->w) && ((int64_t)rect[1] + rect[3] <= tex->h)))));
+}
+
+/* PlatformGPU>>ffiResource:kind:forPass: */
+static pf_obj *ffi_resource(int32_t handle, int kind, int32_t pass)
+{
+    pf_obj *p;
+    pf_obj *resource;
+    p = get(pass, K_PASS, "render pass");
+    if (p == NULL) {
+        return (pf_obj *)NULL;
+    }
+    resource = get(handle, kind, "GPU resource");
+    if (resource == NULL) {
+        return (pf_obj *)NULL;
+    }
+    if (p->dev != resource->dev) {
+        set_error("GPU resource and render pass belong to different devices");
+        return (pf_obj *)NULL;
+    }
+    return resource;
+}
+
 /* PlatformGPU>>get:kind:what: */
 static pf_obj *get(int32_t h, int kind, char *what)
 {
@@ -935,6 +1193,15 @@ void platform_gpu_init(void)
 {
     pthread_mutex_init(watch_lock, (const pthread_mutexattr_t *)NULL);
     pthread_cond_init(watch_cond, (const pthread_condattr_t *)NULL);
+}
+
+/* PlatformGPU>>invalidateDrawBindings */
+static void invalidate_draw_bindings(void)
+{
+    if (draw_binding_epoch == 0) {
+        return;
+    }
+    draw_binding_epoch = draw_binding_epoch == 0x7FFFFFFF ? 0 : draw_binding_epoch + 1;
 }
 
 /* PlatformGPU>>monoUs */
@@ -992,9 +1259,11 @@ static void platform_gpu_release(int32_t h)
         SDL_ReleaseGPUShader(dv, (SDL_GPUShader *)o->ptr);
         break;
     case K_PIPE:
+        invalidate_draw_bindings();
         SDL_ReleaseGPUGraphicsPipeline(dv, (SDL_GPUGraphicsPipeline *)o->ptr);
         break;
     case K_TEX:
+        invalidate_draw_bindings();
         SDL_ReleaseGPUTexture(dv, (SDL_GPUTexture *)o->ptr);
         break;
     case K_SAMPLER:
@@ -1076,10 +1345,16 @@ bool release_handle(int32_t h)
 static int sdl_fail(char *what)
 {
     const char *e;
-    const char *b;
+    char local[2048];
+    char *captured;
     e = SDL_GetError();
-    b = e[0] != 0 ? e : log_error;
-    snprintf(last_error, LAST_ERROR_SIZE, "%s: %s", what, b);
+    if (e[0] == 0) {
+        memset(&local, 0, sizeof local);
+        captured = local;
+        copy_shader_error(captured, LOG_ERROR_SIZE);
+        e = captured;
+    }
+    snprintf(last_error, LAST_ERROR_SIZE, "%s: %s", what, e);
     return 0;
 }
 
@@ -1352,8 +1627,12 @@ static uint8_t *upload_reserve(gpu_dev *d, uint32_t n, uint32_t *off)
     SDL_GPUTransferBufferCreateInfo local;
     SDL_GPUTransferBufferCreateInfo *ci;
     uint8_t *p;
+    if (n > 0x80000000LL) {
+        set_error("GPU upload exceeds transfer buffer capacity");
+        return (uint8_t *)NULL;
+    }
     need = (n + 15) & 4294967280LL;
-    if (d->up_used + need > d->up_cap) {
+    if ((uint64_t)d->up_used + need > d->up_cap) {
         upload_flush(d);
         if (need > d->up_cap) {
             cap = 0x400000;
@@ -1394,7 +1673,7 @@ static uint8_t *upload_reserve(gpu_dev *d, uint32_t n, uint32_t *off)
 }
 
 /* PlatformGPU>>uploadTexture:data:length:x:y:width:height:bytesPerRow: */
-bool upload_texture(int32_t tex, const void *data, size_t len, int32_t x, int32_t y, int32_t w, int32_t h, int32_t bytes_per_row)
+bool upload_texture(int32_t tex, const void *data, uint64_t len, int32_t x, int32_t y, int32_t w, int32_t h, int32_t bytes_per_row)
 {
     pf_obj *o;
     uint64_t row;
@@ -1412,7 +1691,7 @@ bool upload_texture(int32_t tex, const void *data, size_t len, int32_t x, int32_
         return false;
     }
     row = (uint64_t)w * (uint64_t)bytes_per_pixel(o->fmt);
-    if ((x < 0) || ((y < 0) || ((w <= 0) || ((h <= 0) || ((x + w > o->w) || ((y + h > o->h) || (((uint64_t)bytes_per_row < row) || (len < (uint64_t)(h - 1) * (uint64_t)bytes_per_row + row)))))))) {
+    if ((x < 0) || ((y < 0) || ((w <= 0) || ((h <= 0) || (((int64_t)x + w > o->w) || (((int64_t)y + h > o->h) || ((bytes_per_row <= 0) || ((row * (uint64_t)h > 0x80000000LL) || (((uint64_t)bytes_per_row < row) || (len < (uint64_t)(h - 1) * (uint64_t)bytes_per_row + row)))))))))) {
         set_error("bad texture upload region");
         return false;
     }

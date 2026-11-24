@@ -4,8 +4,12 @@
 
 #ifdef __APPLE__
 
+static void *jit_mapping;
+static bool jit_mapping_attempted;
 static pthread_cond_t worker_cond[1];
 static pthread_mutex_t worker_mutex[1];
+
+static void *ensure_jit_mapping_near(void *near);
 
 /* DarwinJitPlatform>>beginWriting */
 void begin_writing(void)
@@ -25,8 +29,28 @@ void end_writing(void)
     pthread_jit_write_protect_np(1);
 }
 
+/* DarwinJitPlatform>>ensureJitMappingNear: */
+static void *ensure_jit_mapping_near(void *near)
+{
+    if (jit_mapping_attempted) {
+        return jit_mapping;
+    }
+    jit_mapping_attempted = true;
+    jit_mapping = MAP_FAILED;
+    if (munmap(near, 136577024) == 0) {
+        jit_mapping = mmap(near, 136577024, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON | MAP_JIT, -1, 0);
+    }
+    return jit_mapping;
+}
+
+/* DarwinJitPlatform>>ffiArenaBase */
+void *ffi_arena_base(void)
+{
+    return ensure_jit_mapping_near(mapping_hint());
+}
+
 /* DarwinJitPlatform>>invalidate:size: */
-void invalidate(void *start, uint64_t size)
+void jit_platform_invalidate(uint8_t *start, uint64_t size)
 {
     sys_icache_invalidate(start, size);
 }
@@ -80,8 +104,15 @@ void jit_worker_wake(void)
 /* DarwinJitPlatform>>map:size: */
 void *map(void *near, uint64_t size)
 {
-    munmap(near, size);
-    return mmap(near, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON | MAP_JIT, -1, 0);
+    void *p;
+    if (size > CACHE_BYTES) {
+        return MAP_FAILED;
+    }
+    p = ensure_jit_mapping_near(near);
+    if (p == MAP_FAILED) {
+        return p;
+    }
+    return (void *)((uint8_t *)p + CACHE_FFI_BYTES);
 }
 
 /* DarwinJitPlatform>>mapForPerf: */

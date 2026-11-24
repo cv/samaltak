@@ -1,6 +1,6 @@
 RemoteSocket subclass: #TLSSocket
 	instanceVariableNames: 'connection'
-	classVariableNames: 'Roots UseSmalltalkTLS'
+	classVariableNames: 'Roots UseSmalltalkTLS TLSStartCall TLSRecvCall TLSSendCall TLSCloseCall TLSSemaphoreCall TLSHandshakeCall'
 	package: 'System-Net'!
 
 TLSSocket comment: 'I am a TLS client connection: over the platform''s TLS primitives (OpenSSL, docs/platform.md), or over the Smalltalk TLS 1.3 client (a TLSClientConnection on a RemoteSocket; docs/tls.md) where those fail, as on UEFI, where the socket is the image''s own TCP (NetworkStack), or when forced (TLSSocket useSmalltalkTLS: true). Connecting is a RemoteSocket''s connect, then the handshake, which verifies the server''s certificate for the host name: against the system''s trust store with OpenSSL, against trustStore (TrustStore default unless set) with the Smalltalk TLS. Each waits on Semaphores, and the whole connect gives up after connectTimeout, so the VM never blocks and terminating the connecting Process cancels it. Receiving and sending wait on Semaphores like a RemoteSocket''s; a connection that fails reads as ended (receiving answers 0, sending false).
@@ -123,31 +123,65 @@ trustStoreSetting
 ! !
 
 !TLSSocket class methodsFor: 'primitives'!
-primStart: aHandle host: hostName
+primStart: h host: name
 	"Make the connected socket aHandle a TLS connection to hostName; answer its handle (see primHandshake:), nil on failure."
-	<primitive: 'tlsStart'>
-	^nil
+	| binding result text |
+	text := PlatformFFI osTextBytes: name.
+	text isNil ifTrue: [^nil].
+	binding := TLSStartCall ifNil: [
+		TLSStartCall := PlatformFFI bind: #(call 'platform' 'platform_tls_start' (i64 bytesWithLength) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke2: h with: {text. 1. text size}].
+	result == false ifTrue: [^nil].
+	^result <= 0 ifTrue: [nil] ifFalse: [result]
 !
-primHandshake: aHandle
+primHandshake: h
 	"Answer true once the handshake is done, nil while it waits (a Semaphore is armed), false on failure."
-	<primitive: 'tlsHandshake'>
-	^false
+	| binding result |
+	binding := TLSHandshakeCall ifNil: [
+		TLSHandshakeCall := PlatformFFI bind: #(call 'platform' 'platform_tls_handshake' (i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: h].
+	result == false ifTrue: [^false].
+	^result = 0 ifTrue: [nil] ifFalse: [result > 0]
 !
-primRecv: aHandle into: bytes start: start count: count
+primRecv: h into: bytes start: start count: count
 	"Answer the byte count, 0 at end of stream, nil if it would block, -1 on failure."
-	<primitive: 'tlsRecv'>
-	^-1
+	| binding result |
+	bytes class == ByteArray ifFalse: [
+		^PlatformIOBuffer readInto: bytes start: start count: count failure: -1
+			using: [:slice | self primRecv: h into: slice start: 1 count: count]].
+	binding := TLSRecvCall ifNil: [
+		TLSRecvCall := PlatformFFI bind: #(call 'platform' 'platform_tls_recv' (i64 writableBytesWithLength) i64)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke2: h with: {bytes. start. count}].
+	result == false ifTrue: [^-1].
+	^result = -1 ifTrue: [nil] ifFalse: [result < 0 ifTrue: [-1] ifFalse: [result]]
 !
-primSend: aHandle from: bytes start: start count: count
+primSend: h from: bytes start: start count: count
 	"Answer the byte count sent, nil if it would block, -1 on failure."
-	<primitive: 'tlsSend'>
-	^-1
+	| binding result |
+	bytes class == ByteArray ifFalse: [
+		| slice |
+		slice := PlatformIOBuffer writeSliceFrom: bytes start: start count: count.
+		slice isNil ifTrue: [^-1].
+		^self primSend: h from: slice start: 1 count: count].
+	binding := TLSSendCall ifNil: [
+		TLSSendCall := PlatformFFI bind: #(call 'platform' 'platform_tls_send' (i64 bytesWithLength) i64)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke2: h with: {bytes. start. count}].
+	result == false ifTrue: [^-1].
+	^result = -1 ifTrue: [nil] ifFalse: [result < 0 ifTrue: [-1] ifFalse: [result]]
 !
-primClose: aHandle
-	<primitive: 'tlsClose'>
-	^nil
+primClose: h
+	| binding result |
+	binding := TLSCloseCall ifNil: [
+		TLSCloseCall := PlatformFFI bind: #(call 'platform' 'platform_tls_close' (i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke1: h].
+	result == false ifTrue: [^nil].
+	^result = 0 ifTrue: [nil] ifFalse: [self]
 !
-primSemaphore: aHandle read: readIndex write: writeIndex
-	<primitive: 'tlsSemaphore'>
-	^RemoteError signal: 'tlsSemaphore failed: ', self lastError
+primSemaphore: h read: r write: w
+	| binding result |
+	binding := TLSSemaphoreCall ifNil: [
+		TLSSemaphoreCall := PlatformFFI bind: #(call 'platform' 'platform_tls_semaphore' (i64 i64 i64) i32)].
+	result := binding isNil ifTrue: [false] ifFalse: [binding tryInvoke3: h with: r with: w].
+	result == false ifTrue: [^RemoteError signal: 'tlsSemaphore failed: ', self lastError].
+	^result = 0 ifTrue: [RemoteError signal: 'tlsSemaphore failed: ', self lastError] ifFalse: [self]
 ! !

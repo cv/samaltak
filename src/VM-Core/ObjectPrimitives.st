@@ -177,7 +177,9 @@ primSetImmutable
 	old := self isImmutable: r.
 	v = memory trueOop
 		ifTrue: [self header: r put: ((self header: r) bitOr: H_IMMUTABLE)]
-		ifFalse: [self header: r put: ((self header: r) bitClear: H_IMMUTABLE)].
+		ifFalse: [
+			old ifTrue: [gc invalidateNativeWeakOwners].
+			self header: r put: ((self header: r) bitClear: H_IMMUTABLE)].
 	self answerBool: old
 !
 primChangeClassTo

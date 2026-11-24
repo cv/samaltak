@@ -45,6 +45,9 @@ else
   OS_PLATFORM_CFLAGS := $(shell pkg-config --cflags wayland-client 2>/dev/null)
 endif
 LDLIBS += -lm -lpthread
+ifeq ($(UNAME_S),Linux)
+  LDLIBS += -ldl
+endif
 
 BUILD := build
 PGO_PROFILE := pgo/$(shell echo $(UNAME_S) | tr A-Z a-z)-$(if $(filter X86_64,$(ARCH)),x86_64,arm64).profdata
@@ -117,7 +120,7 @@ $(STAMP):
 
 $(OBJDIR)/%.o: %.c $(PGO_DEP)
 	@mkdir -p $(dir $@)
-	$(if $(BRIEF),@echo "cc   $<";) $(CC) $(CFLAGS) -c -o $@ $<
+	$(if $(BRIEF),@echo "cc   $<";) $(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
 # Retrain the profile: an instrumented VM runs the benchmarks (also under the baseline JIT) and the kernel/compiler tests on IMAGE.
 pgo:

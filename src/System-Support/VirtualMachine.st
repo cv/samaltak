@@ -96,10 +96,13 @@ primitiveNames
 primitiveNumberFor: aString
 	^self primitiveNames indexOf: aString
 !
-getenv: aString
+getenv: name
 	"Answer the value of the environment variable aString, or nil."
-	<primitive: 'getenv'>
-	^nil
+	<ffiSite>
+	| answer |
+	answer := (self ffiSite: #(call 'vm:core' 'core_getenv_text' (cText) ownedText)) tryInvoke1: name.
+	answer == false ifTrue: [^nil].
+	^answer
 !
 specialObjectsArray
 	<primitive: 'specialObjectsArray'>
@@ -115,18 +118,10 @@ platformHandleCounts
 	1 to: (names size min: counts size) do: [:i | result at: (names at: i) put: (counts at: i)].
 	^result
 !
-primPlatformHandleCounts
-	<primitive: 'platformHandleCounts'>
-	^nil
-!
 droppedEvents
 	"Answer how many platform events were dropped because the event queue was full: the image's where it drives the input devices (InputQueue), else the VM's; 0 without either."
 	InputQueue current isNil ifFalse: [^InputQueue droppedEvents].
 	^self primDroppedEvents
-!
-primDroppedEvents
-	<primitive: 'droppedEvents'>
-	^0
 !
 finalizationSemaphore
 	"Answer the Semaphore the VM signals after a garbage collection cleared weak references."
@@ -170,8 +165,12 @@ primStatistics
 !
 threadCpuMicroseconds
 	"Answer the CPU time of the VM's thread: every Process's, the garbage collector's and the JIT's."
-	<primitive: 'threadCpuTime'>
-	^self primitiveFailed
+	<ffiSite>
+	| answer |
+	answer := (self ffiSite: #(call 'vm:core' 'core_thread_cpu_microseconds' () i64)) tryInvoke0.
+	answer == false ifTrue: [^self primitiveFailed].
+	answer = -4611686018427387904 ifTrue: [^self primitiveFailed].
+	^answer
 ! !
 
 !VirtualMachine methodsFor: 'jit'!
@@ -233,14 +232,18 @@ flushCacheForSelector: aSymbol
 ! !
 
 !VirtualMachine methodsFor: 'output'!
-stdoutWrite: aString
+stdoutWrite: text
 	"Write aString (UTF-8 encoded) to standard output."
-	<primitive: 'stdoutWrite'>
-	^self primitiveFailed
+	<ffiSite>
+	((self ffiSite: #(call 'vm:core' 'core_stdout_text' (countedText) void)) tryInvoke1: text) == false
+		ifTrue: [^self primitiveFailed].
+	^self
 !
-stderrWrite: aString
-	<primitive: 'stderrWrite'>
-	^self primitiveFailed
+stderrWrite: text
+	<ffiSite>
+	((self ffiSite: #(call 'vm:core' 'core_stderr_text' (countedText) void)) tryInvoke1: text) == false
+		ifTrue: [^self primitiveFailed].
+	^self
 ! !
 
 !VirtualMachine methodsFor: 'profiling'!

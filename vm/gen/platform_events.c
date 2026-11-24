@@ -42,6 +42,16 @@ bool platform_events_next(pf_event *out)
     return true;
 }
 
+/* PlatformEvents>>peekForFFI: */
+bool peek_for_ffi(pf_event *out)
+{
+    if (q_len == 0) {
+        return false;
+    }
+    *out = *(q + q_head);
+    return true;
+}
+
 /* PlatformEvents>>pump */
 void pump(void)
 {
@@ -108,7 +118,7 @@ void set_semaphore(int32_t index)
 }
 
 /* PlatformEvents>>signalReady */
-void signal_ready(void)
+void platform_events_signal_ready(void)
 {
     platform_vsync_poll();
     if ((q_len != 0) && ((input_sem != 0) && input_armed)) {

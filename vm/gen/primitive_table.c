@@ -6,6 +6,7 @@ static prim_fn by_number[1024];
 static int32_t flags[1024];
 static bool initialized;
 static const char *names[1024];
+static prim_try_guard try_guards[1024];
 
 static void init_table(void);
 
@@ -37,6 +38,19 @@ static void init_table(void)
     }
 }
 
+/* PrimitiveTable>>installTraceFunction:for: */
+void install_trace_function(prim_fn fn, int n)
+{
+    init_table();
+    by_number[n] = fn;
+}
+
+/* PrimitiveTable>>installTryGuard:for: */
+void install_try_guard(prim_try_guard guard, int n)
+{
+    try_guards[n] = guard;
+}
+
 /* PrimitiveTable>>isLeaf: */
 bool is_leaf(int64_t n)
 {
@@ -47,14 +61,19 @@ bool is_leaf(int64_t n)
     r_flags_of; }) & PRIM_LEAF) != 0;
 }
 
-/* PrimitiveTable>>isTryable: */
-bool is_tryable(int64_t n)
+/* PrimitiveTable>>isTryable:receiver: */
+bool is_tryable(int64_t n, oop owner)
 {
     int32_t r_flags_of;
-    return (({
+    prim_try_guard guard;
+    if ((({
     init_table();
     r_flags_of = (n > 0) && (n < MAX_PRIM) ? flags[n] : 0;
-    r_flags_of; }) & PRIM_TRYABLE) != 0;
+    r_flags_of; }) & PRIM_TRYABLE) == 0) {
+        return false;
+    }
+    guard = try_guards[n];
+    return (guard == NULL) || guard(owner);
 }
 
 /* PrimitiveTable>>lookup: */
@@ -75,7 +94,7 @@ oop names_array(void)
     oop *root;
     int i_2;
     primitive_entry *e;
-    uint64_t s;
+    oop s;
     oop o;
     int32_t i_3;
     t = vm_primitive_table;
@@ -96,7 +115,7 @@ oop names_array(void)
         o = *root;
         i_3 = e->number - 1;
         *(uint64_t *)(o + 16 + 8 * i_3) = s;
-        if (((s & 7) == 0) && ((s - young_lo < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
+        if (((s & 7) == 0) && (((uint64_t)(s - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
             remember(o);
         }
     }
