@@ -12674,6 +12674,63 @@ void print_symbol(oop s, FILE *f)
     }
 }
 
+/* Interpreter>>profileStackInto:pcs:max: */
+int64_t profile_stack_into(oop *meths, int64_t *pcs, int64_t max)
+{
+    int64_t n;
+    int64_t i;
+    frame *f;
+    uint64_t c_2;
+    oop closure;
+    uint64_t o;
+    int64_t v;
+    oop c;
+    uint64_t closure_2;
+    uint64_t o_2;
+    int64_t v_2;
+    n = 0;
+    i = (int64_t)nframes - 1;
+    while ((i >= 0) && (n < max)) {
+        f = frames + i;
+        c_2 = f->code;
+        if ((c_2 > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)) {
+            n = jit_runtime_profile_acts_of(f, meths, pcs, n, max);
+        } else {
+            meths[n] = f->method;
+            closure = f->closure;
+            pcs[n] = ({
+    if (((closure & 7) == 0) && (closure != nil_oop)) {
+        o = *(uint64_t *)(closure + 16 + 8);
+        v = ((int64_t)o) >> 1;
+    } else {
+        v = 0;
+    }
+    v; });
+            n = n + 1;
+        }
+        i = i - 1;
+    }
+    c = active_ctx;
+    while ((n < max) && (((c & 7) == 0) && (c != nil_oop))) {
+        meths[n] = *(uint64_t *)(c + 16 + 24);
+        closure_2 = *(uint64_t *)(c + 16 + 32);
+        pcs[n] = ({
+    if (((closure_2 & 7) == 0) && (closure_2 != nil_oop)) {
+        o_2 = *(uint64_t *)(closure_2 + 16 + 8);
+        v_2 = ((int64_t)o_2) >> 1;
+    } else {
+        v_2 = 0;
+    }
+    v_2; });
+        n = n + 1;
+        c = *(uint64_t *)(c + 16 + 0);
+    }
+    if ((i >= 0) || (((c & 7) == 0) && (c != nil_oop))) {
+        return n | 65536;
+    }
+    return n;
+}
+
 /* Interpreter>>pushFrame:argc:code:ecode: */
 frame *push_frame(oop m, int32_t n, uint64_t c, int32_t ecode)
 {

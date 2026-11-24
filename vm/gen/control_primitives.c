@@ -440,6 +440,44 @@ void prim_processor_yield(void)
     processor_yield();
 }
 
+/* ControlPrimitives>>primSamplerBuffer */
+void prim_sampler_buffer(void)
+{
+    oop o;
+    oop o_2;
+    oop o_3;
+    oop o_4;
+    oop o_5;
+    oop o_6;
+    oop o_7;
+    oop v;
+    if ((prim_nargs < 2) || ({
+    o = prim_base[1];
+    (!((o & 1) != 0)) || ({
+    o_2 = prim_base[2];
+    !((o_2 & 1) != 0); }); })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o_3 = prim_base[1];
+    if (((((int64_t)o_3) >> 1) < 0) || ({
+    o_4 = prim_base[2];
+    ((((int64_t)o_4) >> 1) < 1) || ({
+    o_5 = prim_base[2];
+    (((int64_t)o_5) >> 1) > 255; }); })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o_6 = prim_base[1];
+    o_7 = prim_base[2];
+    sampler_buffer(((int64_t)o_6) >> 1, ((int64_t)o_7) >> 1, (prim_nargs > 2) && (prim_base[3] == true_oop));
+    v = prim_base[0];
+    prim_result = v;
+    prim_status = PS_OK;
+}
+
 /* ControlPrimitives>>primSamplerInterval */
 void prim_sampler_interval(void)
 {

@@ -129,6 +129,36 @@ testAlwaysOn
 	self assert: (profile samples allSatisfy: [:s | s time between: t0 and: profile stop]).
 	self assert: ((profile samplesFor: Processor activeProcess) size * 100 / profile samples size) >= 80
 !
+testAllocationSamplesTakeNoProcessSwitch
+	"The VM records allocation samples where the allocating process runs (Scheduler>>recordSample:, Profiler>>drainBuffer): it is neither switched away from nor are its frames flushed into Contexts at each (it was twice a sample); the timer process moves them into the ring when it comes for a CPU sample or a query."
+	| t0 before d profile allocs keep |
+	before := Smalltalk vm statistics.
+	t0 := Time microsecondClockValue.
+	[1 to: 20000 do: [:i | keep := Array new: 1000].
+	 profile := Profiler from: t0 to: Time microsecondClockValue.
+	 allocs := profile allocationsFor: Processor activeProcess.
+	 allocs size < 200 and: [profile stop - t0 < 5000000]] whileTrue.
+	d := Smalltalk vm statistics - before.
+	self assert: allocs size >= 200.
+	self assert: (allocs allSatisfy: [:s | s stack notEmpty and: [s allocatedClass == Array]]).
+	self assert: d processSwitches < (allocs size // 2) description: [d processSwitches printString, ' switches for ', allocs size printString, ' allocation samples and ', profile samples size printString, ' CPU samples']
+!
+testCpuSamplesInPlace
+	"With recordCpuSamplesInPlace: true CPU samples take no switch either."
+	| p t0 before d profile |
+	p := Profiler new.
+	Profiler recordCpuSamplesInPlace: true.
+	[self withProfiler: p do: [
+		before := Smalltalk vm statistics.
+		t0 := Time microsecondClockValue.
+		[self busyFor: 50.
+		 profile := p from: t0 to: Time microsecondClockValue.
+		 profile samples size < 100 and: [profile stop - t0 < 5000000]] whileTrue.
+		d := Smalltalk vm statistics - before]] ensure: [Profiler recordCpuSamplesInPlace: false].
+	self assert: profile samples size >= 100.
+	self assert: ((profile samplesFor: Processor activeProcess) allSatisfy: [:s | s stack notEmpty]).
+	self assert: d processSwitches * 4 < profile samples size description: [d processSwitches printString, ' switches for ', profile samples size printString, ' CPU samples']
+!
 testAttributionToProcesses
 	| a b t0 t1 cpuA cpuB profile as bs total both samples cpu |
 	t0 := Time microsecondClockValue.

@@ -698,6 +698,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define R_INT 2
 #define R_NONE 0
 #define R_OOP 1
+#define SAMPLE_DRAIN_TICKS 64
 #define SCHED_ACTIVE 1
 #define SCHED_LISTS 0
 #define SEM_EXCESS 2
@@ -1927,6 +1928,7 @@ void prim_process_suspend(void);
 void prim_processor_last_preempted(void);
 void prim_processor_relinquish(void);
 void prim_processor_yield(void);
+void prim_sampler_buffer(void);
 void prim_sampler_interval(void);
 void prim_sampler_tick_take(void);
 void prim_semaphore_signal(void);
@@ -2028,6 +2030,7 @@ void prim_commit(oop a_result);
 void print_activation(oop m, oop r, oop closure, FILE *f);
 void print_class_name(oop a_class, FILE *f);
 void print_symbol(oop s, FILE *f);
+int64_t profile_stack_into(oop *meths, int64_t *pcs, int64_t max);
 frame *push_frame(oop m, int32_t n, uint64_t c, int32_t ecode);
 frame *push_frame_entry(cache_entry *e, int32_t n);
 void interpreter_roots(void (*fn)(oop *));
@@ -2129,6 +2132,7 @@ bool parse_flags(char *s);
 void perf_map_at(uint64_t start, uint64_t n, const char *name);
 int64_t primitive_number_named(char *name);
 void jit_runtime_print_bound_site_trace(void);
+int64_t jit_runtime_profile_acts_of(frame *f, oop *meths, int64_t *pcs, int64_t n, int64_t max);
 uint64_t push_context(frame *f);
 void release_memory(void);
 void jit_runtime_resume(frame *f);
@@ -2312,6 +2316,7 @@ void invalidate_selector(oop sel);
 uint64_t opt_runtime_leave(frame *f, bool after);
 oop opt_runtime_make_array(frame *f, uint64_t n);
 void materialize(frame *f);
+int64_t opt_runtime_profile_acts_of(frame *f, oop *meths, int64_t *pcs, int64_t start, int64_t max);
 void opt_runtime_release(void);
 uint64_t respecialize(frame *f);
 uint64_t opt_runtime_resume(frame *f);
@@ -2348,6 +2353,7 @@ void request_interrupt_check(void);
 void request_periodic_poll(int64_t interval_us);
 int64_t resume_charging(void);
 void resume_process(oop proc);
+void sampler_buffer(int64_t index, int64_t depth, bool cpu);
 void scheduler_semaphore_signal(oop sem);
 void scheduler_semaphore_wait(oop sem);
 void set_sampler(int64_t interval_us, int32_t sema);

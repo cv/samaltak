@@ -45,6 +45,11 @@ static int32_t pending_ext_n;
 static bool preempt_to_front;
 static int64_t reconcile_tk;
 static int64_t run_hint = 9223372036854775807LL;
+static int64_t sample_buf_index;
+static bool sample_cpu;
+static int64_t sample_cpu_since;
+static int64_t sample_depth;
+static bool sample_drain_due;
 static int64_t sampler_interval_us;
 static int64_t sampler_next_us;
 static int32_t sampler_sema;
@@ -88,6 +93,7 @@ static int64_t priority_of(oop p);
 static int64_t raw_now_ns(void);
 static int64_t raw_now_us(void);
 static int64_t reconcile(void);
+static bool record_sample(bool is_alloc);
 static oop remove_first_link(oop list);
 static void signal_index(int32_t index);
 static void slice_check(void);
@@ -197,12 +203,22 @@ void handle_interrupts(void)
         if (sampler_next_us <= now) {
             sampler_next_us = now + sampler_interval_us;
         }
-        sampler_tick_unread = true;
-        signal_index(sampler_sema);
+        if (!(sample_cpu && record_sample(false))) {
+            sampler_tick_unread = true;
+            signal_index(sampler_sema);
+        }
     }
     if (alloc_sample_pending) {
         alloc_sample_pending = false;
-        signal_index(alloc_sample_sema);
+        if (record_sample(true)) {
+            alloc_sample_unread = false;
+        } else {
+            signal_index(alloc_sample_sema);
+        }
+    }
+    if (sample_drain_due) {
+        sample_drain_due = false;
+        signal_index(sampler_sema != 0 ? sampler_sema : alloc_sample_sema);
     }
     preempt_to_front = false;
     if ((frame_sema != 0) && (now >= frame_next_us)) {
@@ -688,6 +704,168 @@ exit_ledger_add:;
     return cpu;
 }
 
+/* Scheduler>>recordSample: */
+static bool record_sample(bool is_alloc)
+{
+    oop r_sample_buffer;
+    oop ext;
+    int64_t i;
+    uint64_t buf_2;
+    oop buf;
+    int64_t cap;
+    uint64_t slot0;
+    int64_t fill;
+    oop local[255];
+    oop *meths;
+    int64_t local_2[255];
+    int64_t *pcs;
+    int64_t n;
+    int64_t flags;
+    oop proc;
+    int64_t r;
+    int64_t len;
+    int64_t v;
+    uint64_t v_2;
+    int64_t i_2;
+    int64_t i_3;
+    int64_t v_3;
+    uint64_t v_4;
+    int64_t i_4;
+    oop v_5;
+    int64_t i_5;
+    int64_t v_6;
+    uint64_t v_7;
+    int64_t j;
+    int64_t i_6;
+    oop v_8;
+    int64_t i_7;
+    int64_t v_9;
+    uint64_t v_10;
+    uint64_t v_11;
+    buf = ({
+    if (sample_buf_index < 1) {
+        r_sample_buffer = nil_oop;
+        goto exit_sample_buffer;
+    }
+    ext = object_memory_special(SO_EXTERNAL_OBJECTS);
+    if (!(((ext & 7) == 0) && ((ext != nil_oop) && ((uint32_t)sample_buf_index <= (uint32_t)*(uint64_t *)ext)))) {
+        r_sample_buffer = nil_oop;
+        goto exit_sample_buffer;
+    }
+    i = sample_buf_index - 1;
+    buf_2 = *(uint64_t *)(ext + 16 + 8 * i);
+    if (!(((buf_2 & 7) == 0) && ((buf_2 != nil_oop) && ((*(uint64_t *)(buf_2 + 8) == cls_array) && ((uint32_t)*(uint64_t *)buf_2 > 16))))) {
+        r_sample_buffer = nil_oop;
+        goto exit_sample_buffer;
+    }
+    r_sample_buffer = buf_2;
+exit_sample_buffer:;
+    r_sample_buffer; });
+    if (buf == nil_oop) {
+        return false;
+    }
+    cap = (int64_t)(uint32_t)*(uint64_t *)buf;
+    slot0 = *(uint64_t *)(buf + 16 + 0);
+    fill = (slot0 & 1) != 0 ? ((int64_t)slot0) >> 1 : 1;
+    if ((fill < 1) || (fill > cap)) {
+        fill = 1;
+    }
+    memset(&local, 0, sizeof local);
+    meths = local;
+    memset(&local_2, 0, sizeof local_2);
+    pcs = local_2;
+    n = 0;
+    flags = 0;
+    proc = nil_oop;
+    if (in_idle) {
+        flags = 4;
+    } else {
+        proc = active_process();
+        if (!(is_alloc && (alloc_sample_class == cls_context))) {
+            r = profile_stack_into(meths, pcs, sample_depth);
+            n = r & 0xFFFF;
+            if ((r >> 16) != 0) {
+                flags = 2;
+            }
+        }
+        if (safepoint_at_entry) {
+            flags = flags | 8;
+        }
+    }
+    if (is_alloc) {
+        flags = flags | 16;
+    }
+    len = 5 + 2 * n;
+    if (fill + len > cap) {
+        return true;
+    }
+    v = n | (flags << 8);
+    v_2 = (uint64_t)((v << 1) | 1);
+    *(uint64_t *)(buf + 16 + 8 * fill) = v_2;
+    if (((v_2 & 7) == 0) && ((v_2 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+        remember(buf);
+    }
+    i_2 = fill + 1;
+    *(uint64_t *)(buf + 16 + 8 * i_2) = proc;
+    if (((proc & 7) == 0) && (((uint64_t)(proc - young_lo) < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+        remember(buf);
+    }
+    i_3 = fill + 2;
+    v_3 = now_us();
+    v_4 = (uint64_t)((v_3 << 1) | 1);
+    *(uint64_t *)(buf + 16 + 8 * i_3) = v_4;
+    if (((v_4 & 7) == 0) && ((v_4 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+        remember(buf);
+    }
+    i_4 = fill + 3;
+    v_5 = is_alloc ? alloc_sample_class : nil_oop;
+    *(uint64_t *)(buf + 16 + 8 * i_4) = v_5;
+    if (((v_5 & 7) == 0) && (((uint64_t)(v_5 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+        remember(buf);
+    }
+    i_5 = fill + 4;
+    v_6 = is_alloc ? alloc_sample_size : 0;
+    v_7 = (uint64_t)((v_6 << 1) | 1);
+    *(uint64_t *)(buf + 16 + 8 * i_5) = v_7;
+    if (((v_7 & 7) == 0) && ((v_7 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+        remember(buf);
+    }
+    for (j = 0; j <= n - 1; j++) {
+        i_6 = fill + 5 + 2 * j;
+        v_8 = meths[n - 1 - j];
+        *(uint64_t *)(buf + 16 + 8 * i_6) = v_8;
+        if (((v_8 & 7) == 0) && (((uint64_t)(v_8 - young_lo) < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+            remember(buf);
+        }
+        i_7 = fill + 6 + 2 * j;
+        v_9 = pcs[n - 1 - j];
+        v_10 = (uint64_t)((v_9 << 1) | 1);
+        *(uint64_t *)(buf + 16 + 8 * i_7) = v_10;
+        if (((v_10 & 7) == 0) && ((v_10 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+            remember(buf);
+        }
+    }
+    if ((fill * 4 <= cap * 3) && ((fill + len) * 4 > cap * 3)) {
+        sample_drain_due = true;
+    }
+    fill = fill + len;
+    v_11 = (uint64_t)((fill << 1) | 1);
+    *(uint64_t *)(buf + 16 + 0) = v_11;
+    if (((v_11 & 7) == 0) && ((v_11 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+        remember(buf);
+    }
+    if (!is_alloc) {
+        sample_cpu_since = sample_cpu_since + 1;
+        if (sample_cpu_since >= SAMPLE_DRAIN_TICKS) {
+            sample_drain_due = true;
+        }
+    }
+    if (sample_drain_due) {
+        sample_cpu_since = 0;
+    }
+    return true;
+}
+
 /* Scheduler>>relinquish: */
 void relinquish(int64_t microseconds)
 {
@@ -960,6 +1138,16 @@ void resume_process(oop proc)
             slice_check();
         }
     }
+}
+
+/* Scheduler>>samplerBuffer:depth:cpu: */
+void sampler_buffer(int64_t index, int64_t depth, bool cpu)
+{
+    sample_buf_index = index;
+    sample_cpu = cpu;
+    sample_depth = depth < 1 ? 1 : depth > 255 ? 255 : depth;
+    sample_cpu_since = 0;
+    sample_drain_due = false;
 }
 
 /* Scheduler>>semaphoreSignal: */

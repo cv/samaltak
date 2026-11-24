@@ -1152,6 +1152,17 @@ materializeOpt: f
 	<function>
 	optimizer materialize: f
 !
+profileActsOf: f into: meths pcs: pcs at: n max: max
+	"A profiler sample meets optimized frame f (Interpreter>>profileStackInto:pcs:max:)."
+	<function>
+	<var: #f type: 'Frame *'>
+	<var: #meths type: 'oop *'>
+	<var: #pcs type: 'int64_t *'>
+	<var: #n type: 'int64_t'>
+	<var: #max type: 'int64_t'>
+	<returns: 'int64_t'>
+	^optimizer profileActsOf: f into: meths pcs: pcs at: n max: max
+!
 rawBaseOf: f
 	"Optimized frame f's raw slots (doubles' IEEE bits, no oops) are from this one up to rawTopOf: f."
 	^optimizer rawBaseOf: f

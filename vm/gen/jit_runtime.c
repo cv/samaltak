@@ -2730,6 +2730,12 @@ void jit_runtime_print_bound_site_trace(void)
     ffi_primitives_print_bound_site_trace();
 }
 
+/* JitRuntime>>profileActsOf:into:pcs:at:max: */
+int64_t jit_runtime_profile_acts_of(frame *f, oop *meths, int64_t *pcs, int64_t n, int64_t max)
+{
+    return opt_runtime_profile_acts_of(f, meths, pcs, n, max);
+}
+
 /* JitRuntime>>pushContext: */
 uint64_t push_context(frame *f)
 {

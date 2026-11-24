@@ -256,6 +256,14 @@ allocationSamplingEvery: bytes semaphoreIndex: index
 	<primitive: 'allocationSampling'>
 	^self primitiveFailed
 !
+samplerBufferIndex: index depth: maxDepth
+	^self samplerBufferIndex: index depth: maxDepth cpu: false
+!
+samplerBufferIndex: index depth: maxDepth cpu: aBoolean
+	"Have the VM record allocation samples (with aBoolean CPU samples too) into the Array at index of the external objects (0: none), at most maxDepth frames each, where the sampled process runs: no switch to the sampling process per sample (Profiler>>drainBuffer). Answer false if the VM cannot."
+	<primitive: 'samplerBuffer'>
+	^false
+!
 allocationSampleInfo
 	"Answer {class. size} of the last sampled allocation."
 	<primitive: 'allocationSampleInfo'>
