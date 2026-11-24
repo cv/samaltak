@@ -480,7 +480,7 @@ hexDigitDots
 	^#(16r7B6F 16r2C97 16r73E7 16r73CF 16r5BC9 16r79CF 16r79EF 16r7249 16r7BEF 16r7BCF 16r7BED 16r6BAE 16r7927 16r6B6E 16r79E7 16r79E4)
 !
 themeFaceNames
-	"Faces a theme draws its UI in (the be-gold theme's Noto Sans, Haiku's system face): stage 2 loads them when fonts/ has them."
+	"Faces a theme draws its UI in (the Haiku theme's Noto Sans, Haiku's system face): stage 2 loads them when fonts/ has them."
 	^#('NotoSans-Regular' 'NotoSans-Bold' 'NotoSans-Italic')
 ! !
 

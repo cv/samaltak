@@ -1,15 +1,15 @@
-Theme subclass: #BeGoldTheme
+Theme subclass: #HaikuTheme
 	instanceVariableNames: ''
 	classVariableNames: ''
 	package: 'UI-Widgets'!
 
-BeGoldTheme comment: 'I am the be-gold theme: Haiku''s look (its R1 defaults, after BeOS) on the Blue Book''s metrics. Documents are white on #D8D8D8 panels, buttons, tabs and scroll bars are shaded bevels (metric #bevel), a selected row is a gray bar, the desk is #336698 and its blue the accent. Windows (Window chromeStyle #tab) have a 5-point bevelled frame under a #FFCB00 tab as wide as the title, holding the close box and a zoom-like collapse box, with the desk showing beside it. The UI face draws in Noto Sans, Haiku''s system face (fonts/NotoSans-*.ttf); code stays in JetBrains Mono.
+HaikuTheme comment: 'I am the Haiku theme: the look of Haiku (BeOS''s heir), its R1 defaults, on the Blue Book''s metrics. Documents are white on #D8D8D8 panels, buttons, tabs and scroll bars are shaded bevels (metric #bevel), a selected row is a gray bar, the desk is #336698 and its blue the accent. Windows (Window chromeStyle #tab) have a 5-point bevelled frame under a #FFCB00 tab as wide as the title, holding the close box and a zoom-like collapse box, with the desk showing beside it. The UI face draws in Noto Sans, Haiku''s system face (fonts/NotoSans-*.ttf); code stays in JetBrains Mono.
 
-	Theme use: Theme beGold.
+	Theme use: Theme haiku.
 	Theme toggle.		"back to the Blue Book"'!
 
-!BeGoldTheme methodsFor: 'initialization'!
-initializeBeGold
+!HaikuTheme methodsFor: 'initialization'!
+initializeHaiku
 	"The Blue Book metrics with Haiku's colors (its R1 defaults): white documents on #D8D8D8 panels, the #336698 desk, whose blue is also the accent, and the #FFCB00 window tab."
 	| blue |
 	self initializeBlueBook.
@@ -64,13 +64,13 @@ applyFonts
 !
 refresh
 	"As Theme's, with my colors."
-	self initializeBeGold.
+	self initializeHaiku.
 	syntax := nil.
 	terminal := nil.
 	self publishPalette
 ! !
 
-!BeGoldTheme methodsFor: 'fonts'!
+!HaikuTheme methodsFor: 'fonts'!
 makeFont: aSymbol
 	"Haiku's headings are bold, not capitals: #header is the bold UI face (Noto Sans) at 12."
 	aSymbol == #header ifTrue: [^(Font face: (Font faceNamed: 'IosevkaEtoile-Bold') size: 12) lineHeight: 15; yourself].

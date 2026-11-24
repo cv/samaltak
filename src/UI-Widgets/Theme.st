@@ -164,7 +164,7 @@ invertsSelection
 	^(colors includesKey: #selection) not
 !
 applyFonts
-	"Draw the standard faces in themselves (a theme may draw them in its own: BeGoldTheme); when that changes them, rasterize the standard fonts' ASCII again."
+	"Draw the standard faces in themselves (a theme may draw them in its own: HaikuTheme); when that changes them, rasterize the standard fonts' ASCII again."
 	| substituted |
 	substituted := Font standardSpecs select: [:spec | Font substitutes includesKey: (spec at: 2)].
 	substituted do: [:spec | Font substituteFace: (spec at: 2) with: nil].
@@ -179,7 +179,7 @@ prerasterizeStandardFonts
 	Font standardFonts do: [:font | font prerasterize: chars]
 !
 isBevelled
-	"Do buttons draw raised bevels (the be-gold theme) instead of Blue Book rules?"
+	"Do buttons draw raised bevels (the Haiku theme) instead of Blue Book rules?"
 	^(metrics at: #bevel ifAbsent: [0]) > 0
 !
 chromeStyle
@@ -249,9 +249,9 @@ buildSyntaxStyles
 blueBook
 	^self new setName: 'blue-book'; initializeBlueBook; yourself
 !
-beGold
-	"Haiku's look (BeOS's heir): gray bevelled panels, the gold window tab, the blue desk, Noto Sans."
-	^BeGoldTheme new setName: 'be-gold'; initializeBeGold; yourself
+haiku
+	"Haiku's look (BeOS's heir): gray bevelled panels, the yellow window tab, the blue desk, Noto Sans."
+	^HaikuTheme new setName: 'haiku'; initializeHaiku; yourself
 ! !
 
 !Theme class methodsFor: 'class initialization'!
@@ -324,8 +324,8 @@ use: aTheme
 	World restyleAll
 !
 toggle
-	"Switch between the Blue Book and the be-gold theme."
-	self use: (self current isBevelled ifTrue: [self blueBook] ifFalse: [self beGold])
+	"Switch between the Blue Book and the Haiku theme."
+	self use: (self current isBevelled ifTrue: [self blueBook] ifFalse: [self haiku])
 ! !
 
 !Theme class methodsFor: 'palette'!

@@ -1,11 +1,11 @@
-TestCase subclass: #BeGoldThemeTest
+TestCase subclass: #HaikuThemeTest
 	instanceVariableNames: 'saved'
 	classVariableNames: ''
 	package: 'Tests-UI-Widgets'!
 
-BeGoldThemeTest comment: 'I test the be-gold theme: its colors, its bevel metric and the window chrome it selects, restoring the theme that was current.'!
+HaikuThemeTest comment: 'I test the Haiku theme: its colors, its bevel metric and the window chrome it selects, restoring the theme that was current.'!
 
-!BeGoldThemeTest methodsFor: 'running'!
+!HaikuThemeTest methodsFor: 'running'!
 setUp
 	saved := Theme current
 !
@@ -13,10 +13,10 @@ tearDown
 	Theme use: saved
 ! !
 
-!BeGoldThemeTest methodsFor: 'tests'!
+!HaikuThemeTest methodsFor: 'tests'!
 testColors
 	| t |
-	t := Theme beGold.
+	t := Theme haiku.
 	self assert: (t color: #desk) equals: (Color hex: 16r336698).
 	self assert: (t color: #ultramarine) equals: (Color hex: 16r336698).
 	self assert: t paper equals: Color white.
@@ -31,7 +31,7 @@ testColors
 !
 testRefreshKeepsColors
 	| t |
-	t := Theme beGold.
+	t := Theme haiku.
 	t refresh.
 	self assert: (t color: #desk) equals: (Color hex: 16r336698).
 	self assert: t isBevelled
@@ -59,14 +59,14 @@ testToggle
 !
 testUseSubstitutesTheUIFace
 	(Font imageFaceNamed: 'NotoSans-Regular') isNil ifTrue: [^self skip: 'the image has no Noto Sans'].
-	Theme use: Theme beGold.
+	Theme use: Theme haiku.
 	self assert: (Font faceNamed: 'IosevkaEtoile-Regular') equals: (Font imageFaceNamed: 'NotoSans-Regular').
 	self assert: (Font faceNamed: 'JetBrainsMono-Regular') equals: (Font imageFaceNamed: 'JetBrainsMono-Regular').
 	Theme use: Theme blueBook.
 	self assert: (Font faceNamed: 'IosevkaEtoile-Regular') equals: (Font imageFaceNamed: 'IosevkaEtoile-Regular')
 !
 testUseSwitchesChrome
-	Theme use: Theme beGold.
+	Theme use: Theme haiku.
 	self assert: Window chromeStyle equals: #tab.
 	self assert: (Color named: #desk) equals: (Color hex: 16r336698).
 	self assert: (Color named: #panel) equals: (Color hex: 16rD8D8D8).
