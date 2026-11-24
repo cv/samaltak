@@ -59,7 +59,11 @@ testKeysAndTypingDriveTheDisplay
 	calculator typeAll: '6='.
 	self assert: calculator displayText equals: '42.'.
 	(calculator widgetNamed: 'MS') click.
-	self assert: (calculator widgetNamed: 'memory') text equals: 'M'
+	self assert: (calculator widgetNamed: 'display') annunciator equals: 'M'.
+	(calculator widgetNamed: 'CE') click.
+	(calculator widgetNamed: 'MC') click.
+	self assert: calculator displayText equals: '0.'.
+	self assert: (calculator widgetNamed: 'display') annunciator equals: ''
 !
 testMemory
 	self press: '6'.

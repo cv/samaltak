@@ -1,14 +1,11 @@
 Widget subclass: #CalculatorDisplay
-	instanceVariableNames: 'text align'
+	instanceVariableNames: 'text annunciator'
 	classVariableNames: ''
 	package: 'Tools'!
 
-CalculatorDisplay comment: 'I am the Calculator''s readout: a sunken white field showing text: in the readout font, right-aligned (align: #center for the memory light).'!
+CalculatorDisplay comment: 'I am the Calculator''s top: a light bezel with a gold rule along its foot and an inset LCD showing text: right-aligned in the readout font, and the annunciator: (M while memory holds a number) at its lower left.'!
 
 !CalculatorDisplay methodsFor: 'accessing'!
-align: aSymbol
-	align := aSymbol
-!
 text
 	^text
 !
@@ -16,40 +13,40 @@ text: aString
 	text = aString ifTrue: [^self].
 	text := aString.
 	self invalidate
+!
+annunciator
+	^annunciator
+!
+annunciator: aString
+	"The small mark under the digits: M while memory holds a number."
+	annunciator = aString ifTrue: [^self].
+	annunciator := aString.
+	self invalidate
 ! !
 
 !CalculatorDisplay methodsFor: 'drawing'!
 drawSelfOn: aCanvas
-	"A sunken readout: a white field inside a two-pixel bevel, lit from below right; without bevels a plain frame."
-	| t r |
+	"The HP 12C's top: a light bezel, a gold rule along its foot, and an inset grey-green LCD with the digits right-aligned and the annunciator at its lower left."
+	| t r lcd |
 	t := self theme.
 	r := self localBounds.
-	t isBevelled
-		ifTrue: [
-			self drawSunken: r on: aCanvas.
-			r := r insetBy: 2]
-		ifFalse: [aCanvas strokeRect: r color: t ink width: 1].
-	aCanvas fillRect: (r insetBy: (t isBevelled ifTrue: [0] ifFalse: [1])) color: t paper.
-	aCanvas drawString: text in: (r insetBy: (8 @ 0 corner: 8 @ 0)) font: (self fontFor: #readout) color: t ink align: align
-!
-drawSunken: r on: aCanvas
-	"Two rules each side: dark over light at the top and left, light at the bottom and right."
-	| t |
-	t := self theme.
-	aCanvas fillRect: r color: (t color: #bevelLight).
-	aCanvas fillRect: (r origin extent: r width @ 1) color: (t color: #bevelDark).
-	aCanvas fillRect: (r origin extent: 1 @ r height) color: (t color: #bevelDark).
-	aCanvas fillRect: (r left + 1 @ (r top + 1) extent: (r width - 2) @ 1) color: t ink.
-	aCanvas fillRect: (r left + 1 @ (r top + 1) extent: 1 @ (r height - 2)) color: t ink.
-	aCanvas fillRect: (r left + 1 @ (r bottom - 2) extent: (r width - 2) @ 1) color: t panel.
-	aCanvas fillRect: (r right - 2 @ (r top + 1) extent: 1 @ (r height - 2)) color: t panel
+	aCanvas fillRect: r color: t panel.
+	aCanvas fillRect: (r left @ (r bottom - 3) extent: r width @ 3) color: (t color: #tab).
+	lcd := r insetBy: (14 @ 12 corner: 14 @ 15).
+	aCanvas fillRect: lcd color: (t color: #bevelDark).
+	aCanvas fillRect: (lcd left @ (lcd bottom - 1) extent: lcd width @ 1) color: (t color: #bevelLight).
+	lcd := lcd insetBy: 1.
+	t shade: lcd from: (Color hex: 16rB4BA9E) to: (Color hex: 16rC9CEB4) on: aCanvas.
+	aCanvas drawString: text in: (lcd insetBy: (12 @ 0 corner: 12 @ 4)) font: (self fontFor: #readout) color: (Color hex: 16r20251B) align: #right.
+	annunciator isEmpty ifFalse: [
+		aCanvas drawString: annunciator at: (lcd left + 8) @ (lcd bottom - 17) font: (self fontFor: #small) color: (Color hex: 16r20251B)]
 ! !
 
 !CalculatorDisplay methodsFor: 'initialize-release'!
 initialize
 	super initialize.
 	text := ''.
-	align := #right
+	annunciator := ''
 ! !
 
 !CalculatorDisplay methodsFor: 'remote control'!

@@ -1,9 +1,9 @@
 ToolPane subclass: #Calculator
-	instanceVariableNames: 'engine display memoryBox'
+	instanceVariableNames: 'engine display'
 	classVariableNames: ''
 	package: 'Tools'!
 
-Calculator comment: 'I am a calculator after the Windows 95 one (standard view): a display, Backspace CE C beside the memory light, then the memory keys, digits and operators; my CalculatorEngine does the arithmetic. Keys are typed too: digits . , + - * / = % (@ is sqrt, r 1/x), Return is =, Escape C, Delete CE; ⌘C copies the display, ⌘V types the clipboard.
+Calculator comment: 'I am a calculator styled after the HP 12C: a grey-green readout on a light bezel over a graphite keyboard in columns, memory and functions lettered gold, = the tall gold key between them and the number pad; my CalculatorEngine does the arithmetic (algebraic, not RPN). Keys are typed too: digits . , + - * / = % (@ is sqrt, r 1/x), Return is =, Escape C, Delete CE; ⌘C copies the display, ⌘V types the clipboard.
 
 	Calculator open   "also from the World menu"'!
 
@@ -15,6 +15,7 @@ actionFor: aString
 		aString = '.' ifTrue: [^[:e | e point]].
 		aString = '=' ifTrue: [^[:e | e equals]].
 		aString = '%' ifTrue: [^[:e | e percent]].
+		aString = 'C' ifTrue: [^[:e | e clear]].
 		^[:e | e operate: aString asSymbol]].
 	^(Dictionary new
 		at: 'MC' put: [:e | e memoryClear];
@@ -24,47 +25,58 @@ actionFor: aString
 		at: 'sqrt' put: [:e | e squareRoot];
 		at: '1/x' put: [:e | e reciprocal];
 		at: '+/-' put: [:e | e negate];
+		at: 'CE' put: [:e | e clearEntry];
+		at: 'Backspace' put: [:e | e backspace];
 		yourself) at: aString
 !
 build
-	"The Windows 95 standard view: the display; the memory light over the memory keys, Backspace CE C over the rest; then four rows of memory keys, digits and operators."
+	"After the HP 12C: the readout on a light bezel over a graphite keyboard in columns, memory and functions in gold, = tall as ENTER between them and the number pad."
 	display := CalculatorDisplay new.
-	display name: 'display'; fixed: 34.
-	memoryBox := CalculatorDisplay new.
-	memoryBox name: 'memory'; align: #center; fixed: 40.
+	display name: 'display'; fixed: 76.
 	self add: display.
-	self add: ((Row with: (Array
-			with: memoryBox
-			with: (Widget new fixed: 8; yourself)
-			with: (self key: 'Backspace' do: [:e | e backspace])
-			with: (self key: 'CE' do: [:e | e clearEntry])
-			with: (self key: 'C' do: [:e | e clear])))
-		spacing: 6; fixed: 30; yourself).
-	self keyRows do: [:labels |
-		self add: ((Row with: ((labels collect: [:each | self key: each do: (self actionFor: each)]) asArray
-				copyReplaceFrom: 2 to: 1 with: (Array with: (Widget new fixed: 8; yourself)))
-			) spacing: 6; fixed: 30; yourself)].
-	#('MC' 'MR' 'MS' 'M+') do: [:each | (self widgetNamed: each) fixed: 40].
-	self spacing: 8; padding: (10 @ 10 corner: 10 @ 10)
+	self add: ((Row with: (self keyColumns collect: [:labels |
+			labels isEmpty
+				ifTrue: [Widget new fixed: 6; yourself]
+				ifFalse: [(Column with: (labels collect: [:each |
+						(self key: each do: (self actionFor: each)) fixed: (each = '=' ifTrue: [66] ifFalse: [30]); yourself]) asArray)
+					spacing: 6; yourself]]) asArray)
+		spacing: 6; padding: (14 @ 12 corner: 14 @ 14); yourself).
+	self spacing: 0
 !
 key: aString do: aBlock
 	"A key named by its label; a click runs aBlock on my engine."
-	^(CalculatorKey label: aString action: [self press: aBlock])
+	^(CalculatorKey label: (self labelFor: aString) action: [self press: aBlock])
 		name: aString;
-		ink: (self inkFor: aString);
+		kind: (self kindFor: aString);
 		yourself
 !
-keyRows
-	^#(#('MC' '7' '8' '9' '/' 'sqrt')
-		#('MR' '4' '5' '6' '*' '%')
-		#('MS' '1' '2' '3' '-' '1/x')
-		#('M+' '0' '+/-' '.' '+' '='))
+keyColumns
+	"Memory, functions, the clearing keys over =, a gap, then the number pad column by column."
+	^#(#('MC' 'MR' 'MS' 'M+')
+		#('sqrt' '%' '1/x' '+/-')
+		#('C' 'CE' '=')
+		#()
+		#('7' '4' '1' '0')
+		#('8' '5' '2' '.')
+		#('9' '6' '3' 'Backspace')
+		#('/' '*' '-' '+'))
 !
-inkFor: aString
-	"As in Windows 95: memory, clearing and operator keys red, digits and functions blue."
-	^((#('MC' 'MR' 'MS' 'M+' 'Backspace' 'CE' 'C' '/' '*' '-' '+' '=') includes: aString)
-		ifTrue: [Color hex: 16rB00000]
-		ifFalse: [Color hex: 16r0000B0])
+kindFor: aString
+	"Memory and functions are gold-lettered, = is the gold key, the rest plain."
+	aString = '=' ifTrue: [^#accent].
+	(#('MC' 'MR' 'MS' 'M+' 'sqrt' '%' '1/x' '+/-') includes: aString) ifTrue: [^#gold].
+	^#plain
+!
+labelFor: aString
+	"The glyph a key shows for its name."
+	^(Dictionary new
+		at: '/' put: (String with: (Character value: 16rF7));
+		at: '*' put: (String with: (Character value: 16rD7));
+		at: '-' put: (String with: (Character value: 16r2212));
+		at: 'sqrt' put: (String with: (Character value: 16r221A)), 'x';
+		at: '+/-' put: (String with: (Character value: 16rB1));
+		at: 'Backspace' put: (String with: (Character value: 16r2190));
+		yourself) at: aString ifAbsent: [aString]
 ! !
 
 !Calculator methodsFor: 'accessing'!
@@ -119,7 +131,7 @@ wantsKeyboardFocus
 
 !Calculator methodsFor: 'opening'!
 minimumWindowExtent
-	^300 @ 270
+	^380 @ 276
 ! !
 
 !Calculator methodsFor: 'actions'!
@@ -138,23 +150,37 @@ pressKey: aString
 !
 refresh
 	display text: engine display.
-	memoryBox text: (engine hasMemory ifTrue: ['M'] ifFalse: [''])
+	display annunciator: (engine hasMemory ifTrue: ['M'] ifFalse: [''])
 ! !
 
 !Calculator class methodsFor: 'class initialization'!
 initialize
-	ToolsMenu register: 'Calculator' description: 'Windows 95 standard' order: 57 action: [:point | self openAt: point].
+	ToolsMenu register: 'Calculator' description: 'after the HP 12C' order: 57 action: [:point | self openAt: point].
 	Tools registerOpener: #calculator with: [:argOrNil | self open]
 ! !
 
 !Calculator class methodsFor: 'opening'!
 open
 	^self openAt: nil
-!
+! !
+
+!Calculator methodsFor: 'drawing'!
+drawSelfOn: aCanvas
+	aCanvas fillRect: self localBounds color: self class bedColor.
+	super drawSelfOn: aCanvas
+! !
+
+!Calculator class methodsFor: 'drawing'!
+bedColor
+	"The keyboard's graphite faceplate."
+	^Color hex: 16r2B2B2B
+! !
+
+!Calculator class methodsFor: 'instance creation'!
 openAt: aPointOrNil
 	| calculator window |
 	calculator := self new.
-	window := calculator openIn: (Tools placeAt: aPointOrNil extent: 330 @ 290) title: 'Calculator'.
+	window := calculator openIn: (Tools placeAt: aPointOrNil extent: 430 @ 276) title: 'Calculator'.
 	window do: [calculator focus].
 	^window
 ! !
