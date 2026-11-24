@@ -24,6 +24,9 @@ static uint64_t owned_session;
 static const char *platform_names[9] = {"platform_windows_close", "platform_windows_display_scale", "platform_windows_refresh_rate", "platform_windows_show", "platform_windows_set_cursor", "platform_windows_set_text_input_area", "pty_resize", "pty_close", "pty_foreground"};
 static uint32_t platform_signatures[9] = {49U, 54U, 54U, 785U, 49U, 53687089U, 13105U, 49U, 49U};
 
+static uint64_t ffi_primitives_arity_mix_bytes_length(uint64_t h, const uint8_t *p, uint64_t n);
+static uint64_t ffi_primitives_arity_mix_float(uint64_t h, float f);
+static uint64_t ffi_primitives_arity_mix_with(uint64_t h, uint64_t v);
 static void bind_or_invoke(bool invoke);
 static int32_t binding_slot_for(oop owner);
 static bool ffi_primitives_borrow(oop slice, uint64_t *out, uint64_t *length);
@@ -46,6 +49,11 @@ static void ffi_big_integer_mul(const uint64_t *a, int64_t an, const uint64_t *b
 static void ffi_big_integer_quo(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
 static void ffi_big_integer_rem(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
 static void ffi_big_integer_sub(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out);
+static uint64_t ffi_test_arity14(uint64_t handle, int32_t transa, int32_t transb, int32_t m, int32_t n, int32_t k, const uint8_t *alpha, uint64_t alpha_length, uint64_t a, int32_t lda, uint64_t b, int32_t ldb, const uint8_t *beta, uint64_t beta_length, uint64_t c, int32_t ldc);
+static double ffi_test_arity16(double a, int32_t b, float c, int64_t d, double e, uint32_t f, float g, uint64_t i, double j, int32_t k, float l, int64_t m, double n, int32_t o, float p, double q);
+static uint64_t ffi_test_arity7(int32_t a, int64_t b, uint32_t c, uint64_t d, int32_t e, int64_t f, int32_t g);
+static uint64_t ffi_test_arity8(int32_t a, int64_t b, int32_t c, int64_t d, int32_t e, int64_t f, int32_t g, uint8_t *p, uint64_t n);
+static float ffi_test_arity9(int32_t a, int64_t b, int32_t c, int64_t d, int32_t e, const uint8_t *p, uint64_t n, double f, float g, int64_t i);
 static int64_t ffi_test_non_negative_i64(int64_t value);
 static void invalidate_bindings(void);
 static uint64_t invocation_entry(oop owner, int32_t *arity);
@@ -102,6 +110,40 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_ou
 static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, const uint8_t *symbol, size_t sym_len, const uint8_t *tags, int32_t n, int32_t result, bool prepared, uint64_t *target);
 static void trace_bound_primitive(void);
 static void update_binding_owners(bool (*is_dead)(oop *));
+
+/* FFIPrimitives>>arityMix:bytes:length: */
+static uint64_t ffi_primitives_arity_mix_bytes_length(uint64_t h, const uint8_t *p, uint64_t n)
+{
+    uint64_t g;
+    int64_t i;
+    g = h;
+    for (i = 0; i <= (int64_t)n - 1; i++) {
+        g = ffi_primitives_arity_mix_with(g, (uint64_t)p[i]);
+    }
+    return ffi_primitives_arity_mix_with(g, n);
+}
+
+/* FFIPrimitives>>arityMix:float: */
+static uint64_t ffi_primitives_arity_mix_float(uint64_t h, float f)
+{
+    uint32_t local;
+    uint32_t *bits;
+    float local_2;
+    float *x;
+    memset(&local, 0, sizeof local);
+    bits = &local;
+    memset(&local_2, 0, sizeof local_2);
+    x = &local_2;
+    *x = f;
+    memcpy(bits, x, 4);
+    return ffi_primitives_arity_mix_with(h, (uint64_t)*bits);
+}
+
+/* FFIPrimitives>>arityMix:with: */
+static uint64_t ffi_primitives_arity_mix_with(uint64_t h, uint64_t v)
+{
+    return (h ^ v) * 0x100000001B3LL;
+}
 
 /* FFIPrimitives>>bindOrInvoke: */
 static void bind_or_invoke(bool invoke)
@@ -716,6 +758,36 @@ static int32_t owned_test_entry_witness(uint64_t a1, int32_t a2) {
 }
 #endif
 #ifdef SAMALTAK_FFI_TEST_EXPORTS
+static uint64_t ffi_test_arity7_entry_witness(int32_t a1, int64_t a2, uint32_t a3, uint64_t a4, int32_t a5, int64_t a6, int32_t a7) {
+    fprintf(stderr, "\nffi-native-entry 5113\n");
+    return ffi_test_arity7(a1, a2, a3, a4, a5, a6, a7);
+}
+#endif
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+static uint64_t ffi_test_arity8_entry_witness(int32_t a1, int64_t a2, int32_t a3, int64_t a4, int32_t a5, int64_t a6, int32_t a7, uint8_t *a8, uint64_t a9) {
+    fprintf(stderr, "\nffi-native-entry 5114\n");
+    return ffi_test_arity8(a1, a2, a3, a4, a5, a6, a7, a8, a9);
+}
+#endif
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+static float ffi_test_arity9_entry_witness(int32_t a1, int64_t a2, int32_t a3, int64_t a4, int32_t a5, const uint8_t *a6, uint64_t a7, double a8, float a9, int64_t a10) {
+    fprintf(stderr, "\nffi-native-entry 5115\n");
+    return ffi_test_arity9(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10);
+}
+#endif
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+static uint64_t ffi_test_arity14_entry_witness(uint64_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, const uint8_t *a7, uint64_t a8, uint64_t a9, int32_t a10, uint64_t a11, int32_t a12, const uint8_t *a13, uint64_t a14, uint64_t a15, int32_t a16) {
+    fprintf(stderr, "\nffi-native-entry 5116\n");
+    return ffi_test_arity14(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16);
+}
+#endif
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+static double ffi_test_arity16_entry_witness(double a1, int32_t a2, float a3, int64_t a4, double a5, uint32_t a6, float a7, uint64_t a8, double a9, int32_t a10, float a11, int64_t a12, double a13, int32_t a14, float a15, double a16) {
+    fprintf(stderr, "\nffi-native-entry 5117\n");
+    return ffi_test_arity16(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16);
+}
+#endif
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
 static int64_t ffi_test_non_negative_i64_entry_witness(int64_t a1) {
     fprintf(stderr, "\nffi-native-entry 5118\n");
     return ffi_test_non_negative_i64(a1);
@@ -992,6 +1064,46 @@ static int32_t ffi_approved_core(const char *approved_name, const uint8_t *signa
     }
 #endif
 #ifdef SAMALTAK_FFI_TEST_EXPORTS
+    if (strcmp((const char *) signature, "\001\003\002\004\001\003\001\004") == 0 && strcmp(approved_name, "ffi_test_arity7") == 0) {
+        *target_out = (uint64_t) ffi_test_arity7;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_test_arity7_entry_witness;
+        return 5113;
+    }
+#endif
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+    if (strcmp((const char *) signature, "\001\003\001\003\001\003\001\011\004") == 0 && strcmp(approved_name, "ffi_test_arity8") == 0) {
+        *target_out = (uint64_t) ffi_test_arity8;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_test_arity8_entry_witness;
+        return 5114;
+    }
+#endif
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+    if (strcmp((const char *) signature, "\001\003\001\003\001\010\006\020\003\020") == 0 && strcmp(approved_name, "ffi_test_arity9") == 0) {
+        *target_out = (uint64_t) ffi_test_arity9;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_test_arity9_entry_witness;
+        return 5115;
+    }
+#endif
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+    if (strcmp((const char *) signature, "\004\001\001\001\001\001\010\004\001\004\001\010\004\001\004") == 0 && strcmp(approved_name, "ffi_test_arity14") == 0) {
+        *target_out = (uint64_t) ffi_test_arity14;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_test_arity14_entry_witness;
+        return 5116;
+    }
+#endif
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
+    if (strcmp((const char *) signature, "\006\001\020\003\006\002\020\004\006\001\020\003\006\001\020\006\006") == 0 && strcmp(approved_name, "ffi_test_arity16") == 0) {
+        *target_out = (uint64_t) ffi_test_arity16;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_test_arity16_entry_witness;
+        return 5117;
+    }
+#endif
+#ifdef SAMALTAK_FFI_TEST_EXPORTS
     if ((strcmp((const char *) signature, "\003\014") == 0 || strcmp((const char *) signature, "\003\003") == 0) && strcmp(approved_name, "ffi_test_nonnegative_i64") == 0) {
         *target_out = (uint64_t) ffi_test_non_negative_i64;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
@@ -1132,6 +1244,97 @@ static void ffi_big_integer_rem(const uint64_t *a, int64_t an, const uint64_t *b
 static void ffi_big_integer_sub(const uint64_t *a, int64_t an, const uint64_t *b, int64_t bn, big_integer_native_result *out)
 {
     magnitude_operation(21, a, an, b, bn, max_heap_bytes, out);
+}
+
+/* FFIPrimitives>>ffiTestArity14:transa:transb:m:n:k:alpha:length:a:lda:b:ldb:beta:length:c:ldc: */
+static uint64_t ffi_test_arity14(uint64_t handle, int32_t transa, int32_t transb, int32_t m, int32_t n, int32_t k, const uint8_t *alpha, uint64_t alpha_length, uint64_t a, int32_t lda, uint64_t b, int32_t ldb, const uint8_t *beta, uint64_t beta_length, uint64_t c, int32_t ldc)
+{
+    uint64_t h;
+    h = ffi_primitives_arity_mix_with(14695981039346656037ULL, handle);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)transa);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)transb);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)m);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)n);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)k);
+    h = ffi_primitives_arity_mix_bytes_length(h, alpha, alpha_length);
+    h = ffi_primitives_arity_mix_with(h, a);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)lda);
+    h = ffi_primitives_arity_mix_with(h, b);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)ldb);
+    h = ffi_primitives_arity_mix_bytes_length(h, beta, beta_length);
+    h = ffi_primitives_arity_mix_with(h, c);
+    return ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)ldc);
+}
+
+/* FFIPrimitives>>ffiTestArity16:b:c:d:e:f:g:i:j:k:l:m:n:o:p:q: */
+static double ffi_test_arity16(double a, int32_t b, float c, int64_t d, double e, uint32_t f, float g, uint64_t i, double j, int32_t k, float l, int64_t m, double n, int32_t o, float p, double q)
+{
+    uint64_t h;
+    h = ffi_primitives_arity_mix_with(14695981039346656037ULL, lt_bits_of_double(a));
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)b);
+    h = ffi_primitives_arity_mix_float(h, c);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)d);
+    h = ffi_primitives_arity_mix_with(h, lt_bits_of_double(e));
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)f);
+    h = ffi_primitives_arity_mix_float(h, g);
+    h = ffi_primitives_arity_mix_with(h, i);
+    h = ffi_primitives_arity_mix_with(h, lt_bits_of_double(j));
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)k);
+    h = ffi_primitives_arity_mix_float(h, l);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)m);
+    h = ffi_primitives_arity_mix_with(h, lt_bits_of_double(n));
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)o);
+    h = ffi_primitives_arity_mix_float(h, p);
+    h = ffi_primitives_arity_mix_with(h, lt_bits_of_double(q));
+    return (double)(h >> 11);
+}
+
+/* FFIPrimitives>>ffiTestArity7:b:c:d:e:f:g: */
+static uint64_t ffi_test_arity7(int32_t a, int64_t b, uint32_t c, uint64_t d, int32_t e, int64_t f, int32_t g)
+{
+    uint64_t h;
+    h = ffi_primitives_arity_mix_with(14695981039346656037ULL, (uint64_t)(int64_t)a);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)b);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)c);
+    h = ffi_primitives_arity_mix_with(h, d);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)e);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)f);
+    return ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)g);
+}
+
+/* FFIPrimitives>>ffiTestArity8:b:c:d:e:f:g:bytes:length: */
+static uint64_t ffi_test_arity8(int32_t a, int64_t b, int32_t c, int64_t d, int32_t e, int64_t f, int32_t g, uint8_t *p, uint64_t n)
+{
+    uint64_t h;
+    int64_t i;
+    h = ffi_primitives_arity_mix_with(14695981039346656037ULL, (uint64_t)(int64_t)a);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)b);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)c);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)d);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)e);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)f);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)g);
+    h = ffi_primitives_arity_mix_bytes_length(h, p, n);
+    for (i = 0; i <= (int64_t)n - 1; i++) {
+        p[i] = (uint8_t)(p[i] + 1);
+    }
+    return h;
+}
+
+/* FFIPrimitives>>ffiTestArity9:b:c:d:e:bytes:length:f:g:i: */
+static float ffi_test_arity9(int32_t a, int64_t b, int32_t c, int64_t d, int32_t e, const uint8_t *p, uint64_t n, double f, float g, int64_t i)
+{
+    uint64_t h;
+    h = ffi_primitives_arity_mix_with(14695981039346656037ULL, (uint64_t)(int64_t)a);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)b);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)c);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)d);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)(int64_t)e);
+    h = ffi_primitives_arity_mix_bytes_length(h, p, n);
+    h = ffi_primitives_arity_mix_with(h, lt_bits_of_double(f));
+    h = ffi_primitives_arity_mix_float(h, g);
+    h = ffi_primitives_arity_mix_with(h, (uint64_t)i);
+    return (float)(h & 0xFFFFFF);
 }
 
 /* FFIPrimitives>>ffiTestNonNegativeI64: */

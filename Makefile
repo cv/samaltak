@@ -116,6 +116,7 @@ test-core-part-ffi:
 	tests/with-slot tests/vm/runtime_native_grants_test.sh $(OUT)/samaltak.image $(VM)
 	tests/with-slot tests/vm/wrapped_ffi_specialization_test.sh $(OUT)/samaltak.image $(VM)
 	tests/with-slot tests/vm/ffi_external_notification_test.sh $(OUT)/samaltak.image $(VM)
+	tests/with-slot tests/vm/ffi_arity_test.sh $(OUT)/samaltak.image $(VM)
 test-core-part-layering:
 	tests/with-slot tests/boot/layering_test.sh
 test-core-part-cli-quit:
@@ -181,7 +182,12 @@ test-ffi-no-platform: $(TEST_IMAGE)
 		--baseline "$(FFI_NO_PLATFORM_LOGS)/core/baseline.stderr" "$(FFI_NO_PLATFORM_LOGS)/production-baseline.err" \
 		--opt "$(FFI_NO_PLATFORM_LOGS)/core/opt.stderr" "$(FFI_NO_PLATFORM_LOGS)/production-opt.err"
 
-# Only this target builds a VM with test exports; use a separate object tree and binary.
+# Only these targets build a VM with test exports; use a separate object tree and binary.
+# Calls of 7 to 16 arguments through the approved test exports as well as launcher grants.
+test-ffi-arity: $(TEST_IMAGE)
+	$(MAKE) -C vm BUILD=build/ffi-test-exports CPPFLAGS="$(CPPFLAGS) -DSAMALTAK_FFI_TEST_EXPORTS=1"
+	tests/vm/ffi_arity_test.sh $(OUT)/samaltak.image $(VM) vm/build/ffi-test-exports/samaltak
+
 test-ffi-gpu-paged: $(TEST_IMAGE)
 	$(PLATFORM_CHECK)
 	$(MAKE) -C vm BUILD=build/ffi-test-exports CPPFLAGS="$(CPPFLAGS) -DSAMALTAK_FFI_TEST_EXPORTS=1"
@@ -538,4 +544,4 @@ clean:
 
 .PHONY: $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS)) $(addprefix test-core-part-,$(TEST_CORE_PARTS)) $(addprefix test-tools-part-,$(TEST_TOOLS_PARTS)) all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-nic test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels nv-shaders test video mindblown-video jit-video clean
 
-.PHONY: test-ffi-bigint-owned test-ffi-gpu-paged test-ffi-headless test-ffi-no-platform test-ffi-display
+.PHONY: test-ffi-arity test-ffi-bigint-owned test-ffi-gpu-paged test-ffi-headless test-ffi-no-platform test-ffi-display
