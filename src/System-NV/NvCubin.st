@@ -88,7 +88,34 @@ kernelNamed: aString
 				at := i * r entrySize + 1.
 				relocs add: (Array with: (self u64In: r data at: at) with: (self u64In: r data at: at + 8))]]].
 	kernel relocations: relocs asArray.
+	self bankRelocationsFor: aString into: kernel.
 	^kernel
+!
+bankRelocationsFor: aString into: aKernel
+	"The relocations of the constant banks aKernel uses (.rela.nv.constantN, the cubin's, and .rela.nv.constantN.<kernel>):
+	(bank offset section value type), the 64-bit address of value bytes into the data section (.nv.global.init: libdevice's
+	tables, such as sinf's for large arguments; .nv.global: zeroes) to be written at offset; and that data."
+	| out |
+	out := OrderedCollection new.
+	sections do: [:s | | rest dot bank |
+		(s name beginsWith: '.rela.nv.constant') ifTrue: [
+			rest := s name copyFrom: 18 to: s name size.
+			dot := rest indexOf: $..
+			bank := dot = 0
+				ifTrue: [rest asNumber]
+				ifFalse: [(rest copyFrom: dot + 1 to: rest size) = aString ifTrue: [(rest copyFrom: 1 to: dot - 1) asNumber]].
+			(bank isInteger and: [s entrySize > 0]) ifTrue: [
+				0 to: s size // s entrySize - 1 do: [:i | | at info sym target addend |
+					at := i * s entrySize + 1.
+					info := self u64In: s data at: at + 8.
+					addend := self u64In: s data at: at + 16.
+					addend >= (1 bitShift: 63) ifTrue: [addend := addend - (1 bitShift: 64)].
+					sym := symbols at: (info bitShift: -32) + 1.
+					target := sections at: (sym at: 5) + 1.
+					out add: (Array with: bank with: (self u64In: s data at: at) with: target name with: (sym at: 2) + addend with: (info bitAnd: 16rFFFFFFFF)).
+					(aKernel globals includesKey: target name) ifFalse: [
+						aKernel globals at: target name put: (target type = 8 ifTrue: [ByteArray new: target size] ifFalse: [target data])]]]]].
+	aKernel bankRelocations: out asArray
 !
 info: aSectionName do: aBlock
 	"Evaluate aBlock with each attribute of the .nv.info section aSectionName and its value: an Integer, or a

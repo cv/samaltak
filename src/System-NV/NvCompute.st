@@ -57,6 +57,10 @@ device
 !
 localMemory
 	^localMemory
+!
+programs
+	"aKernel -> what launching it took (code, banks, templates, data), for the kernels launched and not forgotten."
+	^programs
 ! !
 
 !NvCompute methodsFor: 'launching'!
@@ -114,14 +118,15 @@ qmd: q grid: g block: b bank0: address
 programFor: aKernel
 	"(code memory, bank index -> memory, QMD template, constant bank 0 template) of aKernel, made on first use; a
 	launch copies the templates and fills in its grid, block, parameters and constant bank 0 address."
-	^programs at: aKernel ifAbsentPut: [| code banks shared bank0 cbuf smemConfig q pb slm |
+	^programs at: aKernel ifAbsentPut: [| code banks shared bank0 cbuf smemConfig q pb slm data |
 		code := device allocate: aKernel code size + 16r1000.
 		code bytesAt: 0 put: aKernel code.
 		banks := Dictionary new.
+		data := OrderedCollection new.
 		aKernel constantBanks keysAndValuesDo: [:index :bytes |
 			index > 0 ifTrue: [| m |
 				m := device allocate: bytes size.
-				m bytesAt: 0 put: bytes.
+				m bytesAt: 0 put: (self bank: index of: aKernel data: data).
 				banks at: index put: m]].
 		shared := self roundUp: 16r400 + aKernel sharedSize to: 128.
 		bank0 := aKernel constantBanks at: 0 ifAbsent: [ByteArray new].
@@ -158,7 +163,37 @@ programFor: aKernel
 		q at: 'constant_buffer_size_shifted4_0' put: cbuf size; at: 'constant_buffer_valid_0' put: 1.
 		banks keysAndValuesDo: [:index :memory |
 			q constantBuffer: index address: memory gpuAddress size: (aKernel constantBanks at: index) size].
-		Array with: code with: banks with: q bytes with: cbuf]
+		Array with: code with: banks with: q bytes with: cbuf with: data]
+!
+bank: index of: aKernel data: aCollection
+	"Constant bank index of aKernel with the addresses of its global data written in; the data goes into GPU memory of its own, added to aCollection."
+	| bytes relocs memories |
+	bytes := (aKernel constantBanks at: index) copy.
+	relocs := aKernel bankRelocations select: [:r | r first = index].
+	memories := Dictionary new.
+	relocs do: [:r | | m address |
+		(r at: 5) = 2 ifFalse: [^self error: aKernel name, ': a constant bank relocation of type ', (r at: 5) printString, ', which I cannot apply'].
+		m := memories at: (r at: 3) ifAbsentPut: [| g |
+			g := aKernel globals at: (r at: 3).
+			aCollection add: (device allocate: (g size max: 16)).
+			aCollection last bytesAt: 0 put: g.
+			aCollection last].
+		address := m gpuAddress + (r at: 4).
+		bytes uint32At: (r at: 2) + 1 put: (address bitAnd: 16rFFFFFFFF).
+		bytes uint32At: (r at: 2) + 5 put: (address bitShift: -32)].
+	^bytes
+!
+forget: aKernel
+	"Free what launching aKernel took (its code, banks and data), once the GPU has run everything submitted."
+	| p |
+	p := programs removeKey: aKernel ifAbsent: [^self].
+	channel sync.
+	self freeProgram: p
+!
+freeProgram: p
+	p first free.
+	(p at: 2) do: [:m | m free].
+	(p at: 5) do: [:m | m free]
 !
 localMemoryFor: aKernel
 	"A thread's local memory for aKernel: the 16r240 bytes above the stack pointer and its stack frame, in 32s."
@@ -196,7 +231,7 @@ close
 	"Wait for my launches, free my memory and my channel."
 	channel isNil ifTrue: [^self].
 	[channel close] ensure: [
-		programs notNil ifTrue: [programs do: [:p | p first free. p second do: [:m | m free]]].
+		programs notNil ifTrue: [programs do: [:p | self freeProgram: p]].
 		qmds notNil ifTrue: [qmds free].
 		localMemory notNil ifTrue: [localMemory free].
 		channel := nil]

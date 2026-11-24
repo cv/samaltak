@@ -1,5 +1,5 @@
 Object subclass: #NvKernel
-	instanceVariableNames: 'name code registerCount frameSize minStackSize sharedSize maxThreads parameters parameterOffset parameterSize constantBanks relocations exitOffsets smVersion'
+	instanceVariableNames: 'name code registerCount frameSize minStackSize sharedSize maxThreads parameters parameterOffset parameterSize constantBanks relocations exitOffsets smVersion bankRelocations globals'
 	classVariableNames: ''
 	package: 'System-NV'!
 
@@ -8,7 +8,8 @@ NvKernel comment: 'I am one kernel (a __global__ function) of a cubin, as NvCubi
 - registerCount, frameSize, minStackSize (per thread), sharedSize (its static __shared__ bytes), maxThreads (the threads per block __launch_bounds__ allows, nil if it says nothing);
 - parameters: (ordinal offset size) triples in ordinal order, offsets in the parameter area; parameterOffset is where that area starts in constant bank 0 (after the driver''s part, 16r380 on sm_120 and sm_121), parameterSize its size;
 - constantBanks: bank index -> ByteArray of initial contents: 0 is the kernel''s own (the driver''s part, then the parameters), others (3: __constant__ data) are shared by the cubin''s kernels;
-- smVersion: the SM the cubin is for (121 for sm_121).'!
+- smVersion: the SM the cubin is for (121 for sm_121);
+- globals: data section name -> its initial bytes (.nv.global.init: libdevice''s tables), and bankRelocations: (bank offset section value type), the 64-bit addresses into them the constant banks hold (type 2, R_CUDA_64): NvCompute puts the data in GPU memory and writes the addresses.'!
 
 !NvKernel methodsFor: 'accessing'!
 name
@@ -50,6 +51,15 @@ relocations
 exitOffsets
 	^exitOffsets
 !
+bankRelocations
+	^bankRelocations
+!
+bankRelocations: anArray
+	bankRelocations := anArray
+!
+globals
+	^globals
+!
 smVersion
 	^smVersion
 !
@@ -85,7 +95,8 @@ setName: aString code: bytes
 	code := bytes.
 	registerCount := 0. frameSize := 0. minStackSize := 0. sharedSize := 0.
 	parameters := #(). parameterOffset := 0. parameterSize := 0.
-	constantBanks := Dictionary new. relocations := #(). exitOffsets := #()
+	constantBanks := Dictionary new. relocations := #(). exitOffsets := #().
+	bankRelocations := #(). globals := Dictionary new
 !
 registerCount: n
 	registerCount := n

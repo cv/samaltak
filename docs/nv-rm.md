@@ -99,7 +99,7 @@ buffers (address >> 6, size, valid), cache invalidations.
 
 `NvCubin on: bytes` reads the ELF (docs/nv.md, Cubins for sm_121) into NvKernels: code, registers, frame and stack
 sizes, static shared memory, parameters (KPARAM_INFO), the parameter area in bank 0 (PARAM_CBANK), MAX_THREADS, exit
-offsets, bank 0, the kernel's own other banks (`.nv.constantN.<kernel>`) and the cubin's, relocations (read; NvCompute refuses kernels that have any).
+offsets, bank 0, the kernel's own other banks (`.nv.constantN.<kernel>`) and the cubin's, the code's relocations (read; NvCompute refuses kernels that have any), and the banks' relocations into the cubin's data (`.rela.nv.constantN` into `.nv.global.init`: libdevice's tables, which NvCompute puts in GPU memory and whose addresses it writes into the bank; docs/nv-shaders.md).
 Test kernels: `tests/nv/test-kernels.cu` → `tools/nv-test-kernels.sh` (nvcc 13.0, `-cubin -arch=sm_121`) →
 `src/Tests-NV/NvTestKernels.st` (Base64), so building the image never needs nvcc. NvRm's parameter blocks follow
 docs/nv.md's Struct layouts; NvEncodingTest checks their offsets.
@@ -118,4 +118,4 @@ best of a few runs:
 | queued launches (1000, then one wait) | 2.8 µs each, about 355,000 per second |
 | copy16, 64 MB (read + write) | 547 µs, 245 GB/s |
 
-Not done yet: relocations, dynamic shared memory, interrupts (waits poll), error notifier decoding, the copy engine.
+Not done yet: relocations in the code, dynamic shared memory, interrupts (waits poll), error notifier decoding, the copy engine.
