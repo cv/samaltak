@@ -3,7 +3,7 @@ ToolPane subclass: #Paint
 	classVariableNames: ''
 	package: 'Tools'!
 
-Paint comment: 'I am a paint program after Windows 95 Paint: a toolbox of tools at the left, the picture (a PaintCanvas), the color box (a PaintPalette) and the pointer''s pixel below, and New, Undo, Save… (a PNG), the brush size and outline/filled shapes above. ⌘Z undoes, ⌘N clears, ⌘S saves.
+Paint comment: 'I am a paint program after Windows 95 Paint: a toolbox of tools at the left, the picture (a PaintCanvas), the color box (a PaintPalette) and a status bar below, and New, Undo, Redo, Save… (a PNG), the brush size and outline/filled shapes above. ⌘Z undoes, ⇧⌘Z or ⌘Y redoes, ⌘N clears, ⌘S saves.
 
 	Paint open   "also from the World menu"'!
 
@@ -18,6 +18,7 @@ build
 	status name: 'status'; fixed: status preferredExtent y; pictureExtent: canvas form extent.
 	canvas onHover: [:p | status position: p].
 	canvas onPick: [:color :isForeground | self syncPalette. self selectTool: #pencil].
+	canvas onHistory: [self syncHistory].
 	palette onChange: [:p | canvas foreground: p foreground; background: p background].
 	toolButtons := Dictionary new.
 	self tools do: [:each |
@@ -37,6 +38,7 @@ build
 		with: ((Row with: {
 			((Button label: 'New' action: [self newPicture]) name: 'New'; fixed: 60; yourself).
 			((Button label: 'Undo' action: [canvas undo]) name: 'Undo'; fixed: 60; yourself).
+			((Button label: 'Redo' action: [canvas redo]) name: 'Redo'; fixed: 60; yourself).
 			((Button label: 'Save…' action: [self save]) name: 'Save'; fixed: 70; yourself).
 			Widget new.
 			(Label text: 'size' font: #ui) color: #ink3; sizeToContent; yourself.
@@ -45,7 +47,8 @@ build
 		with: ((Row with: (Array with: toolbox with: canvas)) spacing: 8; yourself)
 		with: palette
 		with: status).
-	self spacing: 8; padding: (10 @ 10 corner: 10 @ 8)
+	self spacing: 8; padding: (10 @ 10 corner: 10 @ 8).
+	self syncHistory
 !
 tools
 	"label -> tool, in the toolbox's order"
@@ -71,11 +74,14 @@ initialize
 
 !Paint methodsFor: 'events'!
 keyDown: anEvent
-	"⌘Z undoes (again: redoes), ⌘N clears, ⌘S saves."
+	"⌘Z undoes, ⇧⌘Z or ⌘Y redoes, ⌘N clears, ⌘S saves."
+	| key |
 	anEvent modifiers commandKey ifTrue: [
-		anEvent key = $z ifTrue: [canvas undo. ^true].
-		anEvent key = $n ifTrue: [self newPicture. ^true].
-		anEvent key = $s ifTrue: [self save. ^true]].
+		key := anEvent key isCharacter ifTrue: [anEvent key asLowercase] ifFalse: [anEvent key].
+		key = $z ifTrue: [anEvent modifiers shift ifTrue: [canvas redo] ifFalse: [canvas undo]. ^true].
+		key = $y ifTrue: [canvas redo. ^true].
+		key = $n ifTrue: [self newPicture. ^true].
+		key = $s ifTrue: [self save. ^true]].
 	^super keyDown: anEvent
 !
 wantsKeyboardFocus
@@ -105,6 +111,10 @@ selectTool: aSymbol
 !
 syncPalette
 	palette foreground: canvas foreground; background: canvas background
+!
+syncHistory
+	(self widgetNamed: 'Undo') enabled: canvas canUndo.
+	(self widgetNamed: 'Redo') enabled: canvas canRedo
 ! !
 
 !Paint class methodsFor: 'class initialization'!

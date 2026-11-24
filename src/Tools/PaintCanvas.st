@@ -1,9 +1,9 @@
 Widget subclass: #PaintCanvas
-	instanceVariableNames: 'form nearest undo snapshot tool foreground background brushSize filled start last ink onPick onHover'
+	instanceVariableNames: 'form nearest undos redos onHistory snapshot tool foreground background brushSize filled start last ink onPick onHover'
 	classVariableNames: ''
 	package: 'Tools'!
 
-PaintCanvas comment: 'I am Paint''s picture: a Form (480x320, white) shown unscaled on a grey desk, and the tools that draw into it: #pencil #brush #spray (airbrush) #eraser #fill (flood fill) #picker #line #rectangle #ellipse. The left button paints with the foreground, the right with the background; shapes are rubber-banded from a snapshot until the button is released, and filled: true fills rectangles and ellipses with the other color. Each stroke remembers the picture before it: undo swaps them (undo again redoes).'!
+PaintCanvas comment: 'I am Paint''s picture: a Form (480x320, white) shown unscaled on a grey desk, and the tools that draw into it: #pencil #brush #spray (airbrush) #eraser #fill (flood fill) #picker #line #rectangle #ellipse. The left button paints with the foreground, the right with the background; shapes are rubber-banded from a snapshot until the button is released, and filled: true fills rectangles and ellipses with the other color. Each stroke remembers the picture before it: undo goes back up to undoLimit strokes, redo forward again until the next stroke.'!
 
 !PaintCanvas methodsFor: 'accessing'!
 background
@@ -45,6 +45,10 @@ tool
 tool: aSymbol
 	"#pencil #brush #eraser #spray #fill #picker #line #rectangle #ellipse"
 	tool := aSymbol
+!
+onHistory: aBlock
+	"[] after a change, undo or redo."
+	onHistory := aBlock
 ! !
 
 !PaintCanvas methodsFor: 'strokes'!
@@ -97,22 +101,10 @@ clear
 newPicture: anExtent
 	form := Form extent: anExtent.
 	form fill: background.
-	undo := nil.
+	undos := OrderedCollection new.
+	redos := OrderedCollection new.
+	self changedHistory.
 	self invalidate
-!
-remember
-	undo := form bits copy
-!
-undo
-	"Swap the picture with the one before the last stroke (undo again redoes it)."
-	| bits |
-	undo isNil ifTrue: [^false].
-	bits := form bits copy.
-	form bits replaceFrom: 1 to: bits size with: undo startingAt: 1.
-	undo := bits.
-	form changed.
-	self invalidate.
-	^true
 ! !
 
 !PaintCanvas methodsFor: 'events'!
@@ -289,4 +281,42 @@ drawSunken: aRectangle on: aCanvas
 	aCanvas fillRect: (r origin extent: 1 @ r height) color: (t color: #bevelDark).
 	aCanvas fillRect: (r left @ (r bottom - 1) extent: r width @ 1) color: (t color: #bevelLight).
 	aCanvas fillRect: ((r right - 1) @ r top extent: 1 @ r height) color: (t color: #bevelLight)
+! !
+
+!PaintCanvas methodsFor: 'history'!
+undoLimit
+	"Pictures kept to undo to (each 480x320 one is 600 KB)."
+	^30
+!
+remember
+	"Keep the picture before a change to undo to; a new change forgets what was undone."
+	undos addLast: form bits copy.
+	undos size > self undoLimit ifTrue: [undos removeFirst].
+	redos := OrderedCollection new.
+	self changedHistory
+!
+undo
+	"Go back to the picture before the last change; answer whether there was one."
+	^self restoreFrom: undos to: redos
+!
+redo
+	"Make the last undone change again; answer whether there was one."
+	^self restoreFrom: redos to: undos
+!
+restoreFrom: fromStack to: toStack
+	fromStack isEmpty ifTrue: [^false].
+	toStack addLast: form bits copy.
+	form bits replaceFrom: 1 to: form bits size with: fromStack removeLast startingAt: 1.
+	self changed.
+	self changedHistory.
+	^true
+!
+canUndo
+	^undos notEmpty
+!
+canRedo
+	^redos notEmpty
+!
+changedHistory
+	onHistory isNil ifFalse: [onHistory value]
 ! !

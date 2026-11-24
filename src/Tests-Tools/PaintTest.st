@@ -68,13 +68,6 @@ testToolboxAndPaletteDriveTheCanvas
 	paint palette foreground: Color red; changedColors.
 	self assert: paint canvas foreground equals: Color red
 !
-testUndoSwapsTheLastStroke
-	self drag: #brush from: 40 @ 40 to: 60 @ 40.
-	self assert: canvas undo.
-	self assert: (canvas form at: 50 @ 40) equals: Color white.
-	canvas undo.
-	self assert: (canvas form at: 50 @ 40) equals: Color black
-!
 testStatusBarNamesTheToolAndThePixel
 	| paint status |
 	paint := Paint new.
@@ -84,4 +77,41 @@ testStatusBarNamesTheToolAndThePixel
 	self assert: (status remoteLabel includesSubstring: '480 × 320').
 	status position: 12 @ 34.
 	self assert: (status remoteLabel includesSubstring: '12, 34')
+!
+testUndoGoesBackSeveralStrokesAndRedoForward
+	self drag: #brush from: 40 @ 40 to: 60 @ 40.
+	self drag: #brush from: 40 @ 80 to: 60 @ 80.
+	self assert: canvas undo.
+	self assert: (canvas form at: 50 @ 80) equals: Color white.
+	self assert: (canvas form at: 50 @ 40) equals: Color black.
+	self assert: canvas undo.
+	self assert: (canvas form at: 50 @ 40) equals: Color white.
+	self deny: canvas undo.
+	self assert: canvas redo.
+	self assert: canvas redo.
+	self assert: (canvas form at: 50 @ 80) equals: Color black.
+	self deny: canvas redo
+!
+testANewStrokeForgetsWhatWasUndone
+	self drag: #brush from: 40 @ 40 to: 60 @ 40.
+	canvas undo.
+	self assert: canvas canRedo.
+	self drag: #brush from: 40 @ 80 to: 60 @ 80.
+	self deny: canvas canRedo.
+	self deny: canvas redo
+!
+testUndoKeepsAtMostTheLimit
+	canvas undoLimit + 5 timesRepeat: [self drag: #pencil from: 10 @ 10 to: 20 @ 10].
+	self assert: ((1 to: canvas undoLimit + 5) count: [:i | canvas undo]) equals: canvas undoLimit
+!
+testUndoAndRedoButtonsFollowTheHistory
+	| paint |
+	paint := Paint new.
+	self deny: (paint widgetNamed: 'Undo') isEnabled.
+	paint canvas tool: #brush; beginAt: 40 @ 40 primary: true; dragTo: 60 @ 40; endStroke.
+	self assert: (paint widgetNamed: 'Undo') isEnabled.
+	self deny: (paint widgetNamed: 'Redo') isEnabled.
+	(paint widgetNamed: 'Undo') click.
+	self deny: (paint widgetNamed: 'Undo') isEnabled.
+	self assert: (paint widgetNamed: 'Redo') isEnabled
 ! !
