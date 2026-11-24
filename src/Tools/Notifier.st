@@ -7,7 +7,7 @@ Notifier comment: 'I am the small window that first reports an error, a halt, a 
 
 	Notifier openOn: aDebugSession
 
-Save report writes the error, the Process and its stack, the VM and the heap to samaltak-crash-<n>.txt (CrashReport: on UEFI the boot volume, /esp) and says where.
+Save report writes the error, the Process and its stack, the VM and the heap to samaltak-crash-<n>.txt (CrashReport) and says where.
 
 Remote names: buttons proceed abandon debug create save-report, list stack.'!
 

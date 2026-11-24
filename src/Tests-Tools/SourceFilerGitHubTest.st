@@ -288,9 +288,8 @@ testWhichStore
 	other useGitHub: false.
 	self deny: other isEnabled.
 	other sourceDirectory: '/samaltak-test/src'; useGitHub: nil.
-	(File mountTableFor: '/samaltak-test/src') isNil ifTrue: [
-		self deny: other usesGitHub.
-		self assert: (other pathForClass: ToolsTestFixture) equals: '/samaltak-test/src/Tests-Tools/ToolsTestFixture.st'].
+	self deny: other usesGitHub.
+	self assert: (other pathForClass: ToolsTestFixture) equals: '/samaltak-test/src/Tests-Tools/ToolsTestFixture.st'.
 	other useGitHub: true.
 	self assert: other usesGitHub.
 	self assert: other store == store

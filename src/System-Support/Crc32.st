@@ -1,9 +1,9 @@
 Object subclass: #Crc32
 	instanceVariableNames: ''
 	classVariableNames: 'Table'
-	package: 'System-Storage'!
+	package: 'System-Support'!
 
-Crc32 comment: 'I compute CRC-32 (zlib''s, PNG''s and Ethernet''s: reflected polynomial 16rEDB88320) on my class side; my subclass Crc32c is CRC-32C. update:bytes:from:to: is the raw register update, without the initial and final inversion; checksumOf: (and checksumOf:from:to:) the standard CRC (''123456789'' gives 16rCBF43926). The VM''s primitive does the update (CryptoPrimitives: the CPU''s CRC instructions, else C eight bytes at a time); tableUpdate:bytes:from:to: is the same a byte at a time in Smalltalk, the fallback and the reference.'!
+Crc32 comment: 'I compute CRC-32 (zlib''s, PNG''s and Ethernet''s: reflected polynomial 16rEDB88320) on my class side. update:bytes:from:to: is the raw register update, without the initial and final inversion; checksumOf: (and checksumOf:from:to:) the standard CRC (''123456789'' gives 16rCBF43926). The VM''s primitive does the update (CryptoPrimitives: the CPU''s CRC instructions, else C eight bytes at a time); tableUpdate:bytes:from:to: is the same a byte at a time in Smalltalk, the fallback and the reference.'!
 
 !Crc32 class methodsFor: 'computing'!
 update: crc bytes: aByteArray from: start to: stop

@@ -59,7 +59,7 @@ buildBar
 		DebuggerSeparator new.
 		self button: 'Where' named: 'where' tip: 'Select the active frame and show its current statement' action: [self where].
 		self button: 'Full stack' named: 'full-stack' tip: 'Show every frame down to the Process root' action: [self toggleFullStack].
-		self button: 'Save report' named: 'save-report' tip: 'Write the error, the stack, the VM and the heap to samaltak-crash-<n>.txt (on UEFI the boot volume, /esp)' action: [self saveReport].
+		self button: 'Save report' named: 'save-report' tip: 'Write the error, the stack, the VM and the heap to samaltak-crash-<n>.txt' action: [self saveReport].
 		spacer.
 		self button: 'Create' named: 'create' tip: 'Define the missing method in a class you choose and continue in it' action: [self openCreateMenu].
 		self button: 'Unwatch' named: 'unwatch' tip: 'Remove the watchpoint that stopped this Process' action: [self removeBreakpoint].

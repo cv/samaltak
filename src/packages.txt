@@ -23,7 +23,6 @@ System-Support 0
 System-Files 0
 System-Network 0
 System-Devices 0
-System-Storage 0
 System-Profiling 0
 System-Debugging 0
 Compiler 0
@@ -40,7 +39,6 @@ Tests-Profiling 0
 Tests-Debugging 0
 Tests-VM 0
 Tests-Devices 0
-Tests-Storage 0
 System-Remote 0
 System-Crypto 0
 System-TLS 0

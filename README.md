@@ -54,9 +54,7 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - `docs/agent.md` — the in-image coding agent: conversations, tools, the OpenAI and Anthropic Messages providers, API keys from the host
 - `docs/github.md` — source changes as GitHub branches, commits and pull requests through the REST API (GitHubClient, SourceFiler's GitHub store)
 - `docs/certificates.md` — DER, X.509 certificates, trust anchors and chain validation in Smalltalk (System-TLS)
-- `docs/storage.md` — block devices and the read-only ext2/3/4 reader
 - `docs/nv-rm.md` — System-NV: compute kernels on an NVIDIA GPU (the GB10) through the open kernel module's RM ioctls, from Smalltalk
-- `docs/files.md` — files on UEFI: the firmware's block devices, ext4 volumes mounted read-only under `/` and `/mnt`
 - `docs/nv.md` — the NVIDIA GB10 through the open kernel module's RM ioctls, without NVIDIA's libraries: objects, structs, memory, channels, QMDs, cubins (`tools/nv-probe.py` runs it)
 - `docs/nv-gsp.md` — archived: how the open kernel module boots GB10's GSP through SEC2 and talks to GSP-RM (firmware, register sequence, RPC queues), the research for #20's dropped GSP boot from UEFI (the Spark uses the appliance; the code is at tag `archive/uefi-bare-metal`)
 - `prototypes/` — the HTML prototypes the UI started from

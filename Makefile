@@ -359,26 +359,7 @@ uefi-ui uefi-control: UEFI_PIN = $(if $(filter undefined,$(origin UEFI_AFFINITY)
 QEMU_UEFI = $(QEMU_UEFI_MACHINE) -smp $(UEFI_CPUS) -m $(UEFI_MEM) -no-reboot \
 	-nic user,model=$(UEFI_NIC)$(if $(UEFI_CONTROL_PORT),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_CONTROL_PORT)-:7341)$(UEFI_DISPLAY_FWD) -global $(UEFI_NIC).romfile= \
 	-device virtio-rng-pci -drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI_RUN)/vars.fd \
-	-drive format=raw,file=fat:rw:$(UEFI_RUN)/esp -drive format=raw,file=$(UEFI_RUN)/image.disk \
-	$(if $(filter %@usb-storage,$(UEFI_DISKS)),-device qemu-xhci$(comma)id=disks) $(foreach disk,$(UEFI_DISKS),$(call UEFI_DISK,$(disk)))
-# More disks for the image's files (docs/files.md): UEFI_DISKS, raw disk images FILE@DEVICE, DEVICE nvme, virtio-blk-pci
-# or usb-storage, attached read-only. UEFI_EXT4_DISK is an ext4 file system of the fixture tests/uefi/ext4 (and a file
-# numbers.txt of 50000 lines) labeled fixture on a whole disk, UEFI_EXT4_GPT_DISK the same unlabeled in a GPT partition
-# named fixture-gpt from 1 MB; test-uefi reads them on NVMe and virtio.
-UEFI_DISKS ?=
-UEFI_DISK_FILE = $(word 1,$(subst @, ,$(1)))
-UEFI_DISK_ID = $(basename $(notdir $(call UEFI_DISK_FILE,$(1))))
-UEFI_DISK = -drive if=none,id=$(call UEFI_DISK_ID,$(1)),format=raw,readonly=on,file=$(call UEFI_DISK_FILE,$(1)) \
-	-device $(word 2,$(subst @, ,$(1))),drive=$(call UEFI_DISK_ID,$(1))$(if $(filter %@nvme,$(1)),$(comma)serial=$(call UEFI_DISK_ID,$(1)))$(if $(filter %@usb-storage,$(1)),$(comma)bus=disks.0)
-UEFI_EXT4_DISK := $(UEFI)/ext4.disk
-UEFI_EXT4_GPT_DISK := $(UEFI)/ext4-gpt.disk
-$(UEFI)/ext4-root: $(wildcard tests/uefi/ext4/* tests/uefi/ext4/*/* tests/uefi/ext4/*/*/*)
-	rm -rf $@ && mkdir -p $(UEFI) && cp -a tests/uefi/ext4 $@ && seq 1 50000 > $@/numbers.txt
-$(UEFI_EXT4_DISK): $(UEFI)/ext4-root
-	rm -f $@ && truncate -s 16M $@ && PATH=$$PATH:/sbin:/usr/sbin && mkfs.ext4 -q -F -L fixture -d $< $@
-$(UEFI_EXT4_GPT_DISK): $(UEFI)/ext4-root
-	rm -f $@ $@.part && truncate -s 16M $@.part && PATH=$$PATH:/sbin:/usr/sbin && mkfs.ext4 -q -F -d $< $@.part && truncate -s 20M $@ \
-		&& sgdisk -n 1:2048:+16M -c 1:fixture-gpt -t 1:8300 $@ >/dev/null && dd if=$@.part of=$@ bs=1M seek=1 conv=notrunc status=none && rm $@.part
+	-drive format=raw,file=fat:rw:$(UEFI_RUN)/esp -drive format=raw,file=$(UEFI_RUN)/image.disk
 uefi: fresh-image
 	$(MAKE) $(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT) $(UEFI)/image.disk
 $(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT): $(OUT)/samaltak.image vm/uefi.mk
@@ -427,7 +408,7 @@ UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest Conte
 	Amd64DisassemblerTest Arm64DisassemblerTest ByteSearchTest FFIBindingTest \
 	SHA256Test SHA384Test SHA512Test HMACTest HKDFTest ChaCha20Test ChaCha20Poly1305Test AesGcmTest SecureRandomTest WycheproofAeadTest \
 	X25519Test RsaPublicKeyTest EcPublicKeyTest HmacHkdfWycheproofTest Asn1DerTest X509CertificateTest TrustStoreTest \
-	MountTableTest FirmwareVolumesTest GitHubClientTest SourceFilerGitHubTest SourceUpdateTest PosixDeviceTest ZLibTest PNGCodecTest AgentImageTest \
+	GitHubClientTest SourceFilerGitHubTest SourceUpdateTest PosixDeviceTest ZLibTest PNGCodecTest AgentImageTest \
 	SoftwareGPUTest SoftwareGPUBandsTest JitOptBackgroundTest FrameTapTest PixelPackTest
 UEFI_WORLD := | w t | w := UIWindows startUp. RemoteInputDevice default inject: {1. nil. 123. 45. 0. 0. nil. w displayWindow windowId}. t := Time millisecondClockValue. [w dispatcher pointer = (123 @ 45) or: [Time millisecondClockValue - t > 20000]] whileFalse: [(Delay forMilliseconds: 50) wait]. Smalltalk vm stderrWrite: 'world ', w extent printString, ' ', Renderer default device isSoftware printString, ' ', w dispatcher pointer rounded printString, (String with: Character lf)
 UEFI_NET := | s buf n | s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: '{\"cmd\": \"ping\", \"auth\": \"', ControlServer current token, '\"}', (String with: Character lf). buf := ByteArray new: 200. n := s receiveInto: buf timeout: 20000. s close. (buf copyFrom: 1 to: n) asString
@@ -435,7 +416,6 @@ UEFI_NET_BULK := | src req s buf n chunk out t ms resp ok more | src := String n
 UEFI_NET_DRIVER := 'driver ', NetworkStack active interface class name
 UEFI_HTTPS := | s hs r | TLSSocket trustStore: (TrustStore new add: (ByteArray fromHex: '$$CA'); yourself). s := TLSSocket connectTo: '10.0.2.2' port: $$TP timeout: 20000. hs := s connection handshakeMilliseconds. s close. r := HTTPClient new get: 'https://10.0.2.2:$$TP/' headers: nil. TLSSocket trustStore: nil. 'https ', r status printString, ' ', s connection version, ' ', s connection cipherSuite, ' handshake ', hs printString, ' ms'
 UEFI_DRIVER = $(if $(filter e1000e,$(1)),E1000eInterface,VirtioNetInterface)
-UEFI_FILES := | f | f := [:x | Smalltalk vm stderrWrite: 'files ', x, (String with: Character lf)]. f value: 'mounts ', (FirmwareVolumes mounts collect: [:m | m key]) printString. f value: 'root ', (Directory entries: '/') printString. f value: 'mnt ', (Directory entries: '/mnt') printString. f value: 'hello ', (File readBytes: '/mnt/fixture/hello.txt') printString. f value: 'link ', (File readText: '/mnt/fixture-gpt/docs/hello-link') lines first. f value: 'numbers ', (File sizeOf: '/mnt/fixture-gpt/numbers.txt') printString, ' ', (FileStream readOnlyFileNamed: '/mnt/fixture/numbers.txt' do: [:s | s position: 288888. s upToEnd]) lines first. f value: 'write ', ([File writeText: 'x' to: '/mnt/fixture/x'. 'written'] on: FileError do: [:e | e messageText]). f value: 'store hidden ', (FirmwareBlockDevice all noneSatisfy: [:d | d isImageStore]) printString. f value: 'problems ', FirmwareVolumes problems size printString
 UEFI_MP := 1 to: 300 do: [:i | Compiler evaluate: '3 + 4 * ', i printString]. Smalltalk vm stderrWrite: 'mp bg jobs ', Smalltalk vm statistics optBackgroundJobs printString, (String with: Character lf)
 UEFI_RESET := Smalltalk vm stderrWrite: 'menu ', ((((ToolsMenu worldMenuAt: nil) itemLabeled: 'System') submenu) selectableItems collect: [:i | i label]) asArray printString, (String with: Character lf). Firmware restart
 UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot: Smalltalk vm imagePath) ifTrue: ['resumed ', (Smalltalk at: 'UefiMark' asSymbol) printString, ' ', (SecureRandom default nextBytes: 16) hex] ifFalse: ['saved']
@@ -444,7 +424,7 @@ UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot:
 # (UEFI_RUN), its output shown when it ends (make -O); the snapshot's three boots one after another in theirs. Every
 # part runs to its end (-k), and the boot directories stay for a look when one fails.
 UEFI_TEST_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2); echo $$(( n > 1 ? n / 2 : 1 )))
-UEFI_TEST_PARTS = tests cutover lowspace mp cpu1 reset world world-gpu files fat rfb net $(if $(filter-out virtio-net-pci,$(UEFI_NIC)),nic) snapshot
+UEFI_TEST_PARTS = tests cutover lowspace mp cpu1 reset world world-gpu rfb net $(if $(filter-out virtio-net-pci,$(UEFI_NIC)),nic) snapshot
 # make 3.81 (macOS's) has no -O: there the parts run one after another
 UEFI_TEST_SYNC = $(call TEST_PARTS_SYNC,$(UEFI_TEST_JOBS))
 UEFI_PART_RUN = $(UEFI)/run-$(patsubst test-uefi-part-%,%,$@)
@@ -457,7 +437,7 @@ UEFI_PART_LOG = $(UEFI_PART_RUN)/console.log
 UEFI_PART_ENV = MAKEFLAGS= UEFI_RUN=$(UEFI_PART_RUN) UEFI_AFFINITY=$(UEFI_AFFINITY) OUT=$(OUT)
 test-uefi:
 	rm -rf $(UEFI)/image.disk $(UEFI)/run-*
-	$(MAKE) uefi $(UEFI_EXT4_DISK) $(UEFI_EXT4_GPT_DISK)
+	$(MAKE) uefi
 	$(MAKE) -k $(UEFI_TEST_SYNC) $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS))
 	rm -rf $(UEFI)/image.disk $(UEFI)/run-*
 test-uefi-part-cutover:
@@ -485,11 +465,6 @@ test-uefi-part-world:
 test-uefi-part-world-gpu:
 	$(MAKE) $(UEFI_PART_BOOT) UEFI_GPU=virtio-gpu-pci UEFI_ARGS="--window-size 1920x1080 --eval \"$(UEFI_WORLD)\""
 	grep -qE "^world 1920@1080 true 123@45" $(UEFI_PART_LOG)
-test-uefi-part-files:
-	$(MAKE) $(UEFI_PART_BOOT) UEFI_DISKS="$(UEFI_EXT4_DISK)@nvme $(UEFI_EXT4_GPT_DISK)@virtio-blk-pci" UEFI_ARGS="--headless --eval \"$(UEFI_FILES)\""
-	while read -r line; do grep -qF "$$line" $(UEFI_PART_LOG) || { echo "test-uefi: files: no line: $$line"; exit 1; }; done < tests/uefi/files.expected
-test-uefi-part-fat:
-	$(MAKE) test-uefi-fat UEFI_RUN=$(UEFI_PART_RUN) UEFI_SLOT=tests/with-slot
 test-uefi-part-rfb:
 	SLOT_PRIORITY=1 $(UEFI_PART_ENV) tests/with-slot tests/remote/rfb_test.sh --uefi
 test-uefi-part-net:
@@ -515,13 +490,6 @@ test-uefi-part-snapshot:
 	$(MAKE) $(UEFI_PART_BOOT) UEFI_ARGS=--headless
 	grep -o "'resumed 42 [0-9A-F]*'" $(UEFI_PART_LOG) | { read -r again; [ -n "$$again" ] && [ "$$again" != "$$(cat $(UEFI_PART_RUN)/resumed.txt)" ]; } \
 		|| { echo 'test-uefi: a snapshot resumed twice answered the same SecureRandom bytes'; exit 1; }
-# test-uefi-fat: writable FAT volumes and crash reports (tests/uefi/fat.sh): the VM booted from a FAT32 EFI system
-# partition image (QEMU's fat:rw: directory loses writes) with FAT disks to write, read-only and nearly full, what it
-# wrote checked with mtools and fsck.fat; then a forced fatal error: its report on the ESP, the panel, a key, the reset.
-UEFI_ESP_DRIVE = -drive format=raw,file=fat:rw:$(UEFI_RUN)/esp
-test-uefi-fat: $(UEFI_EXT4_DISK)
-	$(UEFI_RUN_DIR)
-	QEMU='$(subst $(UEFI_ESP_DRIVE),,$(QEMU_UEFI))' UEFI=$(UEFI_RUN) VARS=$(OVMF_VARS) BOOT=$(UEFI_BOOT) EXT4=$(UEFI_EXT4_DISK) $(UEFI_SLOT) sh tests/uefi/fat.sh
 test-uefi-nic:
 	MAKEFLAGS= UEFI_RUN=$(UEFI_RUN) UEFI_SLOT=$(UEFI_SLOT) UEFI_NIC=$(UEFI_NIC) UEFI_AFFINITY=$(UEFI_AFFINITY) OUT=$(OUT) tools/samaltak-ctl --session uefi-test-nic open --uefi --headless
 	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test-nic.json); \
@@ -586,6 +554,6 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build vm/build/ffi-test-exports vm/build/ffi-no-platform
 
-.PHONY: $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS)) $(addprefix test-core-part-,$(TEST_CORE_PARTS)) $(addprefix test-tools-part-,$(TEST_TOOLS_PARTS)) all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-fat test-uefi-nic test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels nv-shaders test video mindblown-video jit-video clean
+.PHONY: $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS)) $(addprefix test-core-part-,$(TEST_CORE_PARTS)) $(addprefix test-tools-part-,$(TEST_TOOLS_PARTS)) all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-nic test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels nv-shaders test video mindblown-video jit-video clean
 
 .PHONY: test-ffi-bigint-owned test-ffi-gpu-paged test-ffi-headless test-ffi-no-platform test-ffi-display

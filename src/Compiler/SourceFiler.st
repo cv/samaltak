@@ -65,8 +65,8 @@ hasStartedGitHubStore
 	^gitHubStore notNil and: [gitHubStore isStarted]
 !
 hasWritableSourceDirectory
-	"A source directory not on a mounted (read-only) volume."
-	^sourceDirectory notNil and: [(File mountTableFor: sourceDirectory) isNil]
+	"A source directory to write sources into."
+	^sourceDirectory notNil
 !
 store
 	"Where I read and write sources (see my comment), nil if nowhere."

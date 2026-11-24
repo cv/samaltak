@@ -7,9 +7,7 @@ CrashReportTest comment: 'Tests CrashReport: a report of a caught error written 
 
 !CrashReportTest methodsFor: 'running'!
 setUp
-	dir := (File mountTable notNil and: [File mountTable coversEverything])
-		ifTrue: ['/esp/samaltak-crash-report-test']
-		ifFalse: ['/tmp/samaltak-crash-report-test-', Time utcMicroseconds printString]
+	dir := '/tmp/samaltak-crash-report-test-', Time utcMicroseconds printString
 !
 tearDown
 	(File isDirectory: dir) ifTrue: [
@@ -20,7 +18,6 @@ tearDown
 !CrashReportTest methodsFor: 'tests'!
 testWrite
 	| report path text |
-	(File mountTable notNil and: [File mountTable coversEverything and: [(File isDirectory: '/esp') not]]) ifTrue: [^self].
 	report := [1 / 0] on: ZeroDivide do: [:e | e return: (CrashReport exception: e context: e signalerContext process: Processor activeProcess)].
 	path := report writeIn: dir.
 	self assert: (File baseName: path) = 'samaltak-crash-1.txt'.

@@ -3,7 +3,7 @@ Object subclass: #CrashReport
 	classVariableNames: ''
 	package: 'System-Debugging'!
 
-CrashReport comment: 'I am a report of an error in a Process, written on request (the Notifier''s and the Debugger''s Save report; the stack is taken when I am made) to samaltak-crash-<n>.txt, the first n not taken, in CrashReport directory: on UEFI the boot volume (/esp, FirmwareVolumes: the EFI system partition, where the VM''s own crash reports go, docs/uefi.md), else XDG state samaltak (~/.local/state/samaltak). It says what the error was, the Process, the time (UTC) and the uptime, the VM, the image''s base commit, the heap''s statistics and the stack (each frame''s printString, at most maxFrames).
+CrashReport comment: 'I am a report of an error in a Process, written on request (the Notifier''s and the Debugger''s Save report; the stack is taken when I am made) to samaltak-crash-<n>.txt, the first n not taken, in CrashReport directory, XDG state samaltak (~/.local/state/samaltak). It says what the error was, the Process, the time (UTC) and the uptime, the VM, the image''s base commit, the heap''s statistics and the stack (each frame''s printString, at most maxFrames).
 
 	(CrashReport forSession: aDebugSession) write	"the path"
 	[1 / 0] on: ZeroDivide do: [:e | (CrashReport exception: e context: e signalerContext process: Processor activeProcess) write]'!
@@ -19,8 +19,7 @@ forSession: aDebugSession
 
 !CrashReport class methodsFor: 'accessing'!
 directory
-	"Where reports go: the boot volume on UEFI, else XDG state samaltak."
-	(File mountTable notNil and: [File mountTable coversEverything]) ifTrue: [^'/esp'].
+	"Where reports go: XDG state samaltak."
 	^XDG state: 'samaltak'
 !
 nextPathIn: aDirectory
