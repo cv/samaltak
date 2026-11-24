@@ -3,7 +3,7 @@ ShaderView subclass: #JugglerStage
 	classVariableNames: ''
 	package: 'Tools'!
 
-JugglerStage comment: 'I show a ShannonJuggler in 3D: a scene raymarched on the GPU (shaderSource, MSL; glslShaderSource for Vulkan) on a little stage, a curtain behind, a gilded proscenium at the walls and the ceiling: the W. C. Fields figure (top hat, nose, glowing cigar) behind its box, the arms posed to reach the cups, the balls blurred along their way since the previous frame, the drum whose head gives under a bounce; lit like a photograph of the real machine (painted papier-mâché, wool, felt, turned brass, old wood, haze in the spotlight, film grain). My uniforms are the model''s state in its stage''s points, read at each drawing; the camera drifts on the act''s clock (frame), so a halted act shows a still picture. A click restarts the act.'!
+JugglerStage comment: 'I show a ShannonJuggler in 3D: a scene raymarched on the GPU (shaderSource, MSL; glslShaderSource for Vulkan) on a little stage, a curtain behind, a gilded proscenium at the walls and the ceiling: the W. C. Fields figure (top hat, nose, glowing cigar) behind its box, the arms posed to reach the cups, the balls blurred along their way since the previous frame, the drum whose head gives under a bounce; lit like a photograph of the real machine (painted papier-mâché, wool, felt, turned brass, old wood, haze in the spotlight, film grain). My uniforms are the model''s state in its stage''s points, read at each drawing; the camera drifts on the act''s clock (frame), so a halted act shows a still picture. A click restarts the act. On the software GPU (UEFI) I draw the act flat from the front instead (drawWithoutShaderOn:).'!
 
 !JugglerStage methodsFor: 'accessing'!
 juggler: aShannonJuggler
@@ -1788,4 +1788,95 @@ remoteRole
 !
 remoteLabel
 	^'Claude''s Robot'
+! !
+
+!JugglerStage methodsFor: 'drawing'!
+drawWithoutShaderOn: aCanvas
+	"On the software GPU the raymarched scene cannot run: the act seen flat from the front, the model's stage fitted into my bounds."
+	| stage k |
+	stage := juggler stageExtent.
+	k := (self width / stage x) min: (self height / stage y).
+	aCanvas fillRect: self localBounds color: (Color r: 0.12 g: 0.08 b: 0.07).
+	aCanvas translateBy: (self extent - (stage * k)) / 2 during: [
+		self drawStageOn: aCanvas scale: k.
+		self drawFigureOn: aCanvas scale: k.
+		juggler balls do: [:each | self drawBall: each on: aCanvas scale: k].
+		juggler hands do: [:each | self drawHand: each on: aCanvas scale: k].
+		self drawDrumOn: aCanvas scale: k]
+!
+drawStageOn: aCanvas scale: k
+	"The curtain in folds, the boards."
+	| stage curtain fold x |
+	stage := juggler stageExtent.
+	curtain := Color r: 0.45 g: 0.07 b: 0.09.
+	fold := curtain mixed: 0.35 with: Color black.
+	aCanvas fillRect: (0 @ 0 extent: stage * k) color: curtain.
+	x := 0.
+	[x < stage x] whileTrue: [
+		aCanvas fillRect: (x + 16 * k @ 0 corner: (x + 24 min: stage x) * k @ (stage y * k)) color: fold.
+		x := x + 32].
+	aCanvas fillRect: (0 @ (juggler drum bottom * k) corner: stage * k) color: (Color r: 0.36 g: 0.24 b: 0.14)
+!
+drawFigureOn: aCanvas scale: k
+	"W. C. Fields behind his box: arms to the cups, the head, the top hat, the nose, the cigar."
+	| coat cx |
+	coat := Color r: 0.16 g: 0.14 b: 0.2.
+	cx := juggler stageExtent x / 2.
+	juggler hands do: [:each |
+		aCanvas line: (each isLeft ifTrue: [cx - 38] ifFalse: [cx + 38]) @ 262 * k to: each position * k color: coat width: 9 * k].
+	aCanvas fillRect: (cx - 50 @ 245 * k corner: cx + 50 @ 380 * k) color: coat.
+	aCanvas fillRect: (cx - 70 @ 300 * k corner: cx + 70 @ 380 * k) color: (Color r: 0.42 g: 0.27 b: 0.15).
+	aCanvas strokeRect: (cx - 70 @ 300 * k corner: cx + 70 @ 380 * k) color: (Color r: 0.72 g: 0.55 b: 0.25) width: 3 * k.
+	self fillDisc: cx @ 205 * k radius: 30 * k color: (Color r: 0.93 g: 0.75 b: 0.62) on: aCanvas.
+	aCanvas fillRect: (cx - 24 @ 122 * k corner: cx + 24 @ 178 * k) color: Color black.
+	aCanvas fillRect: (cx - 40 @ 174 * k corner: cx + 40 @ 182 * k) color: Color black.
+	aCanvas fillRect: (cx - 24 @ 164 * k corner: cx + 24 @ 172 * k) color: (Color r: 0.4 g: 0.08 b: 0.1).
+	self fillDisc: cx - 11 @ 198 * k radius: 3 * k color: Color black on: aCanvas.
+	self fillDisc: cx + 11 @ 198 * k radius: 3 * k color: Color black on: aCanvas.
+	self fillDisc: cx @ 212 * k radius: 8 * k color: (Color r: 0.85 g: 0.42 b: 0.38) on: aCanvas.
+	aCanvas line: cx + 8 @ 224 * k to: cx + 40 @ 230 * k color: (Color r: 0.35 g: 0.22 b: 0.12) width: 5 * k.
+	self fillDisc: cx + 41 @ 230 * k radius: 3 * k color: (Color r: 1.0 g: 0.55 b: 0.1) on: aCanvas
+!
+drawBall: aBall on: aCanvas scale: k
+	| r c |
+	r := JugglerBall radius.
+	c := aBall position.
+	self fillDisc: c * k radius: r * k color: juggler ballColor on: aCanvas.
+	self fillDisc: c - (r / 3) * k radius: r / 3 * k color: (juggler ballColor mixed: 0.5 with: Color white) on: aCanvas
+!
+drawHand: aHand on: aCanvas scale: k
+	"The bowl as an arc about its axis, out to the rim on both sides."
+	| c r n points |
+	c := aHand position.
+	r := JugglerHand bowlRadius.
+	n := 12.
+	points := (0 to: n) collect: [:i |
+		| a t |
+		a := JugglerHand rimAngle * (i * 2 / n - 1).
+		t := aHand tilt + a.
+		c + (t sin negated @ t cos * r) * k].
+	1 to: n do: [:i |
+		aCanvas line: (points at: i) to: (points at: i + 1) color: (Color r: 0.78 g: 0.6 b: 0.28) width: 4 * k]
+!
+drawDrumOn: aCanvas scale: k
+	"The shell, its hoops and the drumhead on top."
+	| drum brass |
+	drum := juggler drum.
+	brass := Color r: 0.78 g: 0.6 b: 0.28.
+	aCanvas fillRect: (drum origin * k corner: drum corner * k) color: (Color r: 0.55 g: 0.12 b: 0.1).
+	aCanvas fillRect: (drum left @ drum top * k corner: drum right @ (drum top + 5) * k) color: brass.
+	aCanvas fillRect: (drum left @ (drum bottom - 5) * k corner: drum corner * k) color: brass.
+	aCanvas fillRect: (drum left @ (drum top - 2) * k corner: drum right @ drum top * k) color: (Color r: 0.95 g: 0.91 b: 0.8)
+!
+fillDisc: center radius: r color: aColor on: aCanvas
+	"In strips a device pixel high."
+	| step y |
+	step := 1.0 / aCanvas scale.
+	y := center y - r.
+	[y < (center y + r)] whileTrue: [
+		| dy w |
+		dy := y + (step / 2) - center y.
+		w := (r * r - (dy * dy) max: 0) sqrt.
+		aCanvas fillLeft: center x - w top: y right: center x + w bottom: y + step color: aColor.
+		y := y + step]
 ! !
