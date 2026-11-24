@@ -74,7 +74,7 @@ two: n
 !WorldClockFace class methodsFor: 'opening'!
 cities
 	"City names and their POSIX TZ rules."
-	^#(#('Vancouver' 'PST8PDT,M3.2.0,M11.1.0') #('San Francisco' 'PST8PDT,M3.2.0,M11.1.0') #('Philadelphia' 'EST5EDT,M3.2.0,M11.1.0') #('Barcelona' 'CET-1CEST,M3.5.0,M10.5.0/3') #('Beijing' 'CST-8') #('Ho Chi Minh' 'ICT-7'))
+	^#(#('Vancouver' 'MST7') #('San Francisco' 'PST8PDT,M3.2.0,M11.1.0') #('Philadelphia' 'EST5EDT,M3.2.0,M11.1.0') #('Barcelona' 'CET-1CEST,M3.5.0,M10.5.0/3') #('Beijing' 'CST-8') #('Ho Chi Minh' 'ICT-7'))
 !
 open
 	"Open a World Clock window with a face for each of my cities."
