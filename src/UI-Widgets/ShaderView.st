@@ -3,7 +3,7 @@ Widget subclass: #ShaderView
 	classVariableNames: ''
 	package: 'UI-Widgets'!
 
-ShaderView comment: 'I show a picture computed on the GPU by a fragment shader (FragmentShader: the source after its prelude, a function fmain), at device resolution, in my bounds. Subclasses answer shaderSource (MSL) and glslShaderSource (GLSL, for Vulkan; see FragmentShader) and uniforms, an Array of rows, each one float4 of the shader''s uniform struct: up to four Numbers, Points (two) and Colors (r g b a, premultiplied by the shader if it wants). Each drawing renders a new frame from them (at renderScale); invalidate when they change (every frame, for an animation). A changed shaderSource takes effect at the next drawing.'!
+ShaderView comment: 'I show a picture computed on the GPU by a fragment shader (FragmentShader: the source after its prelude, a function fmain), at device resolution, in my bounds. Subclasses answer shaderSource (MSL) and glslShaderSource (GLSL, for Vulkan; see FragmentShader) and uniforms, an Array of rows, each one float4 of the shader''s uniform struct: up to four Numbers, Points (two) and Colors (r g b a, premultiplied by the shader if it wants). Each drawing renders a new frame from them (at renderScale); invalidate when they change (every frame, for an animation). A changed shaderSource takes effect at the next drawing. Where the CPU renders (GPUDevice isSoftware, on UEFI) no fragment shader runs: I draw drawWithoutShaderOn: instead, which subclasses override with a plain picture.'!
 
 !ShaderView methodsFor: 'shader'!
 shaderSource
@@ -31,6 +31,7 @@ drawSelfOn: aCanvas
 	s := aCanvas scale * self renderScale.
 	(self width * s) rounded < 1 | ((self height * s) rounded < 1) ifTrue: [^self].
 	shader isNil ifTrue: [shader := FragmentShader new].
+	shader device isSoftware ifTrue: [^self drawWithoutShaderOn: aCanvas].
 	aCanvas
 		image: (shader
 			imageExtent: (self width * s) rounded @ (self height * s) rounded
@@ -51,4 +52,9 @@ packedUniforms
 					bytes float32At: at put: f asFloat.
 					at := at + 4]]].
 	^bytes
+!
+drawWithoutShaderOn: aCanvas
+	"Where the CPU renders (SoftwareGPU, on UEFI) no fragment shader runs; subclasses draw a plain picture instead."
+	aCanvas fillRect: self localBounds color: (Color gray: 0.2).
+	aCanvas drawString: 'This view needs a GPU' in: self localBounds font: Font ui color: Color white align: #center
 ! !
