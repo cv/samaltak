@@ -323,4 +323,18 @@ testDocs
 	self assert: (filer doc: 'guide') equals: '# guide'.
 	self assert: (filer doc: 'guide.md') equals: '# guide'.
 	self assert: (filer doc: 'missing') isNil
+!
+testBinaryFile
+	| bytes pr |
+	bytes := #[0 1 128 255 10 13 192 193].
+	self assert: (filer writeFile: 'fonts/Test-Regular.ttf' bytes: bytes) equals: 'fonts/Test-Regular.ttf'.
+	self assert: filer pendingChanges equals: #('fonts/Test-Regular.ttf').
+	pr := filer commit: 'Fonts: a test face' pullRequest: false.
+	self assert: (server bytesAt: 'fonts/Test-Regular.ttf' onBranch: pr branch) asByteArray equals: bytes.
+	self assert: (server bytesAt: 'fonts/Test-Regular.ttf' onBranch: 'main') isNil
+!
+testBinaryFileWhenWritingIsOff
+	filer enabled: false.
+	self assert: (filer writeFile: 'fonts/Test-Regular.ttf' bytes: #[0 255]) isNil.
+	self assert: filer pendingChanges isEmpty
 ! !

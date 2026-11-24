@@ -59,6 +59,8 @@ opacity: aNumber
 	opacity := aNumber
 !
 clearColor: aColor
+	"A new clear color renders me whole; the one I have changes nothing (a Window sets it at every redraw)."
+	clearColor = aColor ifTrue: [^self].
 	clearColor := aColor.
 	needsRender := true
 !

@@ -63,6 +63,12 @@ fileNamesIn: aPath
 	prefix := aPath, '/'.
 	^((entries keys select: [:p | (p beginsWith: prefix) and: [(p indexOf: $/ startingAt: prefix size + 1) = 0]])
 		collect: [:p | p copyFrom: prefix size + 1 to: p size]) asSortedCollection asArray
+!
+at: aPath putBytes: aByteArray
+	"A binary file (a font in fonts/): committed byte for byte; its base is not read."
+	self isStarted ifFalse: [self start].
+	(originals includesKey: aPath) ifFalse: [originals at: aPath put: nil].
+	texts at: aPath put: aByteArray
 ! !
 
 !GitHubSourceStore methodsFor: 'changes'!
@@ -147,7 +153,7 @@ readBlobAt: aPath
 		ifFalse: [content]
 !
 treeEntryFor: aPath
-	"The git/trees entry of a changed path: a new blob of its text, or sha nil (removed)."
+	"The git/trees entry of a changed path: a new blob of its text (or bytes: a binary file), or sha nil (removed)."
 	| text entry |
 	text := texts at: aPath.
 	entry := Dictionary new.
@@ -157,7 +163,7 @@ treeEntryFor: aPath
 		at: 'type' put: 'blob';
 		at: 'sha' put: (text isNil ifTrue: [nil] ifFalse: [
 			(self client post: (self client repositoryPath: 'git/blobs') json: (Dictionary new
-				at: 'content' put: (Base64 encode: text utf8Encoded);
+				at: 'content' put: (Base64 encode: (text isString ifTrue: [text utf8Encoded] ifFalse: [text]));
 				at: 'encoding' put: 'base64';
 				yourself)) at: 'sha']).
 	^entry

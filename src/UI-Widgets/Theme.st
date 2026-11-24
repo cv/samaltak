@@ -30,7 +30,6 @@ initializeBlueBook
 		at: #ink4 put: (Color hex: 16rA6A6A6);
 		at: #hair put: (Color hex: 16rC9C9C9);
 		at: #paper put: Color white;
-		at: #panel put: Color white;
 		at: #rule put: Color black;
 		at: #ultramarine put: ultra;
 		at: #accentSoft put: (ultra alpha: 0.12);
@@ -98,6 +97,8 @@ publishPalette
 	named := Color namedColors.
 	colors keysAndValuesDo: [:key :color |
 		((named includesKey: key) or: [self class chromeColorNames includes: key]) ifTrue: [Color named: key put: color]].
+	"Bars draw on Color panel: mine, or my paper where I have none (a theme built on the Blue Book's colors)."
+	Color named: #panel put: self panel.
 	Window chromeStyle: self chromeStyle
 ! !
 

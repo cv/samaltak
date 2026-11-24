@@ -309,11 +309,30 @@ testCodeCellCaption
 	view := AgentItemView for: (AgentItem kind: #code text: '"Find the
 	agent classes"
 Smalltalk allClasses size').
-	self assert: view title equals: 'Code-mode · Find the agent classes'.
+	self assert: view title equals: 'Find the agent classes'.
 	self assert: view source equals: 'Smalltalk allClasses size'.
 	view := AgentItemView for: (AgentItem kind: #code text: '3 "three"').
 	self assert: view title equals: 'Code-mode'.
 	self assert: view source equals: '3 "three"'
+!
+testClickingTheChipOpensAnAgentOnTheWindow
+	| me browser agent context |
+	me := Processor activeProcess.
+	browser := self open: [ProcessBrowser openIn: (100 @ 100 extent: 530 @ 340)].
+	self settle.
+	self in: browser do: [browser content selectProcess: me].
+	self assert: (browser zoneAt: browser bounds origin + browser chipRectStatic center) == #chip.
+	self click: browser bounds origin + browser chipRectStatic center.
+	self assert: (self waitFor: [(self windowsOf: AgentWindow) size = 1]) description: 'The chip opened no Agent window'.
+	agent := (self windowsOf: AgentWindow) first.
+	self assert: (self waitFor: [agent isOpen and: [agent queue isEmpty]]).
+	self assert: agent content origin == browser content.
+	context := agent content conversation context.
+	self assert: (self valueOf: #window in: context) == browser.
+	self assert: context receiver == me.
+	self click: browser bounds origin + browser chipRectStatic center.
+	self settle.
+	self assert: (self windowsOf: AgentWindow) size = 1
 ! !
 
 !AgentWindowTest methodsFor: 'tests - contexts'!

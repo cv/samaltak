@@ -81,6 +81,12 @@ fail: aString status: anInteger message: aMessage
 !
 stop
 	server stop
+!
+bytesAt: aPath onBranch: aBranch
+	"The file's bytes at the branch's head, nil if it has none."
+	| entry |
+	entry := (self treeOfBranch: aBranch) at: aPath ifAbsent: [^nil].
+	^blobs at: entry last
 ! !
 
 !GitHubTestServer methodsFor: 'objects'!

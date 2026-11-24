@@ -158,6 +158,15 @@ busyLabel: aStringOrNil
 !
 whenClosed: aBlock
 	closeActions add: aBlock
+!
+agentContext
+	"What the Agent opened from my chip binds: my content's context (as ⌘J gives), else me as self; and me as window."
+	| context |
+	context := (content respondsTo: #agentContext)
+		ifTrue: [content agentContext]
+		ifFalse: [AgentContext new label: title; yourself].
+	context receiver isNil ifTrue: [context receiver: self].
+	^context bind: #window to: self; yourself
 ! !
 
 !Window methodsFor: 'geometry'!
@@ -236,7 +245,7 @@ resizeGripRect
 	^(bounds width - 10 - b) @ (bounds height - 10 - b) extent: 9 @ 9
 !
 zoneAt: aScreenPoint
-	"The window-manager zone at aScreenPoint: #close #collapse #title #resizeL #resizeR #resizeB #resizeBR #content #frame, or nil when outside (resize zones reach 3 points beyond my frame; tabbed, beside the tab is outside)."
+	"The window-manager zone at aScreenPoint: #close #collapse #chip #title #resizeL #resizeR #resizeB #resizeBR #content #frame, or nil when outside (resize zones reach 3 points beyond my frame; tabbed, beside the tab is outside)."
 	| p w h b |
 	p := aScreenPoint - bounds origin.
 	w := bounds width.
@@ -245,6 +254,7 @@ zoneAt: aScreenPoint
 	(p x < -3 or: [p y < 0 or: [p x >= (w + 3) or: [p y >= (h + 3)]]]) ifTrue: [^nil].
 	((self closeBoxRect outsetBy: 2) containsPoint: p) ifTrue: [^#close].
 	((self collapseBoxRect outsetBy: 2) containsPoint: p) ifTrue: [^#collapse].
+	((self chipRect outsetBy: 2) containsPoint: p) ifTrue: [^#chip].
 	(self isTabbed and: [p y < self frameTop or: [collapsed]]) ifTrue: [
 		^(p y < self titleBarHeight and: [p x >= 0 and: [p x < self tabRect right]]) ifTrue: [#title] ifFalse: [nil]].
 	p y < self contentTop ifTrue: [
@@ -403,6 +413,11 @@ resumed
 	self do: [
 		animations do: [:each | each isFrameAnimation ifFalse: [each finish]].
 		self invalidate]
+!
+openAgent
+	"Open an Agent with me in context (a click on my chip), or bring back the one already open on my content."
+	(Smalltalk includesKey: #AgentWindow) ifFalse: [^nil].
+	^(Smalltalk at: #AgentWindow) openFor: content context: self
 ! !
 
 !Window methodsFor: 'scheduling'!
