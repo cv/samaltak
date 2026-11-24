@@ -200,12 +200,12 @@ definitionInFileOf: aClass
 writeFile: aPath bytes: aByteArray
 	"Write a binary file outside the sources, aPath from the repository's root (fonts/NotoSans-Regular.ttf); answer the path written, or nil when writing is off."
 	| store parent path |
-	store := self store.
-	store isNil ifTrue: [^nil].
+	self isEnabled ifFalse: [^nil].
+	store := self existingStore.
 	parent := File directoryOf: self root.
 	path := parent = '.' ifTrue: [aPath] ifFalse: [parent, '/', aPath].
 	store at: path putBytes: aByteArray.
-	store noteChange: 'Added ', path.
+	store noteChange: path.
 	^path
 ! !
 

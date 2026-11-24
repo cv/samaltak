@@ -332,4 +332,9 @@ testBinaryFile
 	pr := filer commit: 'Fonts: a test face' pullRequest: false.
 	self assert: (server bytesAt: 'fonts/Test-Regular.ttf' onBranch: pr branch) asByteArray equals: bytes.
 	self assert: (server bytesAt: 'fonts/Test-Regular.ttf' onBranch: 'main') isNil
+!
+testBinaryFileWhenWritingIsOff
+	filer enabled: false.
+	self assert: (filer writeFile: 'fonts/Test-Regular.ttf' bytes: #[0 255]) isNil.
+	self assert: filer pendingChanges isEmpty
 ! !
