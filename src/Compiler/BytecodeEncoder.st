@@ -265,11 +265,11 @@ nonLocalReturnTop
 !BytecodeEncoder methodsFor: 'sending'!
 send: selector numArgs: n super: isSuper
 	| special index |
-	(isSuper not and: [n = 1 and: [self fuseSend: (Compiler specialSelectorIndexOf: selector)]]) ifTrue: [^self pop: 1].
+	(isSuper not and: [n = 1 and: [self fuseSend: (CompiledMethod specialSelectors indexOf: selector)]]) ifTrue: [^self pop: 1].
 	isSuper
 		ifTrue: [self emit: 16r8E operand: (self literalIndexOf: selector) operand: n]
 		ifFalse: [
-			special := Compiler specialSelectorIndexOf: selector.
+			special := CompiledMethod specialSelectors indexOf: selector.
 			special > 0
 				ifTrue: [self emit: 16rA0 + special - 1]
 				ifFalse: [

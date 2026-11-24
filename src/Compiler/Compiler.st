@@ -217,9 +217,3 @@ receiverOfHeader: aHeader
 		ifFalse: [^SyntaxError signal: 'methodsFor: expected' at: 1 in: aHeader].
 	^aHeader copyFrom: message receiver start to: message receiver stop
 ! !
-
-!Compiler class methodsFor: 'private'!
-specialSelectorIndexOf: aSymbol
-	"Answer the 1-based index of aSymbol among the special selectors (bytecodes 16rA0-16rBF), or 0."
-	^CompiledMethod specialSelectors indexOf: aSymbol
-! !
