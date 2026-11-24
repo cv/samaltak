@@ -146,3 +146,115 @@ benchmark
 verifyResult: result
 	^result \\ 1000000007 = 641419708
 ! !
+
+"Allocation, one kind each (not in the micro suite; awfy.sh MicroAllocObject ...): an object with fixed fields made
+by new (basicNew and initialize inlined), bytes, an Array of a size known only at run time, a large Array (beyond
+optimized code's inline sizes), closures that escape, Points."!
+
+Object subclass: #MicroCell
+	instanceVariableNames: 'a b c'
+	classVariableNames: ''
+	package: 'AWFY'!
+
+Benchmark subclass: #MicroAllocObject
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'AWFY'!
+
+Benchmark subclass: #MicroAllocBytes
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'AWFY'!
+
+Benchmark subclass: #MicroAllocSized
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'AWFY'!
+
+Benchmark subclass: #MicroAllocLarge
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'AWFY'!
+
+Benchmark subclass: #MicroAllocClosure
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'AWFY'!
+
+Benchmark subclass: #MicroAllocPoint
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'AWFY'!
+
+!MicroCell methodsFor: 'initializing'!
+initialize
+	a := 0.
+	b := 0
+!
+a
+	^a
+! !
+
+!MicroAllocObject methodsFor: 'benchmarking'!
+benchmark
+	| o |
+	1 to: 3000000 do: [:i | o := MicroCell new].
+	^o
+!
+verifyResult: result
+	^result a = 0
+! !
+
+!MicroAllocBytes methodsFor: 'benchmarking'!
+benchmark
+	| o |
+	1 to: 3000000 do: [:i | o := ByteArray new: 24].
+	^o
+!
+verifyResult: result
+	^result size = 24
+! !
+
+!MicroAllocSized methodsFor: 'benchmarking'!
+benchmark
+	| o n |
+	n := 0.
+	1 to: 3000000 do: [:i | o := Array new: (i bitAnd: 15). n := n + o size].
+	^n
+!
+verifyResult: result
+	^result = 22500000
+! !
+
+!MicroAllocLarge methodsFor: 'benchmarking'!
+benchmark
+	| o |
+	1 to: 3000 do: [:i | o := Array new: 6000].
+	^o
+!
+verifyResult: result
+	^result size = 6000
+! !
+
+!MicroAllocClosure methodsFor: 'benchmarking'!
+benchmark
+	| o |
+	1 to: 3000000 do: [:i | o := self blockOn: i].
+	^o
+!
+blockOn: i
+	^[i]
+!
+verifyResult: result
+	^result value = 3000000
+! !
+
+!MicroAllocPoint methodsFor: 'benchmarking'!
+benchmark
+	| p |
+	1 to: 3000000 do: [:i | p := i @ i].
+	^p
+!
+verifyResult: result
+	^result x = 3000000
+! !
