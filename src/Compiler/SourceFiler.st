@@ -196,6 +196,17 @@ definitionInFileOf: aClass
 	file := ChunkFile on: text.
 	k := file definitionChunkFor: aClass name.
 	^k isNil ifTrue: [nil] ifFalse: [file chunkBody: k]
+!
+writeFile: aPath bytes: aByteArray
+	"Write a binary file outside the sources, aPath from the repository's root (fonts/NotoSans-Regular.ttf); answer the path written, or nil when writing is off."
+	| store parent path |
+	store := self store.
+	store isNil ifTrue: [^nil].
+	parent := File directoryOf: self root.
+	path := parent = '.' ifTrue: [aPath] ifFalse: [parent, '/', aPath].
+	store at: path putBytes: aByteArray.
+	store noteChange: 'Added ', path.
+	^path
 ! !
 
 !SourceFiler methodsFor: 'changes'!

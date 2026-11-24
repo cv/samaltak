@@ -36,6 +36,12 @@ fileNamesIn: aPath
 	^(File isDirectory: aPath)
 		ifTrue: [(Directory fileNames: aPath) asSortedCollection asArray]
 		ifFalse: [#()]
+!
+at: aPath putBytes: aByteArray
+	| dir |
+	dir := File directoryOf: aPath.
+	(File isDirectory: dir) ifFalse: [Directory create: dir].
+	File writeBytes: aByteArray to: aPath
 ! !
 
 !SourceDirectoryStore methodsFor: 'changes'!
