@@ -28,6 +28,7 @@ static uint64_t object_memory_alloc_old_format_slots_limit(oop cls, int32_t fmt,
 static uint64_t alloc_old_try(oop cls, int32_t fmt, uint32_t n);
 static uint64_t alloc_slow(oop *cls, uint64_t bytes);
 static oop alloc_words32(oop cls, uint64_t n);
+static void object_memory_fill(oop *s, oop v, uint64_t n);
 static uint32_t fnv_hash(oop s);
 static bool large_magnitude(oop o, uint64_t *mag, bool *neg);
 static uint32_t next_hash(void);
@@ -81,8 +82,12 @@ uint64_t alloc_obj(oop cls, int32_t fmt, uint32_t n)
         if ((fmt >= 1) && (fmt <= 4)) {
             s = (oop *)(p + 16);
             nl = nil_oop;
-            for (i = 0; i <= (int64_t)n - 1; i++) {
-                s[i] = nl;
+            if (n <= 8) {
+                for (i = 0; i <= (int64_t)n - 1; i++) {
+                    s[i] = nl;
+                }
+            } else {
+                object_memory_fill(s, nl, (uint64_t)n);
             }
         } else {
             an_address = p + 16;
@@ -96,8 +101,12 @@ uint64_t alloc_obj(oop cls, int32_t fmt, uint32_t n)
         if ((fmt >= 1) && (fmt <= 4)) {
             s_2 = (oop *)(p + 16);
             nl_2 = nil_oop;
-            for (i_2 = 0; i_2 <= (int64_t)n - 1; i_2++) {
-                s_2[i_2] = nl_2;
+            if (n <= 8) {
+                for (i_2 = 0; i_2 <= (int64_t)n - 1; i_2++) {
+                    s_2[i_2] = nl_2;
+                }
+            } else {
+                object_memory_fill(s_2, nl_2, (uint64_t)n);
             }
         } else {
             an_address_2 = p + 16;
@@ -168,8 +177,12 @@ static uint64_t object_memory_alloc_old_format_slots_limit(oop cls, int32_t fmt,
     if ((fmt >= 1) && (fmt <= 4)) {
         s = (oop *)(p + 16);
         nl = nil_oop;
-        for (i = 0; i <= (int64_t)n - 1; i++) {
-            s[i] = nl;
+        if (n <= 8) {
+            for (i = 0; i <= (int64_t)n - 1; i++) {
+                s[i] = nl;
+            }
+        } else {
+            object_memory_fill(s, nl, (uint64_t)n);
         }
     } else {
         an_address = p + 16;
@@ -327,6 +340,15 @@ oop class_of(oop o)
         break;
     }
     return v;
+}
+
+/* ObjectMemory>>fill:with:count: */
+static void object_memory_fill(oop *s, oop v, uint64_t n)
+{
+    int64_t i;
+    for (i = 0; i <= (int64_t)n - 1; i++) {
+        s[i] = v;
+    }
 }
 
 /* ObjectMemory>>fixedFields: */

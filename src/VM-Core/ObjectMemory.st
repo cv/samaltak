@@ -248,8 +248,18 @@ initObjectAt: p class: cls format: fmt slots: n
 		ifTrue: [
 			s := self cCoerce: p + 16 to: 'oop *'.
 			nl := nilOop.
-			0 to: n asInt64 - 1 do: [:i | s at: i put: nl]]
+			n <= 8
+				ifTrue: [0 to: n asInt64 - 1 do: [:i | s at: i put: nl]]
+				ifFalse: [self fill: s with: nl count: n asUInt64]]
 		ifFalse: [libc memset: (self ptr: p + 16) value: 0 size: n asUInt64 * 8]
+!
+fill: s with: v count: n
+	"n words from s := v: a function of its own, so that the C compiler vectorizes it (alloc_obj's profile keeps its loop for the small objects scalar: a word a cycle, 4 times slower for an Array of thousands)."
+	<function>
+	<var: #s type: 'oop *'>
+	<var: #v type: 'oop'>
+	<var: #n type: 'uint64_t'>
+	0 to: n asInt64 - 1 do: [:i | s at: i put: v]
 !
 oldOverBudget
 	^gc oldTop - gc oldLo > gc oldBudget
