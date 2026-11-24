@@ -15,7 +15,8 @@ async function gate(
   // "test-jit-opt" as AGENTS.md requires, "test-nv" on a machine with an NVIDIA GPU; the targets run at once after one
   // build (tests/stages.sh), each suite sharded over test VMs: all five stages take ~2.5 min (~2 when the VM comes from the build cache), test-core alone ~2;
   // concurrent gates share the machine's test slots and take longer; results end with a line per stage, "stage
-  // <target>: passed|FAILED (exit N) in N s", and "stages: ..."; or ["auto"]: test-core, plus test-uefi when src/,
+  // <target>: passed|FAILED (exit N) in N s", and "stages: ..."; a failed shard or part runs once more, and one that
+  // passes then is a flake: its stage passes, and flakes lists it ("<stage>: <line>"); or ["auto"]: test-core, plus test-uefi when src/,
   // vm/, boot/, the Makefile,
   // tests/uefi or tools/samaltak-ctl changed, the JIT stages when src/VM-* or vm/ (not vm/tests/bench) changed, and
   // test-nv when System-NV, Graphics-NV, gpu/nv or tests/nv changed and /dev/nvidiactl exists; the result says why) and
@@ -59,9 +60,14 @@ async function gate(
   const summarize = async (rec: any) => {
     const log = `${dir}/${rec.id}.log`;
     const s = await exec(
-      `grep -a -E '^[0-9]+ run, |^st_suite: |^(FAIL |ERROR )|: all passed|passed, [0-9]+ failed|make(\\[[0-9]+\\])?: \\*\\*\\*|^make test: FAILED|^make test-nv: |^replay: |^fuzz: |^test-uefi: |^qemu-system[^ ]*: ' ${log} 2>/dev/null | tr -d '\\r' | tail -25; grep -a -E '^stage [^ ]+: (passed|FAILED)|^stages: (all passed|FAILED)' ${log} 2>/dev/null | tr -d '\\r'; echo "@@"; tail -n 4 ${log} 2>/dev/null | tr -d '\\r'`,
+      `grep -a -E '^[0-9]+ run, |^st_suite: |^(FAIL |ERROR )|: all passed|passed, [0-9]+ failed|make(\\[[0-9]+\\])?: \\*\\*\\*|^make test: FAILED|^make test-nv: |^replay: |^fuzz: |^test-uefi: |^qemu-system[^ ]*: |^rerun: [^ ]+ (passed|failed again) on its rerun' ${log} 2>/dev/null | tr -d '\\r' | tail -25; grep -a -E '^stage [^ ]+: (passed|FAILED)|^stages: (all passed|FAILED|flake: )' ${log} 2>/dev/null | tr -d '\\r'; echo "@@"; tail -n 4 ${log} 2>/dev/null | tr -d '\\r'`,
     );
     const [hits, tail] = s.stdout.split("@@\n");
+    // failures that passed on their automatic rerun (tests/lib/rerun.sh): the stage passed, the ledger has them
+    const flakes = hits
+      .split("\n")
+      .filter((l) => l.startsWith("stages: flake: "))
+      .map((l) => l.slice("stages: flake: ".length, 300));
     const targets: string[] = rec.targets.split(" ");
     // stages run at once (tests/stages.sh): the build, then about the slowest stage, plus some for sharing the slots
     const stageS = (t: string) =>
@@ -73,9 +79,10 @@ async function gate(
       elapsedS: Math.round((rec.finished ?? Date.now() / 1000) - rec.started),
       expectedS,
       log,
+      flakes: flakes.length ? flakes : undefined,
       results: hits
         .split("\n")
-        .filter(Boolean)
+        .filter((l) => l && !l.startsWith("stages: flake: "))
         .map((l) => l.slice(0, 300)),
       tail: (tail ?? "")
         .split("\n")

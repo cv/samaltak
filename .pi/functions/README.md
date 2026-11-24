@@ -48,9 +48,13 @@ Check with `context.get().projectFunctions`.
   Timings are shared by the machine's worktrees (`~/.cache/samaltak/test-times`), so a fresh worktree's first run
   is balanced. The gate's VM comes from `~/.cache/samaltak/build` when its `vm/` was built before (the log says
   `build-cache: the VM from the cache`; tests/build-cache.sh), so a re-run or a rebase that left `vm/` alone skips
-  the VM's compile. Flakes: every stage's result goes into `~/.cache/samaltak/gate-ledger.tsv`; a failed stage first
+  the VM's compile. Flakes: a suite's failed shard, and a failed part of test-core, test-tools or test-uefi, runs once more
+  (`tests/rerun.sh`, `tests/lib/rerun.sh`; `SAMALTAK_TEST_RERUN=0`: no reruns, as `suite` runs by default): one that
+  passes then is a flake: its stage passes, its first run's failure lines print as `flake: ...` and are listed at the
+  end (`stages: flake: <stage>: <line>`, the gate's `flakes`); a second failure fails the stage. Every stage's result,
+  and its flakes, go into `~/.cache/samaltak/gate-ledger.tsv`; a failed stage first
   names lines that failed in earlier gates (`flakes: known: ...`), and `tests/flakes.sh` lists the failures by
-  frequency and how many of their trees also passed (a flake). It tests HEAD's committed tree only
+  frequency, how many of their trees also passed and how often a rerun passed (a flake). It tests HEAD's committed tree only
   (not uncommitted or untracked files) and runs one at a time per directory. A failure blocks only if the test passes on origin/main: rerun it alone with `suite` before suspecting
   your change (JIT tests have failed under load). `push` accepts a passed run of the same tree, or of the same change
   when the commits that landed since touch none of your files.

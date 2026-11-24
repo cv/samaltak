@@ -9,6 +9,9 @@
 # (tests/build-cache.sh; SAMALTAK_BUILD_CACHE=0: none), so that a gate of an already built vm/ skips its compile.
 # Flakes: each stage's result and failure lines go into the machine's ledger (tests/flakes.sh; report: tests/flakes.sh),
 # and a failed stage's lines that failed in earlier gates are named first ("flakes: known: ...").
+# Reruns: a failed shard or part runs once more (tests/lib/rerun.sh); one that passes then is a flake: its stage passes
+# ("stage <stage>: passed in N s, N flakes"), the ledger records its lines as flakes, and the end lists them,
+# "stages: flake: <stage>: <line>", before "stages: all passed" (or FAILED).
 # Timeline: every recipe line, test VM and slot wait goes into OUT/stages/timeline (SAMALTAK_TIMELINE; set it empty
 # for none), and the end shows each stage's span and the steps of the build and of the stage that ended last, the
 # critical path (tests/timeline.sh; tests/timeline.sh OUT/stages/timeline all: every stage's).
@@ -67,6 +70,7 @@ TREE=$(git rev-parse 'HEAD^{tree}' 2>/dev/null || echo unknown)
 [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ] && TREE=$TREE-dirty
 left=$STAGES
 failed=
+flakes=
 while [ -n "$left" ]; do
   next=
   for s in $left; do
@@ -74,8 +78,12 @@ while [ -n "$left" ]; do
       read -r e secs <"$LOGS/$s.exit"
       echo "=== stage $s ($LOGS/$s.log)"
       cat "$LOGS/$s.log"
+      f=$(tr -d '\r' <"$LOGS/$s.log" | grep -a '^flake: ' | sed "s/^flake: /stages: flake: $s: /")
+      [ -n "$f" ] && flakes="$flakes
+$f"
+      nf=$(printf '%s' "$f" | grep -c .)
       if [ "$e" = 0 ]; then
-        echo "stage $s: passed in $secs s"
+        echo "stage $s: passed in $secs s$( [ "$nf" -gt 0 ] && echo ", $nf flakes (passed on a rerun)")"
         tests/flakes.sh record "$TREE" "$s" passed "$LOGS/$s.log"
       else
         tests/flakes.sh known "$s" "$LOGS/$s.log"
@@ -94,5 +102,6 @@ wait
 # what test-tools built besides (vm/build/platform-vm, platform-test) goes into the cache too
 tests/build-cache.sh save >/dev/null
 timeline
+[ -n "$flakes" ] && echo "$flakes" | sed 1d
 [ -z "$failed" ] || { echo "stages: FAILED:$failed (in $(( $(date +%s) - START )) s)"; exit 1; }
 echo "stages: all passed in $(( $(date +%s) - START )) s"

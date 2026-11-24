@@ -9,6 +9,7 @@ async function suite(
     out?: string;
     timeoutS?: number;
     maxFailures?: number;
+    rerun?: boolean;
   } = {},
 ) {
   // Runs tests/st_suite.sh (the image's Smalltalk tests, headless) on packages or test classes in the current directory,
@@ -16,7 +17,8 @@ async function suite(
   // (e.g. ["--jit", "opt", "--jit-threshold", "0"]). Returns ok, the summary line, FAIL/ERROR lines, and the tail.
   // build: first make the image (samaltak.build: VM, seed, image; incremental) and stop there if it fails; out: the build
   // directory (OUT, default "build"; e.g. "build/dev" so a running gate's build is left alone), image defaults to its
-  // samaltak.image. Make the tool call's timeoutMs longer than timeoutS (plus the build).
+  // samaltak.image. rerun (default false): a failed shard runs once more as in the gate (SAMALTAK_TEST_RERUN); off,
+  // so that a flaky test shows its failure here. Make the tool call's timeoutMs longer than timeoutS (plus the build).
   const out = input.out ?? "build";
   const image = input.image ?? `${out}/samaltak.image`;
   const built = input.build ? await make({ target: "all", out }) : undefined;
@@ -35,8 +37,15 @@ async function suite(
   const timeoutS = Math.min(Math.max(input.timeoutS ?? 280, 10), 290);
   const max = Math.min(Math.max(input.maxFailures ?? 30, 1), 200);
   const r = await execFile(
-    "tests/st_suite.sh",
-    [image, ...(input.vmArgs ?? []), "--", ...(input.tests ?? [])],
+    "env",
+    [
+      `SAMALTAK_TEST_RERUN=${input.rerun ? 1 : 0}`,
+      "tests/st_suite.sh",
+      image,
+      ...(input.vmArgs ?? []),
+      "--",
+      ...(input.tests ?? []),
+    ],
     {
       timeoutMs: timeoutS * 1000,
       maxLines: 20000,

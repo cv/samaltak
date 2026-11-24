@@ -72,7 +72,7 @@ test-jit-none: $(TEST_IMAGE)
 test-jit-baseline: $(TEST_IMAGE)
 	tests/st_suite.sh $(OUT)/samaltak.image --jit baseline --jit-threshold 0
 test-jit-opt: $(TEST_IMAGE)
-	tests/vm/bound_ffi_site_test.sh $(OUT)/samaltak.image $(VM)
+	tests/rerun.sh bound-ffi-site tests/vm/bound_ffi_site_test.sh $(OUT)/samaltak.image $(VM)
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-flags eager
 test-jit-deopt: $(TEST_IMAGE)
 	tests/st_suite.sh $(OUT)/samaltak.image --jit opt --jit-threshold 0 --jit-flags eager,deopt
@@ -99,9 +99,19 @@ TEST_CORE_PARTS := suite vm gen layering fresh-seed ffi cli-quit resume-rng veri
 TEST_CORE_JOBS ?= $(words $(TEST_CORE_PARTS))
 # make -j N -O, but one at a time on make 3.81 (macOS's), which has no -O
 TEST_PARTS_SYNC = $(if $(filter 3.%,$(MAKE_VERSION)),-j1,-j$(1) -O --no-print-directory)
+# A part that fails runs once more (tests/rerun.sh, SAMALTAK_TEST_RERUN; a suite reruns its failed shards itself): one
+# that passes then is a flake, listed as "flake: <line>". The runtime image comes first, for the three parts using it.
+RERUN_PART = @tests/rerun.sh $(1)-part-$* $(MAKE) --no-print-directory $(1)-part-$*
+test-core-rerun-%:
+	$(call RERUN_PART,test-core)
+test-tools-rerun-%:
+	$(call RERUN_PART,test-tools)
+test-uefi-rerun-%:
+	$(call RERUN_PART,test-uefi)
 test-core: $(TEST_IMAGE)
 	$(PLATFORM_CHECK)
-	$(MAKE) -k $(call TEST_PARTS_SYNC,$(TEST_CORE_JOBS)) $(addprefix test-core-part-,$(TEST_CORE_PARTS))
+	@$(MAKE) --no-print-directory fresh-runtime
+	$(MAKE) -k $(call TEST_PARTS_SYNC,$(TEST_CORE_JOBS)) $(addprefix test-core-rerun-,$(TEST_CORE_PARTS))
 test-core-part-suite:
 	tests/st_suite.sh $(OUT)/samaltak.image
 test-core-part-vm: vm
@@ -230,7 +240,7 @@ test-ffi-display: $(TEST_IMAGE)
 # not nvcc).
 test-nv: $(TEST_IMAGE)
 	tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvComputeGPUTest NvFragmentShaderTest
-	tests/nv/run.sh $(OUT)
+	tests/rerun.sh nv-kernels tests/nv/run.sh $(OUT)
 # test-tools's parts run at once too (TEST_TOOLS_JOBS, all by default; 1: one after another), the longest first, each
 # holding a test slot and, with SAMALTAK_TEST_XVFB=1 (tests/stages.sh), on an Xvfb of its own (tests/with-display).
 TEST_TOOLS_PARTS := rfb platform reboot desktop snapshot recording cli auth quit-signal
@@ -238,7 +248,7 @@ TEST_TOOLS_JOBS ?= $(words $(TEST_TOOLS_PARTS))
 TOOLS_PART = tests/with-slot tests/with-display
 test-tools: $(TEST_IMAGE)
 	$(PLATFORM_CHECK)
-	$(MAKE) -k $(call TEST_PARTS_SYNC,$(TEST_TOOLS_JOBS)) $(addprefix test-tools-part-,$(TEST_TOOLS_PARTS))
+	$(MAKE) -k $(call TEST_PARTS_SYNC,$(TEST_TOOLS_JOBS)) $(addprefix test-tools-rerun-,$(TEST_TOOLS_PARTS))
 test-tools-part-platform:
 	$(TOOLS_PART) $(MAKE) -C vm/platform test st-test
 test-tools-part-cli:
@@ -437,7 +447,7 @@ UEFI_PART_ENV = MAKEFLAGS= UEFI_RUN=$(UEFI_PART_RUN) UEFI_AFFINITY=$(UEFI_AFFINI
 test-uefi:
 	rm -rf $(UEFI)/image.disk $(UEFI)/run-*
 	$(MAKE) uefi
-	$(MAKE) -k $(UEFI_TEST_SYNC) $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS))
+	$(MAKE) -k $(UEFI_TEST_SYNC) $(addprefix test-uefi-rerun-,$(UEFI_TEST_PARTS))
 	rm -rf $(UEFI)/image.disk $(UEFI)/run-*
 test-uefi-part-cutover:
 	$(MAKE) $(UEFI_PART_BOOT) UEFI_ARGS="--headless --eval \"$$(tr '\n' ' ' < tests/boot/uefi_cutover.st)\""

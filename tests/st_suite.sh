@@ -22,6 +22,10 @@
 # every Process's stack and quits the VM when the runner cannot run; a VM that hangs below Smalltalk (blocked in a
 # primitive) is ended after SAMALTAK_TEST_VM_TIMEOUT seconds (default 1800; 0: never), with its threads' backtraces
 # when gdb may attach, and fails its shard.
+# Reruns: a shard (or the single VM) that fails, crashes or ends early runs once more (tests/lib/rerun.sh,
+# SAMALTAK_TEST_RERUN; 0: no rerun), after the others, at once with the other failed ones: if it passes, the suite
+# passes and its first run's failure lines are printed as "flake: <line>" (tests/stages.sh lists them, tests/flakes.sh
+# records them); if it fails again, the suite fails with "st_suite: ... failed again on its rerun".
 set -u
 cd "$(dirname "$0")/.."
 IMAGE=$1
@@ -36,6 +40,7 @@ JOBS=${SAMALTAK_TEST_JOBS:-$JOBS}
 case $JOBS in ''|*[!0-9]*) JOBS=1 ;; esac
 [ "$JOBS" -lt 1 ] && JOBS=1
 . tests/lib/slots.sh
+. tests/lib/rerun.sh
 XVFB=${SAMALTAK_TEST_XVFB:-auto}
 VM_TIMEOUT=${SAMALTAK_TEST_VM_TIMEOUT:-1800}
 case $VM_TIMEOUT in ''|*[!0-9]*) VM_TIMEOUT=1800 ;; esac
@@ -125,6 +130,26 @@ serial() {
   # shellcheck disable=SC2086
   with_slot timed run_vm $VMOPTS "$IMAGE" --headless --test "$@" >"$WORK/log" 2>&1
   code=$?
+  if [ "$RERUN" = 1 ] && [ $code != 130 ] && [ $code != 143 ] && { [ $code != 0 ] || [ -z "$(summary_of "$WORK/log")" ]; }; then
+    mv "$WORK/log" "$WORK/log.first"
+    SLOT_LABEL="rerun: $SLOT_LABEL"
+    # shellcheck disable=SC2086
+    SLOT_PRIORITY=1
+    # shellcheck disable=SC2086
+    with_slot timed run_vm $VMOPTS "$IMAGE" --headless --test "$@" >"$WORK/log" 2>&1
+    code2=$?
+    echo "st_suite: the suite failed (exit $code), running it once more; its first run:"
+    rerun_first "$WORK/log.first"
+    cat "$WORK/log"
+    s=$(summary_of "$WORK/log")
+    if [ $code2 = 0 ] && [ -n "$s" ]; then
+      rerun_flakes "$WORK/log.first" "$WORK/log" "st_suite $*"
+      echo "st_suite: the suite failed (exit $code) and passed on its rerun (a flake)"
+    else
+      echo "st_suite: the suite failed again on its rerun (exit $code2)"
+    fi
+    verdict "$s" $code2
+  fi
   cat "$WORK/log"
   verdict "$(summary_of "$WORK/log")" $code
 }
@@ -163,16 +188,15 @@ awk -v times="$KNOWN" '
   { best = 0; for (k = 1; k < jobs; k++) if (load[k] < load[best]) best = k; load[best] += $1; print best + 1, $2, $3 }
 ' >"$WORK/plan"
 
-k=1
-while [ $k -le "$JOBS" ]; do
+# start_shard K [rerun] IMAGE-OPTION...: shard K's VM in the background, its log, exit status (and trace) in WORK/K
+start_shard() {
+  k=$1; again=$2; shift 2
   mkdir -p "$WORK/$k/tmp"
-  classes=$(awk -v k=$k '$1 == k { printf "%s ", $2 }' "$WORK/plan")
-  echo "$classes" >"$WORK/$k/classes"
-  awk -v k=$k '$1 == k { n += $3 } END { print n + 0 }' "$WORK/plan" >"$WORK/$k/tests"
+  classes=$(cat "$WORK/$k/classes")
+  # shard 1 has the longest class (the plan places the longest first): it is the suite's critical path; so is a rerun
+  SLOT_PRIORITY=; [ $k = 1 ] || [ -n "$again" ] && SLOT_PRIORITY=1
   # shellcheck disable=SC2086
-  # shard 1 has the longest class (the plan places the longest first): it is the suite's critical path
-  SLOT_PRIORITY=; [ $k = 1 ] && SLOT_PRIORITY=1
-  ( export TMPDIR="$WORK/$k/tmp"; SLOT_LABEL="shard $k/$JOBS $(basename "$IMAGE")$VMOPTS: $classes"
+  ( export TMPDIR="$WORK/$k/tmp"; SLOT_LABEL="${again:+rerun: }shard $k/$JOBS $(basename "$IMAGE")$VMOPTS: $classes"
     # SAMALTAK_FFI_NATIVE_TRACE's lines (stderr, one per native entry: the summary's own writes are some) go after the
     # log, so they do not split its lines (make test-ffi-headless counts them)
     if [ -n "${SAMALTAK_FFI_NATIVE_TRACE:-}" ]; then
@@ -184,9 +208,39 @@ while [ $k -le "$JOBS" ]; do
     fi
     echo $? >"$WORK/$k/exit" ) &
   PIDS="$PIDS $!"
+}
+# shard_ok K: shard K passed: exit 0 and its own summary, of all its tests
+shard_ok() {
+  [ "$(cat "$WORK/$1/exit" 2>/dev/null || echo 1)" = 0 ] || return 1
+  s=$(summary_of "$WORK/$1/log")
+  [ -n "$s" ] && [ "$(echo "$s" | sed -n -E 's/^([0-9]+) run, .*/\1/p')" = "$(cat "$WORK/$1/tests")" ]
+}
+
+k=1
+while [ $k -le "$JOBS" ]; do
+  mkdir -p "$WORK/$k"
+  awk -v k=$k '$1 == k { printf "%s ", $2 }' "$WORK/plan" >"$WORK/$k/classes"
+  awk -v k=$k '$1 == k { n += $3 } END { print n + 0 }' "$WORK/plan" >"$WORK/$k/tests"
+  start_shard $k "" "$@"
   k=$((k + 1))
 done
 wait
+# the failed shards once more (not one that was interrupted)
+if [ "$RERUN" = 1 ]; then
+  PIDS=
+  k=1
+  while [ $k -le "$JOBS" ]; do
+    e=$(cat "$WORK/$k/exit" 2>/dev/null || echo 1)
+    if ! shard_ok $k && [ "$e" != 130 ] && [ "$e" != 143 ]; then
+      mv "$WORK/$k" "$WORK/$k.first"
+      mkdir -p "$WORK/$k"
+      cp "$WORK/$k.first/classes" "$WORK/$k.first/tests" "$WORK/$k/"
+      start_shard $k rerun "$@"
+    fi
+    k=$((k + 1))
+  done
+  wait
+fi
 
 # The logs in shard order without their summaries and class times, then the merged summary.
 code=0; missing=; run=0; passed=0; failed=0; errors=0; skipped=0; ms=0
@@ -201,6 +255,16 @@ while [ $k -le "$JOBS" ]; do
   [ -n "$s" ] && [ "$got" = "$want" ] && last=$(grep -n -E '^[0-9]+ run, ' "$log" | tail -1 | cut -d: -f1)
   awk -v last="$last" 'NR != last && !/^test-time /' "$log"
   [ -f "$WORK/$k/trace" ] && cat "$WORK/$k/trace"
+  if [ -d "$WORK/$k.first" ]; then
+    e1=$(cat "$WORK/$k.first/exit" 2>/dev/null || echo 1)
+    if shard_ok $k; then
+      rerun_flakes "$WORK/$k.first/log" "$log" "shard $k of $JOBS"
+      echo "st_suite: shard $k of $JOBS failed (exit $e1) and passed on its rerun (a flake): $(cat "$WORK/$k/classes")"
+    else
+      rerun_fail_lines "$WORK/$k.first/log" | sed 's/^/rerun: 1| /'
+      echo "st_suite: shard $k of $JOBS failed again on its rerun (exit $e1, then $e): $(cat "$WORK/$k/classes")"
+    fi
+  fi
   if [ -z "$s" ]; then
     missing="$missing
 st_suite: FAILED: shard $k of $JOBS gave no test summary (exit $e): $(cat "$WORK/$k/classes")"

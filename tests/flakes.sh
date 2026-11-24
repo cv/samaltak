@@ -2,7 +2,8 @@
 # The gates' failure ledger: every stage that tests/stages.sh runs is recorded (its tree, stage, result and failure
 # lines) in SAMALTAK_LEDGER (default ~/.cache/samaltak/gate-ledger.tsv, shared by the machine's worktrees), and the
 # report lists the failures by frequency: how often, in how many trees, and in how many of those trees the same stage
-# also passed (a rerun of the same tree: a flake). Failure lines that passing stages print too (tests that run tests on
+# also passed (a rerun of the same tree: a flake), and how often it passed on its automatic rerun (tests/lib/rerun.sh:
+# recorded as result "flake" of a passed stage). Failure lines that passing stages print too (tests that run tests on
 # purpose, an ignored make error) are left out.
 # usage: tests/flakes.sh [report] [N]        the N most frequent failures (default 15)
 #        tests/flakes.sh record TREE STAGE passed|failed LOG   (tests/stages.sh)
@@ -16,12 +17,17 @@ L=${SAMALTAK_LEDGER:-${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}/samaltak/gate-ledge
 mkdir -p "$(dirname "$L")" 2>/dev/null
 # failure lines of a stage's log, without what changes from run to run (times, Makefile line numbers, pids)
 lines() {
-  tr -d '\r' | grep -a -E '^(FAIL|ERROR) |^st_suite: FAILED|^make(\[[0-9]+\])?: \*\*\*|^test-uefi[^:]*: |^[a-z_-]+: FAILED|FAIL(ED)? ' \
-    | sed -E 's/Makefile:[0-9]+/Makefile/; s/make\[[0-9]+\]/make/; s/ in [0-9]+ ms//; s/[0-9]{4,}/N/g' | cut -c1-200 | sort -u
+  tr -d '\r' | grep -a -v -E '^(rerun|flake): ' | grep -a -E '^(FAIL|ERROR) |^st_suite: FAILED|^make(\[[0-9]+\])?: \*\*\*|^test-uefi[^:]*: |^[a-z_-]+: FAILED|FAIL(ED)? ' \
+    | norm
 }
+norm() { sed -E 's/Makefile:[0-9]+/Makefile/; s/make\[[0-9]+\]/make/; s/ in [0-9]+ ms//; s/[0-9]{4,}/N/g' | cut -c1-200 | sort -u; }
 record() { # TIME TREE STAGE RESULT < log
   t=$1; tree=$2; stage=$3; res=$4
-  out=$(printf '%s\t%s\t%s\t%s\t\n' "$t" "$tree" "$stage" "$res"; lines | while IFS= read -r l; do printf '%s\t%s\t%s\t%s\t%s\n' "$t" "$tree" "$stage" "$res" "$l"; done)
+  log=$(tr -d '\r')
+  out=$(printf '%s\t%s\t%s\t%s\t\n' "$t" "$tree" "$stage" "$res"
+    printf '%s\n' "$log" | lines | while IFS= read -r l; do printf '%s\t%s\t%s\t%s\t%s\n' "$t" "$tree" "$stage" "$res" "$l"; done
+    # the failures that passed on their rerun (tests/lib/rerun.sh)
+    printf '%s\n' "$log" | grep -a '^flake: ' | sed 's/^flake: //' | norm | while IFS= read -r l; do printf '%s\t%s\t%s\tflake\t%s\n' "$t" "$tree" "$stage" "$l"; done)
   printf '%s\n' "$out" >>"$L"
 }
 case ${1:-report} in
@@ -45,7 +51,7 @@ import) shift
   done ;;
 known) [ $# -eq 3 ] && [ -s "$L" ] || exit 0
   lines <"$3" | grep -v -E "$GENERIC" | while IFS= read -r l; do
-    awk -F '\t' -v s="$2" -v l="$l" '$3 == s && $5 == "" && $4 == "passed" { p[$2] = 1 } $3 == s && $5 == l && $4 == "failed" { f++; t[$2] = 1 }
+    awk -F '\t' -v s="$2" -v l="$l" '$3 == s && $5 == "" && $4 == "passed" { p[$2] = 1 } $3 == s && $5 == l && ($4 == "failed" || $4 == "flake") { f++; t[$2] = 1 }
       END { for (k in t) { n++; if (k in p) b++ } if (f) printf "flakes: known: %s (failed %d times before, in %d trees, %d of which also passed)\n", l, f, n, b + 0 }' "$L"
   done ;;
 report|[0-9]*) n=${2:-${1:-15}}; case $n in *[!0-9]*) n=15 ;; esac
@@ -53,7 +59,7 @@ report|[0-9]*) n=${2:-${1:-15}}; case $n in *[!0-9]*) n=15 ;; esac
   awk -F '\t' -v n="$n" -v now="$(date +%s)" -v generic="$GENERIC" '
     $5 == "" { runs++; if ($4 == "failed") fails++; res[$2 SUBSEP $3] = res[$2 SUBSEP $3] " " $4; next }
     $4 == "passed" { noise[$5] = 1; next }
-    { key = $3 "\t" $5; c[key]++; if (!((key, $2) in seen)) { seen[key, $2] = 1; trees[key]++; tl[key] = tl[key] " " $2 }
+    { key = $3 "\t" $5; c[key]++; if ($4 == "flake") rr[key]++; if (!((key, $2) in seen)) { seen[key, $2] = 1; trees[key]++; tl[key] = tl[key] " " $2 }
       if ($1 > last[key]) last[key] = $1 }
     END {
       printf "flakes: %d stage runs, %d failed (%s)\n", runs, fails, FILENAME
@@ -62,9 +68,9 @@ report|[0-9]*) n=${2:-${1:-15}}; case $n in *[!0-9]*) n=15 ;; esac
         split(k, p, "\t"); if (p[2] in noise || p[2] ~ generic) continue
         split(substr(tl[k], 2), ts, " "); fl = 0
         for (i in ts) if (index(res[ts[i] SUBSEP p[1]], "passed")) fl++
-        out[++m] = sprintf("%4d %3d %3d  %s  %-17s %s", c[k], trees[k], fl, sprintf("%5.1fh ago", (now - last[k]) / 3600), p[1], p[2])
+        out[++m] = sprintf("%4d %3d %3d %3d  %s  %-17s %s", c[k], trees[k], fl, rr[k], sprintf("%5.1fh ago", (now - last[k]) / 3600), p[1], p[2])
       }
-      printf "flakes: failures  trees  trees-that-also-passed  last seen  stage  line\n"
+      printf "flakes: failures  trees  trees-that-also-passed  passed-on-rerun  last seen  stage  line\n"
       for (i = 1; i <= m; i++) print out[i] | "sort -k1,1nr -k3,3nr | head -" n
     }' "$L" ;;
 *) sed -n '2,12p' "$0"; exit 2 ;;
