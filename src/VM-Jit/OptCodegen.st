@@ -1078,9 +1078,18 @@ emitByteStoreX64: n object: x label: s
 	asm strb: W16 base: x index: X17 offset: (self indexDisplacementOf: n)
 !
 emitIndexLoad: n
-	| nd x r ek |
+	| nd x r ek i |
 	nd := ir node: n.
 	ek := nd aux asInt32.
+	(asm isX64 not and: [ek = E_PTR and: [(nd flags bitAnd: NF_NOBOUNDS) ~= 0 and: [nd aux2 between: 0 and: 31]]]) ifTrue: [
+		"Index i is tagged as 2i+1. (2i+1)*4 + 4 + 8*fixed = 16 + 8*(fixed+i-1). The displacement fits LDUR's signed imm9."
+		x := self src: nd a into: self scratchA.
+		i := self src: nd b into: self scratchB.
+		r := self dst: n.
+		asm comment: 'within bounds: checked once before the loop; address from tagged pointer index'.
+		asm add: X17 with: x with: i shift: SHIFT_LSL amount: 2.
+		asm ldur: r base: X17 offset: 4 + (8 * nd aux2).
+		^self def: n from: r].
 	x := self emitIndexCheck: n.
 	asm isX64 ifTrue: [
 		"one addressing mode: the object, the index, the header and fixed fields as the displacement"

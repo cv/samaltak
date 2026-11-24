@@ -843,6 +843,40 @@ testCountedLoopsCheckBoundsOnce
 		self assert: (o back: a to: 100) equals: ((1 to: 100) inject: 0 into: [:s :i | s + (101 - i * i)]).
 		self should: [o back: a to: 101] raise: Error]
 !
+testUncheckedPointerLoadAddressing
+	"A bounds-hoisted Array scan uses the tagged index on arm64; x86 still untags it and uses its indexed memory operand."
+	| o a listing lines k |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'checksumTagged: x to: n | s | s := 0. 1 to: n do: [:i | s := s + (x at: i)]. ^s'.
+	self define: 'checkedTagged: x at: i ^x at: i'.
+	o := JitRuntimeTestSubject new.
+	a := (1 to: 20000) asArray.
+	4 timesRepeat: [
+		self assert: (o checksumTagged: a to: 20000) equals: 200010000.
+		self assert: (o checksumTagged: a to: 0) equals: 0.
+		self assert: (o checkedTagged: a at: 20000) equals: 20000].
+	self should: [o checkedTagged: a at: 20001] raise: Error.
+	self stressed ifTrue: [^self].
+	listing := self listingOf: #checksumTagged:to:.
+	lines := listing lines.
+	self isX64
+		ifTrue: [
+			self deny: (listing includesSubstring: 'address from tagged pointer index').
+			k := lines findFirst: [:line | line includesSubstring: 'within bounds: checked once before the loop'].
+			self assert: k > 0.
+			"The note may attach to an operand move before the shift."
+			((lines at: k) includesSubstring: 'sar ') ifFalse: [k := k + 1].
+			self assert: ((lines at: k) includesSubstring: 'sar ').
+			self assert: ((lines at: k + 1) includesSubstring: '*8+0x8]')]
+		ifFalse: [
+			k := lines findFirst: [:line | line includesSubstring: 'address from tagged pointer index'].
+			self assert: k > 0.
+			self assert: ((lines at: k) includesSubstring: 'add x17, ').
+			self assert: ((lines at: k) includesSubstring: ', lsl #2').
+			self assert: ((lines at: k + 1) includesSubstring: 'ldur x').
+			self assert: ((lines at: k + 1) includesSubstring: '[x17, #0x4]')].
+	self deny: ((self listingOf: #checkedTagged:at:) includesSubstring: 'address from tagged pointer index')
+!
 testOuterTempsOfAClosureInlinedInALoop
 	"A loop's unit that inlines a closure another frame made guards it once, where the loop is entered; an outer temp the loop only reads is loaded there, one it stores into is stored into each time, in the frame its Context is married to or in the Context (the adder's home method has returned): what follows the loop sees the stores. A method's first long loop runs in such a unit: one method for each case."
 	| o a adder |
