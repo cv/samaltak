@@ -155,7 +155,7 @@ refresh
 
 !Calculator class methodsFor: 'class initialization'!
 initialize
-	ToolsMenu register: 'Calculator' description: 'after the HP 12C' order: 57 action: [:point | self openAt: point].
+	ToolsMenu register: 'Calculator' description: 'after the HP 12C' group: #apps order: 57 action: [:point | self openAt: point].
 	Tools registerOpener: #calculator with: [:argOrNil | self open]
 ! !
 

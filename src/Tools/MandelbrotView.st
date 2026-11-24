@@ -280,6 +280,6 @@ openIn: aRectangle delay: milliseconds
 	^window
 !
 initialize
-	ToolsMenu register: 'Mandelbrot' description: 'busy window demo' order: 50 action: [:point |
+	ToolsMenu register: 'Mandelbrot' description: 'busy window demo' group: #apps order: 50 action: [:point |
 		self openIn: (Tools placeAt: point extent: 330 @ 300) delay: 50]
 ! !

@@ -496,7 +496,7 @@ openSelecting: aProcess
 	^window
 !
 initialize
-	ToolsMenu register: 'Process Browser' order: 40 action: [:point |
+	ToolsMenu register: 'Process Browser' description: nil group: #tools order: 40 action: [:point |
 		| existing |
 		existing := Tools windowOf: self.
 		existing isNil

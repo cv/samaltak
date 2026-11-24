@@ -32,14 +32,18 @@ testDefaultLayout
 	self assert: (self windowsOf: Inspector) first content object equals: {3/4. 3@4. 'text'. #sym. $c. 2 raisedTo: 100}
 !
 testWorldMenu
-	| menu labels overlay |
+	| menu labels top overlay apps |
 	menu := ToolsMenu worldMenuAt: 100 @ 100.
-	labels := (menu items select: [:i | i isItem]) collect: [:i | i label].
-	#('System Browser' 'Workspace' 'Transcript' 'Process Browser' 'Mandelbrot' 'Run long computation' 'User interrupt' 'Arrange windows' 'Save image' 'Help…' 'Quit')
+	labels := (menu allItems select: [:i | i isItem]) collect: [:i | i label].
+	#('System Browser' 'Workspace' 'Transcript' 'Process Browser' 'Mandelbrot' 'Run long computation' 'User interrupt' 'Arrange windows' 'Save image' 'Rebuild VM & reboot' 'Help…' 'Quit')
 		do: [:each | self assert: (labels includes: each) description: each].
-	self assert: (labels indexOf: 'System Browser') < (labels indexOf: 'Mandelbrot').
-	ToolsMenu register: 'Test tool' description: 'test' order: 55 action: [:p | nil].
-	[labels := ((ToolsMenu worldMenuAt: nil) items select: [:i | i isItem]) collect: [:i | i label].
+	top := (menu items select: [:i | i isItem]) collect: [:i | i label].
+	self assert: (top includesAll: #('System Browser' 'Workspace' 'Tools' 'Apps' 'Settings' 'System' 'Quit')).
+	self deny: (top includes: 'Mandelbrot').
+	self assert: ((menu itemLabeled: 'Tools') submenu itemLabeled: 'Process Browser') notNil.
+	ToolsMenu register: 'Test tool' description: 'test' group: #apps order: 55 action: [:p | nil].
+	[apps := ((ToolsMenu worldMenuAt: nil) itemLabeled: 'Apps') submenu.
+	 labels := (apps items select: [:i | i isItem]) collect: [:i | i label].
 	 self assert: (labels indexOf: 'Test tool') = ((labels indexOf: 'Mandelbrot') + 1)]
 		ensure: [ToolsMenu unregister: 'Test tool'].
 	"A click on the desk opens it."
@@ -51,7 +55,7 @@ testWorldMenu
 !
 testSlowMotionMenuItem
 	| item |
-	item := [((ToolsMenu worldMenuAt: nil) items select: [:i | i isItem]) detect: [:i | i label = 'Slow motion']].
+	item := [((ToolsMenu worldMenuAt: nil) allItems select: [:i | i isItem]) detect: [:i | i label = 'Slow motion']].
 	self deny: item value isChecked.
 	[item value run.
 	 self assert: Desktop animationTimeScale equals: 10.
@@ -66,6 +70,8 @@ testRunLongComputation
 	before := Processor allProcesses asIdentitySet.
 	self click: 720 @ 450.
 	self assert: (self waitFor: [world overlays notEmpty]).
+	self in: world overlays last do: [world overlays last content chooseLabeled: 'Tools'].
+	self assert: (self waitFor: [world overlays size > 1]) description: 'the Tools submenu opens'.
 	self in: world overlays last do: [world overlays last content chooseLabeled: 'Run long computation'].
 	"The menu action drops the Process Tools runLongComputation answers: take the new one."
 	self assert: (self waitFor: [

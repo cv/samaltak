@@ -67,15 +67,43 @@ addFirmwareItemsTo: aMenu
 	aMenu addSeparator.
 	aMenu add: 'Install Samaltak…' description: 'onto this machine''s disk' action: [self run: [Tools openInstaller]].
 	aMenu add: 'NVIDIA GPU probe' description: 'read only' action: [self run: [Tools openWorkspaceWith: (String new join: ((FirmwareDiagnostics nvidiaLines) collect: [:each | each, (String with: Character lf)]))]].
+	aMenu addSeparator.
 	aMenu add: 'Reboot into Ubuntu' description: 'BootNext, once' action: [self run: [Tools rebootInto: #ubuntu]].
 	aMenu add: 'Reboot into Samaltak' description: 'from the disk' action: [self run: [Tools rebootInto: #samaltak]].
 	aMenu add: 'Reboot to firmware setup' action: [self run: [Tools rebootToFirmwareSetup]].
 	aMenu add: 'Restart' description: 'firmware reset' action: [self run: [Firmware restart]].
 	aMenu add: 'Warm restart' description: 'firmware warm reset' action: [self run: [Firmware warmRestart]].
-	aMenu add: 'Power off' description: 'firmware shutdown' action: [self run: [Firmware powerOff]].
-	aMenu addSeparator
+	aMenu add: 'Power off' description: 'firmware shutdown' action: [self run: [Firmware powerOff]]
 !
 run: aBlock
 	"Run a World menu action in a Process of its own: the menu's invoker window may be busy."
 	[aBlock value] forkAt: Processor userSchedulingPriority named: 'World menu'
+!
+groups
+	"The submenus tools may register in, in menu order: group -> label."
+	^Array with: #tools -> 'Tools' with: #apps -> 'Apps' with: #settings -> 'Settings'
+!
+groupOf: anEntry
+	| group |
+	group := anEntry size >= 5 ifTrue: [anEntry at: 5] ifFalse: [#open].
+	^(self groups anySatisfy: [:each | each key = group]) ifTrue: [group] ifFalse: [#open]
+!
+add: aGroup to: aMenu at: aPoint
+	"Add the registered items of aGroup, sorted by order."
+	self sortedEntries do: [:each |
+		| action |
+		action := each at: 4.
+		(self groupOf: each) = aGroup ifTrue: [
+			(each at: 2) isNil
+				ifTrue: [aMenu add: each first action: [self run: [action cull: aPoint]]]
+				ifFalse: [aMenu add: each first description: (each at: 2) action: [self run: [action cull: aPoint]]]]].
+	^aMenu
+!
+systemMenu
+	"Rebuilding the VM and, on UEFI, the firmware's items."
+	| menu |
+	menu := Menu new.
+	menu add: 'Rebuild VM & reboot' description: 'translate · cc · exec' action: [self run: [VMRebuilder openAndRebuild]].
+	Machine hasFirmware ifTrue: [self addFirmwareItemsTo: menu].
+	^menu
 ! !
