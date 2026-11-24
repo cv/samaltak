@@ -2008,6 +2008,7 @@ cache_entry *interpreter_entry_for(oop a_class, oop a_selector);
 void entry_safepoint(void);
 void fatal_begin(void);
 _Noreturn void fatal_end(void);
+void flush_frame(frame *f);
 void flush_if_married(oop o);
 void flush_method_cache(void);
 void flush_method_cache_selector(oop a_selector);

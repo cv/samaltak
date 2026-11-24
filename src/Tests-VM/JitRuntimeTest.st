@@ -756,6 +756,14 @@ testValueWithArgumentsDeepRecursion
 	self assert: (JitRuntimeTestSubject new depth: 200000) equals: 200000.
 	self assert: (self statistics - before) frameFlushes > 0
 !
+testValueWithArgumentsDeepRecursionWithoutSwitches
+	"As testValueWithArgumentsDeepRecursion, with no process switch to flush the frames meanwhile (the profiler's): the full C stack is what flushes them, with the blocks valueWithArguments: activated for the interpreter on it (JitRuntime>>lowerUnentered). They were decoded as optimized frames: the answer was off by one for each flush, or the VM crashed."
+	| running |
+	running := Profiler default isRunning.
+	self define: 'depth: n ^n = 0 ifTrue: [0] ifFalse: [([:k | self depth: k] valueWithArguments: {n - 1}) + 1]'.
+	Profiler default stop.
+	[self assert: (JitRuntimeTestSubject new depth: 200000) equals: 200000] ensure: [running ifTrue: [Profiler default start]]
+!
 testValueWithArgumentsWithProcessSwitches
 	"A process wakes up every millisecond while a married frame calls a block through valueWithArguments: of four elements: interrupts at the block's entry switch to it, the results stay right."
 	| o result ticks stop |

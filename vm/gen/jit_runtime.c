@@ -123,8 +123,11 @@ void activated(frame *f)
     uint64_t switches;
     uint64_t c_2;
     int64_t r;
-    frame *g;
+    frame *f_3;
     uint64_t c_3;
+    jit_method *h_3;
+    frame *g;
+    uint64_t c_4;
     oop m;
     uint64_t o_2;
     if (flush_pending && no_opt_frames()) {
@@ -175,6 +178,19 @@ exit_best:;
         if (r == 0) {
             stat_exits = stat_exits + 1;
             if (!(bottom_returned || ((nframes == 0) && (stat_process_switches != switches)))) {
+                if (nframes == 0) {
+                    goto exit_lower_unentered;
+                }
+                f_3 = frames + (nframes - 1);
+                c_3 = f_3->code;
+                if (!((c_3 > JIT_MAX_COUNT) && (((jit_method *)f_3->code)->mode == JIT_OPT))) {
+                    goto exit_lower_unentered;
+                }
+                h_3 = (jit_method *)f_3->code;
+                if (f_3->pc < (int32_t)h_3->bc_size) {
+                    f_3->code = h_3->lower;
+                }
+            exit_lower_unentered:;
                 goto exit_run;
             }
             bottom_returned = false;
@@ -191,8 +207,8 @@ exit_best:;
                 goto exit_run;
             }
             g->sp = g->sp + 1;
-            c_3 = g->code;
-            if (!((c_3 > JIT_MAX_COUNT) && (((jit_method *)g->code)->mode == JIT_OPT))) {
+            c_4 = g->code;
+            if (!((c_4 > JIT_MAX_COUNT) && (((jit_method *)g->code)->mode == JIT_OPT))) {
                 m = g->method;
                 o_2 = *(uint64_t *)(m + 16 + 24);
                 g->pc = (int32_t)(g->ip - (uint8_t *)(o_2 + 16));
@@ -298,8 +314,11 @@ void jit_runtime_back_jump(frame *f)
     uint64_t switches;
     uint64_t c_2;
     int64_t r;
-    frame *g;
+    frame *f_3;
     uint64_t c_3;
+    jit_method *h_2;
+    frame *g;
+    uint64_t c_4;
     oop m;
     uint64_t o;
     if (flush_pending && no_opt_frames()) {
@@ -350,6 +369,19 @@ void jit_runtime_back_jump(frame *f)
         if (r == 0) {
             stat_exits = stat_exits + 1;
             if (!(bottom_returned || ((nframes == 0) && (stat_process_switches != switches)))) {
+                if (nframes == 0) {
+                    goto exit_lower_unentered;
+                }
+                f_3 = frames + (nframes - 1);
+                c_3 = f_3->code;
+                if (!((c_3 > JIT_MAX_COUNT) && (((jit_method *)f_3->code)->mode == JIT_OPT))) {
+                    goto exit_lower_unentered;
+                }
+                h_2 = (jit_method *)f_3->code;
+                if (f_3->pc < (int32_t)h_2->bc_size) {
+                    f_3->code = h_2->lower;
+                }
+            exit_lower_unentered:;
                 goto exit_run;
             }
             bottom_returned = false;
@@ -366,8 +398,8 @@ void jit_runtime_back_jump(frame *f)
                 goto exit_run;
             }
             g->sp = g->sp + 1;
-            c_3 = g->code;
-            if (!((c_3 > JIT_MAX_COUNT) && (((jit_method *)g->code)->mode == JIT_OPT))) {
+            c_4 = g->code;
+            if (!((c_4 > JIT_MAX_COUNT) && (((jit_method *)g->code)->mode == JIT_OPT))) {
                 m = g->method;
                 o = *(uint64_t *)(m + 16 + 24);
                 g->pc = (int32_t)(g->ip - (uint8_t *)(o + 16));
@@ -2764,8 +2796,11 @@ void jit_runtime_resume(frame *f)
     uint64_t switches;
     uint64_t c;
     int64_t r;
-    frame *g;
+    frame *f_3;
     uint64_t c_2;
+    jit_method *h;
+    frame *g;
+    uint64_t c_3;
     oop m;
     uint64_t o;
     if (flush_pending && no_opt_frames()) {
@@ -2794,6 +2829,19 @@ void jit_runtime_resume(frame *f)
         if (r == 0) {
             stat_exits = stat_exits + 1;
             if (!(bottom_returned || ((nframes == 0) && (stat_process_switches != switches)))) {
+                if (nframes == 0) {
+                    goto exit_lower_unentered;
+                }
+                f_3 = frames + (nframes - 1);
+                c_2 = f_3->code;
+                if (!((c_2 > JIT_MAX_COUNT) && (((jit_method *)f_3->code)->mode == JIT_OPT))) {
+                    goto exit_lower_unentered;
+                }
+                h = (jit_method *)f_3->code;
+                if (f_3->pc < (int32_t)h->bc_size) {
+                    f_3->code = h->lower;
+                }
+            exit_lower_unentered:;
                 goto exit_run;
             }
             bottom_returned = false;
@@ -2810,8 +2858,8 @@ void jit_runtime_resume(frame *f)
                 goto exit_run;
             }
             g->sp = g->sp + 1;
-            c_2 = g->code;
-            if (!((c_2 > JIT_MAX_COUNT) && (((jit_method *)g->code)->mode == JIT_OPT))) {
+            c_3 = g->code;
+            if (!((c_3 > JIT_MAX_COUNT) && (((jit_method *)g->code)->mode == JIT_OPT))) {
                 m = g->method;
                 o = *(uint64_t *)(m + 16 + 24);
                 g->pc = (int32_t)(g->ip - (uint8_t *)(o + 16));
@@ -2837,8 +2885,11 @@ void resume_context(bool looping)
     uint64_t switches;
     uint64_t c;
     int64_t r;
-    frame *g;
+    frame *f_2;
     uint64_t c_2;
+    jit_method *h;
+    frame *g;
+    uint64_t c_3;
     oop m;
     uint64_t o;
     if (flush_pending && no_opt_frames()) {
@@ -2871,6 +2922,19 @@ void resume_context(bool looping)
         if (r == 0) {
             stat_exits = stat_exits + 1;
             if (!(bottom_returned || ((nframes == 0) && (stat_process_switches != switches)))) {
+                if (nframes == 0) {
+                    goto exit_lower_unentered;
+                }
+                f_2 = frames + (nframes - 1);
+                c_2 = f_2->code;
+                if (!((c_2 > JIT_MAX_COUNT) && (((jit_method *)f_2->code)->mode == JIT_OPT))) {
+                    goto exit_lower_unentered;
+                }
+                h = (jit_method *)f_2->code;
+                if (f_2->pc < (int32_t)h->bc_size) {
+                    f_2->code = h->lower;
+                }
+            exit_lower_unentered:;
                 goto exit_run;
             }
             bottom_returned = false;
@@ -2887,8 +2951,8 @@ void resume_context(bool looping)
                 goto exit_run;
             }
             g->sp = g->sp + 1;
-            c_2 = g->code;
-            if (!((c_2 > JIT_MAX_COUNT) && (((jit_method *)g->code)->mode == JIT_OPT))) {
+            c_3 = g->code;
+            if (!((c_3 > JIT_MAX_COUNT) && (((jit_method *)g->code)->mode == JIT_OPT))) {
                 m = g->method;
                 o = *(uint64_t *)(m + 16 + 24);
                 g->pc = (int32_t)(g->ip - (uint8_t *)(o + 16));

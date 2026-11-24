@@ -1061,6 +1061,15 @@ prepare
 	"Interpreter side, no machine code on the native stack: apply a pending flush (not while optimized frames wait for callees: their metadata is in the cache)."
 	(flushPending and: [self noOptFrames]) ifTrue: [self flushCode]
 !
+lowerUnentered
+	"Machine code left to the interpreter, which runs the top frame: one pushed for optimized code that never entered it (a block a primitive activated) is the lower tier's now, as resume: makes it, so that nothing takes its bytecode pc for one of the optimized code's (materialize, canonicalizeBelow, resume)."
+	| f h |
+	interpreter nframes = 0 ifTrue: [^self].
+	f := interpreter frames + (interpreter nframes - 1).
+	(self isOptFrame: f) ifFalse: [^self].
+	h := self cCoerce: f code to: 'JitMethod *'.
+	f pc < h bcSize asInt32 ifTrue: [f code: h lower]
+!
 noOptFrames
 	<function>
 	0 to: interpreter nframes - 1 do: [:i | (self isOptFrame: interpreter frames + i) ifTrue: [^false]].
@@ -1255,7 +1264,9 @@ run: frame at: address
 	 r = 0
 		ifTrue: [
 			statExits := statExits + 1.
-			(bottomReturned or: [interpreter nframes = 0 and: [scheduler statProcessSwitches ~= switches]]) ifFalse: [^self].
+			(bottomReturned or: [interpreter nframes = 0 and: [scheduler statProcessSwitches ~= switches]]) ifFalse: [
+				self lowerUnentered.
+				^self].
 			bottomReturned := false.
 			self prepare.
 			a := self contextEntry: false.
