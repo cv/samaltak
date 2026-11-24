@@ -24,8 +24,12 @@ isSoftware
 	"Whether the CPU renders (SoftwareGPU, on UEFI): every frame costs the CPU the VM runs on."
 	^self shaderLanguage == #software
 !
+buildsShaders
+	"Whether I build pipelines from shader source (SDL_GPU: #msl, #glsl). A SoftwareGPU or an NvComputeGPU runs the Renderer's shader natively and refuses every other pipeline: the Renderer does not rebuild on them, and FragmentShaders and ShaderViews draw without one."
+	^#(#msl #glsl) includes: self shaderLanguage
+!
 shaderLanguage
-	"#msl (Metal, macOS), #glsl (Vulkan, Linux: GLSL 450 compiled to SPIR-V with SAMALTAK_VERTEX or SAMALTAK_FRAGMENT defined, so that one source can hold both stages; the entry point is main) or #software (SoftwareGPU: the CPU runs the Renderer's shader, and no other). Shader sources are in this language."
+	"#msl (Metal, macOS), #glsl (Vulkan, Linux: GLSL 450 compiled to SPIR-V with SAMALTAK_VERTEX or SAMALTAK_FRAGMENT defined, so that one source can hold both stages; the entry point is main), #software (SoftwareGPU: the CPU runs the Renderer's shader, and no other) or #raster (NvComputeGPU: the Renderer's shader on the GPU's raster kernels, and no other; buildsShaders). Shader sources are in this language."
 	| h |
 	h := self handle.
 	language isNil ifTrue: [language := (GPUPlatform shaderLanguage: h) asSymbol].

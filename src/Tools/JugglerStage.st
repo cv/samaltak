@@ -1792,7 +1792,7 @@ remoteLabel
 
 !JugglerStage methodsFor: 'drawing'!
 drawWithoutShaderOn: aCanvas
-	"On the software GPU the raymarched scene cannot run: the act seen flat from the front, the model's stage fitted into my bounds."
+	"Where the device builds no shaders (SoftwareGPU, NvComputeGPU) the raymarched scene cannot run: the act seen flat from the front, the model's stage fitted into my bounds."
 	| stage k |
 	stage := juggler stageExtent.
 	k := (self width / stage x) min: (self height / stage y).

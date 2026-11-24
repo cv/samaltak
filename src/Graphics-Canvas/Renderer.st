@@ -7,7 +7,7 @@ Renderer comment: 'I draw DisplayLists with the GPU: one uber-shader (MSL source
 
 	Renderer default render: aDisplayList on: aSurface clear: Color white
 
-My shaders are Smalltalk source: when my methods change (SystemChanges), every Renderer builds its pipeline again before its next render. If the new source does not compile, I keep the old pipeline and pass the error to the shaderErrorHandler (UI-Windows shows it as a toast). pipelineVersion counts the pipelines built, so the Compositor knows when to render its cached layers again.'!
+My shaders are Smalltalk source: when my methods change (SystemChanges), every Renderer builds its pipeline again before its next render. (Devices that run my shader natively, GPUDevice>>buildsShaders false, keep theirs.) If the new source does not compile, I keep the old pipeline and pass the error to the shaderErrorHandler (UI-Windows shows it as a toast). pipelineVersion counts the pipelines built, so the Compositor knows when to render its cached layers again.'!
 
 !Renderer methodsFor: 'initialization'!
 setDevice: aDevice
@@ -48,10 +48,11 @@ pipelineFrom: source
 		primitive: #triangles blend: #premultiplied format: #rgba8
 !
 updatePipeline
-	"If my shader source changed since my pipeline was built, build it from the new source (compiling it now); keep the old one if that fails. Answer whether the pipeline changed."
+	"If my shader source changed since my pipeline was built, build it from the new source (compiling it now); keep the old one if that fails. Answer whether the pipeline changed. A device that runs my shader natively (GPUDevice>>buildsShaders false: SoftwareGPU, NvComputeGPU) has nothing to rebuild."
 	| new |
 	sourceGeneration = self class sourceGeneration ifTrue: [^false].
 	sourceGeneration := self class sourceGeneration.
+	device buildsShaders ifFalse: [^false].
 	new := [(self pipelineFrom: (self class shaderSourceFor: device shaderLanguage)) handle; yourself]
 		on: Error
 		do: [:e | self class reportShaderError: e. e return: nil].

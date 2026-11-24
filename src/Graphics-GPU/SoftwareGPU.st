@@ -3,7 +3,7 @@ Object subclass: #SoftwareGPU
 	classVariableNames: 'RendererAttributes'
 	package: 'Graphics-GPU'!
 
-SoftwareGPU comment: 'I am a GPU in software: GPUPlatform''s device where the VM has no GPU (UEFI), with the gpu primitives'' protocol, handles and errors (docs/platform.md). I keep the objects; the pixel work is SoftwareRaster''s (the raster primitives). I run the Renderer''s uber-shader and nothing else: a pipeline of another vertex layout fails (user FragmentShaders show their error); shaders are not compiled (shaderLanguage: ''software'').
+SoftwareGPU comment: 'I am a GPU in software: GPUPlatform''s device where the VM has no GPU (UEFI), with the gpu primitives'' protocol, handles and errors (docs/platform.md). I keep the objects; the pixel work is SoftwareRaster''s (the raster primitives). I run the Renderer''s uber-shader and nothing else: a pipeline of another vertex layout fails, so nothing asks for one (GPUDevice>>buildsShaders is false: the Renderer does not rebuild, FragmentShaders and ShaderViews draw without); shaders are not compiled (shaderLanguage: ''software'').
 
 Everything executes when it is called: uploads, clears, draws, blits and downloads; a command buffer only groups them (its vertex uniforms, the swapchain textures it acquired, the time its work took); fences are done when they are made (fenceElapsed: that time, µs). Textures and buffers are memory outside the heap (Machine allocate:), freed when released: R8, RGBA8 or BGRA8 rows, tightly packed. A claimed window has a back buffer (BGRA8, the window''s pixel size), the swapchain texture acquireSwapchain:window: answers; submitting the command buffer that acquired it presents it on my display (presentWindow:pixels:width:height:).
 

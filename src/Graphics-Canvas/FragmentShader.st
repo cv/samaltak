@@ -14,7 +14,7 @@ GLSL (Vulkan): main after my glslPrelude (#version 450; the inputs uv, 0..1 from
 	layout(set = 3, binding = 0) uniform U { vec4 tint; };
 	void main() { fragColor = tint; }
 
-Its output is premultiplied RGBA. A new source builds a new pipeline before the next frame; if it does not compile the old one stays and Renderer reportShaderError: gets the error.'!
+Its output is premultiplied RGBA. A new source builds a new pipeline before the next frame; if it does not compile the old one stays and Renderer reportShaderError: gets the error. A device that runs only the Renderer''s shader (GPUDevice>>buildsShaders false: SoftwareGPU, NvComputeGPU) gets no pipeline and draws nothing, without an error: ShaderView draws a plain picture there.'!
 
 !FragmentShader methodsFor: 'initialization'!
 setDevice: aDevice
@@ -67,8 +67,10 @@ render: aShaderImage
 
 !FragmentShader methodsFor: 'pipeline'!
 updatePipeline: aString
+	"A device that builds no shaders (GPUDevice>>buildsShaders) gets no pipeline and no error: nothing is drawn."
 	| new |
 	(aString == source or: [aString == failedSource]) ifTrue: [^self].
+	device buildsShaders ifFalse: [^failedSource := aString].
 	new := [(self pipelineFrom: aString) handle; yourself]
 		on: Error
 		do: [:e | Renderer reportShaderError: e. e return: nil].

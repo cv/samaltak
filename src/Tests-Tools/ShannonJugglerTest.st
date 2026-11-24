@@ -33,6 +33,28 @@ colorsIn: aForm
 ! !
 
 !ShannonJugglerTest methodsFor: 'tests'!
+testDrawsTheActFlatWhereTheDeviceBuildsNoShaders
+	"On a device that runs only the Renderer's shader (a SoftwareGPU here; an NvComputeGPU answers the same, NvComputeGPUTest) the stage draws the act flat: a picture of some colours that moves, and no shader error."
+	| old device w juggler stage first errors handler |
+	old := GPUPlatform display: GPUPlatform display device: (SoftwareGPU on: nil).
+	[device := GPUDevice new.
+	self deny: device buildsShaders]
+		ensure: [GPUPlatform display: old first device: old last].
+	handler := Renderer shaderErrorHandler.
+	errors := OrderedCollection new.
+	Renderer shaderErrorHandler: [:e | errors add: e].
+	[w := self open: [ShannonJuggler openIn: (100 @ 100 extent: 240 @ 220)].
+	juggler := w content.
+	stage := juggler widgetNamed: 'stage'.
+	self in: w do: [stage shader: (FragmentShader on: device)].
+	self assert: (self waitFor: [juggler frame > 5]) description: 'the act does not run'.
+	first := self pictureOf: stage.
+	self assert: (self colorsIn: first) > 8 description: 'the stage shows no act'.
+	self assert: (self waitFor: [(self pictureOf: stage) bits ~= first bits] timeout: 3000) description: 'the flat act does not move'.
+	self assert: errors isEmpty description: 'a shader error was reported'.
+	self in: w do: [juggler windowClosed]]
+		ensure: [Renderer shaderErrorHandler: handler]
+!
 testRendersAndAnimates
 	| w juggler stage first frame halted |
 	w := self open: [ShannonJuggler openIn: (100 @ 100 extent: 240 @ 220)].
@@ -40,8 +62,8 @@ testRendersAndAnimates
 	stage := juggler widgetNamed: 'stage'.
 	self assert: (self waitFor: [juggler frame > 5]) description: 'the act does not run'.
 	first := self pictureOf: stage.
-	"The flat picture of the software GPU has a few colours, the raymarched scene hundreds."
-	self assert: (self colorsIn: first) > ((Smalltalk at: #GPUDevice) default isSoftware ifTrue: [8] ifFalse: [200]) description: 'the stage shows no scene'.
+	"The flat picture (a device that builds no shaders) has a few colours, the raymarched scene hundreds."
+	self assert: (self colorsIn: first) > ((Smalltalk at: #GPUDevice) default buildsShaders ifTrue: [200] ifFalse: [8]) description: 'the stage shows no scene'.
 	self assert: (self waitFor: [(self pictureOf: stage) bits ~= first bits] timeout: 3000) description: 'the picture does not change while the act runs'.
 	self in: w do: [juggler windowClosed].
 	frame := juggler frame.

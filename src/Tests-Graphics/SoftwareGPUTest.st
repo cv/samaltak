@@ -738,6 +738,7 @@ testTheGPULayerOnASoftwareDevice
 	old := GPUPlatform display: display device: gpu.
 	[device := GPUDevice new.
 	self assert: device isSoftware equals: self shaderLanguage = 'software'.
+	self deny: device buildsShaders.
 	form := Form width: 4 height: 4.
 	form fill: Color red.
 	canvas := Canvas extent: 6 @ 4 scale: 1.
@@ -761,6 +762,39 @@ testTheGPULayerOnASoftwareDevice
 	self assert: ((1 to: px size by: 4) collect: [:i | frame uint32At: i]) equals: ((1 to: px size by: 4) collect: [:i |
 		((px uint32At: i) bitAnd: 16rFF00FF00) + (((px uint32At: i) bitAnd: 16rFF) bitShift: 16) + (((px uint32At: i) bitShift: -16) bitAnd: 16rFF)])]
 		ensure: [GPUPlatform display: old first device: old last]
+!
+testTheRendererKeepsItsPipelineHere
+	"A device that runs the Renderer's shader natively builds no shaders: changed shader source (Renderer shaderSourceChanged) rebuilds nothing, reports nothing and draws the same; a FragmentShader gets no pipeline and no error either."
+	| old device canvas list renderer surface before pipeline errors handler image |
+	old := GPUPlatform display: display device: gpu.
+	handler := Renderer shaderErrorHandler.
+	errors := OrderedCollection new.
+	Renderer shaderErrorHandler: [:e | errors add: e].
+	[device := GPUDevice new.
+	self deny: device buildsShaders.
+	canvas := Canvas extent: 6 @ 4 scale: 1.
+	canvas fillRect: (1 @ 1 extent: 3 @ 2) color: Color blue.
+	canvas line: 0 @ 3.5 to: 6 @ 3.5 color: Color black width: 1.
+	list := canvas displayList.
+	renderer := Renderer on: device.
+	surface := Surface new setWidth: 6 height: 4 scale: 1 device: device.
+	renderer render: list on: surface clear: Color white.
+	before := surface texture download.
+	pipeline := renderer pipeline.
+	Renderer shaderSourceChanged.
+	renderer render: list on: surface clear: Color white.
+	self assert: surface texture download equals: before.
+	self assert: renderer pipeline == pipeline.
+	self assert: renderer pipelineVersion equals: 1.
+	self deny: renderer updatePipeline.
+	image := (FragmentShader on: device) imageExtent: 2 @ 2 source: 'fragment' uniforms: (ByteArray new: 16).
+	canvas := Canvas extent: 6 @ 4 scale: 1.
+	canvas image: image in: (0 @ 0 extent: 2 @ 2).
+	renderer render: canvas displayList on: surface clear: Color white.
+	self assert: errors isEmpty description: 'a shader error was reported']
+		ensure: [
+			Renderer shaderErrorHandler: handler.
+			GPUPlatform display: old first device: old last]
 ! !
 
 SoftwareGPUTest subclass: #SoftwareGPUBandsTest
