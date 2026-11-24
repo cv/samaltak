@@ -90,17 +90,16 @@ runtime
 ! !
 
 UefiModule subclass: #UefiFirmware
-	instanceVariableNames: 'imageHandle systemTable bootServices runtimeServices conOut consoleOutput root store cpu serial mp crash'
+	instanceVariableNames: 'imageHandle systemTable bootServices runtimeServices conOut root store cpu serial mp'
 	classVariableNames: ''
 	package: 'VM-UEFI'!
 
-UefiFirmware comment: 'The VM''s entry on UEFI, efi_main: makes its image writable and executable (unprotect:bootServices:), keeps the system table, turns off the boot manager''s watchdog (it resets the machine after 5 minutes), switches to a stack of STACK_BYTES (the firmware''s is 128 KB, and the JIT''s code keeps a native frame per activation), opens the volume the VM was loaded from (its root directory is the current directory: fopen of a relative path), finds the image store (UefiImageStore), reads the command line from samaltak.args there (one argument a line; without it: disk: --headless, or samaltak.image --headless if there is no store) and runs VMMain>>main:argv:. What it answers is the exit status (UefiLibC>>exit:); a fatal error leaves a crash report first (UefiCrash).'!
+UefiFirmware comment: 'The VM''s entry on UEFI, efi_main: makes its image writable and executable (unprotect:bootServices:), keeps the system table, turns off the boot manager''s watchdog (it resets the machine after 5 minutes), switches to a stack of STACK_BYTES (the firmware''s is 128 KB, and the JIT''s code keeps a native frame per activation), opens the volume the VM was loaded from (its root directory is the current directory: fopen of a relative path), finds the image store (UefiImageStore), reads the command line from samaltak.args there (one argument a line; without it: disk: --headless, or samaltak.image --headless if there is no store) and runs VMMain>>main:argv:. What it answers is the exit status (UefiLibC>>exit:).'!
 
 !UefiFirmware class methodsFor: 'declaring'!
 declarations
 	^#((imageHandle 'void *') (systemTable 'EfiSystemTable *') (bootServices 'EfiBootServices *') (runtimeServices 'EfiRuntimeServices *')
-		(conOut 'EfiTextOutput *') (consoleOutput 'void *') (root 'EfiFile *') (store UefiImageStore) (cpu UefiCpu) (serial 'EfiSerialIo *') (mp UefiMp)
-		(crash UefiCrash))
+		(conOut 'EfiTextOutput *') (root 'EfiFile *') (store UefiImageStore) (cpu UefiCpu) (serial 'EfiSerialIo *') (mp UefiMp))
 ! !
 
 !UefiFirmware methodsFor: 'entry'!
@@ -118,7 +117,6 @@ efiMain: anImageHandle systemTable: aSystemTable
 	bootServices := aSystemTable bootServices.
 	runtimeServices := aSystemTable runtimeServices.
 	conOut := aSystemTable conOut.
-	conOut isNull ifFalse: [consoleOutput := conOut outputString].
 	self efi: bootServices setWatchdogTimer with: 0 with: 0 with: 0 with: self null.
 	run := self cCoerce: (self functionPointer: #run) to: 'void *'.
 	stack := self local: 'uint64_t'.
@@ -133,7 +131,6 @@ run
 	| argv argc |
 	libc start.
 	posix start.
-	crash start.
 	self openRoot.
 	self openSerial.
 	mp start.
@@ -306,31 +303,6 @@ setTimer: event microseconds: us periodic: periodic
 		^self].
 	self efi: bootServices setTimer with: event with: (periodic ifTrue: [EFI_TIMER_PERIODIC] ifFalse: [EFI_TIMER_RELATIVE])
 		with: (us < 1 ifTrue: [1] ifFalse: [us]) * 10
-!
-hasSerial
-	"Is there a serial port (where the console goes)?"
-	<function>
-	<returns: 'bool'>
-	^serial notNull
-!
-takeOverConsole: attribute
-	"After a fatal error: the console's own OutputString back (FirmwareScreen silenced it), its mode set again (the graphics console redraws on the screen as it is now), cleared in attribute (EFI_TEXT_ATTR)."
-	<function>
-	<var: #attribute type: 'uint64_t'>
-	| mode |
-	conOut isNull ifTrue: [^self].
-	consoleOutput isNull ifFalse: [conOut outputString: consoleOutput].
-	mode := self cCoerce: conOut mode to: 'int32_t *'.
-	mode isNull ifFalse: [self efi: conOut setMode with: conOut with: (mode at: 1) asUInt64].
-	self efi: conOut setAttribute with: conOut with: attribute.
-	self efi: conOut clearScreen with: conOut
-!
-reset
-	"Restart the machine (EfiResetCold; QEMU with -no-reboot exits)."
-	<function>
-	<noreturn>
-	self efi: runtimeServices resetSystem with: 0 with: 0 with: 0 with: self null.
-	[true] whileTrue
 !
 shutdown: status
 	"Power off (QEMU exits); status goes to ResetSystem."

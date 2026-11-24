@@ -1,5 +1,5 @@
 VMCoreModule subclass: #Interpreter
-	instanceVariableNames: 'activeCtx tmpRoots primStatus primErrorCode primNargs primBase primBaseIndex primResult resendSelector resendArgc cstack frames nframes cstackUsed tagClass stackLimit stackCheckAt stackCheckDue stackCheckHash safepointAtEntry statMaterialized statFlushes frameEpoch fatalDepth cache icache specialArgc ip sp fp lits fr sel cls argc result epoch newMethod newBcs newLits newTemps newFsize newEcode newFp newCode'
+	instanceVariableNames: 'activeCtx tmpRoots primStatus primErrorCode primNargs primBase primBaseIndex primResult resendSelector resendArgc cstack frames nframes cstackUsed tagClass stackLimit stackCheckAt stackCheckDue stackCheckHash safepointAtEntry statMaterialized statFlushes frameEpoch cache icache specialArgc ip sp fp lits fr sel cls argc result epoch newMethod newBcs newLits newTemps newFsize newEcode newFp newCode'
 	classVariableNames: 'CACHE_SIZE CSTACK_SLOTS ICACHE_SIZE MAX_FRAMES'
 	package: 'VM-Core'!
 
@@ -19,7 +19,7 @@ declarations
 		(cstack 'oop[CSTACK_SLOTS]') (frames 'Frame[MAX_FRAMES]') (nframes int32_t) (cstackUsed size_t)
 		(tagClass 'oop[8]')
 		(stackLimit int64_t 1000000) (stackCheckAt uint64_t) (stackCheckDue bool) (stackCheckHash uint32_t) (safepointAtEntry bool)
-		(statMaterialized uint64_t) (statFlushes uint64_t) (frameEpoch uint64_t) (fatalDepth int32_t)
+		(statMaterialized uint64_t) (statFlushes uint64_t) (frameEpoch uint64_t)
 		(cache 'CacheEntry[CACHE_SIZE]') (icache 'CacheEntry[ICACHE_SIZE]')
 		(specialArgc 'int32_t[32]')
 		(ip 'uint8_t *') (sp 'oop *') (fp 'oop *') (lits 'oop *') (fr 'Frame *') (sel oop) (cls oop) (argc int32_t) (result oop) (epoch uint64_t)
@@ -1065,21 +1065,15 @@ printStack: aContext on: f
 		i := i + 1]
 !
 fatalBegin
-	"Before a fatal message: from here on isFatal (VM-UEFI's crash report keeps what follows)."
 	<function>
-	fatalDepth := fatalDepth + 1.
 	libc fputs: 'samaltak: fatal: ' to: libc stderr
 !
-isFatal
-	"Is the VM dying of a fatal error (between fatalBegin and its exit)?"
-	^fatalDepth > 0
-!
 fatalEnd
-	"After a fatal message: the Smalltalk stack (not for a fatal error while printing one), then exit."
+	"After a fatal message: the Smalltalk stack, then exit."
 	<noreturn>
 	libc fputc: 10 to: libc stderr.
 	libc fflush: libc stdout.
-	(fatalDepth = 1 and: [(self isPtr: activeCtx) and: [activeCtx ~= 0 and: [memory specialsOop ~= 0]]]) ifTrue: [
+	((self isPtr: activeCtx) and: [activeCtx ~= 0 and: [memory specialsOop ~= 0]]) ifTrue: [
 		libc fputs: 'Smalltalk stack:
 ' to: libc stderr.
 		self printStack: activeCtx on: libc stderr].

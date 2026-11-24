@@ -79,15 +79,6 @@ banner
 	<primitive: 'vmBanner'>
 	^nil
 !
-fatalErrorForTesting
-	"For tests only: kill the VM with a fatal error, as a VM bug would (recursive doesNotUnderstand: of an instance of a class without superclass or methods). It prints the fatal message and the Smalltalk stack and exits with 70; on UEFI it leaves a crash report (docs/uefi.md, Crash reports)."
-	| behavior |
-	behavior := Behavior basicNew.
-	behavior superclass: nil.
-	behavior methodDict: MethodDictionary new.
-	behavior format: Object format.
-	^behavior basicNew samaltakFatalErrorForTesting
-!
 primitiveNames
 	"Answer an Array whose element n is the name of primitive n (nil for gaps)."
 	<primitive: 'primitiveNames'>

@@ -6,7 +6,6 @@ oop active_ctx;
 static cache_entry cache[4096];
 oop cstack[65536];
 size_t cstack_used;
-static int32_t fatal_depth;
 uint64_t frame_epoch;
 frame frames[65536];
 cache_entry icache[4096];
@@ -392,7 +391,6 @@ void entry_safepoint(void)
 /* Interpreter>>fatalBegin */
 void fatal_begin(void)
 {
-    fatal_depth = fatal_depth + 1;
     fputs("samaltak: fatal: ", stderr);
 }
 
@@ -401,7 +399,7 @@ void fatal_end(void)
 {
     fputc(10, stderr);
     fflush(stdout);
-    if ((fatal_depth == 1) && (((active_ctx & 7) == 0) && ((active_ctx != 0) && (specials_oop != 0)))) {
+    if (((active_ctx & 7) == 0) && ((active_ctx != 0) && (specials_oop != 0))) {
         fputs("Smalltalk stack:\n", stderr);
         print_stack(active_ctx, stderr);
     }

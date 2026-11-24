@@ -2,7 +2,7 @@
 
 **Scope.** The UEFI app is for QEMU, for machines without a usable Linux, for exploring the firmware (PCI, ACPI, the memory map, from the Debugger) and for a system that is Smalltalk to the metal, with the drivers it has (virtio, e1000e, the firmware's SNP, Block I/O, GOP and HID); no new hardware drivers go into it. The DGX Spark runs Samaltak as the Linux appliance instead (docs/linux-appliance.md: Linux's drivers, the GB10 through `nvidia.ko`, the World on the image's own KMS screen); its GSP boot from UEFI was dropped (docs/nv-gsp.md, archived).
 
-The VM runs as a UEFI application on x86-64 and arm64, with its UI on the firmware's screen: no operating system, no C library, no hand-written C, no file system. It is translated from the same Lowtalk as `vm/gen`, with the `VM-UEFI` package in place of the C library and the OS. The image is everything there is (sources, fonts) and lives on a raw partition. A fatal error leaves a crash report on the EFI system partition and says so on the screen (Crash reports).
+The VM runs as a UEFI application on x86-64 and arm64, with its UI on the firmware's screen: no operating system, no C library, no hand-written C, no file system. It is translated from the same Lowtalk as `vm/gen`, with the `VM-UEFI` package in place of the C library and the OS. The image is everything there is (sources, fonts) and lives on a raw partition.
 
     make uefi                                       # $(OUT)/uefi-$(UEFI_ARCH)/esp: a boot volume; .../image.disk: the image
     make uefi-run UEFI_ARGS="--headless --eval '3 + 4'"   # boot it in QEMU with its UEFI firmware; fails unless the VM exits 0
@@ -32,9 +32,7 @@ The VM runs as a UEFI application on x86-64 and arm64, with its UI on the firmwa
 
 ## Crash reports
 
-A fatal error of the VM (`samaltak: fatal: ...`: out of memory past the heap's limit, a deadlock, a VM bug) cannot be left to the image, which may be what broke. `UefiCrash` (VM-UEFI, no heap, no allocation) keeps the console's last 4 KB, and from the fatal message on everything the VM prints (the message, the Smalltalk stack as the VM prints it). At the VM's exit it writes `samaltak-crash-<n>.txt` (the first n not taken) in the root of the boot volume through the firmware's file protocol: the fatal message, the firmware's time, the uptime, the VM and the commit it was built from (`make uefi`'s `git describe`), its arguments, the heap (limit, old space, allocated, scavenges, full GCs, low-space level), the fatal output, the console before it. Then it takes the firmware's text console back (the World silenced it), clears it red and shows the message, the file's name and the top of the stack instead of the World's last frame, and waits for a key, then resets the machine; with a serial port (the console goes there: QEMU) it waits at most 15 s, then powers off with status 70 as before. The console also says `samaltak: crash report samaltak-crash-<n>.txt on the boot volume`.
-
-In the image, a Notifier's or Debugger's **Save report** button writes `samaltak-crash-<n>.txt` for the stopped Process (`CrashReport`, System-Debugging): the error, the Process, the time and uptime, the VM, the image's base commit, the heap and the stack; on UEFI to `/esp`, on an operating system to `~/.local/state/samaltak`. `Smalltalk vm fatalErrorForTesting` kills the VM with a fatal error, for tests: `make test-uefi-fat` (tests/uefi/fat.sh) does it with the World on the screen, then checks the report on the ESP with mtools, the red panel in QEMU's screendump, and the reset after a key (QEMU's sendkey).
+In the image, a Notifier's or Debugger's **Save report** button writes `samaltak-crash-<n>.txt` for the stopped Process (`CrashReport`, System-Debugging) to `~/.local/state/samaltak`, which needs an operating system's files: on UEFI it fails. A fatal error of the VM is said on the console (`samaltak: fatal: ...`, the Smalltalk stack), then the VM powers off with status 70.
 
 ## More than one CPU
 
