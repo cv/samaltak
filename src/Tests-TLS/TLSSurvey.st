@@ -1,16 +1,16 @@
 Object subclass: #TLSSurvey
-	instanceVariableNames: 'trustStore timeout parallel lock engine'
+	instanceVariableNames: 'trustStore timeout parallel lock'
 	classVariableNames: ''
 	package: 'Tests-TLS'!
 
-TLSSurvey comment: 'I try the VM''s TLS engine (MbedTLSConnection; engine: #smalltalk the Smalltalk TLS client) on real servers, for tools/tls-survey (which compares my verdicts with OpenSSL''s) and by hand; nothing in the test suite uses me, as I need the internet.
+TLSSurvey comment: 'I try the VM''s TLS engine (MbedTLSConnection) on real servers, for tools/tls-survey (which compares my verdicts with OpenSSL''s) and by hand; nothing in the test suite uses me, as I need the internet.
 
 	TLSSurvey new probe: ''github.com''.	"a line: host, ok or fail, details"
 	TLSSurvey new run: #(''github.com'' ''example.com:443'') parallel: 8.	"a line each on the Transcript, as they finish"
 	TLSSurvey new download: ''https://speed.cloudflare.com/__down?bytes=100000000''.	"throughput, the engine and OpenSSL''s"
 	TLSSurvey new repeat: 50 host: ''example.com''.	"sequential connections: handshake times"
 
-probe: connects (trusting trustStore, the default roots unless set), does the handshake, sends HEAD / with Connection: close and reads until the server closes. Its line is tab-separated: host, ok or fail, handshake ms, cipher suite, the version (the Smalltalk TLS: the key exchange group, with +HRR after a HelloRetryRequest), ALPN, (the Smalltalk TLS: the number of certificates sent, the leaf''s key), the response''s status line, bytes received, and for a failure why.'!
+probe: connects (trusting trustStore, the default roots unless set), does the handshake, sends HEAD / with Connection: close and reads until the server closes. Its line is tab-separated: host, ok or fail, handshake ms, cipher suite, the version, ALPN, the response''s status line, bytes received, and for a failure why.'!
 
 !TLSSurvey methodsFor: 'accessing'!
 trustStore: aTrustStore
@@ -22,13 +22,6 @@ timeout
 !
 timeout: milliseconds
 	timeout := milliseconds
-!
-engine
-	"#mbedtls (the VM's engine) or #smalltalk."
-	^engine ifNil: [#mbedtls]
-!
-engine: aSymbol
-	engine := aSymbol
 ! !
 
 !TLSSurvey methodsFor: 'probing'!
@@ -41,24 +34,16 @@ probe: hostSpec
 	deadline := Time millisecondClockValue + self timeout.
 	plain := [RemoteSocket connectTo: host port: port until: deadline] on: Error do: [:e |
 		^self line: (fields add: 'fail'; add: 'connect: ', e messageText asString; yourself)].
-	connection := self engine == #smalltalk
-		ifTrue: [TLSClientConnection on: plain host: host]
-		ifFalse: [MbedTLSConnection on: plain host: host].
+	connection := MbedTLSConnection on: plain host: host.
 	trustStore isNil ifFalse: [connection trustStore: trustStore].
 	[connection handshakeUntil: deadline] on: TLSError do: [:e |
 		connection close.
-		^self line: (fields add: 'fail'; add: (self alertOf: e), e messageText asString; yourself)].
+		^self line: (fields add: 'fail'; add: e messageText asString; yourself)].
 	fields add: 'ok'; add: connection handshakeMilliseconds printString.
-	(connection isKindOf: MbedTLSConnection)
-		ifTrue: [fields add: connection cipherSuite; add: connection version; add: (connection protocol ifNil: ['-'])]
-		ifFalse: [
-			fields add: connection cipherSuite name;
-				add: (self class groupName: connection keyExchangeGroup), (connection wasRetried ifTrue: ['+HRR'] ifFalse: ['']);
-				add: (connection protocol ifNil: ['-']); add: connection peerCertificates size printString;
-				add: (self class describeKey: connection peerCertificates first publicKey)].
+	fields add: connection cipherSuite; add: connection version; add: (connection protocol ifNil: ['-']).
 	[response := self head: host over: connection] on: Error do: [:e |
 		connection close.
-		^self line: (fields add: 'after the handshake: ', (self alertOf: e), e messageText asString; yourself)].
+		^self line: (fields add: 'after the handshake: ', e messageText asString; yourself)].
 	received := response first.
 	fields add: ((received copyUpTo: Character cr) copyUpTo: Character lf); add: received size printString.
 	response last isNil ifFalse: [fields add: response last].
@@ -115,7 +100,7 @@ download: url
 	"Get url with my engine and then with OpenSSL's (where there is one), reading and dropping the body: a line each with the bytes, the milliseconds and the MB/s."
 	| results |
 	results := OrderedCollection new.
-	results add: (self download: url engine: self engine).
+	results add: (self download: url engine: #mbedtls).
 	results add: (self download: url engine: #platform).
 	^results
 !
@@ -164,23 +149,4 @@ repeat: count host: hostSpec
 !TLSSurvey methodsFor: 'private'!
 line: fields
 	^fields inject: '' into: [:a :b | a isEmpty ifTrue: [b] ifFalse: [a, (String with: Character tab), b]]
-!
-alertOf: aTLSError
-	(aTLSError isKindOf: TLSError) ifFalse: [^''].
-	aTLSError alert isNil ifTrue: [^''].
-	^(aTLSError isFromPeer ifTrue: ['peer '] ifFalse: ['']), aTLSError alert asString, ': '
-! !
-
-!TLSSurvey class methodsFor: 'naming'!
-groupName: code
-	code = 16r1D ifTrue: [^'x25519'].
-	code = 16r17 ifTrue: [^'secp256r1'].
-	code = 16r18 ifTrue: [^'secp384r1'].
-	^code printString
-!
-describeKey: aKey
-	aKey isNil ifTrue: [^'unsupported key'].
-	(aKey isKindOf: RsaPublicKey) ifTrue: [^'RSA-', aKey bitLength printString].
-	(aKey isKindOf: EcPublicKey) ifTrue: [^'EC-', aKey curve name].
-	^aKey class name
 ! !

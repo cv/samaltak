@@ -421,7 +421,7 @@ UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest Conte
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \
 	Amd64DisassemblerTest Arm64DisassemblerTest ByteSearchTest FFIBindingTest \
 	SHA256Test SHA384Test SHA512Test HMACTest HKDFTest ChaCha20Test ChaCha20Poly1305Test AesGcmTest SecureRandomTest WycheproofAeadTest \
-	X25519Test RsaPublicKeyTest EcPublicKeyTest EcPrivateKeyTest HmacHkdfWycheproofTest Asn1DerTest X509CertificateTest TrustStoreTest CertificateValidatorTest \
+	X25519Test RsaPublicKeyTest EcPublicKeyTest HmacHkdfWycheproofTest Asn1DerTest X509CertificateTest TrustStoreTest \
 	MountTableTest FirmwareVolumesTest GitHubClientTest SourceFilerGitHubTest SourceUpdateTest PosixDeviceTest ZLibTest PNGCodecTest AgentImageTest \
 	SoftwareGPUTest SoftwareGPUBandsTest JitOptBackgroundTest FrameTapTest PixelPackTest NvProbeTest \
 	NvTransportTest NvGspLayoutTest NvGspTest NvGspTransportTest NvGspBootTest NvGspFirmwareTest NvGspSequencerTest \

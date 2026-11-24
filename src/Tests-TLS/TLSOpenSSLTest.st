@@ -3,12 +3,12 @@ TestCase subclass: #TLSOpenSSLTest
 	classVariableNames: 'Fixtures'
 	package: 'Tests-TLS'!
 
-TLSOpenSSLTest comment: 'I check the Smalltalk TLS client against OpenSSL''s test server (openssl s_server -tls1_3) on 127.0.0.1, with a test CA and server certificates (RSA and P-256 ECDSA, for localhost and 127.0.0.1) made once per image run in a temporary directory (fixtures), and a second CA that signed nothing: each cipher suite, a HelloRetryRequest, an ECDSA certificate, a server that asks for a client certificate, a wrong host name and an untrusted CA, 3 MB down and 2 MB up and back with KeyUpdates between, and HTTPClient over a TLSSocket that uses the Smalltalk TLS, also streaming server-sent events. Each test starts its servers (startServer:, on a free port) and kills them.'!
+TLSOpenSSLTest comment: 'I check the VM''s TLS engine (MbedTLSConnection, mbedTLS) against OpenSSL''s test server (openssl s_server) on 127.0.0.1, with a test CA and server certificates (RSA and P-256 ECDSA, for localhost and 127.0.0.1) made once per image run in a temporary directory (fixtures), and a second CA that signed nothing: each cipher suite of TLS 1.3 and 1.2, a HelloRetryRequest, an ECDSA certificate, a server that asks for a client certificate, an IP address, a wrong host name and an untrusted CA, expired, self-signed, incomplete, weak-key and SHA-1 certificates, long chains, a certificate too large for mbedTLS, 3 MB down and 2 MB up and back, 100 connections, a close from another Process, timeouts, and HTTPClient over a TLSSocket that uses the engine, also streaming server-sent events. Each test starts its servers (startServer:, on a free port) and kills them.'!
 
 !TLSOpenSSLTest methodsFor: 'running'!
 setUp
 	| roots |
-	self keep: #useSmalltalkTLS of: TLSSocket.
+	self keep: #engine of: TLSSocket.
 	roots := TLSSocket trustStoreSetting.
 	self addCleanup: [TLSSocket trustStore: roots].
 	servers := OrderedCollection new.
@@ -55,9 +55,9 @@ rsa
 	^'-cert rsa.pem -key rsa.key '
 !
 connect: port host: hostName
-	"A TLSClientConnection to port, before the handshake, trusting the test CA."
+	"An MbedTLSConnection to port, before the handshake, trusting the test CA."
 	| connection |
-	connection := TLSClientConnection on: (RemoteSocket connectTo: '127.0.0.1' port: port timeout: 5000) host: hostName.
+	connection := MbedTLSConnection on: (RemoteSocket connectTo: '127.0.0.1' port: port timeout: 5000) host: hostName.
 	connection trustStore: trust.
 	^connection
 !
@@ -95,45 +95,38 @@ refusal: serverOptions version: versionOption
 lowSecurity
 	"Let s_server use weak certificates (OpenSSL's default security level 2 refuses to)."
 	^' -cipher ALL@SECLEVEL=0 '
+!
+assertGetOver: connection
+	self assert: ((self get: '/' over: connection) asString beginsWith: 'HTTP/1.0 200 ok')
 ! !
 
 !TLSOpenSSLTest methodsFor: 'tests'!
 testEachCipherSuite
-	#('TLS_AES_128_GCM_SHA256' 'TLS_CHACHA20_POLY1305_SHA256' 'TLS_AES_256_GCM_SHA384') do: [:name | | port connection response |
-		port := self startServer: self rsa, '-www -ciphersuites ', name.
+	#(#('TLS_AES_128_GCM_SHA256' 'TLS1-3-AES-128-GCM-SHA256') #('TLS_CHACHA20_POLY1305_SHA256' 'TLS1-3-CHACHA20-POLY1305-SHA256') #('TLS_AES_256_GCM_SHA384' 'TLS1-3-AES-256-GCM-SHA384')) do: [:each | | port connection response |
+		port := self startServer: self rsa, '-www -ciphersuites ', each first.
 		connection := self handshake: (self connect: port host: 'localhost').
-		self assert: connection cipherSuite name equals: name.
-		self deny: connection wasRetried.
-		self assert: connection peerCertificates size >= 1.
+		self assert: connection version equals: 'TLSv1.3'.
+		self assert: connection cipherSuite equals: each last.
 		response := (self get: '/' over: connection) asString.
 		self assert: (response beginsWith: 'HTTP/1.0 200 ok').
-		self assert: (response includesSubstring: 'Cipher is ', name)]
+		self assert: (response includesSubstring: 'Cipher is ', each first)]
 !
 testHelloRetryRequest
-	"The server takes only P-256: the client''s x25519 share gets a HelloRetryRequest."
-	| port connection |
+	"The server takes only P-256: the client's x25519 share gets a HelloRetryRequest."
+	| port |
 	port := self startServer: self rsa, '-www -groups P-256'.
-	connection := self handshake: (self connect: port host: 'localhost').
-	self assert: connection wasRetried.
-	self assert: (connection clientHello keyShares collect: [:each | each first]) equals: #(16r17).
-	self assert: ((self get: '/' over: connection) asString beginsWith: 'HTTP/1.0 200 ok')
+	self assertGetOver: (self handshake: (self connect: port host: 'localhost'))
 !
 testHelloRetryRequestForX25519
-	"No key share at first: the server asks for x25519."
-	| port connection |
+	"The server takes only x25519, the engine's first share."
+	| port |
 	port := self startServer: self rsa, '-www -groups X25519'.
-	connection := self connect: port host: 'localhost'.
-	connection keyShareGroups: #().
-	self handshake: connection.
-	self assert: connection wasRetried.
-	self assert: ((self get: '/' over: connection) asString beginsWith: 'HTTP/1.0 200 ok')
+	self assertGetOver: (self handshake: (self connect: port host: 'localhost'))
 !
 testECDSACertificate
-	| port connection |
+	| port |
 	port := self startServer: '-cert ec.pem -key ec.key -www'.
-	connection := self handshake: (self connect: port host: 'localhost').
-	self assert: (connection peerCertificates first publicKey isKindOf: EcPublicKey).
-	self assert: ((self get: '/' over: connection) asString beginsWith: 'HTTP/1.0 200 ok')
+	self assertGetOver: (self handshake: (self connect: port host: 'localhost'))
 !
 testCertificateRequest
 	"The server asks for a client certificate but does without: the client sends an empty Certificate."
@@ -143,11 +136,9 @@ testCertificateRequest
 	self assert: ((self get: '/' over: connection) asString beginsWith: 'HTTP/1.0 200 ok')
 !
 testAddressInCertificate
-	| port connection |
+	| port |
 	port := self startServer: self rsa, '-www'.
-	connection := self handshake: (self connect: port host: '127.0.0.1').
-	self assert: connection clientHello serverName isNil.
-	self assert: ((self get: '/' over: connection) asString beginsWith: 'HTTP/1.0 200 ok')
+	self assertGetOver: (self handshake: (self connect: port host: '127.0.0.1'))
 !
 testWrongHost
 	| port connection error |
@@ -155,7 +146,7 @@ testWrongHost
 	connection := self connect: port host: 'wrong.example'.
 	error := self failureOf: connection.
 	self assert: error notNil.
-	self assert: error alert notNil.
+	self assert: (error messageText includesSubstring: 'does not match with the expected CN').
 	self deny: connection isOpen
 !
 testUntrustedCA
@@ -165,7 +156,7 @@ testUntrustedCA
 	connection trustStore: (TrustStore new add: (X509Certificate fromPem: (File readText: self fixtures, '/other.pem')); yourself).
 	error := self failureOf: connection.
 	self assert: error notNil.
-	self assert: error alert notNil.
+	self assert: (error messageText includesSubstring: 'not correctly signed by the trusted CA').
 	self deny: connection isOpen
 !
 testLargeDownload
@@ -178,7 +169,7 @@ testLargeDownload
 	self assert: (response copyFrom: response size - expected size + 1 to: response size) = expected
 !
 testLargeUploadWithKeyUpdates
-	"2 MB of lines up and back reversed (s_server -rev), the client updating its keys and asking the server to, now and then."
+	"2 MB of lines up and back reversed (s_server -rev; mbedTLS 3.6 has no KeyUpdate)."
 	| port connection lines received reader text total |
 	port := self startServer: self rsa, '-rev'.
 	connection := self handshake: (self connect: port host: 'localhost').
@@ -189,36 +180,32 @@ testLargeUploadWithKeyUpdates
 		buffer := ByteArray new: 32768.
 		[(n := connection receiveInto: buffer timeout: 30000) notNil and: [n > 0 and: [received position < total]]] whileTrue: [
 			received nextPutAll: (buffer copyFrom: 1 to: n)]].
-	lines doWithIndex: [:each :i |
-		self assert: (connection sendAll: each, String lf).
-		i \\ 500 = 0 ifTrue: [connection updateKeys]].
+	lines do: [:each | self assert: (connection sendAll: each, String lf)].
 	self assert: (self waitFor: [received position >= total] timeout: 60000).
 	text := received contents asString.
 	self assert: text lines asArray equals: (lines collect: [:each | each reverse]) asArray.
 	connection close
 !
 testTLS12EachCipherSuite
-	#(#('ECDHE-ECDSA-AES128-GCM-SHA256' 'ec' 'TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256')
-	  #('ECDHE-RSA-AES128-GCM-SHA256' 'rsa' 'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256')
-	  #('ECDHE-ECDSA-CHACHA20-POLY1305' 'ec' 'TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256')
-	  #('ECDHE-RSA-CHACHA20-POLY1305' 'rsa' 'TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256')
-	  #('ECDHE-ECDSA-AES256-GCM-SHA384' 'ec' 'TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384')
-	  #('ECDHE-RSA-AES256-GCM-SHA384' 'rsa' 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384')) do: [:each | | port connection response |
+	#(#('ECDHE-ECDSA-AES128-GCM-SHA256' 'ec' 'TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256')
+	  #('ECDHE-RSA-AES128-GCM-SHA256' 'rsa' 'TLS-ECDHE-RSA-WITH-AES-128-GCM-SHA256')
+	  #('ECDHE-ECDSA-CHACHA20-POLY1305' 'ec' 'TLS-ECDHE-ECDSA-WITH-CHACHA20-POLY1305-SHA256')
+	  #('ECDHE-RSA-CHACHA20-POLY1305' 'rsa' 'TLS-ECDHE-RSA-WITH-CHACHA20-POLY1305-SHA256')
+	  #('ECDHE-ECDSA-AES256-GCM-SHA384' 'ec' 'TLS-ECDHE-ECDSA-WITH-AES-256-GCM-SHA384')
+	  #('ECDHE-RSA-AES256-GCM-SHA384' 'rsa' 'TLS-ECDHE-RSA-WITH-AES-256-GCM-SHA384')) do: [:each | | port connection response |
 		port := self startServer12: '-cert ', (each at: 2), '.pem -key ', (each at: 2), '.key -www -alpn http/1.1 -cipher ', (each at: 1).
 		connection := self handshake: (self connect: port host: 'localhost').
-		self assert: connection version equals: 16r0303.
-		self assert: connection cipherSuite name equals: (each at: 3).
+		self assert: connection version equals: 'TLSv1.2'.
+		self assert: connection cipherSuite equals: (each at: 3).
 		self assert: connection protocol equals: 'http/1.1'.
 		response := (self get: '/' over: connection) asString.
 		self assert: (response beginsWith: 'HTTP/1.0 200 ok').
 		self assert: (response includesSubstring: (each at: 1))]
 !
 testTLS12P256
-	| port connection |
+	| port |
 	port := self startServer12: self rsa, '-www -groups P-256'.
-	connection := self handshake: (self connect: port host: 'localhost').
-	self assert: connection keyExchangeGroup equals: 16r17.
-	self assert: ((self get: '/' over: connection) asString beginsWith: 'HTTP/1.0 200 ok')
+	self assertGetOver: (self handshake: (self connect: port host: 'localhost'))
 !
 testTLS12CertificateRequest
 	| port connection |
@@ -230,65 +217,43 @@ testTLS12LargeDownload
 	| port connection response expected |
 	port := self startServer12: self rsa, '-WWW'.
 	connection := self handshake: (self connect: port host: 'localhost').
-	self assert: connection version equals: 16r0303.
+	self assert: connection version equals: 'TLSv1.2'.
 	response := self get: '/big.bin' over: connection.
 	expected := File readBytes: self fixtures, '/big.bin'.
 	self assert: (response copyFrom: response size - expected size + 1 to: response size) = expected
 !
 testTLS12NoSharedCipherSuite
 	"Servers with only RSA key exchange, CBC, NULL or anonymous suites: we offer none of them, the server refuses."
-	#('AES128-SHA' 'ECDHE-RSA-AES128-SHA' 'ECDHE-RSA-NULL-SHA:@SECLEVEL=0' 'ADH-AES128-GCM-SHA256:@SECLEVEL=0' 'AECDH-AES128-SHA:@SECLEVEL=0') do: [:cipher | | error |
-		error := self refusal: self rsa, '-www -cipher ', cipher version: '-tls1_2'.
-		self assert: error isFromPeer.
-		self assert: error alert equals: #handshakeFailure]
+	#('AES128-SHA' 'ECDHE-RSA-AES128-SHA' 'ECDHE-RSA-NULL-SHA:@SECLEVEL=0' 'ADH-AES128-GCM-SHA256:@SECLEVEL=0' 'AECDH-AES128-SHA:@SECLEVEL=0') do: [:cipher |
+		self assert: (self refusal: self rsa, '-www -cipher ', cipher version: '-tls1_2') notNil]
 !
 testExpiredCertificate
-	| error |
-	error := self refusal: '-cert expired.pem -key rsa.key -www'.
-	self assert: (error messageText includesSubstring: 'expired at 2020-02-01').
-	self assert: error alert equals: #certificateExpired
+	self assert: ((self refusal: '-cert expired.pem -key rsa.key -www') messageText includesSubstring: 'validity has expired')
 !
 testSelfSignedCertificate
-	| error |
-	error := self refusal: '-cert self.pem -key rsa.key -www'.
-	self assert: (error messageText includesSubstring: 'not trusted').
-	self assert: error alert equals: #unknownCa
+	self assert: ((self refusal: '-cert self.pem -key rsa.key -www') messageText includesSubstring: 'not correctly signed by the trusted CA')
 !
 testIncompleteChain
 	"The leaf of a chain of four intermediates without them."
-	| error |
-	error := self refusal: '-cert deep.pem -key rsa.key -www'.
-	self assert: (error messageText includesSubstring: 'issued by CN=Samaltak Test int4, which is not trusted').
-	self assert: error alert equals: #unknownCa
+	self assert: ((self refusal: '-cert deep.pem -key rsa.key -www') messageText includesSubstring: 'not correctly signed by the trusted CA')
 !
 testLongChain
-	"Four intermediates, sent in order and then shuffled."
-	#('deepchain.pem' 'deepshuffled.pem') do: [:chain | | port connection |
-		port := self startServer: '-cert deep.pem -key rsa.key -cert_chain ', chain, ' -www'.
-		connection := self handshake: (self connect: port host: 'localhost').
-		self assert: connection peerCertificates size equals: 5.
-		self assert: ((self get: '/' over: connection) asString beginsWith: 'HTTP/1.0 200 ok')]
+	"Four intermediates sent in order; mbedTLS looks for each issuer after its certificate only, so a shuffled chain fails."
+	| port |
+	port := self startServer: '-cert deep.pem -key rsa.key -cert_chain deepchain.pem -www'.
+	self assertGetOver: (self handshake: (self connect: port host: 'localhost')).
+	self assert: ((self refusal: '-cert deep.pem -key rsa.key -cert_chain deepshuffled.pem -www') messageText
+		includesSubstring: 'not correctly signed by the trusted CA')
 !
 testWeakKey
-	| error |
-	error := self refusal: '-cert weak.pem -key weak.key -www', self lowSecurity.
-	self assert: (error messageText includesSubstring: 'RSA key of 1024 bits').
-	self assert: error alert equals: #badCertificate
+	self assert: ((self refusal: '-cert weak.pem -key weak.key -www', self lowSecurity) messageText includesSubstring: 'unacceptable key')
 !
 testSHA1Signature
-	| error |
-	error := self refusal: '-cert sha1.pem -key rsa.key -www', self lowSecurity.
-	self assert: (error messageText includesSubstring: 'sha1WithRSAEncryption, which is too weak').
-	self assert: error alert equals: #badCertificate
+	self assert: ((self refusal: '-cert sha1.pem -key rsa.key -www', self lowSecurity) messageText includesSubstring: 'unacceptable hash')
 !
 testLargeCertificate
-	"A leaf with 1500 names, over 40 KB: the Certificate message spans records."
-	| port connection |
-	port := self startServer: '-cert bigcert.pem -key rsa.key -www'.
-	connection := self handshake: (self connect: port host: 'localhost').
-	self assert: connection peerCertificates first der size > 40000.
-	self assert: connection peerCertificates first dnsNames size equals: 1501.
-	self assert: ((self get: '/' over: connection) asString beginsWith: 'HTTP/1.0 200 ok')
+	"A leaf with 1500 names, over 40 KB: a Certificate message larger than mbedTLS's record buffer (16 KB) fails the handshake, and closes the connection."
+	self assert: (self refusal: '-cert bigcert.pem -key rsa.key -www') notNil
 !
 testManySequentialConnections
 	"100 connections in a row, TLS 1.3 and 1.2 in turn, each a GET: no handle is left open."
@@ -298,8 +263,8 @@ testManySequentialConnections
 	before := Smalltalk vm platformHandleCounts at: #sockets.
 	1 to: 100 do: [:i | | connection |
 		connection := self handshake: (self connect: (i odd ifTrue: [port13] ifFalse: [port12]) host: 'localhost').
-		self assert: connection version equals: (i odd ifTrue: [16r0304] ifFalse: [16r0303]).
-		self assert: ((self get: '/' over: connection) asString beginsWith: 'HTTP/1.0 200 ok')].
+		self assert: connection version equals: (i odd ifTrue: ['TLSv1.3'] ifFalse: ['TLSv1.2']).
+		self assertGetOver: connection].
 	self assert: (Smalltalk vm platformHandleCounts at: #sockets) equals: before
 !
 testCloseWhileReceiving
@@ -334,19 +299,28 @@ testReceiveTimeout
 testHTTPClient
 	| port response |
 	port := self startServer: self rsa, '-www'.
-	TLSSocket useSmalltalkTLS: true; trustStore: trust.
+	TLSSocket engine: #mbedtls; trustStore: trust.
 	response := HTTPClient new get: 'https://localhost:', port printString, '/' headers: nil.
 	self assert: response status equals: 200
 !
 testServerSentEvents
 	| port events client |
 	port := self startServer: self rsa, '-HTTP'.
-	TLSSocket useSmalltalkTLS: true; trustStore: trust.
+	TLSSocket engine: #mbedtls; trustStore: trust.
 	events := OrderedCollection new.
 	client := HTTPClient new.
 	client request: 'GET' url: 'https://localhost:', port printString, '/events' headers: nil body: nil do: [:text |
 		(SSEReader do: [:event :data | events add: event -> data]) feed: text].
 	self assert: events asArray equals: {'a' -> '1'. 'message' -> 'two'}
+!
+testSocketIsMbedTLS
+	| port socket |
+	port := self startServer: self rsa, '-www'.
+	TLSSocket engine: #mbedtls; trustStore: trust.
+	socket := TLSSocket connectTo: 'localhost' port: port timeout: 5000.
+	self assert: (socket connection isKindOf: MbedTLSConnection).
+	self assert: (socket printString includesSubstring: 'mbedTLS').
+	socket close
 ! !
 
 !TLSOpenSSLTest class methodsFor: 'fixtures'!

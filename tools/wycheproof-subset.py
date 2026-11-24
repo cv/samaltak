@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Turn subsets of Wycheproof's test vectors (github.com/C2SP/wycheproof, testvectors_v1) into
-src/Tests-Crypto/WycheproofVectors.st, for X25519Test, RsaPublicKeyTest, EcPublicKeyTest, EcPrivateKeyTest and
+src/Tests-Crypto/WycheproofVectors.st, for X25519Test, RsaPublicKeyTest, EcPublicKeyTest and
 HmacHkdfWycheproofTest.
 
 usage: tools/wycheproof-subset.py DIR [OUTPUT]   DIR holds the JSON files named below.
@@ -16,7 +16,6 @@ output = sys.argv[2] if len(sys.argv) > 2 else 'src/Tests-Crypto/WycheproofVecto
 PER_FILE = 30
 FILES = [
     ('x25519', 'x25519_test', 'x25519'),
-    ('ecdhP256', 'ecdh_secp256r1_ecpoint_test', 'ecdh'),
     ('ecdsaP256Sha256', 'ecdsa_secp256r1_sha256_test', 'ecdsa'),
     ('ecdsaP384Sha384', 'ecdsa_secp384r1_sha384_test', 'ecdsa'),
     ('ecdsaP384Sha256', 'ecdsa_secp384r1_sha256_test', 'ecdsa'),

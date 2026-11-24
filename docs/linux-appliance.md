@@ -24,7 +24,7 @@ a QMP helper for screendumps and input (`qmp.py`) and the root's own files (`roo
 | artifacts | kernel 20 MB + initramfs 89 MB (QEMU, Mesa) or 136 MB (Spark: GSP firmware 60 MB, NVIDIA userspace 39 MB) | 1.06 MB EFI application + the image on a disk |
 | GPU on the Spark | `nvidia.ko` boots GSP; System-NV, NvComputeGPU, CUDA, Vulkan as hosted | #20: our own GSP boot and RM transport, not done |
 | NICs, Wi-Fi, NVMe, USB | Linux's (r8127 for the Spark's 10 GbE, mt7925e, nvme, xhci) | virtio, e1000e, the firmware's SNP and Block I/O |
-| TCP/TLS | Linux, OpenSSL: an HTTPS GET of example.com from the guest in 68-284 ms | our NetworkStack, Smalltalk TLS (mbedTLS coming) |
+| TCP/TLS | Linux, OpenSSL: an HTTPS GET of example.com from the guest in 68-284 ms | our NetworkStack, mbedTLS (the VM's TLS engine) |
 | control, RFB, agent | as hosted, on every address (token, VNC password on the data volume) | as on UEFI |
 | what you give up | owning the machine, self-containedness, a small TCB of our own | the Spark's GPU, its 10 GbE, Wi-Fi, and Linux's drivers generally |
 
@@ -133,7 +133,7 @@ shipped image is only a fallback. Kernel and NVIDIA module updates are Ubuntu's 
 | remote control | `--control --control-host 0.0.0.0`, token in `samaltak.args` or shown at boot | the same flags; `--control-token-file /data/control-token` (0600 on the data volume), or `LINUX_CONTROL_TOKEN_FILE` into the root (readable to anyone who can read the initramfs) |
 | RFB server | `--display --display-host 0.0.0.0 --display-vnc-auth` | the same, `--display-password-file /data/vnc-password` |
 | agent, GitHub | as on UEFI (`samaltak-ctl agent-config`, `github-config`) | as hosted: HTTPS through OpenSSL |
-| TLS | Smalltalk TLS (mbedTLS coming) | OpenSSL (`platform_tls_*`), CA bundle in `/etc/ssl` |
+| TLS | mbedTLS (the VM's TLS engine) | OpenSSL (`platform_tls_*`), CA bundle in `/etc/ssl` |
 | files, volumes | the image's FAT and ext4 readers | Linux's file systems, mounted by `rcS`; System-Files' POSIX side |
 | time | RTC (UEFI GetTime) | the RTC through Linux; no NTP in Ubuntu's busybox-static: SNTP in the image (planned for UEFI anyway) or a static `ntpd` |
 | randomness | EFI_RNG, RNDR | `getrandom` |

@@ -1,11 +1,11 @@
 #!/bin/sh
-# tls-survey: compare the VM's TLS engine's (mbedTLS; -e smalltalk: the Smalltalk TLS client's) verdict on real HTTPS servers with OpenSSL's (opt-in: it needs the
+# tls-survey: compare the VM's TLS engine's verdict on real HTTPS servers with OpenSSL's (opt-in: it needs the
 # internet). For each host of HOSTFILE (default tools/tls-survey-hosts.txt: host[:port], an optional tab-separated note,
 # # comments): openssl s_client with the system's roots, certificate and host name verified, once with any version and
 # once TLS 1.3 only; then the image (TLSSurvey) with the engine and the Mozilla roots: handshake, HEAD /, read
 # until the server closes. Prints a table (host, OpenSSL's verdict, protocol and TLS 1.3 verdict, ours, the details)
 # and writes the raw results to OUT (default build/tls-survey). Exit status 1 if a verdict differs.
-#   usage: tools/tls-survey [-j JOBS] [-o OUT] [-i IMAGE] [-e mbedtls|smalltalk] [HOSTFILE | host...]
+#   usage: tools/tls-survey [-j JOBS] [-o OUT] [-i IMAGE] [[HOSTFILE | host...]
 set -eu
 if [ "${1:-}" = --openssl-one ]; then
 	# "spec<TAB>ok|fail<TAB>protocol<TAB>TLS 1.3 ok|fail<TAB>why"
@@ -23,13 +23,12 @@ if [ "${1:-}" = --openssl-one ]; then
 	exit 0
 fi
 cd "$(dirname "$0")/.."
-JOBS=8 OUT=build/tls-survey IMAGE=build/samaltak.image ENGINE=mbedtls
-while getopts j:o:i:e: opt; do
+JOBS=8 OUT=build/tls-survey IMAGE=build/samaltak.image
+while getopts j:o:i: opt; do
 	case $opt in
 	j) JOBS=$OPTARG ;;
 	o) OUT=$OPTARG ;;
 	i) IMAGE=$OPTARG ;;
-	e) ENGINE=$OPTARG ;;
 	*) sed -n 's/^#   //p' "$0" >&2; exit 2 ;;
 	esac
 done
@@ -47,10 +46,10 @@ cut -f1 "$OUT/hosts" > "$OUT/names"
 # OpenSSL, JOBS hosts at a time.
 xargs -P "$JOBS" -n 1 tools/tls-survey --openssl-one < "$OUT/names" > "$OUT/openssl.tsv"
 
-# The image (ENGINE), JOBS connections at a time.
+# The image (the engine), JOBS connections at a time.
 timeout 900 vm/build/samaltak "$IMAGE" --headless --eval \
-	"(TLSSurvey new engine: #$ENGINE; runFile: '$OUT/names' parallel: $JOBS) size" < /dev/null > "$OUT/smalltalk.out" 2>&1 || true
-awk -F '\t' '$2 == "ok" || $2 == "fail"' "$OUT/smalltalk.out" > "$OUT/smalltalk.tsv"
+	"(TLSSurvey new runFile: '$OUT/names' parallel: $JOBS) size" < /dev/null > "$OUT/image.out" 2>&1 || true
+awk -F '\t' '$2 == "ok" || $2 == "fail"' "$OUT/image.out" > "$OUT/image.tsv"
 
 # The table, in the hosts' order.
 awk -F '\t' '
@@ -64,4 +63,4 @@ awk -F '\t' '
 		(o[h] == "fail" ? "  [openssl: " ow[h] "]" : ""), (note != "" ? "  (" note ")" : "")
 	}
 	END { printf "\n%d hosts, %d mismatches\n", total, n; exit n > 0 }
-' "$OUT/openssl.tsv" "$OUT/smalltalk.tsv" "$OUT/hosts" | tee "$OUT/table.txt"
+' "$OUT/openssl.tsv" "$OUT/image.tsv" "$OUT/hosts" | tee "$OUT/table.txt"

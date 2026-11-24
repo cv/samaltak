@@ -3,9 +3,7 @@ Object subclass: #EcCurve
 	classVariableNames: 'Curves'
 	package: 'System-Crypto'!
 
-EcCurve comment: 'I am a short Weierstrass curve y^2 = x^3 - 3x + b over a prime field, with a base point of prime order n: NIST P-256 (secp256r1) or P-384 (secp384r1), from SEC 2 / FIPS 186-4. EcCurve named: #p256 (or #p384).
-
-Points are Arrays {X. Y. Z} in Jacobian coordinates (x = X/Z^2, y = Y/Z^3); Z = 0 is the point at infinity. multiply:plus:times: computes u1*G + u2*Q with Shamir''s trick (one doubling a bit, at most one addition). The arithmetic is the VM''s LargeInteger primitives and its branches depend on the scalars: not constant-time, so I serve verification (public scalars) well and ephemeral ECDH only acceptably.'!
+EcCurve comment: 'I am a short Weierstrass curve y^2 = x^3 - 3x + b over a prime field, with a base point of prime order n: NIST P-256 (secp256r1) or P-384 (secp384r1), from SEC 2 / FIPS 186-4. EcCurve named: #p256 (or #p384). I hold the parameters and decode and encode points (checking they are on me) for EcPublicKey, whose verification is the VM''s (CryptoExports).'!
 
 !EcCurve methodsFor: 'accessing'!
 name
@@ -55,83 +53,6 @@ encodeX: x y: y
 		out at: byteLength + 2 - i put: (x digitAt: i).
 		out at: 2 * byteLength + 2 - i put: (y digitAt: i)].
 	^out
-!
-toAffine: aPoint
-	"{x. y} of a Jacobian point, nil for infinity."
-	| z zi zi2 |
-	z := aPoint at: 3.
-	z = 0 ifTrue: [^nil].
-	zi := self inverse: z modulo: p.
-	zi2 := zi * zi \\ p.
-	^{(aPoint at: 1) * zi2 \\ p. (aPoint at: 2) * zi2 \\ p * zi \\ p}
-!
-double: aPoint
-	"2P (dbl-2001-b, a = -3)."
-	| x y z delta gamma beta alpha x3 t |
-	x := aPoint at: 1. y := aPoint at: 2. z := aPoint at: 3.
-	(z = 0 or: [y = 0]) ifTrue: [^{1. 1. 0}].
-	delta := z * z \\ p.
-	gamma := y * y \\ p.
-	beta := x * gamma \\ p.
-	alpha := 3 * (x - delta) * (x + delta) \\ p.
-	x3 := alpha * alpha - (8 * beta) \\ p.
-	^{x3.
-	   alpha * (4 * beta - x3) - (8 * (gamma * gamma)) \\ p.
-	   (t := y + z) * t - gamma - delta \\ p}
-!
-add: aPoint to: anotherPoint
-	"P + Q, both Jacobian."
-	| x1 y1 z1 x2 y2 z2 z1z1 z2z2 u1 u2 s1 s2 h r hh hhh v x3 |
-	x1 := aPoint at: 1. y1 := aPoint at: 2. z1 := aPoint at: 3.
-	x2 := anotherPoint at: 1. y2 := anotherPoint at: 2. z2 := anotherPoint at: 3.
-	z1 = 0 ifTrue: [^anotherPoint].
-	z2 = 0 ifTrue: [^aPoint].
-	z1z1 := z1 * z1 \\ p.
-	z2z2 := z2 * z2 \\ p.
-	u1 := x1 * z2z2 \\ p.
-	u2 := x2 * z1z1 \\ p.
-	s1 := y1 * z2 \\ p * z2z2 \\ p.
-	s2 := y2 * z1 \\ p * z1z1 \\ p.
-	h := u2 - u1 \\ p.
-	r := s2 - s1 \\ p.
-	h = 0 ifTrue: [
-		^r = 0 ifTrue: [self double: aPoint] ifFalse: [{1. 1. 0}]].
-	hh := h * h \\ p.
-	hhh := hh * h \\ p.
-	v := u1 * hh \\ p.
-	x3 := r * r - hhh - (2 * v) \\ p.
-	^{x3.
-	   r * (v - x3) - (s1 * hhh) \\ p.
-	   z1 * z2 \\ p * h \\ p}
-!
-multiply: aPoint by: k
-	"k * P (double and add, from the top bit)."
-	| r |
-	r := {1. 1. 0}.
-	k highBit to: 1 by: -1 do: [:i |
-		r := self double: r.
-		(k bitAt: i) = 1 ifTrue: [r := self add: r to: aPoint]].
-	^r
-!
-multiply: u1 plus: aPoint times: u2
-	"u1 * G + u2 * P (Shamir's trick)."
-	| g gp r bits |
-	g := self generator.
-	gp := self add: g to: aPoint.
-	r := {1. 1. 0}.
-	(u1 highBit max: u2 highBit) to: 1 by: -1 do: [:i |
-		r := self double: r.
-		bits := (u1 bitAt: i) * 2 + (u2 bitAt: i).
-		bits = 1 ifTrue: [r := self add: r to: aPoint].
-		bits = 2 ifTrue: [r := self add: r to: g].
-		bits = 3 ifTrue: [r := self add: r to: gp]].
-	^r
-! !
-
-!EcCurve methodsFor: 'arithmetic'!
-inverse: a modulo: m
-	"a^-1 mod the prime m (Fermat)."
-	^a raisedTo: m - 2 modulo: m
 ! !
 
 !EcCurve methodsFor: 'printing'!

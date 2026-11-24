@@ -3,19 +3,19 @@ RemoteSocket subclass: #TLSSocket
 	classVariableNames: 'Roots Engine TLSStartCall TLSRecvCall TLSSendCall TLSCloseCall TLSSemaphoreCall TLSHandshakeCall'
 	package: 'System-Net'!
 
-TLSSocket comment: 'I am a TLS client connection: over the platform''s TLS primitives (OpenSSL, docs/platform.md), or over the VM''s TLS engine (mbedTLS: an MbedTLSConnection on a RemoteSocket; docs/tls.md) where those fail, as on UEFI, where the socket is the image''s own TCP (NetworkStack), or when forced (TLSSocket engine: #mbedtls); the Smalltalk TLS 1.3 client (a TLSClientConnection) where the VM has no engine, or when forced (engine: #smalltalk). Connecting is a RemoteSocket''s connect, then the handshake, which verifies the server''s certificate for the host name: against the system''s trust store with OpenSSL, against trustStore (TrustStore default unless set) with the engine or the Smalltalk TLS. Each waits on Semaphores, and the whole connect gives up after connectTimeout, so the VM never blocks and terminating the connecting Process cancels it. Receiving and sending wait on Semaphores like a RemoteSocket''s; a connection that fails reads as ended (receiving answers 0, sending false).
+TLSSocket comment: 'I am a TLS client connection: over the platform''s TLS primitives (OpenSSL, docs/platform.md), or over the VM''s TLS engine (mbedTLS: an MbedTLSConnection on a RemoteSocket; docs/tls.md) where those fail, as on UEFI, where the socket is the image''s own TCP (NetworkStack), or when forced (TLSSocket engine: #mbedtls). Connecting is a RemoteSocket''s connect, then the handshake, which verifies the server''s certificate for the host name: against the system''s trust store with OpenSSL, against trustStore (TrustStore default''s roots unless set) with the engine. Each waits on Semaphores, and the whole connect gives up after connectTimeout, so the VM never blocks and terminating the connecting Process cancels it. Receiving and sending wait on Semaphores like a RemoteSocket''s; a connection that fails reads as ended (receiving answers 0, sending false).
 
 	(TLSSocket connectTo: ''example.com'' port: 443) sendAll: ...
 	TLSSocket trustStore: (TrustStore new add: testCA; yourself).	"for tests: the engine trusts just that"'!
 
 !TLSSocket methodsFor: 'initialization'!
-setConnection: aTLSClientConnection
-	connection := aTLSClientConnection
+setConnection: anMbedTLSConnection
+	connection := anMbedTLSConnection
 ! !
 
 !TLSSocket methodsFor: 'accessing'!
 connection
-	"The MbedTLSConnection or TLSClientConnection under me, or nil over OpenSSL."
+	"The MbedTLSConnection under me, or nil over OpenSSL."
 	^connection
 !
 isOpen
@@ -65,7 +65,7 @@ handshakeUntil: deadline
 printOn: aStream
 	aStream nextPutAll: 'a TLSSocket'.
 	connection isNil ifFalse: [
-		aStream nextPutAll: ((connection isKindOf: MbedTLSConnection) ifTrue: [' (mbedTLS'] ifFalse: [' (Smalltalk TLS']).
+		aStream nextPutAll: ' (mbedTLS'.
 		connection isOpen ifFalse: [aStream nextPutAll: ', closed'].
 		^aStream nextPut: $)].
 	handle isNil ifTrue: [^aStream nextPutAll: ' (closed)'].
@@ -90,11 +90,12 @@ connectTo: hostString port: port until: deadline
 	^RemoteError signal: 'cannot connect to ', hostString, ':', port printString, ': ', reason
 !
 engineOver: plain host: hostString port: port until: deadline
-	"The VM's TLS engine over the connected RemoteSocket plain, or the Smalltalk TLS client where there is none (or engine: #smalltalk)."
+	"The VM's TLS engine over the connected RemoteSocket plain."
 	| connection reason |
-	connection := (self engine ~~ #smalltalk and: [MbedTLSConnection isAvailable])
-		ifTrue: [MbedTLSConnection on: plain host: hostString]
-		ifFalse: [TLSClientConnection on: plain host: hostString].
+	MbedTLSConnection isAvailable ifFalse: [
+		plain close.
+		^RemoteError signal: 'cannot connect to ', hostString, ':', port printString, ': TLS handshake: this VM has no TLS here'].
+	connection := MbedTLSConnection on: plain host: hostString.
 	Roots isNil ifFalse: [connection trustStore: Roots].
 	reason := [[connection handshakeUntil: deadline. nil] on: TLSError do: [:e | e return: e messageText]]
 		ifCurtailed: [connection close].
@@ -105,25 +106,18 @@ engineOver: plain host: hostString port: port until: deadline
 
 !TLSSocket class methodsFor: 'configuring'!
 engine
-	"What makes my connections: #platform (OpenSSL's primitives where they work, else the VM's engine), #mbedtls (the VM's engine, mbedTLS, even where the platform's works) or #smalltalk (the Smalltalk TLS client)."
+	"What makes my connections: #platform (OpenSSL's primitives where they work, else the VM's engine) or #mbedtls (the VM's engine, mbedTLS, even where the platform's works)."
 	^Engine ifNil: [#platform]
 !
 engine: aSymbol
 	Engine := aSymbol
 !
-useSmalltalkTLS
-	"Is the Smalltalk TLS forced, even where the platform's or the engine works?"
-	^self engine == #smalltalk
-!
-useSmalltalkTLS: aBoolean
-	Engine := aBoolean == true ifTrue: [#smalltalk] ifFalse: [nil]
-!
 trustStore
-	"The roots the engine and the Smalltalk TLS trust."
+	"The roots the engine trusts."
 	^Roots ifNil: [TrustStore default]
 !
 trustStore: aTrustStoreOrNil
-	"Trust just these roots with the engine and the Smalltalk TLS (nil: TrustStore default again)."
+	"Trust just these roots with the engine (nil: TrustStore default's again)."
 	Roots := aTrustStoreOrNil
 !
 trustStoreSetting

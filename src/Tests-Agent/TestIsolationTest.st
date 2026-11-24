@@ -18,7 +18,7 @@ tearDown
 !TestIsolationTest methodsFor: 'support'!
 classNames
 	"The test classes that use or replace the image's accounts, SourceFiler default, conversations, breakpoints, TLS settings, remote control and mount table (those not in this image are left out)."
-	^#('ApiKeyAccountTest' 'GitHubAccountTest' 'OpenAIAccountTest' 'AnthropicProviderTest' 'CodexProviderTest' 'AgentConversationTest' 'GitHubClientTest' 'SourceFilerGitHubTest' 'SourceDirectoryStoreTest' 'BreakpointTest' 'WatchpointTest' 'DebugSessionTest' 'RemoteControlTest' 'MountTableTest' 'SecureRandomTest' 'TLSSocketSmalltalkTest')
+	^#('ApiKeyAccountTest' 'GitHubAccountTest' 'OpenAIAccountTest' 'AnthropicProviderTest' 'CodexProviderTest' 'AgentConversationTest' 'GitHubClientTest' 'SourceFilerGitHubTest' 'SourceDirectoryStoreTest' 'BreakpointTest' 'WatchpointTest' 'DebugSessionTest' 'RemoteControlTest' 'MountTableTest' 'SecureRandomTest' 'TLSSocketMbedTLSTest')
 !
 testClasses
 	^((self classNames collect: [:each | Smalltalk at: each asSymbol ifAbsent: [nil]]) reject: [:each | each isNil]) asArray
@@ -135,7 +135,7 @@ testStoppedRunStopsItsTest
 	self deny: ((Process allInstances select: [:p | p isTerminated not and: [p name = 'TestIsolationFixture>>#testWaits']]) notEmpty)
 !
 testLiveImageSurvivesTheTests
-	| key token keyAccount gitHub filerClass filer directory filerStore files openAI signedIn filter useSmalltalkTLS roots mountTable registry globals before result skipped expected commands after |
+	| key token keyAccount gitHub filerClass filer directory filerStore files openAI signedIn filter tlsEngine roots mountTable registry globals before result skipped expected commands after |
 	key := self newSecret: 'sk-live-'.
 	token := self newSecret: 'ghp_live'.
 	keyAccount := self replace: #default of: ApiKeyAccount with: ApiKeyAccount new.
@@ -157,7 +157,7 @@ testLiveImageSurvivesTheTests
 	self replace: #processFilter of: Breakpoint with: filter.
 	openAI := OpenAIAccount default.
 	signedIn := openAI isSignedIn.
-	useSmalltalkTLS := TLSSocket useSmalltalkTLS.
+	tlsEngine := TLSSocket engine.
 	roots := TLSSocket trustStoreSetting.
 	mountTable := File mountTable.
 	registry := RemoteControl registryState.
@@ -197,7 +197,7 @@ testLiveImageSurvivesTheTests
 	self assert: Breakpoint processFilter identicalTo: filter.
 	self assert: OpenAIAccount default identicalTo: openAI.
 	self assert: openAI isSignedIn equals: signedIn.
-	self assert: TLSSocket useSmalltalkTLS equals: useSmalltalkTLS.
+	self assert: TLSSocket engine equals: tlsEngine.
 	self assert: TLSSocket trustStoreSetting identicalTo: roots.
 	self assert: File mountTable identicalTo: mountTable.
 	after := RemoteControl registryState.
