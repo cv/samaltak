@@ -27,34 +27,31 @@ actionFor: aString
 		yourself) at: aString
 !
 build
-	"The Windows 95 standard view: the display, then Backspace CE C beside the memory light, then four rows of memory keys, digits and operators."
+	"The Windows 95 standard view: the display; the memory light over the memory keys, Backspace CE C over the rest; then four rows of memory keys, digits and operators."
 	display := CalculatorDisplay new.
 	display name: 'display'; fixed: 34.
 	memoryBox := CalculatorDisplay new.
 	memoryBox name: 'memory'; align: #center; fixed: 40.
-	self addAll: (Array
-		with: display
-		with: ((Row with: (Array
+	self add: display.
+	self add: ((Row with: (Array
 			with: memoryBox
 			with: (Widget new fixed: 8; yourself)
-			with: Widget new
-			with: ((self key: 'Backspace' do: [:e | e backspace]) fixed: 86; yourself)
-			with: ((self key: 'CE' do: [:e | e clearEntry]) fixed: 60; yourself)
-			with: ((self key: 'C' do: [:e | e clear]) fixed: 60; yourself))) spacing: 6; fixed: 30; yourself)).
+			with: (self key: 'Backspace' do: [:e | e backspace])
+			with: (self key: 'CE' do: [:e | e clearEntry])
+			with: (self key: 'C' do: [:e | e clear])))
+		spacing: 6; fixed: 30; yourself).
 	self keyRows do: [:labels |
 		self add: ((Row with: ((labels collect: [:each | self key: each do: (self actionFor: each)]) asArray
 				copyReplaceFrom: 2 to: 1 with: (Array with: (Widget new fixed: 8; yourself)))
 			) spacing: 6; fixed: 30; yourself)].
-	(self widgetNamed: 'MC') fixed: 40.
-	(self widgetNamed: 'MR') fixed: 40.
-	(self widgetNamed: 'MS') fixed: 40.
-	(self widgetNamed: 'M+') fixed: 40.
+	#('MC' 'MR' 'MS' 'M+') do: [:each | (self widgetNamed: each) fixed: 40].
 	self spacing: 8; padding: (10 @ 10 corner: 10 @ 10)
 !
 key: aString do: aBlock
 	"A key named by its label; a click runs aBlock on my engine."
-	^(Button label: aString action: [self press: aBlock])
+	^(CalculatorKey label: aString action: [self press: aBlock])
 		name: aString;
+		ink: (self inkFor: aString);
 		yourself
 !
 keyRows
@@ -62,6 +59,12 @@ keyRows
 		#('MR' '4' '5' '6' '*' '%')
 		#('MS' '1' '2' '3' '-' '1/x')
 		#('M+' '0' '+/-' '.' '+' '='))
+!
+inkFor: aString
+	"As in Windows 95: memory, clearing and operator keys red, digits and functions blue."
+	^((#('MC' 'MR' 'MS' 'M+' 'Backspace' 'CE' 'C' '/' '*' '-' '+' '=') includes: aString)
+		ifTrue: [Color hex: 16rB00000]
+		ifFalse: [Color hex: 16r0000B0])
 ! !
 
 !Calculator methodsFor: 'accessing'!
@@ -116,7 +119,7 @@ wantsKeyboardFocus
 
 !Calculator methodsFor: 'opening'!
 minimumWindowExtent
-	^300 @ 250
+	^300 @ 270
 ! !
 
 !Calculator methodsFor: 'actions'!
@@ -151,7 +154,7 @@ open
 openAt: aPointOrNil
 	| calculator window |
 	calculator := self new.
-	window := calculator openIn: (Tools placeAt: aPointOrNil extent: 330 @ 280) title: 'Calculator'.
+	window := calculator openIn: (Tools placeAt: aPointOrNil extent: 330 @ 290) title: 'Calculator'.
 	window do: [calculator focus].
 	^window
 ! !
