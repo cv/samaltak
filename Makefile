@@ -640,6 +640,17 @@ test-install: uefi
 		QEMU_UEFI_MACHINE='$(QEMU_UEFI_MACHINE)' USB_IMAGE=$(INSTALL_USB) tests/uefi/install-test.sh
 	rm -rf $(INSTALL_USB) $(UEFI)/install-test
 
+# The Linux appliance (docs/linux-appliance.md): Ubuntu's NVIDIA kernel booted by its EFI stub with an initramfs of
+# busybox (PID 1), the hosted VM and image, SDL3 for KMS/DRM, into OUT/linux-appliance; LINUX_GPU=mesa (QEMU, the
+# default) or nvidia (the DGX Spark: the open kernel modules, GSP firmware, NVIDIA's Vulkan). linux-appliance-run boots
+# it in QEMU (arm64, KVM), linux-appliance-test end to end: the World on KMS, control, HTTPS, RFB, input, power off.
+linux-appliance: fresh-image
+	OUT=$(OUT) tools/linux-appliance/build.sh
+linux-appliance-run:
+	OUT=$(OUT) tools/linux-appliance/run.sh
+linux-appliance-test: linux-appliance
+	OUT=$(OUT) tools/linux-appliance/test.sh
+
 
 # The narrated walkthrough on the real system, from a copy of the image named nuuk.image like the prototype's (a visible window; needs ffmpeg, agent-browser for the captions and
 # ELEVENLABS_API_KEY in .env unless the clips in $(VIDEO)/narration are cached).

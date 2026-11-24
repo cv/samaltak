@@ -1,0 +1,39 @@
+#!/bin/sh
+# Bring the appliance up: file systems, kernel modules for the devices present, device nodes, the data volume, network.
+# Everything that can wait (DHCP) runs in the background: the VM starts as soon as this returns.
+t() { echo "samaltak-linux: $1 at $(cut -d' ' -f1 /proc/uptime) s"; }
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev 2>/dev/null
+mkdir -p /dev/pts /dev/shm /run /tmp /var/log /data
+mount -t devpts devpts /dev/pts
+mount -t tmpfs -o mode=1777 shm /dev/shm
+mount -t tmpfs -o mode=0755 run /run
+mount -t tmpfs -o mode=1777 tmp /tmp
+mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null
+t init
+hostname samaltak
+ip link set lo up
+# Coldplug: a module for each device's alias (the kernel has the rest built in).
+for a in $(cat /sys/bus/*/devices/*/modalias 2>/dev/null | sort -u); do modprobe -q -b "$a" 2>/dev/null; done
+# The NVIDIA GPU (the Spark's GB10): the open kernel modules, KMS on, and the device nodes nvidia-modprobe and udev
+# would make on a desktop (nvidia.ko makes none in devtmpfs).
+if [ -d /lib/modules/$(uname -r)/kernel/nvidia-580-open ] && grep -qx 0x10de /sys/bus/pci/devices/*/vendor 2>/dev/null; then
+	modprobe nvidia && modprobe nvidia-uvm && modprobe nvidia-drm modeset=1 fbdev=1
+	mknod -m 666 /dev/nvidiactl c 195 255; mknod -m 666 /dev/nvidia-modeset c 195 254
+	for d in /proc/driver/nvidia/gpus/*; do [ -d "$d" ] || continue; m=$(sed -n 's/^Device Minor: *//p' "$d/information"); mknod -m 666 /dev/nvidia$m c 195 $m; done
+	u=$(sed -n 's/^\([0-9]*\) nvidia-uvm$/\1/p' /proc/devices); [ -n "$u" ] && mknod -m 666 /dev/nvidia-uvm c $u 0 && mknod -m 666 /dev/nvidia-uvm-tools c $u 1
+	t nvidia
+fi
+t modules
+# The data volume (ext4, label SAMALTAK-DATA): the image store, samaltak.args, the token, logs. Else a tmpfs.
+dev=$(findfs LABEL=SAMALTAK-DATA 2>/dev/null)
+if [ -n "$dev" ] && mount -t ext4 -o noatime "$dev" /data; then t "data on $dev"; else mount -t tmpfs -o mode=0755 data /data; t "data on tmpfs"; fi
+mkdir -p /data/log
+# Every wired interface, DHCP in the background (udhcpc renews the lease; default.script sets routes and DNS).
+for i in /sys/class/net/*; do
+	n=${i##*/}; [ "$n" = lo ] && continue; [ -e "$i/wireless" ] && continue
+	ip link set "$n" up
+	udhcpc -b -S -i "$n" -s /usr/share/udhcpc/default.script -x hostname:samaltak >/dev/null 2>&1
+done
+t up

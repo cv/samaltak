@@ -1,0 +1,7 @@
+# PID 1 is busybox init (docs/linux-appliance.md, Init): rcS brings the machine up, samaltak-run is the VM (respawned
+# when it ends, unless it asked for a power off or reboot), rcK takes it down on poweroff, reboot or Ctrl-Alt-Del.
+::sysinit:/etc/init.d/rcS
+::respawn:/sbin/samaltak-run
+tty2::askfirst:-/bin/sh
+::ctrlaltdel:/sbin/reboot
+::shutdown:/etc/init.d/rcK

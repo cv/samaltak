@@ -44,6 +44,7 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - [FFI and the fork's primitives](docs/ffi-fork.md) — which kernels could be typed exports, and why the keep/retire split stands
 - `docs/apps.md` — applications as Linux windows, run from source (AppWorld, Application, OmarchyTheme, apps/Weather)
 - `docs/uefi.md` — the headless VM as a UEFI application (bare metal, QEMU)
+- `docs/linux-appliance.md` — the hosted VM on a minimal Linux (Ubuntu's NVIDIA kernel, busybox, SDL3 on KMS/DRM): the DGX Spark without a desktop, and what it means for the GB10 work (#20)
 - `docs/remote.md` — the control service's token: samaltak-ctl open and connect, a bare-metal machine from another one; the remote display (VNC): starting it, connecting from Screen Sharing and TigerVNC, security, measurements against QEMU's VNC
 - `docs/nv-gpu.md` — NvComputeGPU (`--gpu nv`): the World rendered on the NVIDIA GB10 by the raster kernels through System-NV, presented through SDL_GPU; tests and frame times
 - `docs/nv-kernels.md` — the Renderer's raster work as CUDA kernels for the NVIDIA GB10, their ABI, make test-nv

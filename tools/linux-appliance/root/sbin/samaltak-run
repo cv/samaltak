@@ -1,0 +1,24 @@
+#!/bin/sh
+# The VM, as init's respawned process (docs/linux-appliance.md, Init). The image is /data/samaltak.image when the data
+# volume holds one (a snapshot the World saved), else the one shipped in the root. Arguments: /data/samaltak.args, else
+# /etc/samaltak.args (one per line). Its exit status decides: 0 powers off (the World's Quit), 3 reboots (the VM was
+# asked to), anything else (a crash, a signal) is logged and the VM starts again, after a pause when it keeps dying.
+cd /data
+image=/samaltak/samaltak.image; [ -f /data/samaltak.image ] && image=/data/samaltak.image
+args=/etc/samaltak.args; [ -f /data/samaltak.args ] && args=/data/samaltak.args
+set --; while IFS= read -r a || [ -n "$a" ]; do [ -n "$a" ] && set -- "$@" "$a"; done < "$args"
+export HOME=/data SDL_VIDEO_DRIVER=kmsdrm XDG_RUNTIME_DIR=/run LD_LIBRARY_PATH=/usr/local/lib
+[ -f /etc/samaltak.env ] && . /etc/samaltak.env
+echo "samaltak-linux: vm start at $(cut -d' ' -f1 /proc/uptime) s: $image" | tee -a /data/log/samaltak.log
+set -o pipefail
+/samaltak/samaltak "$image" "$@" 2>&1 | tee -a /data/log/samaltak.log
+s=$?
+echo "samaltak-linux: vm exit $s at $(cut -d' ' -f1 /proc/uptime) s" | tee -a /data/log/samaltak.log
+case $s in
+0) /etc/init.d/rcK; poweroff -f ;;
+3) /etc/init.d/rcK; reboot -f ;;
+esac
+# Respawn: init starts this again at once; after three deaths in a row, wait 30 s (a shell is on tty2).
+n=$(cat /run/samaltak-crashes 2>/dev/null || echo 0); n=$((n + 1)); echo $n > /run/samaltak-crashes
+[ $n -ge 3 ] && { echo "samaltak-linux: the VM keeps dying ($n times): a shell on tty2, retrying in 30 s"; sleep 30; echo 0 > /run/samaltak-crashes; }
+exit $s
