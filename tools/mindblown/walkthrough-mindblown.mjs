@@ -174,10 +174,11 @@ const beats = [
     await sleep(300);
   }],
 
-  // 5. Slow motion: World menu › Slow motion (the animation clock 10× slower): the menu, a window opening.
+  // 5. Slow motion: World menu › Settings › Slow motion (the animation clock 10× slower): the menu, a window opening.
   ['slowmo', async () => {
     act('click', DESK); await sleep(600);
-    act('click', '@menu.slow-motion'); await sleep(800);
+    act('click', '@menu.settings'); await sleep(500);
+    act('click', '@menu~2.slow-motion'); await sleep(800);
     act('click', GAP); await sleep(1300);
     let fresh = null;
     await S.cue('a window opening', () => box(fresh), async () => {
@@ -189,7 +190,7 @@ const beats = [
   }],
   // Normal speed again (the menu, opened slowly, closes); the new Workspace closes.
   ['slowmo-off', async () => {
-    await S.cue('back to normal speed', MENU(), () => act('click', '@menu.slow-motion'), { frac: 0.5 });
+    await S.cue('back to normal speed', MENU(), () => { act('click', '@menu.settings'); act('click', '@menu~2.slow-motion'); }, { frac: 0.5 });
     await sleep(500);
     const fresh = ctl('snapshot', '--depth', '1').split('\n').filter(l => l.startsWith('window ') && /"Workspace"/.test(l)).map(l => l.match(/@w\d+/)[0]).find(r => r !== W.workspace);
     if (fresh) { act('click', `${fresh}.close`); await sleep(700); }
@@ -279,13 +280,14 @@ const beats = [
     act('click', `${mc}.close`); await sleep(600);
   }],
 
-  // 10. Smalltalk in Smalltalk: World menu › VM Simulator, Smalltalk-80 boots a small Smalltalk-80 image on the simulated
+  // 10. Smalltalk in Smalltalk: World menu › Tools › VM Simulator, Smalltalk-80 boots a small Smalltalk-80 image on the simulated
   // VM (the VM's own Smalltalk classes, run as Smalltalk, in a Process of this image); its 640×400 1-bit screen is the
   // tool's guest display, two points a pixel. In its Workspace: 3 + 4 typed and printed; its ball window dragged. Guest pixels are addressed through the display (hover --at x,y answers the screen
   // point).
   ['guest', async () => {
     act('click', DESK); await sleep(700);
-    act('click', '@menu.vm-simulator');
+    act('click', '@menu.tools'); await sleep(500);
+    act('click', '@menu~2.vm-simulator');
     SIM = await S.win(/VM Simulator/);
     await sleep(400);
     place(SIM, 18, 27, 1404, 873);                     // room for the guest at two points a pixel
@@ -400,12 +402,13 @@ const beats = [
     } });
     await S.spoken();
   }],
-  // World menu › Rebuild VM & reboot: translated to C, compiled (bottom left, its output streams in), the image saved,
+  // World menu › System › Rebuild VM & reboot: translated to C, compiled (bottom left, its output streams in), the image saved,
   // the screen fades, the new VM exec'd: the recording ends; the next segment begins with the new VM's restart.
   ['gc-rebuild', async () => {
     let rb = null, ref = null;
     await S.cue('a rebuild', () => rb, async () => {
-      act('click', '@menu.rebuild-vm-reboot');
+      act('click', '@menu.system');
+      act('click', '@menu~2.rebuild-vm-reboot');
       try { ref = await S.win(/VM Rebuild/); rb = box(ref); } catch {}
     }, { prepare: async () => { act('click', DESK); await sleep(700); } });
     await sleep(300);
@@ -435,12 +438,13 @@ const beats = [
   }],
 ];
 
-// Before recording: Claude's Robot (World menu) takes the Mandelbrot's place at the bottom right, over the Transcript.
+// Before recording: Claude's Robot (World menu › Apps) takes the Mandelbrot's place at the bottom right, over the Transcript.
 await S.open({ args: openArgs });
 await sleep(1500);
 act('click', `${W.mandel}.close`); await sleep(800);
 act('click', DESK); await sleep(900);
-act('click', '@menu.claude-s-robot');
+act('click', '@menu.apps'); await sleep(500);
+act('click', '@menu~2.claude-s-robot');
 J = await S.win(/Claude's Robot/);
 await sleep(800);
 place(J, 898, 422, 524, 462);

@@ -3,7 +3,7 @@ Object subclass: #Firmware
 	classVariableNames: 'Current'
 	package: 'System-Devices'!
 
-Firmware comment: 'I am the UEFI firmware''s boot services (UEFI 2.10, 7) for drivers in Smalltalk, over Machine: protocols by GUID, handles and the firmware''s drivers that manage them, events, pool memory, the timer interrupt''s period (fineTicks:); and of its runtime services ResetSystem (Firmware powerOff, restart, warmRestart: the World menu''s Power off, Restart, Warm restart). Firmware current is nil on an operating system. A status is an error if its high bit is set (isError:). Structures are read at their offsets (LP64, natural alignment, the same on x86-64 and AArch64).'!
+Firmware comment: 'I am the UEFI firmware''s boot services (UEFI 2.10, 7) for drivers in Smalltalk, over Machine: protocols by GUID, handles and the firmware''s drivers that manage them, events, pool memory, the timer interrupt''s period (fineTicks:); and of its runtime services ResetSystem (Firmware powerOff, restart, warmRestart: the World menu''s System › Power off, Restart, Warm restart). Firmware current is nil on an operating system. A status is an error if its high bit is set (isError:). Structures are read at their offsets (LP64, natural alignment, the same on x86-64 and AArch64).'!
 
 !Firmware methodsFor: 'initialization'!
 setSystemTable: anAddress

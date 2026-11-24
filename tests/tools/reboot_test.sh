@@ -1,6 +1,6 @@
 #!/bin/sh
-# Rebuild and reboot: an image opened on a scratch copy of the sources changes VMMain>>banner, World menu › Rebuild VM &
-# reboot translates and compiles the VM beside that copy and execs it: the same process (pid, control port, session)
+# Rebuild and reboot: an image opened on a scratch copy of the sources changes VMMain>>banner, World menu › System ›
+# Rebuild VM & reboot translates and compiles the VM beside that copy and execs it: the same process (pid, control port, session)
 # runs the new binary, the windows come back, and the VM answers the new banner.
 # usage: tests/tools/reboot_test.sh [image]   (default: build/samaltak.image)
 set -u
@@ -32,7 +32,9 @@ check "banner before" "'Samaltak VM'" "$($CTL eval 'Smalltalk vm banner')"
 
 $CTL eval "VMMain compile: 'banner <function> ^''Samaltak VM, rebooted''' classified: 'running'. 1" >/dev/null
 $CTL click 1000,893 >/dev/null
-$CTL click @menu.rebuild-vm-reboot >/dev/null
+# the System submenu opens over the World menu (@menu), as @menu~2
+$CTL click @menu.system >/dev/null
+$CTL click @menu~2.rebuild-vm-reboot >/dev/null
 # The image goes away for a moment; samaltak-ctl waits while the same pid comes back on the same port. The whole VM
 # is compiled first, niced: 90 s on two idle cores, 10 min on two cores beside this desktop drawn by lavapipe; allow 30 min.
 # A VM that died (its pid gone) fails at once, with what it logged, instead of being polled for 30 min.

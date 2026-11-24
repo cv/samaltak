@@ -3,7 +3,7 @@ ToolPane subclass: #AccountsPanel
 	classVariableNames: ''
 	package: 'Tools-Agent'!
 
-AccountsPanel comment: 'I am the Accounts window (World menu "Accounts", the Agent window''s key card; docs/agent.md, docs/github.md): the image''s accounts configured from the World itself, for a machine with no host to run samaltak-ctl agent-config --from-pi or github-config --from-gh (bare-metal UEFI).
+AccountsPanel comment: 'I am the Accounts window (World menu › Settings › "Accounts", the Agent window''s key card; docs/agent.md, docs/github.md): the image''s accounts configured from the World itself, for a machine with no host to run samaltak-ctl agent-config --from-pi or github-config --from-gh (bare-metal UEFI).
 
 Model API key (an ApiKeyAccount, ApiKeyAccount default): provider, base URL, model, thinking, max tokens and context window, and whether a key is set; a key typed or pasted (⌘V or Paste) into a SecretField, shown as bullets. Save applies the settings and the key (configure:, so a bad setting changes nothing and says why), Forget key signs out (the settings stay). GitHub (a GitHubAccount, GitHubAccount default): repository, base branch, branch prefix, whether a token is set, a token field, Save and Forget token.
 

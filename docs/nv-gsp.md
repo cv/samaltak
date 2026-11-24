@@ -457,7 +457,7 @@ Run it on the dedicated Spark:
    key or 30 s), write `build/uefi/usb.img` to a stick (docs/uefi.md, Bare metal), boot the Spark from it.
 2. The lines (`diag nvidia ...`) appear on the console and in `samaltak-diag.txt` on the stick's EFI system partition,
    flushed before the registers are read, so a hang leaves the configuration-space part. Under the World, the World menu's
-   **NVIDIA GPU probe** (on UEFI only) shows the same lines in a Workspace. `USB_DIAG=1` includes the section too, before
+   System › **NVIDIA GPU probe** (on UEFI only) shows the same lines in a Workspace. `USB_DIAG=1` includes the section too, before
    the network.
 
 What to look for:

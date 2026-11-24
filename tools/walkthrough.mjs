@@ -106,11 +106,13 @@ const DESK = '723,555'; // where the prototype's @desktop click landed (desk bet
 await say('profiler');
 // (each input command here costs ~0.3 s more than the prototype's, mostly the pointer's glide: the pauses are shorter by that)
 act('click', DESK); await sleep(600);
-ctl('click', '@menu.run-long-computation'); S.busy = true; await sleep(700);
+ctl('click', '@menu.tools'); await sleep(500);
+ctl('click', '@menu~2.run-long-computation'); S.busy = true; await sleep(700);
 for (let i = 0; i < 3; i++) { act('click', '@w4.view'); await sleep(100); }
 await sleep(800);
 act('click', DESK); await sleep(600);
-act('click', '@menu.profiler'); await sleep(2700);
+act('click', '@menu.tools'); await sleep(500);
+act('click', '@menu~2.profiler'); await sleep(2700);
 const prof = await win(/"Profiler"/);
 act('drag', prof, '-514', '-40'); await sleep(800);
 

@@ -2,7 +2,7 @@
 # On Linux (Ubuntu, DGX OS) on a machine Samaltak is installed on (docs/uefi.md, Installing): boot Samaltak once,
 # now. Finds the boot option "Samaltak" that the installer added (for \EFI\samaltak\BOOTAA64.EFI or BOOTX64.EFI),
 # sets the firmware's BootNext to it (efibootmgr --bootnext; BootOrder stays, so the next boot after that is
-# Linux again) and reboots. Samaltak's World menu has "Reboot into Ubuntu" for the way back.
+# Linux again) and reboots. Samaltak's World menu has "Reboot into Ubuntu" (System) for the way back.
 #
 # usage: tools/reboot-into-samaltak [--no-reboot] [--dry-run]
 #   --no-reboot   only set BootNext (the next reboot, whenever it is, boots Samaltak)

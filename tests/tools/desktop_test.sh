@@ -1,6 +1,6 @@
 #!/bin/sh
 # The default desktop driven through samaltak-ctl, as a user (or Claude) does: browse Integer>>gcd:, set a breakpoint in the
-# gutter, print it in the Workspace, a syntax error, halt on write in an Inspector, Run long computation from the World menu,
+# gutter, print it in the Workspace, a syntax error, halt on write in an Inspector, Run long computation from the World menu's Tools,
 # clicks queued in the busy Mandelbrot window, the Process Browser. Screenshots go to $OUT (default .context).
 # usage: tests/tools/desktop_test.sh [image]   (default: build/tools/samaltak.image)
 set -u
@@ -69,9 +69,11 @@ check "halt on write sets a watchpoint" "'watchpoint on #x of 3@4'" "$($CTL eval
 contains "field shows the tag" "$($CTL snapshot "$insp.fields" | grep "$insp.fields.x ")" 'halt-on-write'
 $CTL eval 'Watchpoint removeAll. 1' >/dev/null
 
-# World menu › Run long computation; the Process Browser shows it
+# World menu › Tools › Run long computation (the submenu opens over the World menu, @menu, as @menu~2); the Process
+# Browser shows it
 $CTL click 891,300 >/dev/null
-$CTL click @menu.run-long-computation >/dev/null
+$CTL click @menu.tools >/dev/null
+$CTL click @menu~2.run-long-computation >/dev/null
 # two refreshes of the Process Browser's CPU column
 $CTL wait 500 >/dev/null
 contains "crunch runs" "$($CTL snapshot @w3.processes | grep 'crunch')" 'running'

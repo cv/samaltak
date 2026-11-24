@@ -70,7 +70,7 @@ install: dry
 	installer confirmBlock: [:title :details | ConfirmDialog confirm: title details: details action: 'Do it'].
 	dry ifFalse: [
 		(ConfirmDialog confirm: 'Install Samaltak on this machine?'
-			details: 'The image is saved first, then each step asks before it writes: the partition table, the image store, the EFI system partition, the firmware''s boot options. Ubuntu stays the default boot; "Reboot into Samaltak" in the World menu boots this once.'
+			details: 'The image is saved first, then each step asks before it writes: the partition table, the image store, the EFI system partition, the firmware''s boot options. Ubuntu stays the default boot; "Reboot into Samaltak" in the World menu › System boots this once.'
 			action: 'Continue') ifFalse: [^self show: 'cancelled']].
 	result := installer run.
 	self show: result

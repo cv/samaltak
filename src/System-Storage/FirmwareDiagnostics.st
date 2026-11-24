@@ -11,7 +11,7 @@ Each line, prefixed diag, goes to the console (stderr: the serial port if there 
 	FirmwareDiagnostics runThenWorld	"then, after a key or 30 s, the World"
 	FirmwareDiagnostics runThenWaitForKey	"then power off after a key"
 	FirmwareDiagnostics runNvidiaThenWorld	"the NVIDIA GPU probe, then the World"
-	FirmwareDiagnostics nvidiaLines		"its lines, answered (the World menu''s NVIDIA GPU probe)"'!
+	FirmwareDiagnostics nvidiaLines		"its lines, answered (the World menu''s System › NVIDIA GPU probe)"'!
 
 !FirmwareDiagnostics class methodsFor: 'running'!
 run
