@@ -606,6 +606,39 @@ testPresentDamageKeepsTheBackBuffer
 	self assert: ((display frames last at: 4) copyFrom: 1 * 24 + 9 to: 1 * 24 + 12) equals: #[9 9 9 9].
 	self assert: ((display frames last at: 4) copyFrom: 1 to: 4) equals: #[200 200 200 200]
 !
+testPresentsOnAKmsScreen
+	"The appliance's screen (KmsDisplay; its KmsScreen in memory here, where the dumb buffer would be): a whole frame, then only its damage, reach the buffer, and only the damaged rectangle is flushed (NvComputeGPUTest: the raster kernels' frames, as on the Spark)."
+	| screen kms old cmd sw tex pixels |
+	screen := (KmsScreen path: '/nonexistent/card0') setOffscreen: 6 @ 4; yourself.
+	kms := KmsDisplay new setScreen: screen.
+	kms instVarNamed: #open put: true.
+	old := gpu instVarNamed: #display.
+	gpu instVarNamed: #display put: kms.
+	[gpu claim: dev window: 1.
+	tex := gpu createTexture: dev width: 6 height: 4 format: 2 usage: 3.
+	gpu uploadTexture: tex bytes: (ByteArray new: 96 withAll: 200) x: 0 y: 0 width: 6 height: 4 bytesPerRow: 24.
+	cmd := gpu acquireCommandBuffer: dev.
+	sw := gpu acquireSwapchain: cmd window: 1.
+	gpu blit: cmd source: tex rect: #(0 0 6 4) destination: sw first rect: #(0 0 6 4) linear: false.
+	gpu submit: cmd fence: false.
+	gpu waitIdle: dev.
+	self assert: (Machine bytesAt: screen frameBuffer count: 8) equals: (ByteArray new: 8 withAll: 200).
+	pixels := screen counts at: #pixels.
+	gpu uploadTexture: tex bytes: (ByteArray new: 4 withAll: 9) x: 2 y: 1 width: 1 height: 1 bytesPerRow: 4.
+	cmd := gpu acquireCommandBuffer: dev.
+	sw := gpu acquireSwapchain: cmd window: 1.
+	gpu blit: cmd source: tex rect: #(2 1 1 1) destination: sw first rect: #(2 1 1 1) linear: false.
+	gpu presentDamage: cmd rects: #(#(2 1 1 1)).
+	gpu submit: cmd fence: false.
+	gpu waitIdle: dev.
+	self assert: (screen counts at: #presents) equals: 1.
+	self assert: (screen counts at: #pixels) - pixels equals: 1.
+	self assert: (Machine bytesAt: screen frameBuffer + (1 * 6 + 2 * 4) count: 4) equals: #[9 9 9 9].
+	self assert: (Machine bytesAt: screen frameBuffer + (1 * 6 + 1 * 4) count: 4) equals: #[200 200 200 200]]
+		ensure: [
+			gpu instVarNamed: #display put: old.
+			screen freeOffscreen]
+!
 testTheSwapchainIsPresentedOnSubmit
 	| cmd sw pass buf frame |
 	self should: [gpu claim: dev window: 2] raise: Error.

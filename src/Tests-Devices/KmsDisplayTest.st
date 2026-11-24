@@ -100,6 +100,17 @@ testTouchpad
 	input device: pad type: 3 code: 0 value: 100; device: pad type: 0 code: 0 value: 0.
 	self assert: display pointerPosition x equals: start x + 50
 !
+testMemoryScreen
+	"SAMALTAK_SCREEN=memory:WxH: a screen in memory (tests), its size parsed, 1920x1080 where it is not one."
+	| s |
+	s := KmsScreen inMemory: 64 @ 32.
+	[self assert: s isInMemory.
+	self assert: s extent equals: 64 @ 32.
+	self assert: (KmsDisplay extentOf: ':1280x800') equals: 1280 @ 800.
+	self assert: (KmsDisplay extentOf: '') equals: 1920 @ 1080.
+	self assert: (KmsDisplay extentOf: ':12x') equals: 1920 @ 1080]
+		ensure: [s freeOffscreen]
+!
 testNotAskedFor
 	"Without SAMALTAK_SCREEN no KMS display; a device that is not there is no screen, and says why."
 	| s |

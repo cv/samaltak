@@ -194,6 +194,10 @@ abandon
 path
 	^path
 !
+isInMemory
+	"A screen of memory (inMemory:, offscreen:), no device: nothing to flush to."
+	^fd isNil and: [frameBuffer notNil]
+!
 driver
 	"The DRM driver's name (virtio_gpu, nvidia-drm, simpledrm, ...)."
 	^driver
@@ -250,7 +254,7 @@ flushScreen
 	pending := OrderedCollection new.
 	rects size > 16 ifTrue: [rects := OrderedCollection with: (rects inject: rects first into: [:a :b | a merge: b])].
 	plane isNil ifFalse: [^self commit: rects].
-	needsDirty ifFalse: [^self].
+	(needsDirty and: [fd notNil]) ifFalse: [^self].
 	t := Time microsecondClockValue.
 	clips isNil ifTrue: [clips := Machine allocate: 24 + (16 * 8)].
 	n := 0.
@@ -401,6 +405,10 @@ crtcFor: info crtcs: crtcIds
 !KmsScreen class methodsFor: 'instance creation'!
 path: aPath
 	^self new setPath: aPath
+!
+inMemory: anExtent
+	"A screen of anExtent in memory, as if a device had that mode (SAMALTAK_SCREEN=memory: tests)."
+	^(self path: 'memory') setOffscreen: anExtent; yourself
 !
 choose: paths
 	"The screen of the first of paths (DRM devices) with a connected output, preferring a real driver to simpledrm (the firmware's framebuffer, until a driver takes over); the others closed. nil if none: failures says why."

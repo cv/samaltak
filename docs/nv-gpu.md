@@ -111,6 +111,9 @@ is faster.
   then `software`: each on its device without a compositor error, and the screenshots equal outside the live
   statistics (the top bar's frame time, the Process Browser's CPU column), within 2 levels: the SoftwareGPU composes only
   when something changed, and a cross-fade may still be a level from its end there (unloaded, they were identical).
+  Then both again on the appliance's screen path, `SAMALTAK_SCREEN=memory:1920x1080` (a `KmsDisplay` on a
+  `KmsScreen` in memory, no SDL window: what the Spark's KMS screen gets but for the device, docs/linux-appliance.md),
+  compared the same way.
 
 test-core needs no GPU: `GPUPlatformTest` (the choice, with a stand-in for the NVIDIA class), `NvCubinTest` (bank 2),
 SoftwareGPUTest on the refactored SoftwareGPU.

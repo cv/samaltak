@@ -22,7 +22,7 @@ a QMP helper for screendumps and input (`qmp.py`) and the root's own files (`roo
 | --- | --- | --- |
 | QEMU start to the World on the screen | **1.5-2.2 s** on the image's KMS screen, under a load of 23-27 (SDL's kmsdrm: 1.85-2.05 s, unloaded) (KVM, AAVMF, 1920x1080 virtio-gpu) | QEMU start to `3 + 4` headless: 5.4 s (vvfat ESP, 512 MB image disk, boot manager scan) |
 | kernel start to the VM's start (uptime) | 0.42-0.51 s; DHCP lease at 0.44 s, in the background | - |
-| artifacts | kernel 20 MB + initramfs 30 MB (QEMU, the image's KMS screen; 89 MB with Mesa for SDL's) or 136 MB (Spark: GSP firmware 60 MB, NVIDIA userspace 39 MB) | 1.06 MB EFI application + the image on a disk |
+| artifacts | kernel 20 MB + initramfs 30 MB (QEMU, the image's KMS screen; 89 MB with Mesa for SDL's) or 97 MB (Spark, `LINUX_GPU=nvidia`: GSP firmware 60 MB, no NVIDIA userspace; 136 MB with it, `nvidia-vulkan`) | 1.06 MB EFI application + the image on a disk |
 | GPU on the Spark | `nvidia.ko` boots GSP; System-NV, NvComputeGPU, CUDA, Vulkan as hosted | #20: our own GSP boot and RM transport, not done |
 | NICs, Wi-Fi, NVMe, USB | Linux's (r8127 for the Spark's 10 GbE, mt7925e, nvme, xhci) | virtio, e1000e, the firmware's SNP and Block I/O |
 | TCP/TLS | Linux, OpenSSL: an HTTPS GET of example.com from the guest in 68-284 ms | our NetworkStack, mbedTLS (the VM's TLS engine) |
@@ -234,9 +234,27 @@ Two ways to get the World onto the Spark's screen:
 | shaders | the Renderer's GLSL via shaderc, as on any Linux | the raster kernels (cubins in the image) |
 | works today | yes, on this Spark's userspace (untested on bare KMS: the Spark's display is the desktop's now) | rendering yes; presenting through `KmsDisplay` (section 2), proven on virtio-gpu, untested on nvidia-drm |
 
-The KMS screen and evdev input in the image (section 2) are done: the appliance's World can be NvComputeGPU on the
-GB10 with no NVIDIA userspace and no SDL, the same structure as the UEFI World (FirmwareDisplay + SoftwareGPU) with
-Linux below it.
+The KMS screen and evdev input in the image (section 2) are done, so the Spark's variant is now the right-hand column:
+
+| `LINUX_GPU` | root | the World |
+| --- | --- | --- |
+| `nvidia` (the Spark's default) | the open modules (nvidia, -modeset, -drm, -uvm: 28 MB), `gsp_ga10x.bin`; no NVIDIA userspace: 97 MB compressed, 193 MB unpacked | `SAMALTAK_SCREEN=kms SAMALTAK_GPU=nv`: an NvComputeGPU (RM ioctls on `/dev/nvidiactl`, `/dev/nvidia0`) on the image's KMS screen on nvidia-drm; a SoftwareGPU on it where the GPU does not open (GPUPlatform falls back, with a line on stderr), SDL's windows where no KMS screen opens (which, without userspace, fails: the console says why, `samaltak-run` retries) |
+| `nvidia-vulkan` | also NVIDIA's Vulkan ICD, EGL and GBM: 136 MB | the default World on SDL_GPU through VK_KHR_display (section 2's SDL path) |
+
+What nvidia-drm gives the KMS screen, from its source (`/usr/src/nvidia-580.178.04/nvidia-drm`, the module the
+appliance ships): dumb buffers (`nv_drm_dumb_create`: scanout memory, pitch-aligned, mapped write-combined by
+`drm_gem_mmap_obj`, so the CPU's copies reach the display without a flush), atomic modesetting (`modeset=1`), but
+no `FB_DAMAGE_CLIPS` and no `dirty` hook: `KmsScreen` finds no damage property, its one `DIRTYFB` answers ENOSYS,
+and from then on a present is the copy of its damaged rectangles into the scanned-out buffer and nothing else. The
+driver is `nvidia-drm`; `simpledrm` (the firmware's framebuffer) is passed over if it is still there.
+
+Proven on this Spark without touching its display (its `/dev/nvidia*` and nvidia-drm are the desktop's: no KMS, no
+module reloads): `tests/nv/world_test.sh` (`make test-nv`) runs the World on the NvComputeGPU and on a SoftwareGPU
+through a `KmsDisplay` whose `KmsScreen` is memory (`SAMALTAK_SCREEN=memory:1920x1080`), with no X display at all,
+and their screenshots agree as on SDL's path; `NvComputeGPUTest>>testPresentsOnAKmsScreen` presents a frame and then
+only its damage into such a screen from the raster kernels' back buffer. A damaged present from the GB10's back
+buffer into the screen took 0.61 ms on average. What only the Spark can show is in its first-boot checklist (section 7):
+nvidia-drm's mode, SETCRTC as master, and the frames on its screen.
 
 ## 4. The spike
 
@@ -295,10 +313,12 @@ nvidia.ko and nova-core as references and GB10 support in neither fully public.
    the command line, `BootNext` (as `tools/reboot-into-samaltak`); the way back is a power cycle (BootOrder still
    Ubuntu) or the World's reboot (exit 3 with BootNext cleared).
 3. Check, on the console and over the control service: `nvidia.ko` loads and GSP boots (`dmesg`), `/dev/nvidia0`
-   exists, r8127 gets a lease, the World on the screen through NVIDIA's Vulkan, keyboard and mouse (USB HID), then
-   `--gpu nv`, and Tests-NV and NvComputeGPUTest over the control service.
-4. Then without NVIDIA's userspace: the image's KMS screen on nvidia-drm and evdev (section 2), `--gpu nv`; a squashfs
-   or UKI layout, A/B slots, SNTP.
+   exists, r8127 gets a lease, the World on the screen: `GPUPlatform display screen description` (`/dev/dri/cardN
+   (nvidia-drm) WxH@R`), `GPUPlatform device` an NvComputeGPU, `GPUPlatform display screen counts` (`how: #none`
+   after nvidia-drm's ENOSYS), keyboard and mouse (USB HID: `GPUPlatform display input counts`), and Tests-NV and
+   NvComputeGPUTest over the control service.
+4. If the KMS screen does not come up: `LINUX_GPU=nvidia-vulkan` and the default World on NVIDIA's Vulkan; then a
+   squashfs or UKI layout, A/B slots, SNTP.
 
 ## 8. The UEFI work: keep it for
 
