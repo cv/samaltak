@@ -32,7 +32,7 @@ are not there at all.
 
 | Kernel | Shape | As an export |
 | --- | --- | --- |
-| CRC-32, CRC-32C, Adler-32 | `(u32 crc, bytes) -> u32` | fits: 3 slots |
+| CRC-32, Adler-32 | `(u32 crc, bytes) -> u32` | fits: 3 slots |
 | cryptoFeatures | `() -> i64` | fits |
 | GHASH, AES block | state/key + in + out slices | fits in 6 slots, if the state is an exact ByteArray |
 | SHA-256/512 compress | word state + blocks | only with the state as a ByteArray |

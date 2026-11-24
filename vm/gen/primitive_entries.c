@@ -322,7 +322,6 @@ primitive_entry vm_primitive_table[] = {
     {597, 2, "deviceWrite", prim_device_write},
 #endif
     {646, 3, "cryptoCrc32", prim_crc32},
-    {647, 3, "cryptoCrc32c", prim_crc32c},
 };
 
 int vm_primitive_count = sizeof vm_primitive_table / sizeof vm_primitive_table[0];

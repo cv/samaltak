@@ -1942,7 +1942,6 @@ void prim_terminate_to(void);
 void prim_time_slice(void);
 void prim_try_primitive(void);
 void prim_crc32(void);
-void prim_crc32c(void);
 int64_t deflate_coder_count(uint16_t *lits, uint16_t *dists, int64_t count, uint32_t *freqs);
 int64_t deflate_coder_write(uint16_t *lits, uint16_t *dists, int64_t count, uint32_t *table, uint8_t *out, int64_t start, uint64_t pending, int64_t pending_count);
 uint32_t adler32(uint8_t *p, int64_t n);
