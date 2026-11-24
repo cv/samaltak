@@ -2338,6 +2338,47 @@ return: pc self: isSelf
 	dead := true.
 	^true
 !
+emitWidow: depth then: cont
+	"The return of a married frame (x16 its Context, x0 the result, every slot to depth stored) that is not frame 0, its Context young: what Interpreter>>widow: does, inline: the frame's slots (as many as the Context holds) into the Context, sender and pc nil, stackp their number, the frame unmarried; then to cont. Else on (the runtime). Uses x1-x4, x17."
+	| slow loop done |
+	slow := asm newLabel.
+	loop := asm newLabel.
+	done := asm newLabel.
+	asm comment: 'married frame: its young Context takes its slots (Interpreter>>widow:)'.
+	asm ldr: X17 base: X22 offset: self framesOffset.
+	asm cmp: X19 with: X17.
+	asm b: slow if: COND_EQ.
+	asm ldp: X1 with: X2 base: X22 offset: self youngLoOffset.
+	asm cmp: X16 with: X1.
+	asm b: slow if: COND_LO.
+	asm cmp: X16 with: X2.
+	asm b: slow if: COND_HS.
+	asm comment: 'as many slots as the Context holds, at most the frame''s'.
+	asm ldr: X17 base: X16 offset: 0.
+	asm ubfx: X17 with: X17 lsb: 0 width: 32.
+	asm sub: X17 with: X17 imm: CTX_FIXED.
+	asm mov: X3 imm: depth.
+	asm cmp: X17 with: X3.
+	asm csel: X17 with: X17 with: X3 cond: COND_LS.
+	asm add: X1 with: X16 imm: (self fieldOffset: CTX_FIXED).
+	asm mov: X2 with: X20.
+	asm mov: X3 with: X17.
+	asm cbz: X3 to: done.
+	asm bind: loop.
+	asm ldr: X4 base: X2 postIndex: 8.
+	asm str: X4 base: X1 postIndex: 8.
+	asm subs: X3 with: X3 imm: 1.
+	asm b: loop if: COND_NE.
+	asm bind: done.
+	asm comment: 'sender and pc nil, stackp the slots; the frame unmarried'.
+	asm stp: X23 with: X23 base: X16 offset: (self fieldOffset: CTX_SENDER).
+	asm lsl: X4 with: X17 imm: 1.
+	asm orr: X4 with: X4 imm: 1.
+	asm str: X4 base: X16 offset: (self fieldOffset: CTX_STACKP).
+	asm str: X23 base: X19 offset: self ctxOffset.
+	asm b: cont.
+	asm bind: slow
+!
 nonLocalReturn: pc
 	"^ in a block: to the home's sender. The interpreter does it."
 	asm comment: 'non-local return: the interpreter unwinds'.
@@ -3222,8 +3263,9 @@ emitSlowPaths
 			self emitSync: (slPc at: i) depth: (slDepth at: i).
 			asm b: exitSyncLabel].
 		kind = SL_RETURN ifTrue: [
-			asm comment: 'married frame (or frame 0): the runtime widows it or leaves'.
 			(slInfo at: i) = 0 ifTrue: [asm str: X0 base: X20 offset: (self slot: (slDepth at: i) - 1)].
+			self emitWidow: (slDepth at: i) then: (slCont at: i).
+			asm comment: 'frame 0, or an old Context: the runtime widows it or leaves'.
 			self emitRuntimeCall: returnSlowLabel pc: (slPc at: i) depth: (slDepth at: i).
 			(slInfo at: i) = 0
 				ifTrue: [asm ldr: X0 base: X20 offset: (self slot: (slDepth at: i) - 1)]
