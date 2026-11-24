@@ -1,6 +1,6 @@
 OptModule subclass: #OptBuilder
 	instanceVariableNames: 'ir obCurBlock obBailed obVarTop obDefKeys obDefVals obDefCount obIncPhis obIncVars obIncCount obAnaMethods obAnaBases obAnaCount obAnaTop obAnaDepth obAnaFlag obAnaBack obPcBlocks obPcbTop obEntryBlock obRootMethod obInlined obDeps obDepCount obPrimKinds obPrimsKnown obNoInline obNoInlineCount obArgVals obArgFlags obUnitStart obOsrPc obParamSlots obValidSlots obSafeEpoch obAnaFloat obAnaInts obResident obChecked obCheckedCount obCheckedBlock obCheckedEpoch obFrame obSpecParam obSpecInfo obSpecCount obForeign obForeignM obForeignS obForeignDepth obNoForeignM obNoForeignS obNoForeignCount obPerformAct obPerformPc obPerformSlot obPerformCount obPerformVals obAnaLive obNilConst obConstVals obConstNodes obTurnVar obBlockCalls obHeadCalls'
-	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_STRAIGHT OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC OPK_CHARVALUE OPK_CHARFROM OPK_REPLACE OPK_STRHASH OPK_STRCMP OPK_U16AT OPK_I16AT OPK_U32AT OPK_U32ATPUT OPK_U16BEAT OPK_I16BEAT OPK_U32BEAT'
+	classVariableNames: 'OA_BLOCK OA_LOOP OA_START OA_TARGET OPT_MAX_VARS OPT_MAX_NOINLINE OPT_MAX_PRIM OPK_AT OPK_FLOAT OPK_FSQRT OPK_NEW OPK_NEWSIZE OPK_CLOSURE OPK_ATPUT OPK_CLASS OPK_IDENTICAL OPK_INT OPK_SIZE OPK_STRINGAT OPK_STRINGATPUT OPT_INLINE_BUDGET OPT_INLINE_RESERVE OPT_INLINE_STRAIGHT OPT_INLINE_DEPTH OPT_INLINE_SIZE OPT_MAX_ANA OPT_MAX_DEPS OPT_MAX_INC OPK_CHARVALUE OPK_CHARFROM OPK_REPLACE OPK_STRHASH OPK_STRCMP OPK_U16AT OPK_I16AT OPK_U32AT OPK_U32ATPUT OPK_U16BEAT OPK_I16BEAT OPK_U32BEAT'
 	package: 'VM-Jit'!
 
 OptBuilder comment: 'Builds the IR (OptIR) of a method from its bytecodes: an abstract interpretation of each activation''s bytecodes in pc order, its slots (arguments, temps, operand stack: the depths BytecodeAnalysis computed) SSA variables, phis made on demand (Braun et al., Simple and Efficient Construction of Static Single Assignment Form, CC 2013: a block is sealed once all its predecessors are known; jump targets when the scan reaches them, loop heads after their last backward jump). Sends, guards and interrupt checks get frame states (OptState) for deoptimization. bail abandons the method (a bytecode the tier does not compile).'!
@@ -55,6 +55,8 @@ initialize
 	OPT_INLINE_BUDGET := 3000.
 	"of the budget, what sends outside every loop may take in a unit whose root activation has loops: the rest is the loops'"
 	OPT_INLINE_STRAIGHT := 1500.
+	"what each loop of a unit's root activation after a send keeps of the budget from it (inlineExtraAt:act:)"
+	OPT_INLINE_RESERVE := 300.
 	OPT_INLINE_DEPTH := 8.
 	OA_START := 1.
 	OA_TARGET := 2.
@@ -2249,9 +2251,17 @@ cannotRun: b
 	^(bl flags bitAnd: BF_LIVE) = 0 and: [b ~= obEntryBlock and: [(bl flags bitAnd: BF_LOOP) = 0]]
 !
 inlineExtraAt: pc act: a
-	"How far beyond the budget the send at a's pc may inline: less outside every loop of a unit with loops (straight code runs once a turn of what calls it, a loop's body many times: the budget goes to the loops, which would otherwise call what straight code before them took the budget from)."
+	"How far beyond the budget the send at a's pc may inline: less outside every loop of a unit with loops (straight code runs once a turn of what calls it, a loop's body many times: the budget goes to the loops, which would otherwise call what straight code before them took the budget from); and less by OPT_INLINE_RESERVE for every loop head of the root activation after the send's place in it (at most half the budget), so that an earlier loop does not take what the later ones need (Planner class>>chainTest:'s loop that builds the chain left the loop that runs the plan calling DBVariable's accessors: 8.8 ms a lap, 6.4 with them inlined, as the loop's own unit, entered after a flush, had them)."
+	| p q n |
 	((self hasLoop: 0) and: [(self inLoopAt: pc act: a) not]) ifTrue: [^OPT_INLINE_STRAIGHT - OPT_INLINE_BUDGET].
-	^0
+	q := pc.
+	p := a.
+	[(ir act: p) parent >= 0] whileTrue: [
+		q := (ir act: p) sendPc.
+		p := (ir act: p) parent].
+	n := 0.
+	q + 1 to: (ir act: p) endpc - 1 do: [:h | (self isLoopHead: h act: p) ifTrue: [n := n + 1]].
+	^((n * OPT_INLINE_RESERVE) min: (OPT_INLINE_BUDGET quo: 2)) negated
 !
 hasLoop: a
 	"Activation a's code has a loop."
