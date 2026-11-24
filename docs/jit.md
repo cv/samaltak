@@ -122,11 +122,16 @@ bounded; if unavailable the compiler emits the ordinary send. Sites are
 discarded with the JIT cache and are not saved in snapshots.
 
 A hit calls the cached wrapper entry with the outgoing positional arguments
-in the caller's slots, without pushing a Smalltalk callee frame. The wrapper
+in the caller's slots, without pushing a Smalltalk callee frame: its one C
+argument is the address of the first of them, for any arity up to sixteen.
+The wrapper converts each into its native register or, past the argument
+registers, its outgoing stack slot (docs/ffi.md, Generated call wrappers), so
+a call with stack arguments needs nothing else at the site and takes the same
+bound path; there is no separate fallback for them. The wrapper
 still validates its arguments. Its rejection sentinel becomes `false`;
 native zero and `void` already have Smalltalk results. For `i32`, `u32`
-and `void`, conversion cannot collect. For `i64`, `u64` and `f64`, the
-caller marks its safepoint and spills live values; the boxing helper makes
+and `void`, conversion cannot collect. For `i64`, `u64`, `f64` and `f32` (and
+the wide results the site treats as `f64`), the caller marks its safepoint and spills live values; the boxing helper makes
 the frame visible to the collector before it can allocate. After the wrapper returns, the continuation
 reloads live values and handles interrupts or deoptimization **after** the
 send, never by replaying native work. Native targets must not reenter the VM.
