@@ -130,10 +130,6 @@ $(STAMP):
 	@rm -f $(BUILD)/.variant-* $(BUILD)/samaltak
 	@touch $@
 
-$(OBJDIR)/%.o: %.c $(PGO_DEP)
-	@mkdir -p $(dir $@)
-	$(if $(BRIEF),@echo "cc   $<";) $(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
-
 $(OBJDIR)/third_party/%.o: $(VM_DIR)/third_party/%.c
 	@mkdir -p $(dir $@)
 	$(if $(BRIEF),@echo "cc   $<";) $(CC) $(NATIVE_CFLAGS) -c -o $@ $<
@@ -141,6 +137,10 @@ $(OBJDIR)/third_party/%.o: $(VM_DIR)/third_party/%.c
 $(OBJDIR)/native/%.o: $(VM_DIR)/native/%.c
 	@mkdir -p $(dir $@)
 	$(if $(BRIEF),@echo "cc   $<";) $(CC) $(NATIVE_CFLAGS) -c -o $@ $<
+
+$(OBJDIR)/%.o: %.c $(PGO_DEP)
+	@mkdir -p $(dir $@)
+	$(if $(BRIEF),@echo "cc   $<";) $(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
 # Retrain the profile: an instrumented VM runs the benchmarks (also under the baseline JIT) and the kernel/compiler tests on IMAGE.
 pgo:
