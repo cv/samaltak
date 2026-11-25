@@ -89,6 +89,65 @@ report
 		s nextPutAll: 'a call of cudaGetDevice takes '; nextPutAll: ((self microsecondsPerCall: 100000) printShowingDecimalPlaces: 3); nextPutAll: ' us'; cr]
 ! !
 
+!CudaBenchmark class methodsFor: 'element-wise'!
+bestOf: n timeGpu: aBlock
+	"timeGpu: aBlock n times: the {GPU ms. wall ms} of the fastest (the GPU is shared)."
+	| best |
+	n timesRepeat: [| r | r := self timeGpu: aBlock. (best isNil or: [r last < best last]) ifTrue: [best := r]].
+	^best
+!
+chain: a with: b
+	"Five element-wise operations: * + sqrt - max:."
+	^((a * 2 + b) sqrt - 1) max: 0.25
+!
+fusion: n repeat: count
+	"The chain:with: of two random n-element float32 arrays, count times after a warm-up: fused (one kernel, into new memory and storeInto: one), one kernel an operation (CudaExpression fusing: false), and its sum (fused into the kernel, and after computing the values); the first call of a fused shape (NVRTC compiling, nothing kept) and a call with its kernel kept. {fused ms. its launches. storeInto: ms. per-operation ms. its launches. first call ms. kept call ms. sum fused ms. sum of computed values ms. largest difference fused against per operation}."
+	| a b out x y l0 fused store per perLaunches fusedLaunches first kept sf sc d w |
+	a := CudaArray uniform: n type: #float32.
+	b := CudaArray uniform: n type: #float32.
+	out := CudaArray new: n type: #float32.
+	[Cuda default compiler flush.
+	Cuda releaseCaches.
+	first := self timeGpu: [x := (self chain: a with: b) realize].
+	x release.
+	kept := self bestOf: 3 timeGpu: [x := (self chain: a with: b) realize].
+	x release.
+	l0 := CudaExpression launches.
+	(self chain: a with: b) realize release.
+	fusedLaunches := CudaExpression launches - l0.
+	fused := self bestOf: 3 timeGpu: [count timesRepeat: [(self chain: a with: b) realize release]].
+	store := self bestOf: 3 timeGpu: [count timesRepeat: [(self chain: a with: b) storeInto: out]].
+	CudaExpression fusing: false during: [
+		l0 := CudaExpression launches.
+		(self chain: a with: b) release.
+		perLaunches := CudaExpression launches - l0.
+		per := self bestOf: 3 timeGpu: [count timesRepeat: [(self chain: a with: b) release]]].
+	(self chain: a with: b) sum.
+	sf := self bestOf: 3 timeGpu: [count timesRepeat: [(self chain: a with: b) sum]].
+	sc := self bestOf: 3 timeGpu: [count timesRepeat: [| v | v := (self chain: a with: b) realize. v sum. v release]].
+	x := (self chain: a with: b) realize.
+	y := CudaExpression fusing: false during: [self chain: a with: b].
+	w := (x - y) abs.
+	d := w max]
+		ensure: [a release. b release. out release. x ifNotNil: [x release]. y ifNotNil: [y release]. w ifNotNil: [w release]].
+	^{fused last / count. fusedLaunches. store last / count. per last / count. perLaunches. first last. kept last. sf last / count. sc last / count. d}
+!
+fusionReport
+	"The element-wise numbers of docs/cuda.md, as text."
+	^String streamContents: [:s | | r |
+		s nextPutAll: Cuda summary; cr.
+		#(1000000 67108864) do: [:n |
+			r := self fusion: n repeat: (n > 10000000 ifTrue: [3] ifFalse: [100]).
+			s nextPutAll: '((a * 2 + b) sqrt - 1) max: 0.25 on '; print: n; nextPutAll: ' floats: fused '; nextPutAll: (r first printShowingDecimalPlaces: 3);
+				nextPutAll: ' ms ('; print: (r at: 2); nextPutAll: ' launch), into an array kept '; nextPutAll: ((r at: 3) printShowingDecimalPlaces: 3);
+				nextPutAll: ' ms; an operation at a time '; nextPutAll: ((r at: 4) printShowingDecimalPlaces: 3);
+				nextPutAll: ' ms ('; print: (r at: 5); nextPutAll: ' launches); first call (compiling) '; nextPutAll: ((r at: 6) printShowingDecimalPlaces: 1);
+				nextPutAll: ' ms, kernel kept '; nextPutAll: ((r at: 7) printShowingDecimalPlaces: 3);
+				nextPutAll: ' ms; its sum fused '; nextPutAll: ((r at: 8) printShowingDecimalPlaces: 3);
+				nextPutAll: ' ms, of the computed values '; nextPutAll: ((r at: 9) printShowingDecimalPlaces: 3);
+				nextPutAll: ' ms; differs by '; print: (r at: 10); cr]]
+! !
+
 !CudaBenchmark class methodsFor: 'solvers and transforms'!
 timeGpu: aBlock
 	"{GPU ms. wall ms} of aBlock's work: CUDA events around it, after a synchronize, and the wall clock until the device is done."
@@ -134,8 +193,8 @@ svd: m by: n type: aSymbol
 	^{vt first. vt last. st first. st last. (sum - fro) abs / fro}
 !
 fft2d: n repeat: count
-	"The real-to-complex 2-D FFT of a random n x n float32 matrix: with a CudaFFTPlan made once, count times; and CudaMatrix fft, which plans each call: {GPU ms a transform. GFLOPS (2.5 N log2 N). wall ms a transform. plan wall ms. fft wall ms. |ifftReal(fft a) - a| / |a|}."
-	| a c plan pt t ft f back r err |
+	"The real-to-complex 2-D FFT of a random n x n float32 matrix: with a CudaFFTPlan made once, count times; and CudaMatrix fft, with the session's kept plan and after Cuda releaseCaches (planning first): {GPU ms a transform. GFLOPS (2.5 N log2 N). wall ms a transform. plan wall ms. fft wall ms. |ifftReal(fft a) - a| / |a|. fft planning wall ms}."
+	| a c plan pt t ft f back r err ut |
 	a := CudaMatrix uniformRows: n cols: n.
 	c := CudaMatrix rows: n cols: n // 2 + 1 type: #complex64.
 	[pt := self timeGpu: [plan := CudaFFTPlan shape: {n. n} kind: #r2c type: #float32 batch: 1].
@@ -143,11 +202,14 @@ fft2d: n repeat: count
 	t := self timeGpu: [count timesRepeat: [plan forward: a into: c]].
 	a fft release.
 	ft := self timeGpu: [f := a fft].
+	f release.
+	Cuda releaseCaches.
+	ut := self timeGpu: [f := a fft].
 	back := f ifftReal: n.
 	r := back - a.
 	err := r norm / a norm]
 		ensure: [a release. c release. plan ifNotNil: [plan release]. f ifNotNil: [f release]. back ifNotNil: [back release]. r ifNotNil: [r release]].
-	^{t first / count. 2.5 * n * n * ((n * n) ln / 2 ln) / (t first / count / 1000.0) / 1.0e9. t last / count. pt last. ft last. err}
+	^{t first / count. 2.5 * n * n * ((n * n) ln / 2 ln) / (t first / count / 1000.0) / 1.0e9. t last / count. pt last. ft last. err. ut last}
 !
 cpuLU: n
 	"Seconds a Smalltalk loop takes to solve a random n x n system by Gaussian elimination with partial pivoting (Floats in an Array, row-major)."
@@ -291,7 +353,8 @@ solverReport
 		s nextPutAll: 'FFT 4096 x 4096 real to complex: GPU '; nextPutAll: (r first printShowingDecimalPlaces: 3);
 			nextPutAll: ' ms ('; nextPutAll: ((r at: 2) printShowingDecimalPlaces: 0); nextPutAll: ' GFLOPS), wall ';
 			nextPutAll: ((r at: 3) printShowingDecimalPlaces: 3); nextPutAll: ' ms; plan '; nextPutAll: ((r at: 4) printShowingDecimalPlaces: 1);
-			nextPutAll: ' ms; CudaMatrix fft (plans too) '; nextPutAll: ((r at: 5) printShowingDecimalPlaces: 1);
+			nextPutAll: ' ms; CudaMatrix fft (its plan kept) '; nextPutAll: ((r at: 5) printShowingDecimalPlaces: 2);
+			nextPutAll: ' ms, planning first '; nextPutAll: ((r at: 7) printShowingDecimalPlaces: 1);
 			nextPutAll: ' ms; round trip within '; print: (r at: 6); cr.
 		s nextPutAll: 'cuFFT 256 x 256 against the Smalltalk FFT: within '; print: (self checkFFT2d: 256); cr.
 		cpu := self cpuFFT2d: 4096.

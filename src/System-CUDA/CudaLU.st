@@ -24,13 +24,13 @@ factor: aMatrix
 	factors := aMatrix transposed.
 	pivots := CudaArray new: n type: #int64.
 	info := CudaArray new: 1 type: #int32.
-	[sizes := CusolverAPI cusolverDnXgetrfBufferSize: Cuda solver params: Cuda solverParams m: n n: n dataTypeA: dt a: factors address lda: n computeType: dt.
-	work := CudaArray workspace: sizes first.
+	[sizes := Cuda bufferSize: {#getrf. n. type} ifAbsent: [CusolverAPI cusolverDnXgetrfBufferSize: Cuda solver params: Cuda solverParams m: n n: n dataTypeA: dt a: factors address lda: n computeType: dt].
+	work := Cuda workspace: sizes first.
 	host := ByteArray new: (sizes last max: 1).
 	CusolverAPI cusolverDnXgetrf: Cuda solver params: Cuda solverParams m: n n: n dataTypeA: dt a: factors address lda: n ipiv: pivots address computeType: dt
 		bufferOnDevice: work address workspaceInBytesOnDevice: sizes first bufferOnHost: host workspaceInBytesOnHost: sizes last info: info address.
 	status := info at: 1]
-		ensure: [work ifNotNil: [work release]].
+		ensure: [Cuda releaseWorkspace: work].
 	status < 0 ifTrue: [self release. CudaSolverError signalInfo: status in: 'cusolverDnXgetrf']
 ! !
 

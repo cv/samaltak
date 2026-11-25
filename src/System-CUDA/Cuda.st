@@ -1,9 +1,9 @@
 Object subclass: #Cuda
-	instanceVariableNames: 'session blas rng device compute kernels solver solverParams'
-	classVariableNames: 'Default'
+	instanceVariableNames: 'session blas rng device compute kernels solver solverParams fftPlans workspace bufferSizes fused fusedOrder scratch'
+	classVariableNames: 'Default Compilers FftPlanLimit WorkspaceLimit'
 	package: 'System-CUDA'!
 
-Cuda comment: 'I am the CUDA device as NVIDIA''s CUDA libraries see it (docs/cuda.md): the runtime''s implicit context (its primary context on device 0, made on first use), its cuBLAS handle, cuRAND generator and cuSOLVER handle, made once a VM session. CudaArray and CudaMatrix keep data in its memory; CudaEvent times work on it; CuOpt solves on it. Everything goes through the generated bindings (CudaRuntimeAPI, CudaDriverAPI, CublasAPI, CurandAPI, CusolverAPI, CufftAPI, CuOptAPI).
+Cuda comment: 'I am the CUDA device as NVIDIA''s CUDA libraries see it (docs/cuda.md): the runtime''s implicit context (its primary context on device 0, made on first use), its cuBLAS handle, cuRAND generator and cuSOLVER handle, made once a VM session, and its caches: cuFFT plans by shape (fftPlan:kind:type:batch:, the last fftPlanLimit), one work area for the libraries'' calls (workspace:) and their buffer sizes by shape, the kernels compiled from Smalltalk (kernelNamed:source:, CudaExpression''s fused kernels: fusedKernel:source:; their cubins in an NvRtcCache, compiler). releaseCaches frees the plans and the work area now; a new session (a restored snapshot) starts without them. CudaArray and CudaMatrix keep data in its memory; CudaEvent times work on it; CuOpt solves on it. Everything goes through the generated bindings (CudaRuntimeAPI, CudaDriverAPI, CublasAPI, CurandAPI, CusolverAPI, CufftAPI, CuOptAPI).
 
 	Cuda isAvailable.
 	Cuda summary.          "the device, its memory, the library versions"
@@ -59,6 +59,38 @@ solverParams
 synchronize
 	"Wait until the device has done all work queued so far."
 	CudaRuntimeAPI cudaDeviceSynchronize
+!
+fftPlan: dims kind: aSymbol type: aType batch: anInteger
+	^self default fftPlan: dims kind: aSymbol type: aType batch: anInteger
+!
+workspace: bytes
+	^self default workspace: bytes
+!
+releaseWorkspace: anArray
+	^self default releaseWorkspace: anArray
+!
+bufferSize: key ifAbsent: aBlock
+	^self default bufferSize: key ifAbsent: aBlock
+!
+releaseCaches
+	"Free this session's kept cuFFT plans, work area and fused kernels now (they are made again when needed)."
+	(Default notNil and: [Default isCurrent]) ifTrue: [Default releaseCaches]
+! !
+
+!Cuda class methodsFor: 'settings'!
+fftPlanLimit
+	"How many cuFFT plans a session keeps (each holds its work area on the device)."
+	^FftPlanLimit ifNil: [8]
+!
+fftPlanLimit: anInteger
+	FftPlanLimit := anInteger
+!
+workspaceLimit
+	"The largest work area a session keeps for the libraries (bytes); a larger one is made and freed by the call that needs it."
+	^WorkspaceLimit ifNil: [1024 * 1024 * 1024]
+!
+workspaceLimit: anInteger
+	WorkspaceLimit := anInteger
 ! !
 
 !Cuda class methodsFor: 'describing'!
@@ -129,10 +161,96 @@ kernelNamed: aString source: cudaSource
 	| key |
 	kernels isNil ifTrue: [kernels := Dictionary new].
 	key := aString -> cudaSource.
-	^kernels at: key ifAbsent: [| r |
-		r := NvRtc compile: cudaSource options: (Array with: '-arch=', self compute device arch with: '-std=c++17').
-		r first isNil ifTrue: [^self error: 'NVRTC: ', r last].
-		kernels at: key put: ((NvCubin on: r first) kernelNamed: aString)]
+	^kernels at: key ifAbsent: [| cubin |
+		cubin := self compiler cubinFor: cudaSource ifFail: [:log | ^self error: 'NVRTC: ', log].
+		kernels at: key put: ((NvCubin on: cubin) kernelNamed: aString)]
+!
+compiler
+	"The NvRtcCache of this device's code (-arch=sm_121 on the GB10): cubins by their source's SHA-256, kept across sessions."
+	| arch |
+	arch := self compute device arch.
+	Compilers isNil ifTrue: [Compilers := Dictionary new].
+	^Compilers at: arch ifAbsent: [Compilers at: arch put: (NvRtcCache options: (Array with: '-arch=', arch with: '-std=c++17'))]
+!
+fusedKernel: signature source: sourceBlock
+	"The kernel samaltak_fused of the CUDA C++ sourceBlock makes, for the expressions of the shape signature (CudaExpression: types, broadcasting, operations): compiled the first time a session (or found by its source's hash in compiler), nil if it does not compile or there is no NVRTC (remembered too). The last 256 shapes are kept."
+	| kernel |
+	fused isNil ifTrue: [fused := Dictionary new. fusedOrder := OrderedCollection new].
+	^fused at: signature ifAbsent: [
+		kernel := NvRtc isAvailable ifTrue: [
+			(self compiler cubinFor: sourceBlock value ifFail: [:log | CudaExpression noteFailure: log. nil])
+				ifNotNil: [:cubin | (NvCubin on: cubin) kernelNamed: 'samaltak_fused']].
+		[fused size >= 256 and: [fusedOrder notEmpty]] whileTrue: [
+			(fused removeKey: fusedOrder removeFirst ifAbsent: [nil]) ifNotNil: [:old | compute notNil ifTrue: [compute forget: old]]].
+		fusedOrder addLast: signature.
+		fused at: signature put: kernel]
+!
+fusedKernelCount
+	^fused isNil ifTrue: [0] ifFalse: [(fused select: [:k | k notNil]) size]
+!
+fftPlan: dims kind: aSymbol type: aType batch: anInteger
+	"A cuFFT plan for batch transforms of the shape dims, of kind #r2c, #c2r or #c2c (both directions), in aType: kept from an earlier call (the most recently used first), or made and kept; past fftPlanLimit the least recently used is destroyed. Do not release it: releaseCaches does, and a new session forgets them."
+	| shape real plan |
+	fftPlans isNil ifTrue: [fftPlans := OrderedCollection new].
+	shape := dims asArray.
+	real := CudaArray realTypeOf: aType.
+	plan := fftPlans detect: [:p | p kind == aSymbol and: [p type == real and: [p batch = anInteger and: [p shape = shape]]]] ifNone: [nil].
+	plan notNil ifTrue: [
+		plan isAlive ifTrue: [
+			fftPlans first == plan ifFalse: [fftPlans remove: plan. fftPlans addFirst: plan].
+			^plan].
+		fftPlans remove: plan].
+	plan := CudaFFTPlan shape: shape kind: aSymbol type: aType batch: anInteger.
+	fftPlans addFirst: plan.
+	[fftPlans size > self class fftPlanLimit] whileTrue: [fftPlans removeLast release].
+	^plan
+!
+fftPlans
+	"The kept cuFFT plans, the most recently used first."
+	^fftPlans ifNil: [#()]
+!
+workspace: bytes
+	"Device memory of at least bytes bytes for a library call's work area (cuSOLVER's): this session's one, grown as asked, up to workspaceLimit; a larger one is the call's own. Calls run on the one stream one after another, so each can use it whole. Give it back with releaseWorkspace:."
+	bytes > self class workspaceLimit ifTrue: [^CudaArray workspace: bytes].
+	(workspace notNil and: [workspace isAlive and: [workspace byteSize >= bytes]]) ifTrue: [^workspace].
+	(workspace notNil and: [workspace isAlive]) ifTrue: [workspace release].
+	workspace := nil.
+	workspace := CudaArray workspace: (bytes max: 65536).
+	^workspace
+!
+releaseWorkspace: anArray
+	"A call is done with anArray, which workspace: gave it: free it unless it is the session's kept one."
+	(anArray isNil or: [anArray == workspace]) ifTrue: [^self].
+	anArray release
+!
+bufferSize: key ifAbsent: aBlock
+	"A library's work area size for key (the routine, the shape and the type), asked once (aBlock: the library's *BufferSize call) and kept."
+	bufferSizes isNil ifTrue: [bufferSizes := Dictionary new].
+	^bufferSizes at: key ifAbsent: [
+		bufferSizes size >= 512 ifTrue: [bufferSizes := Dictionary new].
+		bufferSizes at: key put: aBlock value]
+!
+reductionScratch
+	"A float64 CudaArray of 4096 values for a reduction's partial results, taken (give it back with returnScratch:): a reduction reads it back before another can use it."
+	| s |
+	s := scratch.
+	scratch := nil.
+	(s notNil and: [s isAlive]) ifTrue: [^s].
+	^CudaArray new: 4096 type: #float64
+!
+returnScratch: anArray
+	(scratch isNil and: [anArray isAlive]) ifTrue: [^scratch := anArray].
+	anArray release
+!
+releaseCaches
+	"Free the kept cuFFT plans, work area and reduction scratch, and forget the fused kernels (their modules unloaded)."
+	fftPlans notNil ifTrue: [fftPlans do: [:p | p release]. fftPlans := nil].
+	(workspace notNil and: [workspace isAlive]) ifTrue: [workspace release].
+	(scratch notNil and: [scratch isAlive]) ifTrue: [scratch release].
+	workspace := scratch := bufferSizes := nil.
+	fused notNil ifTrue: [
+		compute notNil ifTrue: [fused do: [:k | k notNil ifTrue: [compute forget: k]]].
+		fused := fusedOrder := nil]
 !
 solver
 	"This session's cuSOLVER dense handle (made on first use)."

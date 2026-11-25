@@ -122,7 +122,7 @@ while the page cache holds the rest), not what an allocation can get.
 
 ## cuSOLVER and cuFFT
 
-Dense factorizations (cuSOLVER's \`cusolverDn\`) and Fourier transforms (cuFFT) on CudaMatrix and CudaArray, float32
+Dense factorizations (cuSOLVER's `cusolverDn`) and Fourier transforms (cuFFT) on CudaMatrix and CudaArray, float32
 and float64:
 
 ```smalltalk
@@ -142,63 +142,138 @@ m qr. m cholesky. m symmetricEigen. m singularValues.
 f ifftReal: 4096. c fft. c ifft. m fftRows.     "back; complex; inverse (normalized); each row, batched"
 ```
 
-- **Bindings.** cuSOLVER's 64-bit API for LU (\`cusolverDnXgetrf\`/\`Xgetrs\`), Cholesky (\`Xpotrf\`/\`Xpotrs\`) and QR
-  (\`Xgeqrf\`), where a \`cudaDataType\` argument chooses float32 or float64 and the workspace's size is an argument in
-  bytes, so the VM checks it (\`bufferOnDevice=dev:workspaceInBytesOnDevice\`; the host workspace is a ByteArray). The
-  legacy API for what the 64-bit one lacks or takes too many arguments for (the FFI's 16 slots): \`S/Dorgqr\` (Q),
-  \`S/Dgesvd\` (16 arguments exactly), \`S/Dsyevd\`; each takes its \`lwork\`, so its workspace is checked too.
-  \`devInfo\` is a 1-element \`#int32\` CudaArray the image reads back. cuFFT: \`cufftPlan1d/2d/Many\` (rank 1 to 3,
-  batched), \`cufftExec{R2C,C2R,C2C,D2Z,Z2D,Z2Z}\`, \`cufftDestroy\`, \`cufftSetStream\`. A plan's handle carries a tag
-  (\`cudalib_fft_tag\`: type << 56 | half << 28 | n): an exec is refused on a plan of the other kind
-  (\`CUDALIB_FFT_TYPE(TAG(plan))==CUFFT_R2C\`) or on arrays shorter than the plan's (n reals or complex values,
+- **Bindings.** cuSOLVER's 64-bit API for LU (`cusolverDnXgetrf`/`Xgetrs`), Cholesky (`Xpotrf`/`Xpotrs`) and QR
+  (`Xgeqrf`), where a `cudaDataType` argument chooses float32 or float64 and the workspace's size is an argument in
+  bytes, so the VM checks it (`bufferOnDevice=dev:workspaceInBytesOnDevice`; the host workspace is a ByteArray). The
+  legacy API for what the 64-bit one lacks or takes too many arguments for (the FFI's 16 slots): `S/Dorgqr` (Q),
+  `S/Dgesvd` (16 arguments exactly), `S/Dsyevd`; each takes its `lwork`, so its workspace is checked too.
+  `devInfo` is a 1-element `#int32` CudaArray the image reads back. cuFFT: `cufftPlan1d/2d/Many` (rank 1 to 3,
+  batched), `cufftExec{R2C,C2R,C2C,D2Z,Z2D,Z2Z}`, `cufftDestroy`, `cufftSetStream`. A plan's handle carries a tag
+  (`cudalib_fft_tag`: type << 56 | half << 28 | n): an exec is refused on a plan of the other kind
+  (`CUDALIB_FFT_TYPE(TAG(plan))==CUFFT_R2C`) or on arrays shorter than the plan's (n reals or complex values,
   half: the last dimension // 2 + 1 complex values), so cuFFT never writes past an allocation; arrays are limited to
-  2^28 elements. cuBLAS gained \`geam\` (transposes), \`copy\` (strided: diagonals, real and imaginary parts),
-  \`trmm\` and \`scal\` (also \`Csscal\`/\`Zdscal\`).
+  2^28 elements. cuBLAS gained `geam` (transposes), `copy` (strided: diagonals, real and imaginary parts),
+  `trmm` and `scal` (also `Csscal`/`Zdscal`).
 - **Row-major.** cuSOLVER is column-major. A row-major matrix's memory is its transpose column-major, so a
-  factorization runs on \`transposed\` (cuBLAS geam into a new matrix, which getrf may overwrite anyway): P A = L U
+  factorization runs on `transposed` (cuBLAS geam into a new matrix, which getrf may overwrite anyway): P A = L U
   of the matrix as Smalltalk reads it. Results come back the other way: a column-major result read row-major is its
   transpose, which is sometimes what is wanted (the wide SVD's U and Vt need no transpose at all) and otherwise one
-  geam. Triangles (L and U of an LU, R of a QR, Cholesky's L) are \`trmm\` of the triangle, transposed, by the
-  identity: the column-major product \`tri(A)^T\` is \`tri(A)\` row-major, zeros and all. A symmetric matrix is its own
-  transpose: \`cholesky\` and \`symmetricEigen\` read it as is.
-- **Complex numbers.** \`#complex64\` / \`#complex128\` CudaArrays hold interleaved (real, imaginary) float or double
-  pairs, as cuFFT and cuBLAS do; their values are Smalltalk \`Complex\` numbers (\`asArray\`, \`withAll:\` takes Complex
-  or real numbers), their printString (and so the Inspector) shows \`1.5000-2.0000i\`; \`asComplex\`, \`real\`,
-  \`imaginary\` and \`norm\` work on the device. \`fft\` of a real array is the half spectrum (n // 2 + 1 values, like
-  numpy's rfft), of a complex one the full transform; \`ifft\` and \`ifftReal:\` are normalized (1/n), so
-  \`a fft ifftReal: a size\` is \`a\`. \`CudaFFTPlan\` keeps a plan for many transforms of one shape (planning a
-  4096 x 4096 transform costs 7 ms, more than the transform).
-- **Errors.** A routine that ran but reports failure in devInfo signals a \`CudaSolverError\` saying what cuSOLVER's
-  documentation says devInfo means there: \`CudaSingularMatrix\` (\`cusolverDnXgetrf: the matrix is singular: U(2,2)
-  is exactly zero (devInfo 2)\`), \`CudaNotPositiveDefinite\` (potrf: the leading minor of order i is not), no
-  convergence (gesvd, syevd), a wrong parameter (negative). A singular matrix has an LU (\`isSingular\`,
-  \`determinant\` 0.0); solving with it or inverting it signals.
-- **Tests.** \`CudaSolverGpuTest\` and \`CudaFFTGpuTest\` (test-nv) check every factorization in both precisions against
+  geam. Triangles (L and U of an LU, R of a QR, Cholesky's L) are `trmm` of the triangle, transposed, by the
+  identity: the column-major product `tri(A)^T` is `tri(A)` row-major, zeros and all. A symmetric matrix is its own
+  transpose: `cholesky` and `symmetricEigen` read it as is.
+- **Complex numbers.** `#complex64` / `#complex128` CudaArrays hold interleaved (real, imaginary) float or double
+  pairs, as cuFFT and cuBLAS do; their values are Smalltalk `Complex` numbers (`asArray`, `withAll:` takes Complex
+  or real numbers), their printString (and so the Inspector) shows `1.5000-2.0000i`; `asComplex`, `real`,
+  `imaginary` and `norm` work on the device. `fft` of a real array is the half spectrum (n // 2 + 1 values, like
+  numpy's rfft), of a complex one the full transform; `ifft` and `ifftReal:` are normalized (1/n), so
+  `a fft ifftReal: a size` is `a`. `fft` and `ifft` use the session's plans, kept by shape, kind (r2c, c2r, c2c:
+  both directions), type and batch (`Cuda fftPlan:kind:type:batch:`, the last `Cuda fftPlanLimit` = 8, least
+  recently used out first: each holds its work area on the device; `Cuda releaseCaches` frees them, a new session has
+  none): planning a 4096 x 4096 transform costs 7 ms, more than the transform. A `CudaFFTPlan` of one's own is
+  released by its maker.
+- **Work areas.** cuSOLVER's calls (`lu`, `cholesky`, `qr`, `svd`, `symmetricEigen`) take their device work area
+  from the session's one (`Cuda workspace:`, grown as asked, up to `Cuda workspaceLimit`, 1 GB) and ask each
+  `*BufferSize` once a routine, shape and type (`Cuda bufferSize:ifAbsent:`): calls on the one stream run one after
+  another, so each can use it whole; no cudaMalloc/cudaFree (which waits for the device) a call.
+- **Errors.** A routine that ran but reports failure in devInfo signals a `CudaSolverError` saying what cuSOLVER's
+  documentation says devInfo means there: `CudaSingularMatrix` (`cusolverDnXgetrf: the matrix is singular: U(2,2)
+  is exactly zero (devInfo 2)`), `CudaNotPositiveDefinite` (potrf: the leading minor of order i is not), no
+  convergence (gesvd, syevd), a wrong parameter (negative). A singular matrix has an LU (`isSingular`,
+  `determinant` 0.0); solving with it or inverting it signals.
+- **Tests.** `CudaSolverGpuTest` and `CudaFFTGpuTest` (test-nv) check every factorization in both precisions against
   Smalltalk references (products, Gaussian elimination, Jacobi eigenvalues, a summed DFT), the error paths and the
-  plan checks; \`CudaBindingTest\` the refusal of forged cuSOLVER handles and cuFFT plans without a GPU.
+  plan checks; `CudaBindingTest` the refusal of forged cuSOLVER handles and cuFFT plans without a GPU.
 
-Numbers: \`CudaBenchmark solverReport\` against \`tools/cuda/solver_fft_sample.c\` (the same in C, with LAPACK and FFTW
+Numbers: `CudaBenchmark solverReport` against `tools/cuda/solver_fft_sample.c` (the same in C, with LAPACK and FFTW
 on the CPU), float32 unless said:
 
 | | Smalltalk (bindings) | C (CUDA's own) | CPU |
 | --- | --- | --- | --- |
-| LU 4096 x 4096 (\`lu\`: transposed copy and getrf) | 16.9 ms | getrf 13.7 ms, 3.3 TFLOPS | Smalltalk loop ~1.8 min (2048: 13.9 s); LAPACK (reference) 6.1 s |
+| LU 4096 x 4096 (`lu`: transposed copy and getrf) | 16.9 ms | getrf 13.7 ms, 3.3 TFLOPS | Smalltalk loop ~1.8 min (2048: 13.9 s); LAPACK (reference) 6.1 s |
 | solve one right-hand side with it (getrs) | 2.2 ms | 0.79 ms | LAPACK 5.7 ms |
 | LU 4096, float64 | 134 ms | | |
 | SVD 2048 x 1024, thin U, S, Vt (gesvd) | 131 ms | 119 ms | Smalltalk one-sided Jacobi ~1.3 min (512 x 256: 1.3 s); LAPACK (reference) 5.7 s |
 | singular values only | 69 ms | 66 ms | |
 | SVD 2048 x 1024, float64 | 509 ms (values only 124 ms) | | |
 | 2-D FFT 4096 x 4096, real to complex, plan kept | 1.83 ms, 549 GFLOPS (2.5 N log2 N) | 1.81–1.88 ms | Smalltalk radix 2 (complex, float64) 5.5 s; FFTW 69 ms, 15 ms on 20 threads |
-| \`CudaMatrix fft\` (plans each call) | 8.3 ms (plan 6.6 ms) | plan 6.8 ms | |
+| `CudaMatrix fft`, its plan kept (the session's) | 5.0 ms (a new 64 MB result each call: 3 ms of it) | | |
+| `CudaMatrix fft`, planning first (as every call did before) | 7.9 ms (8.3 before, on a quieter GPU) | plan 6.8 ms | |
 
-The transforms and the SVD run at C's speed. \`lu\` costs 3 ms more than the bare getrf: the 64 MB transposed copy it
-factors (an allocation and a geam); \`solve:\` 1.4 ms more than getrs (the right-hand side's copy, devInfo read back).
+The transforms and the SVD run at C's speed. `lu` costs 3 ms more than the bare getrf: the 64 MB transposed copy it
+factors (an allocation and a geam); `solve:` 1.4 ms more than getrs (the right-hand side's copy, devInfo read back).
 The GPU is 400 times reference LAPACK at LU, 44 times at SVD, and 38 times FFTW on one core at the FFT (8 times on
 20), and about 6,000 / 600 / 3,000 times the Smalltalk loops. Accuracy: the 4096 solve's relative residual
 |A x - b| / |b| is 6.6e-7 in float32 and 1.2e-15 in float64; the SVD's sum of s^2 is |A|^2 (Frobenius) within
 1.2e-7 / 5e-16, its singular values those of the Smalltalk Jacobi within 1e-14 (float64); the FFT's round trip is
 within 3e-7 and a 256 x 256 transform the Smalltalk FFT's within 5e-8. Times vary with the shared GPU's load and
 clocks (the C SVD took 119 to 250 ms over runs).
+
+## Element-wise expressions: one kernel each
+
+`CudaArray` (and `CudaMatrix`) arithmetic is element-wise and lazy: `+ - * /` with numbers and arrays (`2 * a` and
+`1 - a` too), `min:` `max:` `raisedTo:`, `negated abs sqrt squared reciprocal exp ln log sin cos tanh`, the
+comparisons `< <= > >= eq: ne:` (masks: 1.0 where true, else 0.0; `=` stays identity's) and `mask where: x else: y`
+answer a *pending* array: a `CudaExpression` tree over its operands, a pending operand's tree taken in. Its values
+are computed when they are needed (its address: `printString`, `asArray`, a cuBLAS or cuFFT operand, a kernel
+argument) or when asked (`realize`, `value`; `storeInto: anArray` writes them into an array one has, in place too),
+by one kernel for the whole expression, launched once. `sum`, `max`, `min` and `mean` of a pending array reduce in
+the same kernel (each block's partial result in float64, the last step on the host): the values are never stored.
+On a `CudaMatrix`, `*` of a matrix is still the matrix product (`mul:` is the element-wise one), `*` of a number
+element-wise.
+
+```smalltalk
+| a b c |
+a := CudaArray uniform: 1000000 type: #float32. b := CudaArray uniform: 1000000 type: #float32.
+c := ((a * 2 + b) sqrt - 1) max: 0.25.     "pending: nothing ran"
+c first: 4.                                "one kernel computed c"
+((a - b) abs > 0.5) mean                   "one kernel, about 0.25"
+(m + aRow) * 2                             "a row (an array of m's columns' count) broadcast down m"
+```
+
+- **The kernel** (`CudaExpression>>cudaSource:`) is CUDA C++ written from the tree: a grid-stride loop over the
+  output, each array operand loaded once at its index (`i`, a row's `i % cols`, a column's `i / cols`, one value's
+  `0`), the operations in the output's type (float32 with float64 is float64, a number takes the array's type),
+  stored, or folded into the reduction. Shapes broadcast as numpy's: equal shapes, a number or a one-value array, a
+  row (n or 1 x n) or a column (n x 1) against a matrix; others are an error when the expression is made.
+- **Compiled once a shape.** The kernel's key, its *signature*, is the output's type, the reduction, each array's
+  type and index and the C++ of the tree: not the sizes or the numbers, which are arguments (`a * 2 + b` and `a * 3
+  + b` of any length share one). `Cuda fusedKernel:source:` keeps the session's kernels by signature (the last
+  256), their cubins by the source's SHA-256 in `Cuda compiler`, an `NvRtcCache` (System-NV): the NV shaders'
+  machinery, which `NvShaderCompiler` now uses too (a compile under way is waited for, not run twice, failures are
+  kept, `isReady:` compiles in the background).
+- **Correctness.** A pending array reads its operands when it is computed, so it is computed first when an operand
+  is about to change or go: `release`, and anything but a fused kernel asking for the operand's address
+  (`fromArray:`, `fillUniform`, a cuBLAS product into it, a kernel argument) computes the arrays pending on it
+  (`realizeReaders`; reads such as `asArray`, `norm` or a product's operands use `readAddress` and leave them
+  pending). Trees past 64 operations or 16 arrays compute their pending operands first.
+- **Falling back.** Where no kernel can be made (no NVRTC; a compile error: `CudaExpression lastFailure`) each
+  operation runs by itself, its own kernel, else cuBLAS (`+`/`-` of two arrays: a copy and axpy; `*`/`/` by a
+  number, `negated`: a copy and scal; anything else is an error). Complex arrays still add and subtract with cuBLAS
+  at once; other element-wise operations on them, and integer arrays, are refused. `CudaExpression fusing: false`
+  computes every operation at once, a kernel each (to compare, or to find a fault); `CudaExpression launches` counts
+  the kernels and cuBLAS calls run for expressions.
+- **Tests.** `CudaExpressionTest` (test-core, no GPU: broadcasting, types, signatures, the C++ written);
+  `CudaFusionGpuTest` (test-nv: values against Smalltalk's, one launch an expression and a kernel a shape, masks,
+  broadcasting, reductions, computing before an operand changes or goes, the fallbacks, the kept FFT plans and work
+  area).
+
+Numbers (`CudaBenchmark fusionReport`, the best of three runs on the shared GPU): `((a * 2 + b) sqrt - 1) max: 0.25`,
+five operations, on two float32 arrays:
+
+| | 1 M floats | 64 M floats |
+| --- | --- | --- |
+| fused, into a new array (1 launch) | 0.83 ms | 19.1 ms |
+| fused, `storeInto:` an array kept | 0.56 ms | 3.68 ms (805 MB moved: 219 GB/s, a device copy's speed) |
+| an operation at a time (`fusing: false`: 5 launches, 5 new arrays) | 2.09 ms | 61.6 ms |
+| the shape's first call (NVRTC compiling) | 29.3 ms | 29.5 ms |
+| its `sum`, fused (1 launch, nothing stored) | 0.43 ms | 2.93 ms |
+| its `sum` after computing its values | 1.44 ms | 19.0 ms |
+
+Fused is 3.2 times one kernel an operation into new memory, 17 times into an array kept; the reduction 6.5 times.
+A new 256 MB array costs about 15 ms (cudaMalloc and cudaFree on the GB10's unified memory: 190 ms when the
+machine is loaded), more than the kernel: `storeInto:` an array one keeps is the way for big arrays in a loop. A
+kernel's compile (about 29 ms) is paid once a shape a session, and not again for a source already compiled in the
+image (`Cuda compiler`). Before, only `+` and `-` existed (cuBLAS: a copy and an axpy, two calls an operation).
 
 ## cuOpt
 
@@ -317,7 +392,8 @@ The cubins are the same: the precompiled raster kernels (`NvRasterKernels`), NVR
 `NvKernel>>cubin` keeps the bytes the driver loads. Everything is on the default stream of the runtime's primary
 context, the one cuBLAS, cuRAND and `CudaArray` use: a kernel and a cuBLAS call on the same memory are ordered on the
 device, no host copy, no wait between. `Cuda compute` is the session's `NvCudaCompute`, `Cuda kernelNamed:source:`
-compiles a kernel from a String with NVRTC for this device; a `CudaArray` is a kernel argument as it is:
+compiles a kernel from a String with NVRTC for this device (its cubin kept by the source's SHA-256 in `Cuda
+compiler`, an `NvRtcCache`, as NvShaderCompiler keeps the shaders'; element-wise expressions write theirs: see above); a `CudaArray` is a kernel argument as it is:
 
 ```smalltalk
 | k a |

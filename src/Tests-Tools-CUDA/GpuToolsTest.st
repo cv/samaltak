@@ -55,6 +55,7 @@ testWorkspaceOpensWithSnippets
 	self assert: (ws text includesSubstring: 'CuOpt maximize:').
 	self assert: (ws text includesSubstring: 'CudaComparison solve: 2048').
 	self assert: (ws text includesSubstring: 'CudaComparison fft2d: 2048').
+	self assert: (ws text includesSubstring: 'z := ((x * 2 + y) sqrt - 1) max: 0.25.').
 	self assert: (ws text includesSubstring: GpuTools unavailableText).
 	self assert: (ws widgetNamed: 'gpu-header') == ws header.
 	window close

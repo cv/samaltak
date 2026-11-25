@@ -1,13 +1,14 @@
 Object subclass: #CudaArray
-	instanceVariableNames: 'address count type session'
+	instanceVariableNames: 'address count type session pending readers'
 	classVariableNames: 'Arrays'
 	package: 'System-CUDA'!
 
-CudaArray comment: 'I am an array of count numbers in the CUDA device''s memory (cudaMalloc), of type #float32 or #float64, #complex64 or #complex128 (interleaved pairs of float32 or float64, as cuFFT and cuBLAS keep complex numbers: my values are Complex), or #int32 / #int64 (pivots and devInfo for cuSOLVER). withAll: copies Smalltalk numbers to the device, asArray copies them back; fillUniform fills me on the device (cuRAND); norm, + and - run there (cuBLAS); fft and ifft transform me there (cuFFT: a real array''s fft is its half spectrum, n // 2 + 1 Complex values; ifftReal: n is the inverse). My printString says my type, size and first values, as the Inspector shows. release frees my memory at once; otherwise it is freed when I am collected (CudaReleaser). A CudaArray of an earlier VM session (a restored snapshot) holds nothing: isAlive is false.
+CudaArray comment: 'I am an array of count numbers in the CUDA device''s memory (cudaMalloc), of type #float32 or #float64, #complex64 or #complex128 (interleaved pairs of float32 or float64, as cuFFT and cuBLAS keep complex numbers: my values are Complex), or #int32 / #int64 (pivots and devInfo for cuSOLVER). withAll: copies Smalltalk numbers to the device, asArray copies them back; fillUniform fills me on the device (cuRAND); norm runs there (cuBLAS); element-wise arithmetic (+ - * / with numbers and arrays, min: max:, abs sqrt exp ln sin cos ..., comparisons into masks, where:else:) answers a pending array whose values one kernel computes for the whole expression when they are needed (realize, value, or asking for them: printString, asArray, a library''s operand), and sum, max, min and mean reduce in the same kernel (CudaExpression); complex arrays add and subtract with cuBLAS; fft and ifft transform me there (cuFFT, a plan kept per shape: Cuda fftPlan:kind:type:batch:; a real array''s fft is its half spectrum, n // 2 + 1 Complex values; ifftReal: n is the inverse). My printString says my type, size and first values, as the Inspector shows. release frees my memory at once; otherwise it is freed when I am collected (CudaReleaser). A CudaArray of an earlier VM session (a restored snapshot) holds nothing: isAlive is false.
 
 	(CudaArray withAll: #(1.5 2.5 3.5)) asArray
 	(CudaArray new: 1000000) fillUniform; yourself
-	(CudaArray withAll: #(1 2 3 4)) fft asArray       "{10.0 + 0.0i. -2.0 + 2.0i. -2.0 + 0.0i}"'!
+	(CudaArray withAll: #(1 2 3 4)) fft asArray       "{10.0 + 0.0i. -2.0 + 2.0i. -2.0 + 0.0i}"
+	((CudaArray withAll: #(1 4 9)) sqrt * 2 + 1) asArray   "#(3.0 5.0 7.0), one kernel"'!
 
 !CudaArray class methodsFor: 'instance creation'!
 new: anInteger type: aSymbol
@@ -25,6 +26,12 @@ withAll: anArray
 uniform: anInteger type: aSymbol
 	"anInteger random Floats in (0, 1] (real and imaginary parts, for a complex type), made on the device."
 	^(self new: anInteger type: aSymbol) fillUniform
+!
+pending: anExpression
+	"A new array (a CudaMatrix for a matrix's shape) whose values anExpression computes when they are first needed (realize)."
+	| shape |
+	shape := anExpression shape.
+	^(shape size = 2 ifTrue: [CudaMatrix basicNew setRows: shape first cols: shape last] ifFalse: [CudaArray basicNew]) setPending: anExpression
 !
 workspace: bytes
 	"Device memory of at least bytes bytes (a library's workspace)."
@@ -123,10 +130,20 @@ setCount: anInteger type: aSymbol
 	(anInteger isInteger and: [anInteger >= 0]) ifFalse: [^self error: 'a CudaArray''s size is an Integer >= 0'].
 	count := anInteger.
 	type := aSymbol.
+	self allocate
+!
+allocate
 	address := CudaTrace hostOperation: 'cudaMalloc' detail: [self describe] during: [CudaRuntimeAPI cudaMalloc: (self byteSize max: 8)].
 	session := CudaLibraryAPI session.
 	WeakRegistry default add: self executor: (CudaReleaser kind: #memory value: address session: session).
 	self class remember: self
+!
+setPending: anExpression
+	count := anExpression count.
+	type := anExpression type.
+	session := CudaLibraryAPI session.
+	pending := anExpression.
+	anExpression arrays do: [:each | each addReader: self]
 ! !
 
 !CudaArray methodsFor: 'accessing'!
@@ -164,16 +181,99 @@ dataType
 	^CusolverAPI constant: (#('CUDA_R_32F' 'CUDA_R_64F' 'CUDA_C_32F' 'CUDA_C_64F') at: (#(#float32 #float64 #complex64 #complex128) indexOf: type))
 !
 isAlive
-	"Whether I hold device memory of this VM session."
-	^address notNil and: [session = CudaLibraryAPI session]
+	"Whether I hold device memory of this VM session, or values to compute (isPending)."
+	^(address notNil or: [pending notNil]) and: [session = CudaLibraryAPI session]
+!
+isPending
+	"Whether my values are an expression not computed yet (CudaExpression): realize computes them."
+	^pending notNil and: [session = CudaLibraryAPI session]
+!
+expression
+	"My pending CudaExpression, or nil."
+	^pending
 !
 address
-	"My device address (an Integer the VM checks against its live allocations)."
+	"My device address (an Integer the VM checks against its live allocations). Pending, I compute my values first; arrays pending on mine compute theirs (who asks may change me)."
+	pending notNil ifTrue: [self realize].
+	readers notNil ifTrue: [self realizeReaders].
+	self isAlive ifFalse: [^self error: 'this ' , self class name , ' was released, or belongs to an earlier VM session'].
+	^address
+!
+readAddress
+	"My address for work that only reads me (a kernel's operand, a copy to the host): arrays pending on my values stay pending."
+	pending notNil ifTrue: [self realize].
 	self isAlive ifFalse: [^self error: 'this ' , self class name , ' was released, or belongs to an earlier VM session'].
 	^address
 !
 addressAt: index
 	^self address + (index - 1 * self elementSize)
+!
+elementShape
+	"My shape for element-wise operations: {count} (a CudaMatrix: {rows. cols})."
+	^Array with: count
+! !
+
+!CudaArray methodsFor: 'pending'!
+realize
+	"Compute my values now if they are pending (one kernel for the whole expression, CudaExpression); answer me."
+	| e |
+	pending isNil ifTrue: [^self].
+	e := pending.
+	pending := nil.
+	session = CudaLibraryAPI session ifFalse: [^self].
+	[self allocate.
+	e evaluateInto: self]
+		ifCurtailed: [self release. pending := e].
+	e arrays do: [:each | each removeReader: self].
+	^self
+!
+value
+	"Me, my values computed (realize)."
+	^self realize
+!
+storeInto: anArray
+	"Compute my values into anArray (of my size and type; one of my operands too) instead of new memory, and answer it. A pending me is then spent (released); a computed one is copied."
+	| e |
+	(anArray size = count and: [anArray type = type]) ifFalse: [^self error: 'storeInto: wants a ' , self describe , ', not a ' , anArray describe].
+	anArray == self ifTrue: [^self realize].
+	self isPending ifFalse: [
+		count > 0 ifTrue: [CudaRuntimeAPI cudaMemcpyDtoD: anArray address src: self readAddress count: self byteSize].
+		^anArray].
+	e := pending.
+	pending := nil.
+	e arrays do: [:each | each removeReader: self].
+	anArray address.
+	e evaluateInto: anArray.
+	^anArray
+!
+asExpression
+	"The CudaExpression of my values: my pending one, or me as an operand."
+	self isPending ifTrue: [^pending].
+	self isReal ifFalse: [^self error: 'element-wise operations take #float32 or #float64 arrays, not ' , type].
+	self isAlive ifFalse: [^self error: 'this ' , self class name , ' was released, or belongs to an earlier VM session'].
+	^CudaExpression array: self
+!
+addReader: anArray
+	"anArray's pending values read mine (realizeReaders)."
+	| slot |
+	readers isNil ifTrue: [readers := WeakArray new: 4].
+	slot := (1 to: readers size) detect: [:i | (readers at: i) isNil] ifNone: [0].
+	slot = 0 ifTrue: [
+		slot := readers size + 1.
+		readers := (WeakArray new: readers size * 2) replaceFrom: 1 to: readers size with: readers startingAt: 1; yourself].
+	readers at: slot put: anArray
+!
+removeReader: anArray
+	readers isNil ifTrue: [^self].
+	1 to: readers size do: [:i | (readers at: i) == anArray ifTrue: [readers at: i put: nil]]
+!
+realizeReaders
+	"The arrays pending on my values compute them now: I may change, or go."
+	| r |
+	r := readers.
+	readers := nil.
+	r isNil ifTrue: [^self].
+	r do: [:each | (each notNil and: [each isPending]) ifTrue: [each realize]]
 ! !
 
 !CudaArray methodsFor: 'copying'!
@@ -198,7 +298,7 @@ bytesFrom: index count: n
 	bytes := ByteArray new: n * self elementSize.
 	n > 0 ifTrue: [
 		CudaTrace hostOperation: 'cudaMemcpy' detail: ['device to host, ' , (self class describe: n type: type)] during: [
-			CudaRuntimeAPI cudaMemcpyDtoH: bytes src: (self addressAt: index) count: bytes size]].
+			CudaRuntimeAPI cudaMemcpyDtoH: bytes src: self readAddress + (index - 1 * self elementSize) count: bytes size]].
 	^bytes
 !
 asArray
@@ -223,7 +323,7 @@ copyOnDevice
 	copy := self emptyLike.
 	count > 0 ifTrue: [
 		CudaTrace operation: 'cudaMemcpy' detail: ['device to device, ' , self describe] during: [
-			CudaRuntimeAPI cudaMemcpyDtoD: copy address src: self address count: self byteSize]].
+			CudaRuntimeAPI cudaMemcpyDtoD: copy address src: self readAddress count: self byteSize]].
 	^copy
 !
 newVector: n type: aSymbol
@@ -289,8 +389,8 @@ norm
 	"My Euclidean norm (cuBLAS nrm2; a complex array's as its interleaved parts)."
 	^CudaTrace operation: (self isDouble ifTrue: ['cublasDnrm2'] ifFalse: ['cublasSnrm2']) detail: [self describe] during: [
 		self isDouble
-			ifTrue: [CublasAPI cublasDnrm2: Cuda blas n: self realCount x: self address incx: 1]
-			ifFalse: [CublasAPI cublasSnrm2: Cuda blas n: self realCount x: self address incx: 1]]
+			ifTrue: [CublasAPI cublasDnrm2: Cuda blas n: self realCount x: self readAddress incx: 1]
+			ifFalse: [CublasAPI cublasSnrm2: Cuda blas n: self realCount x: self readAddress incx: 1]]
 !
 scale: aNumber
 	"Multiply me by the real aNumber in place (cuBLAS scal); answer me."
@@ -318,12 +418,122 @@ accumulate: other times: aNumber
 		type == #float32
 			ifTrue: [CublasAPI cublasSaxpy: Cuda blas n: count alpha: aNumber asFloat x: other address incx: 1 y: self address incy: 1]
 			ifFalse: [CublasAPI cublasDaxpy: Cuda blas n: count alpha: aNumber asFloat x: other address incx: 1 y: self address incy: 1]]
+! !
+
+!CudaArray methodsFor: 'element-wise'!
+isComplexOperand: other
+	^self isComplex or: [(other isKindOf: CudaArray) and: [other isComplex]]
+!
+elementwise: aSymbol
+	^CudaExpression apply: aSymbol to: (Array with: self)
+!
+elementwise: aSymbol with: other
+	^CudaExpression apply: aSymbol to: (Array with: self with: other)
 !
 + other
-	^self add: other times: 1
+	"Element-wise, pending (CudaExpression); complex arrays at once (cuBLAS axpy)."
+	(self isComplexOperand: other) ifTrue: [^self add: other times: 1].
+	^self elementwise: #+ with: other
 !
 - other
-	^self add: other times: -1
+	(self isComplexOperand: other) ifTrue: [^self add: other times: -1].
+	^self elementwise: #- with: other
+!
+* other
+	"Element by element (a CudaMatrix's * of a matrix is the matrix product: mul: is the element-wise one)."
+	^self elementwise: #* with: other
+!
+mul: other
+	"The element-wise product, for matrices too."
+	^self elementwise: #* with: other
+!
+/ other
+	^self elementwise: #/ with: other
+!
+min: other
+	^self elementwise: #min with: other
+!
+max: other
+	^self elementwise: #max with: other
+!
+raisedTo: other
+	^self elementwise: #pow with: other
+!
+< other
+	"A mask: 1.0 where I am less than other, else 0.0 (pending)."
+	^self elementwise: #lt with: other
+!
+<= other
+	^self elementwise: #le with: other
+!
+> other
+	^self elementwise: #gt with: other
+!
+>= other
+	^self elementwise: #ge with: other
+!
+eq: other
+	"A mask: 1.0 where I equal other (= stays identity's: a CudaArray is a key in collections)."
+	^self elementwise: #eq with: other
+!
+ne: other
+	^self elementwise: #ne with: other
+!
+where: whenTrue else: whenFalse
+	"I am a mask: whenTrue's value where I am not 0, else whenFalse's (arrays or numbers; pending)."
+	^CudaExpression apply: #where to: (Array with: self with: whenTrue with: whenFalse)
+!
+negated
+	^self elementwise: #negated
+!
+abs
+	^self elementwise: #abs
+!
+sqrt
+	^self elementwise: #sqrt
+!
+squared
+	^self elementwise: #squared
+!
+reciprocal
+	^self elementwise: #reciprocal
+!
+exp
+	^self elementwise: #exp
+!
+ln
+	^self elementwise: #ln
+!
+log
+	"Base 10, as Number's."
+	^self elementwise: #log
+!
+sin
+	^self elementwise: #sin
+!
+cos
+	^self elementwise: #cos
+!
+tanh
+	^self elementwise: #tanh
+!
+adaptToNumber: aNumber andSend: aSelector
+	"aNumber + me and the like (Number's arithmetic retries with me)."
+	(#(#+ #- #* #/) includes: aSelector) ifFalse: [^self error: 'a number cannot ' , aSelector , ' a ' , self class name].
+	^CudaExpression apply: aSelector to: (Array with: aNumber with: self)
+!
+sum
+	"The sum of my values, a Float: one kernel (a pending array's expression computed and summed in it, never stored)."
+	^CudaExpression reduce: #sum of: self
+!
+max
+	^CudaExpression reduce: #max of: self
+!
+min
+	^CudaExpression reduce: #min of: self
+!
+mean
+	^CudaExpression reduce: #mean of: self
 ! !
 
 !CudaArray methodsFor: 'fourier'!
@@ -355,24 +565,24 @@ fft: dims batch: batch
 	self isComplex
 		ifTrue: [
 			result := self fftResultLike: dims batch: batch type: type.
-			plan := CudaFFTPlan shape: dims kind: #c2c type: type batch: batch.
-			[plan forward: self into: result] ensure: [plan release].
+			plan := Cuda fftPlan: dims kind: #c2c type: type batch: batch.
+			plan forward: self into: result.
 			^result].
 	self isReal ifFalse: [^self error: 'fft transforms Floats or Complex numbers'].
 	halfDims := dims copy.
 	halfDims at: dims size put: dims last // 2 + 1.
 	result := self fftResultLike: halfDims batch: batch type: (self class complexTypeOf: type).
 	source := self.
-	plan := CudaFFTPlan shape: dims kind: #r2c type: type batch: batch.
-	[plan forward: source into: result] ensure: [plan release].
+	plan := Cuda fftPlan: dims kind: #r2c type: type batch: batch.
+	plan forward: source into: result.
 	^result
 !
 ifft: dims batch: batch
 	| plan result |
 	self isComplex ifFalse: [^self asComplex ifft: dims batch: batch].
 	result := self fftResultLike: dims batch: batch type: type.
-	plan := CudaFFTPlan shape: dims kind: #c2c type: type batch: batch.
-	[plan inverse: self into: result] ensure: [plan release].
+	plan := Cuda fftPlan: dims kind: #c2c type: type batch: batch.
+	plan inverse: self into: result.
 	^result scale: 1.0 / (dims inject: 1 into: [:a :b | a * b])
 !
 ifftReal: dims batch: batch
@@ -383,14 +593,18 @@ ifftReal: dims batch: batch
 		ifFalse: [^self error: 'a half spectrum of ' , dims printString , ' has ' , ((dims allButLast inject: dims last // 2 + 1 into: [:a :b | a * b]) * batch) printString , ' values, not ' , count printString].
 	result := self fftResultLike: dims batch: batch type: self realType.
 	source := self copyOnDevice.
-	plan := CudaFFTPlan shape: dims kind: #c2r type: self realType batch: batch.
-	[plan inverse: source into: result] ensure: [plan release. source release].
+	plan := Cuda fftPlan: dims kind: #c2r type: self realType batch: batch.
+	[plan inverse: source into: result] ensure: [source release].
 	^result scale: 1.0 / (dims inject: 1 into: [:a :b | a * b])
 ! !
 
 !CudaArray methodsFor: 'releasing'!
 release
-	"Free my device memory now."
+	"Free my device memory now (arrays pending on my values compute them first); pending, forget my expression."
+	pending notNil ifTrue: [
+		pending arrays do: [:each | each removeReader: self].
+		pending := nil].
+	readers notNil ifTrue: [self realizeReaders].
 	self isAlive ifTrue: [CudaTrace hostOperation: 'cudaFree' detail: [self describe] during: [CudaRuntimeAPI cudaFree: address]].
 	address := nil.
 	WeakRegistry default remove: self

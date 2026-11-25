@@ -45,7 +45,7 @@ snippets
 			s nextPutAll: '
 "Not here: '; nextPutAll: GpuTools unavailableText; nextPutAll: '. The snippets need an NVIDIA GPU with CUDA."
 '].
-		s nextPutAll: self deviceSnippets; nextPutAll: self blasSnippets; nextPutAll: self randSnippets.
+		s nextPutAll: self deviceSnippets; nextPutAll: self blasSnippets; nextPutAll: self randSnippets; nextPutAll: self fusionSnippets.
 		(self has: #CusolverAPI) ifTrue: [s nextPutAll: self solverSnippets].
 		(self has: #CufftAPI) ifTrue: [s nextPutAll: self fftSnippets].
 		s nextPutAll: self optSnippets; nextPutAll: self cleanupSnippets]
@@ -82,6 +82,20 @@ r norm / 1000000 sqrt    "about 1 / 3 sqrt = 0.577"
 CudaComparison norm: 10000000
 '
 !
+fusionSnippets
+	^'
+"Element-wise expressions: pending until their values are needed, then one kernel for the whole expression (NVRTC compiles it once per shape of expression: CudaExpression)"
+x := CudaArray uniform: 10000000 type: #float32.
+y := CudaArray uniform: 10000000 type: #float32.
+z := ((x * 2 + y) sqrt - 1) max: 0.25.
+z isPending                     "true: nothing ran yet"
+z first: 4                      "one kernel computes z"
+((x - y) abs > 0.5) mean        "one kernel, a Float: about 0.25"
+((x > y) where: x else: y) sum
+(CudaMatrix uniformRows: 3 cols: 4) + (CudaArray withAll: #(10 20 30 40))    "a row, broadcast down the matrix"
+CudaBenchmark fusionReport      "fused against a kernel an operation, 1 M and 64 M floats"
+'
+!
 has: aClassName
 	"Whether the library of the binding class aClassName loads here (or, without CUDA, is bound: its snippets are shown)."
 	| c |
@@ -105,6 +119,7 @@ fftSnippets
 CudaComparison fft2d: 2048
 (CudaArray withAll: #(1 2 3 4)) fft asArray
 f := (CudaMatrix uniformRows: 1024 cols: 1024) fft
+Cuda default fftPlans            "the plans kept by shape: the next fft of the shape plans nothing"
 '
 !
 optSnippets
@@ -118,7 +133,8 @@ CuOpt minimize: #(2 3) subjectTo: #(#(1 2) #(3 1)) atLeast: #(8 9)
 cleanupSnippets
 	^'
 "Device memory is freed when an array is collected, or at once:"
-{a. b. c. m. r. s. f} do: [:each | each isNil ifFalse: [each release]]
+{a. b. c. m. r. s. f. x. y. z} do: [:each | each isNil ifFalse: [each release]]
+Cuda releaseCaches               "the kept cuFFT plans, work area and kernels"
 CudaLibraryAPI liveAllocations
 CudaBenchmark report    "the numbers of docs/cuda.md, a few seconds"
 '

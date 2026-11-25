@@ -3,7 +3,7 @@ Object subclass: #CudaFFTPlan
 	classVariableNames: ''
 	package: 'System-CUDA'!
 
-CudaFFTPlan comment: 'I am a cuFFT plan: batch transforms of the shape shape (1 to 3 dimensions, the last varying fastest, as a row-major CudaMatrix lays out its rows), of kind #r2c (real to the half spectrum: the last dimension // 2 + 1 complex values), #c2r (back) or #c2c, in type #float32 or #float64 (#complex64 / #complex128 for #c2c). The VM remembers my type and array sizes with my handle, so it refuses to run me on arrays too short or of the other kind. CudaArray>>fft and ifft make one a call; keep one to transform many arrays of a shape (planning costs more than a small transform). Release me, or I am destroyed when collected.
+CudaFFTPlan comment: 'I am a cuFFT plan: batch transforms of the shape shape (1 to 3 dimensions, the last varying fastest, as a row-major CudaMatrix lays out its rows), of kind #r2c (real to the half spectrum: the last dimension // 2 + 1 complex values), #c2r (back) or #c2c, in type #float32 or #float64 (#complex64 / #complex128 for #c2c). The VM remembers my type and array sizes with my handle, so it refuses to run me on arrays too short or of the other kind. CudaArray>>fft and ifft use the session''s, kept by shape (Cuda fftPlan:kind:type:batch:: planning a 4096 x 4096 transform costs more than the transform); one made here is the caller''s, to release. Release me, or I am destroyed when collected.
 
 	| plan a b | plan := CudaFFTPlan shape: #(4096 4096) kind: #r2c type: #float32 batch: 1.
 	a := CudaMatrix uniformRows: 4096 cols: 4096. b := CudaMatrix rows: 4096 cols: 2049 type: #complex64.
@@ -92,14 +92,14 @@ run: source into: target direction: direction
 	kind == #c2c ifTrue: [
 		self check: source type: complex count: self realCount; check: target type: complex count: self realCount.
 		double
-			ifTrue: [CufftAPI cufftExecZ2Z: self handle idata: source address odata: target address direction: direction]
-			ifFalse: [CufftAPI cufftExecC2C: self handle idata: source address odata: target address direction: direction].
+			ifTrue: [CufftAPI cufftExecZ2Z: self handle idata: source readAddress odata: target address direction: direction]
+			ifFalse: [CufftAPI cufftExecC2C: self handle idata: source readAddress odata: target address direction: direction].
 		^target].
 	kind == #r2c ifTrue: [
 		self check: source type: type count: self realCount; check: target type: complex count: self halfCount.
 		double
-			ifTrue: [CufftAPI cufftExecD2Z: self handle idata: source address odata: target address]
-			ifFalse: [CufftAPI cufftExecR2C: self handle idata: source address odata: target address].
+			ifTrue: [CufftAPI cufftExecD2Z: self handle idata: source readAddress odata: target address]
+			ifFalse: [CufftAPI cufftExecR2C: self handle idata: source readAddress odata: target address].
 		^target].
 	self check: source type: complex count: self halfCount; check: target type: type count: self realCount.
 	double

@@ -290,6 +290,7 @@ retry: aSelector coercing: aNumber
 		aSelector == #= ifTrue: [^false].
 		aSelector == #~= ifTrue: [^true].
 		aNumber isPoint ifTrue: [^self asPoint perform: aSelector with: aNumber].
+		(aNumber respondsTo: #adaptToNumber:andSend:) ifTrue: [^aNumber adaptToNumber: self andSend: aSelector].
 		aNumber isNil ifTrue: [^self error: 'Cannot ', aSelector, ' with nil'].
 		^self error: 'Cannot ', aSelector, ' a ', self class name, ' with a ', aNumber class name].
 	myGenerality := self generality.

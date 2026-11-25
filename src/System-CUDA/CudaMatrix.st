@@ -3,7 +3,7 @@ CudaArray subclass: #CudaMatrix
 	classVariableNames: ''
 	package: 'System-CUDA'!
 
-CudaMatrix comment: 'I am a rows x cols matrix in the CUDA device''s memory, stored row-major as Smalltalk reads a matrix (element i, j at (i - 1) * cols + j), of type #float32 or #float64 (or #complex64 / #complex128 for Fourier transforms). a * b multiplies on the device with cuBLAS (Sgemm or Dgemm) into a new matrix; multiply:into: reuses one. cuBLAS and cuSOLVER are column-major, where a row-major matrix reads as its transpose, so C = A B is computed as the column-major C^T = B^T A^T: the same gemm with the operands swapped, no transposes or copies (docs/cuda.md). The factorizations run on the device with cuSOLVER: lu (a CudaLU: solve:, inverse, determinant), qr, svd, cholesky, symmetricEigen (CudaDecomposition); solve:, inverse and determinant use lu. A failure the library reports in devInfo (a singular matrix, one not positive definite, no convergence) is a CudaSolverError with the library''s meaning. fft is my 2-D Fourier transform (cuFFT; of a real matrix the half spectrum, rows x (cols // 2 + 1)), fftRows the 1-D one of each row (batched).
+CudaMatrix comment: 'I am a rows x cols matrix in the CUDA device''s memory, stored row-major as Smalltalk reads a matrix (element i, j at (i - 1) * cols + j), of type #float32 or #float64 (or #complex64 / #complex128 for Fourier transforms). a * b multiplies on the device with cuBLAS (Sgemm or Dgemm) into a new matrix; multiply:into: reuses one; a * 2, a + b, a mul: b (element by element), a + aRow and the rest of CudaArray''s element-wise operations are pending until needed, one kernel each expression (CudaExpression; an array of my columns'' count is a row, broadcast down me). cuBLAS and cuSOLVER are column-major, where a row-major matrix reads as its transpose, so C = A B is computed as the column-major C^T = B^T A^T: the same gemm with the operands swapped, no transposes or copies (docs/cuda.md). The factorizations run on the device with cuSOLVER: lu (a CudaLU: solve:, inverse, determinant), qr, svd, cholesky, symmetricEigen (CudaDecomposition); solve:, inverse and determinant use lu. A failure the library reports in devInfo (a singular matrix, one not positive definite, no convergence) is a CudaSolverError with the library''s meaning. fft is my 2-D Fourier transform (cuFFT; of a real matrix the half spectrum, rows x (cols // 2 + 1)), fftRows the 1-D one of each row (batched).
 
 	| a b | a := CudaMatrix rows: 2 cols: 3 values: #(1 2 3 4 5 6). b := CudaMatrix rows: 3 cols: 2 values: #(1 0 0 1 1 1).
 	(a * b) asRows      "#(#(4.0 5.0) #(10.0 11.0))"
@@ -69,6 +69,9 @@ cols
 isSquare
 	^rows = cols
 !
+elementShape
+	^Array with: rows with: cols
+!
 at: i at: j
 	^self at: i - 1 * cols + j
 !
@@ -91,9 +94,10 @@ like: aType
 ! !
 
 !CudaMatrix methodsFor: 'arithmetic'!
-* aMatrix
-	"A new matrix: me times aMatrix, on the device."
-	^self multiply: aMatrix into: (self class rows: rows cols: aMatrix cols type: type)
+* aMatrixOrNumber
+	"A new matrix: me times aMatrix, on the device (cuBLAS); times a number, element by element (pending, CudaExpression: mul: multiplies two matrices element by element)."
+	aMatrixOrNumber isNumber ifTrue: [^super * aMatrixOrNumber].
+	^self multiply: aMatrixOrNumber into: (self class rows: rows cols: aMatrixOrNumber cols type: type)
 !
 multiply: b into: c
 	"c := me * b, all row-major; answer c. cuBLAS is column-major, where a row-major m x k matrix reads as its k x m transpose, so c^T = b^T me^T: the gemm of b and me, swapped (m := b cols, n := my rows), each leading dimension its own row length."
@@ -105,9 +109,9 @@ multiply: b into: c
 	CudaTrace operation: (type == #float32 ifTrue: ['cublasSgemm'] ifFalse: ['cublasDgemm']) detail: [self shapeString , ' * ' , b shapeString , ' ' , type] during: [
 	type == #float32
 		ifTrue: [CublasAPI cublasSgemm: Cuda blas transa: 0 transb: 0 m: b cols n: rows k: cols
-			alpha: 1.0 a: b address lda: (b cols max: 1) b: self address ldb: (cols max: 1) beta: 0.0 c: c address ldc: (c cols max: 1)]
+			alpha: 1.0 a: b readAddress lda: (b cols max: 1) b: self readAddress ldb: (cols max: 1) beta: 0.0 c: c address ldc: (c cols max: 1)]
 		ifFalse: [CublasAPI cublasDgemm: Cuda blas transa: 0 transb: 0 m: b cols n: rows k: cols
-			alpha: 1.0 a: b address lda: (b cols max: 1) b: self address ldb: (cols max: 1) beta: 0.0 c: c address ldc: (c cols max: 1)]].
+			alpha: 1.0 a: b readAddress lda: (b cols max: 1) b: self readAddress ldb: (cols max: 1) beta: 0.0 c: c address ldc: (c cols max: 1)]].
 	^c
 !
 transposed
@@ -178,16 +182,16 @@ cholesky
 	n := rows.
 	c := self copyOnDevice.
 	info := CudaArray new: 1 type: #int32.
-	[sizes := CusolverAPI cusolverDnXpotrfBufferSize: Cuda solver params: Cuda solverParams uplo: (CusolverAPI constant: 'CUBLAS_FILL_MODE_LOWER') n: n
-		dataTypeA: self dataType a: c address lda: n computeType: self dataType.
-	work := CudaArray workspace: sizes first.
+	[sizes := Cuda bufferSize: {#potrf. n. type} ifAbsent: [CusolverAPI cusolverDnXpotrfBufferSize: Cuda solver params: Cuda solverParams uplo: (CusolverAPI constant: 'CUBLAS_FILL_MODE_LOWER') n: n
+		dataTypeA: self dataType a: c address lda: n computeType: self dataType].
+	work := Cuda workspace: sizes first.
 	host := ByteArray new: (sizes last max: 1).
 	CusolverAPI cusolverDnXpotrf: Cuda solver params: Cuda solverParams uplo: (CusolverAPI constant: 'CUBLAS_FILL_MODE_LOWER') n: n
 		dataTypeA: self dataType a: c address lda: n computeType: self dataType
 		bufferOnDevice: work address workspaceInBytesOnDevice: sizes first bufferOnHost: host workspaceInBytesOnHost: sizes last info: info address.
 	CudaSolverError check: info in: 'cusolverDnXpotrf'.
 	result := self triangle: false unit: false of: c size: n ld: n]
-		ensure: [c release. info release. work ifNotNil: [work release]].
+		ensure: [c release. info release. Cuda releaseWorkspace: work].
 	^result
 !
 qr
@@ -199,20 +203,21 @@ qr
 	f := self transposed.
 	tau := CudaArray new: n type: type.
 	info := CudaArray new: 1 type: #int32.
-	[[sizes := CusolverAPI cusolverDnXgeqrfBufferSize: Cuda solver params: Cuda solverParams m: m n: n dataTypeA: self dataType a: f address lda: m
-		dataTypeTau: self dataType tau: tau address computeType: self dataType.
-	work := CudaArray workspace: sizes first.
+	[[sizes := Cuda bufferSize: {#geqrf. m. n. type} ifAbsent: [CusolverAPI cusolverDnXgeqrfBufferSize: Cuda solver params: Cuda solverParams m: m n: n dataTypeA: self dataType a: f address lda: m
+		dataTypeTau: self dataType tau: tau address computeType: self dataType].
+	work := Cuda workspace: sizes first.
 	host := ByteArray new: (sizes last max: 1).
 	CusolverAPI cusolverDnXgeqrf: Cuda solver params: Cuda solverParams m: m n: n dataTypeA: self dataType a: f address lda: m
 		dataTypeTau: self dataType tau: tau address computeType: self dataType
 		bufferOnDevice: work address workspaceInBytesOnDevice: sizes first bufferOnHost: host workspaceInBytesOnHost: sizes last info: info address.
 	CudaSolverError check: info in: 'cusolverDnXgeqrf'.
-	work release.
+	Cuda releaseWorkspace: work.
+	work := nil.
 	r := self triangle: true unit: false of: f size: n ld: m.
-	lwork := self isDouble
+	lwork := Cuda bufferSize: {#orgqr. m. n. type} ifAbsent: [self isDouble
 		ifTrue: [CusolverAPI cusolverDnDorgqrBufferSize: Cuda solver m: m n: n k: n a: f address lda: m tau: tau address]
-		ifFalse: [CusolverAPI cusolverDnSorgqrBufferSize: Cuda solver m: m n: n k: n a: f address lda: m tau: tau address].
-	work := CudaArray new: (lwork max: 1) type: type.
+		ifFalse: [CusolverAPI cusolverDnSorgqrBufferSize: Cuda solver m: m n: n k: n a: f address lda: m tau: tau address]].
+	work := Cuda workspace: (lwork max: 1) * self elementSize.
 	self isDouble
 		ifTrue: [CusolverAPI cusolverDnDorgqr: Cuda solver m: m n: n k: n a: f address lda: m tau: tau address work: work address lwork: lwork info: info address]
 		ifFalse: [CusolverAPI cusolverDnSorgqr: Cuda solver m: m n: n k: n a: f address lda: m tau: tau address work: work address lwork: lwork info: info address].
@@ -220,7 +225,7 @@ qr
 	"f, n x m, is Q column-major: Q^T as Smalltalk reads it."
 	q := f transposed]
 		ifCurtailed: [r ifNotNil: [r release]]]
-		ensure: [f release. tau release. info release. work ifNotNil: [work release]].
+		ensure: [f release. tau release. info release. Cuda releaseWorkspace: work].
 	^CudaDecomposition kind: #qr parts: {#q -> q. #r -> r}
 !
 svd
@@ -246,10 +251,10 @@ svdVectors: aBoolean
 		u := self class rows: n cols: m type: type.
 		vt := self class rows: n cols: n type: type].
 	info := CudaArray new: 1 type: #int32.
-	[[lwork := self isDouble
+	[[lwork := Cuda bufferSize: {#gesvd. m. n. type} ifAbsent: [self isDouble
 		ifTrue: [CusolverAPI cusolverDnDgesvdBufferSize: Cuda solver m: m n: n]
-		ifFalse: [CusolverAPI cusolverDnSgesvdBufferSize: Cuda solver m: m n: n].
-	work := CudaArray new: (lwork max: 1) type: type.
+		ifFalse: [CusolverAPI cusolverDnSgesvdBufferSize: Cuda solver m: m n: n]].
+	work := Cuda workspace: (lwork max: 1) * self elementSize.
 	rwork := CudaArray new: (n - 1 max: 1) type: type.
 	self isDouble
 		ifTrue: [CusolverAPI cusolverDnDgesvd: Cuda solver jobu: job jobvt: job m: m n: n a: a address lda: m s: s address
@@ -260,7 +265,7 @@ svdVectors: aBoolean
 			work: work address lwork: lwork rwork: rwork address info: info address].
 	CudaSolverError check: info in: (self isDouble ifTrue: ['cusolverDnDgesvd'] ifFalse: ['cusolverDnSgesvd'])]
 		ifCurtailed: [s release. u ifNotNil: [u release]. vt ifNotNil: [vt release]]]
-		ensure: [a release. info release. work ifNotNil: [work release]. rwork ifNotNil: [rwork release]].
+		ensure: [a release. info release. Cuda releaseWorkspace: work. rwork ifNotNil: [rwork release]].
 	aBoolean ifFalse: [^CudaDecomposition kind: #svd parts: {#s -> s}].
 	"Column-major a = Uc S Vtc; u holds Uc (read: Uc^T, n x m), vt holds Vtc (read: Vtc^T).
 	Wide: a is my transpose, so I am Vtc^T S Uc^T: U is vt as read, Vt is u as read. Tall: a is me, U = Uc, Vt = Vtc."
@@ -277,17 +282,17 @@ symmetricEigen
 	info := CudaArray new: 1 type: #int32.
 	jobz := CusolverAPI constant: 'CUSOLVER_EIG_MODE_VECTOR'.
 	uplo := CusolverAPI constant: 'CUBLAS_FILL_MODE_LOWER'.
-	[lwork := self isDouble
+	[lwork := Cuda bufferSize: {#syevd. n. type} ifAbsent: [self isDouble
 		ifTrue: [CusolverAPI cusolverDnDsyevdBufferSize: Cuda solver jobz: jobz uplo: uplo n: n a: a address lda: n w: w address]
-		ifFalse: [CusolverAPI cusolverDnSsyevdBufferSize: Cuda solver jobz: jobz uplo: uplo n: n a: a address lda: n w: w address].
-	work := CudaArray new: (lwork max: 1) type: type.
+		ifFalse: [CusolverAPI cusolverDnSsyevdBufferSize: Cuda solver jobz: jobz uplo: uplo n: n a: a address lda: n w: w address]].
+	work := Cuda workspace: (lwork max: 1) * self elementSize.
 	self isDouble
 		ifTrue: [CusolverAPI cusolverDnDsyevd: Cuda solver jobz: jobz uplo: uplo n: n a: a address lda: n w: w address work: work address lwork: lwork info: info address]
 		ifFalse: [CusolverAPI cusolverDnSsyevd: Cuda solver jobz: jobz uplo: uplo n: n a: a address lda: n w: w address work: work address lwork: lwork info: info address].
 	CudaSolverError check: info in: (self isDouble ifTrue: ['cusolverDnDsyevd'] ifFalse: ['cusolverDnSsyevd']).
 	"a holds the eigenvectors as columns, column-major: as rows, read; transposed for columns."
 	vectors := a transposed]
-		ensure: [a release. info release. work ifNotNil: [work release]].
+		ensure: [a release. info release. Cuda releaseWorkspace: work].
 	^CudaDecomposition kind: #eigen parts: {#values -> w. #vectors -> vectors}
 ! !
 
