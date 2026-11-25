@@ -66,6 +66,7 @@ file_of() {
     Micro*) echo Micro ;;
     Adv*) echo Adverse ;;
     Recompile|TextRendering) echo Workloads ;;
+    Fb*) echo Fallbacks ;;
     *) case " $REALWORLD " in *" $1 "*) echo RealWorld ;; *) echo "$1" ;; esac ;;
     esac
 }

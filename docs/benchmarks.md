@@ -273,6 +273,11 @@ Steady state (median of the last half of 30 iterations) and first iteration, ms,
 
 Pidigits is LargeInteger arithmetic in C. Its iterations take 490 to 535 ms under either tier, the level changing between invocations and within one (`baseline`'s second: 495, then 525). Megamorphic: `opt` 104.6 ms, `baseline` 99.9; every send is megamorphic, so `opt` inlines nothing.
 
+## Primitives and their fallbacks
+
+`vm/tests/bench/awfy/Fallbacks.st` (awfy.sh, Samaltak only): the VM's scalar performance primitives against their Smalltalk fallbacks on a real 1440×900 screenshot (`prototypes/screenshots/proto-4-morphic.png`, 5.18 MB of RGBA), `Fb<Name>` the fallback and `Fb<Name>Prim` the primitive, which is gone once retired: `FbAdler` (Adler-32 of the 5.18 MB, 10 times), `FbCompress` (ZLib compress of the filtered screenshot), `FbPixelDiff` (an `RfbDiffSource` comparing 20 whole frames, every other one with a line of text, the pointer and a window's content changed), `FbMismatch` (`indexOfMismatchAt:with:at:size:` of the 5.18 MB, 5 times), `FbPack` (`PixelPack`, 10 frames), `FbZrle` (ZRLE tiles of a frame) and `FbPngFilter` (PNG rows of a frame). With `samaltak.bench` against another tree, an `init` (e.g. `nil`) makes both run this tree's sources.
+
+
 ## Bound FFI call sites
 
 The [headless site benchmark](../vm/tests/bench/bound-ffi-site.py) compares
