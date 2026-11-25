@@ -112,6 +112,17 @@ feedback_site *site_at(oop m, int64_t pc)
     return (feedback_site *)NULL;
 }
 
+/* JitFeedback>>siteFlagsAt:pc: */
+uint32_t site_flags_at(oop m, int64_t pc)
+{
+    feedback_site *s;
+    s = site_at(m, pc);
+    if (s == NULL) {
+        return 0U;
+    }
+    return s->flags;
+}
+
 /* JitFeedback>>siteFor:pc: */
 static feedback_site *site_for(oop m, int64_t pc)
 {

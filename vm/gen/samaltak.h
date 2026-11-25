@@ -1944,6 +1944,7 @@ void note_flags(oop m, int64_t pc, int64_t f);
 void note_send(oop m, int64_t pc, oop cls);
 void jit_feedback_release(void);
 feedback_site *site_at(oop m, int64_t pc);
+uint32_t site_flags_at(oop m, int64_t pc);
 void jit_feedback_young_roots(void (*fn)(oop *));
 void prim_jit_code(void);
 void prim_jit_parameters(void);

@@ -2083,6 +2083,7 @@ static int32_t emit(int32_t pc, int32_t a)
     int32_t n_165;
     int32_t n_164;
     int32_t n_166;
+    uint32_t r_arith_flags;
     uint32_t fl;
     int32_t n_167;
     int32_t n_168;
@@ -2337,6 +2338,7 @@ static int32_t emit(int32_t pc, int32_t a)
     int32_t n_242;
     int32_t n_241;
     int32_t n_243;
+    uint32_t r_arith_flags_2;
     uint32_t fl_2;
     int32_t n_244;
     int32_t n_245;
@@ -4984,7 +4986,14 @@ exit_compare_2:;
             goto exit_special;
         }
         if ((k_4 <= 10) || ((k_4 == 12) || ((k_4 == 13) || ((k_4 == 14) || (k_4 == 15))))) {
-            fl = flags_at((opt_acts + a)->method, pc);
+            fl = ({
+    if (k_4 <= 9) {
+        r_arith_flags = flags_at((opt_acts + a)->method, pc);
+        goto exit_arith_flags;
+    }
+    r_arith_flags = site_flags_at((opt_acts + a)->method, pc);
+exit_arith_flags:;
+    r_arith_flags; });
             if ((k_4 <= 9) && (((jit_flags & JIT_FLAG_UNBOX) != 0) && (((fl & 132) == 0) && ({
     n_167 = opt_ir_resolve(x_2);
     ((int32_t)(opt_nodes + n_167)->tkind == T_FLOAT) || ({
@@ -6498,7 +6507,14 @@ exit_compare_4:;
             goto exit_special_2;
         }
         if ((k_5 <= 10) || ((k_5 == 12) || ((k_5 == 13) || ((k_5 == 14) || (k_5 == 15))))) {
-            fl_2 = flags_at((opt_acts + a)->method, pc);
+            fl_2 = ({
+    if (k_5 <= 9) {
+        r_arith_flags_2 = flags_at((opt_acts + a)->method, pc);
+        goto exit_arith_flags_2;
+    }
+    r_arith_flags_2 = site_flags_at((opt_acts + a)->method, pc);
+exit_arith_flags_2:;
+    r_arith_flags_2; });
             if ((k_5 <= 9) && (((jit_flags & JIT_FLAG_UNBOX) != 0) && (((fl_2 & 132) == 0) && ({
     n_244 = opt_ir_resolve(x_3);
     ((int32_t)(opt_nodes + n_244)->tkind == T_FLOAT) || ({
@@ -9213,10 +9229,12 @@ static bool inline_primitive(int64_t p, oop cls, int32_t argc, int32_t pc, int32
     int32_t n_43;
     int32_t i_4;
     int32_t var_12;
+    int64_t k;
+    uint32_t r_arith_flags;
     uint32_t fl;
     int32_t i_5;
     int32_t var_13;
-    int64_t k;
+    int64_t k_2;
     int32_t i_6;
     int32_t var_14;
     int32_t y_2;
@@ -10202,7 +10220,15 @@ exit_unbox_float:;
         if (!(cls == cls_smallint)) {
             return false;
         }
-        fl = flags_at((opt_acts + a)->method, pc);
+        k = kind - OPK_INT;
+        fl = ({
+    if (k <= 9) {
+        r_arith_flags = flags_at((opt_acts + a)->method, pc);
+        goto exit_arith_flags;
+    }
+    r_arith_flags = site_flags_at((opt_acts + a)->method, pc);
+exit_arith_flags:;
+    r_arith_flags; });
         if ((fl & 46) != 0) {
             if (!((kind - OPK_INT <= 9) && (((jit_flags & JIT_FLAG_UNBOX) != 0) && (((fl & FB_FLOAT) != 0) && ((fl & 132) == 0))))) {
                 return false;
@@ -10212,7 +10238,7 @@ exit_unbox_float:;
             opt_builder_float_arith((int32_t)(kind - OPK_INT), rcv, opt_builder_read(var_13, ob_cur_block), pc, a, r);
             return true;
         }
-        k = kind - OPK_INT;
+        k_2 = kind - OPK_INT;
         i_6 = r + 1;
         var_14 = (opt_acts + a)->var_base + i_6;
         y_2 = opt_builder_read(var_14, ob_cur_block);
@@ -10252,7 +10278,7 @@ exit_guard_int_2:;
     r_guard_int_3 = n_47;
 exit_guard_int_3:;
     r_guard_int_3; });
-        if ((k >= 2) && (k <= 7)) {
+        if ((k_2 >= 2) && (k_2 <= 7)) {
             n_44 = ({
     n_49 = ({
     n_50 = new_node(O_ICMP, R_OOP);
@@ -10263,7 +10289,7 @@ exit_guard_int_3:;
     (opt_nodes + n_49)->b = gy;
     r_binary_2 = n_49;
     r_binary_2; });
-            (opt_nodes + n_44)->aux = k;
+            (opt_nodes + n_44)->aux = k_2;
             (opt_nodes + n_44)->tkind = T_BOOL;
             var_15 = (opt_acts + a)->var_base + r;
             if ((var_15 < OPT_MAX_VARS) && (ob_arg_flags[var_15] == 2)) {
@@ -10281,7 +10307,7 @@ exit_guard_int_3:;
         exit_write_8:;
             goto exit_int_arith;
         }
-        switch (k) {
+        switch (k_2) {
         case 0:
             v_6 = O_IADD;
             break;
@@ -10330,13 +10356,13 @@ exit_guard_int_3:;
     r_binary_3 = n_54;
     r_binary_3; });
         (opt_nodes + n_44)->tkind = T_SMI;
-        if (k >= 16) {
+        if (k_2 >= 16) {
             (opt_nodes + n_44)->aux = 1;
         }
-        if (k == 9) {
+        if (k_2 == 9) {
             (opt_nodes + n_44)->aux = 2;
         }
-        if ((k <= 1) || (((k >= 8) && (k <= 10)) || ((k == 12) || ((k == 13) || (k >= 16))))) {
+        if ((k_2 <= 1) || (((k_2 >= 8) && (k_2 <= 10)) || ((k_2 == 12) || ((k_2 == 13) || (k_2 >= 16))))) {
             (opt_nodes + n_44)->state = s_2;
         }
         var_16 = (opt_acts + a)->var_base + r;
