@@ -1955,6 +1955,10 @@ void materialize(frame *f)
     int32_t j_3;
     h = (jit_method *)f->code;
     k = f->pc - (int32_t)h->bc_size;
+    if (k < 0) {
+        flush_frame(f);
+        return;
+    }
     top = f == frames + (nframes - 1);
     mode = 0;
     if (top && ((f->sp == (int32_t)(h->slots + 1)) && ((h->meta + h->sp_table[k])[0] == SP_CALL))) {
@@ -2395,9 +2399,16 @@ uint64_t opt_runtime_resume(frame *f)
 {
     jit_method *h;
     int32_t k;
+    oop m;
+    uint64_t o;
     int64_t off;
     h = (jit_method *)f->code;
     k = f->pc - (int32_t)h->bc_size;
+    if (k < 0) {
+        m = f->method;
+        o = *(uint64_t *)(m + 16 + 24);
+        f->pc = (int32_t)(f->ip - (uint8_t *)(o + 16));
+    }
     off = (h != NULL) && ((h->flags & JM_FAILED) == 0) && ((h->flags & 2) == 0) ? map_offset_of(h, f->pc) : -1;
     if ((off < 0) && (k < 0)) {
         f->code = h->lower;
