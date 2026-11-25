@@ -257,3 +257,38 @@ windowWire: bytes at: offset count: n
 	0 to: n - 1 do: [:i | v := v bitOr: ((bytes at: offset + i) asUInt64 << (i * 8))].
 	^v
 ! !
+
+!SDLPlatform methodsFor: '*VM-Platform-window-desktop'!
+ffiWindow: win opacity: permille
+	"Show the window at permille / 1000 opacity: a desktop window through the compositor's alpha modifier, another through SDL."
+	<function>
+	<approvedFFI: 423 symbol: 'platform_windows_set_opacity' arguments: #(3 3) result: 1>
+	<var: #win type: 'int64_t'>
+	<var: #permille type: 'int64_t'>
+	<returns: 'int32_t'>
+	(permille < 0 or: [permille > 1000]) ifTrue: [^0].
+	^(windows setOpacity: win asInt32 permille: permille asInt32) ifTrue: [1] ifFalse: [0]
+!
+ffiWindow: win fillRects: bytes size: n
+	"A transparent window (which SDL_GPU does not draw): its own pixels cleared, filled with rectangles and shown. 20 bytes a rectangle, little-endian: x, y, width, height (pixels, int32) and rgba (16rRRGGBBAA, premultiplied, uint32)."
+	<function>
+	<approvedFFI: 424 symbol: 'platform_windows_fill_rects' arguments: #(3 8) result: 1>
+	<var: #win type: 'int64_t'>
+	<var: #bytes type: 'const uint8_t *'>
+	<var: #n type: 'uint64_t'>
+	<returns: 'int32_t'>
+	| w count o |
+	(n rem: 20) = 0 ifFalse: [^0].
+	w := win asInt32.
+	(windows clearSurface: w) ifFalse: [^0].
+	count := (n quo: 20) asInt64.
+	0 to: count - 1 do: [:i |
+		o := (i * 20) asInt32.
+		windows fillSurface: w
+			x: (self windowWire: bytes at: o count: 4) asInt32
+			y: (self windowWire: bytes at: o + 4 count: 4) asInt32
+			width: (self windowWire: bytes at: o + 8 count: 4) asInt32
+			height: (self windowWire: bytes at: o + 12 count: 4) asInt32
+			rgba: (self windowWire: bytes at: o + 16 count: 4) asUInt32].
+	^(windows presentSurface: w) ifTrue: [1] ifFalse: [0]
+! !

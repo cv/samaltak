@@ -17,7 +17,7 @@ An application may open more host windows (the Agent on it, AgentWindow): each i
 
 	AppWorld openExtent: 720 @ 640 title: ''Agent — Weather'' hidden: false main: false resizable: true
 
-A desktop host window (desktop: true) sits on the desktop instead: above the wallpaper, below every window, without decorations or the keyboard focus (on Wayland a layer surface; where the system has no such thing, an ordinary window). Its application places it (moveTo:, from the top left of the area the bar leaves free) and learns its new size (whenResized:); OmarchyDesk lays out the desktop cards so.
+A desktop host window (desktop: true) sits on the desktop instead: above the wallpaper, below every window, without decorations or the keyboard focus (on Wayland a layer surface; where the system has no such thing, an ordinary window). Its application places it (moveTo:, from the top left of the area the bar leaves free), learns its new size (whenResized:), raises it above the other desktop windows (raise) and fades it (opacity:); OmarchyDesk lays out and drags the desktop cards so. Pointer events know where on the screen they happened while the host window moves under the pointer (PointerEvent>>screenPosition).
 
 	AppWorld openExtent: 490 @ 200 title: ''Weather'' hidden: false main: false resizable: false desktop: true'!
 
@@ -80,6 +80,21 @@ quitRequested
 !
 nextWindowPosition: anExtent
 	^0 @ 0
+!
+newWindow
+	"A window the host's window manager decorates: no title bar of mine."
+	^AppWindow new
+!
+worldForNewWindow: aWindow
+	"Mine shows one window: another (a tool the application opens: an Inspector, a Browser, the Agent) gets a host window of its own, of its size, resizable, closing only it."
+	| extent world |
+	windows isEmpty ifTrue: [^self].
+	extent := (aWindow bounds isNil or: [aWindow bounds extent x < 100 or: [aWindow bounds extent y < 60]])
+		ifTrue: [600 @ 400]
+		ifFalse: [aWindow bounds extent].
+	world := AppWorld openExtent: extent title: (aWindow title ifNil: ['Samaltak']) hidden: hidden main: false resizable: true.
+	world deskColor: self deskColor.
+	^world
 ! !
 
 !AppWorld methodsFor: 'desk'!
@@ -92,7 +107,7 @@ leave
 	"Before a quit: no fade to black; the window manager takes my host window away as it does any other application's."
 !
 raise
-	"Bring my host window to the front, with the focus (as far as the window manager lets an application); not when hidden."
+	"Bring my host window to the front, with the focus (as far as the window manager lets an application); a desktop one above the other desktop windows. Not when hidden."
 	hidden ifFalse: [displayWindow hostWindow show]
 !
 moveTo: aPoint
@@ -102,6 +117,10 @@ moveTo: aPoint
 whenResized: aBlock
 	"Run aBlock (with me) when the host reported a new size for my host window."
 	resizedBlock := aBlock
+!
+opacity: aNumber
+	"Show my host window at aNumber (0 to 1) opacity, where the system can (a desktop one on Wayland: the compositor's alpha modifier). Answer whether it did."
+	^displayWindow hostWindow opacity: aNumber
 !
 resizeTo: aPoint
 	"Ask the host window to become aPoint points (it stays fixed-size); my window follows when the host reports the new size. Answer whether the host took it."
@@ -162,6 +181,12 @@ drawDeskOn: aCanvas
 !AppWorld methodsFor: 'remote control'!
 remoteRole
 	^#app
+! !
+
+!AppWorld class methodsFor: 'desktop windows'!
+desktopWindowExtent: aPoint title: aString
+	"A bare desktop host window (flag 8: above the wallpaper, below every window) of aPoint points, opened after the others, so above them; a DisplayWindow for code above UI-Windows, which does not name it (show:clear:, hostWindow moveTo:, hostWindow opacity:, close)."
+	^DisplayWindow width: aPoint x ceiling height: aPoint y ceiling title: aString flags: 8
 ! !
 
 !AppWorld class methodsFor: 'instance creation'!

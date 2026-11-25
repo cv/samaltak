@@ -210,6 +210,12 @@ window: window width: w height: h
 window: window x: x y: y
 	^self display window: window x: x y: y
 !
+window: window opacity: permille
+	^self display window: window opacity: permille
+!
+window: window fillRects: anArray
+	^self display window: window fillRects: anArray
+!
 window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
 	^self display window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
 !

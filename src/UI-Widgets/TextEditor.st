@@ -1059,7 +1059,7 @@ keyDown: anEvent
 	^false
 !
 commandKey: aCharacter shift: shift
-	aCharacter = $j ifTrue: [(Smalltalk at: #ActionContext ifAbsent: [nil]) ifNotNil: [:actions | (actions forEditor: self) agent]. ^true].
+	aCharacter = $j ifTrue: [Desktop actions ifNotNil: [:actions | (actions forEditor: self) agent]. ^true].
  aCharacter = $a ifTrue: [self selectAll. ^true].
 	aCharacter = $c ifTrue: [self copySelection. ^true].
 	aCharacter = $x ifTrue: [self cut. ^true].
@@ -1204,10 +1204,10 @@ text: aString
 
 !TextEditor methodsFor: 'actions'!
 inspectIt
- (Smalltalk at: #ActionContext ifAbsent: [nil]) ifNotNil: [:actions | (actions forEditor: self) inspect].
+ Desktop actions ifNotNil: [:actions | (actions forEditor: self) inspect].
  ^true
 !
 browseIt
- (Smalltalk at: #ActionContext ifAbsent: [nil]) ifNotNil: [:actions | (actions forEditor: self) browse].
+ Desktop actions ifNotNil: [:actions | (actions forEditor: self) browse].
  ^true
 ! !

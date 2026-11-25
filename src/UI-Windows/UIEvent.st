@@ -3,7 +3,7 @@ Object subclass: #UIEvent
 	classVariableNames: 'EventClasses KeyNames'
 	package: 'UI-Windows'!
 
-UIEvent comment: 'I am the abstract event: PointerEvent, KeyEvent, TextEvent and TextEditingEvent are input a Window delivers to its Views; the host window events (HostResizeEvent, QuitEvent, ProcessQuitEvent, FocusLostEvent, ScaleChangedEvent, PointerLeftEvent, ExposeEvent) only concern the InputDispatcher. type is a Symbol, timeStamp the platform''s millisecond clock, modifiers a Modifiers. fromPlatform: decodes the platform''s 8-slot event Arrays (vm/platform/README.md), real or injected, into events once; the InputDispatcher then sends dispatchTo: itself to each, and a Window''s Process sends deliverTo: itself to the input events in its queue. The class side names the platform''s event types (evMouseMove ...).'!
+UIEvent comment: 'I am the abstract event: PointerEvent, KeyEvent, TextEvent and TextEditingEvent are input a Window delivers to its Views; the host window events (HostResizeEvent, HostMovedEvent, QuitEvent, ProcessQuitEvent, FocusLostEvent, ScaleChangedEvent, PointerLeftEvent, ExposeEvent) only concern the InputDispatcher. type is a Symbol, timeStamp the platform''s millisecond clock, modifiers a Modifiers. fromPlatform: decodes the platform''s 8-slot event Arrays (vm/platform/README.md), real or injected, into events once; the InputDispatcher then sends dispatchTo: itself to each, and a Window''s Process sends deliverTo: itself to the input events in its queue. The class side names the platform''s event types (evMouseMove ...).'!
 
 !UIEvent methodsFor: 'accessing'!
 type
@@ -100,6 +100,9 @@ evWindowExposed
 evTextEditing
 	^16
 !
+evWindowMoved
+	^17
+!
 eventClasses
 	"Platform event type -> the class that decodes it (fromPlatform:); types not in here are ignored."
 	EventClasses isNil ifFalse: [^EventClasses].
@@ -116,7 +119,8 @@ eventClasses
 		at: self evFocusLost put: FocusLostEvent;
 		at: self evDisplayScaleChanged put: ScaleChangedEvent;
 		at: self evMouseLeave put: PointerLeftEvent;
-		at: self evWindowExposed put: ExposeEvent.
+		at: self evWindowExposed put: ExposeEvent;
+		at: self evWindowMoved put: HostMovedEvent.
 	^EventClasses
 ! !
 

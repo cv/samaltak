@@ -10,7 +10,7 @@ Application comment: 'I am an application that runs as a window of the host''s w
 
 Subclasses answer content (a View, built once), and may override title, extent (default: the content''s preferredExtent; fitToContent resizes the host window to it when it changed), backgroundColor, prepare (before the window opens: themes, fonts) and started (after it opened: timers, fetching). Code that touches my widgets runs in my window''s Process (window do: [...]). Unhandled errors in my window''s Process are reported (stderr, a toast) and its event loop restarts. The sampling profiler is paused unless the command line has --profile.
 
-A right-click my content does not take opens my menu (contextMenu): the items subclasses add (addMenuItemsTo:), then those other packages add to every application (Application addMenuItem:with:; UI-Agent''s Agent opens the agent on me, agentContext). isResizable makes my host window resizable (a tiling window manager then tiles it).'!
+⌘J, ⌘I, ⌘B and ⌘C that my content does not take act on me (commandKey:). A right-click my content does not take opens my menu (contextMenu): the items subclasses add (addMenuItemsTo:), then those other packages add to every application (Application addMenuItem:with:; UI-Agent''s Agent opens the agent on me, agentContext). isResizable makes my host window resizable (a tiling window manager then tiles it).'!
 
 !Application methodsFor: 'accessing'!
 world
@@ -53,6 +53,27 @@ contextMenu
 !
 addMenuItemsTo: aMenu
 	"Add my own items to my right-click menu."
+! !
+
+!Application methodsFor: 'keys'!
+commandKey: aKeyEvent
+	"A key no view of my window took: ⌘J opens the Agent on me (as my menu's Agent does), ⌘I inspects me, ⌘B browses my class, ⌘C copies me (for the Agent's ask box), as a tool's do on the desktop (ActionContext; the tools are filed in the first time, Desktop actions). Answer whether I took it."
+	| key actions |
+	(aKeyEvent isDown and: [aKeyEvent modifiers commandKey]) ifFalse: [^false].
+	key := aKeyEvent key.
+	key isCharacter ifFalse: [^false].
+	key := key asLowercase.
+	key = $j ifTrue: [
+		(Smalltalk at: #AgentWindow ifAbsent: [nil]) ifNotNil: [:agent | agent openNativeFor: self. ^true].
+		^false].
+	(#($i $b $c) includes: key) ifFalse: [^false].
+	actions := Desktop actions.
+	actions isNil ifTrue: [^false].
+	key = $i ifTrue: [(actions for: self) inspect. ^true].
+	key = $b ifTrue: [(actions for: self) browse. ^true].
+	window clipboard: self printString.
+	actions copied: (actions for: self).
+	^true
 ! !
 
 !Application methodsFor: 'hooks'!
@@ -99,6 +120,7 @@ openHidden: aBoolean main: mainBoolean desktop: desktopBoolean
 	world deskColor: self backgroundColor.
 	window := AppWindow new title: self title; content: view; yourself.
 	window menuBlock: [self contextMenu].
+	window keyBlock: [:event | self commandKey: event].
 	window whenClosed: [:w | self stopped].
 	window openIn: world.
 	self started

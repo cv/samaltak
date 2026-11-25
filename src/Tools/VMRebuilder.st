@@ -67,7 +67,7 @@ build: aDirectory
 	t := Time millisecondClockValue.
 	self line: 'translate VM-Core and VM-Platform to C in ', aDirectory, '/gen'.
 	OSProcess run: 'mkdir -p ', (OSProcess quote: aDirectory).
-	VMTranslator generateVMInto: aDirectory, '/gen' for: Smalltalk vm jitArchitecture.
+	(Smalltalk at: #VMTranslator) generateVMInto: aDirectory, '/gen' for: Smalltalk vm jitArchitecture.
 	self line: '  ', (self secondsSince: t), ' s'.
 	phase := 'compiling'.
 	t := Time millisecondClockValue.

@@ -163,7 +163,9 @@ dropClosing: aWindow
 	"Called by the compositor when the close animation ended."
 	lock critical: [closingWindows := closingWindows copyWithout: aWindow].
 	closingFrontWindows isNil ifFalse: [closingFrontWindows removeKey: aWindow ifAbsent: []].
-	aWindow layer release
+	aWindow layer release.
+	"An on-demand compositor must present the frame without the closed layer."
+	self changed
 !
 raise: aWindow
 	"windows read once: another process may replace it meanwhile (a window closing; under lock)"
@@ -196,6 +198,14 @@ animateFocusOf: aWindow to: aNumber
 !
 openWindow: aWindow
 	^aWindow openIn: self
+!
+newWindow
+	"A new Window for code above the window system (Desktop newWindow): one with a title bar, which I place."
+	^Window new
+!
+worldForNewWindow: aWindow
+	"The World aWindow opens in when opened (Window>>open): me."
+	^self
 !
 nextWindowPosition: anExtent
 	"A cascading position for a new window of anExtent."

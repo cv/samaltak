@@ -63,7 +63,7 @@ Demos 3
 UI-Widgets 4
 Tests-UI-Widgets 4 uses Graphics-Canvas
 UI-Omarchy 4
-Tests-UI-Omarchy 4
+Tests-UI-Omarchy 4 uses Graphics-Canvas
 UI-Agent 4
 WorldClock 4
 Tools 5

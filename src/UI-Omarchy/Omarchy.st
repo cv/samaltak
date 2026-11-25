@@ -9,6 +9,7 @@ Omarchy comment: 'I am what applications ask of the Omarchy desktop (omarchy.org
 	Omarchy cardSettings: ''wodify''           "the card''s settings in ~/.config/omarchy/desktop-cards.json"
 	Omarchy screenExtent                       "the focused monitor in points (hyprctl), nil if unknown"
 	Omarchy freeArea                           "the part of it the bar leaves free"
+	Omarchy animates                           "whether Hyprland animates (else the shell''s animations take 0 ms)"
 	Omarchy togglePanel: ''omarchy.agents''     "open or close a panel of the bar (omarchy-shell)"
 	Omarchy launch: #(''xdg-open'' ''https://omarchy.org'')'!
 
@@ -78,6 +79,15 @@ extentOfMonitor: aDictionary
 	"transforms 1, 3, 5 and 7 turn the monitor a quarter"
 	(transform isInteger and: [transform odd]) ifTrue: [| t | t := w. w := h. h := t].
 	^(w / scale) rounded @ (h / scale) rounded
+! !
+
+!Omarchy class methodsFor: 'motion'!
+animates
+	"Whether Hyprland animates (animations:enabled; omarchy toggle animations turns it off on machines that render on the CPU): the shell then runs every animation for 0 ms (Style.duration). True without Hyprland."
+	| option |
+	option := [JSON parse: (OSProcess outputOf: 'hyprctl -j getoption animations:enabled')] on: Error do: [:e | e return: nil].
+	(option isKindOf: Dictionary) ifFalse: [^true].
+	^(option at: 'bool' ifAbsent: [(option at: 'int' ifAbsent: [1]) ~= 0]) ~~ false
 ! !
 
 !Omarchy class methodsFor: 'shell'!

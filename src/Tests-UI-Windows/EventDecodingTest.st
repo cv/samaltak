@@ -63,7 +63,7 @@ testEachPlatformEventReachesItsHandler
 	 UIEvent evTextInput -> #handleText:. UIEvent evWindowResized -> #hostResized:.
 	 UIEvent evWindowCloseRequest -> #quitRequested. UIEvent evQuit -> #processQuitRequested. UIEvent evFocusLost -> #focusLost.
 	 UIEvent evDisplayScaleChanged -> #displayScaleChanged:. UIEvent evMouseLeave -> #pointerLeft.
-	 UIEvent evWindowExposed -> #exposed} do: [:each |
+	 UIEvent evWindowExposed -> #exposed. UIEvent evWindowMoved -> #hostMoved:} do: [:each |
 		dispatched := nil.
 		(UIEvent fromPlatform: {each key. 0. 800. 600. 1. 0. nil. 1}) dispatchTo: self.
 		self assert: dispatched first equals: each value].
@@ -71,6 +71,8 @@ testEachPlatformEventReachesItsHandler
 	self assert: dispatched last equals: 800 @ 600.
 	(UIEvent fromPlatform: {UIEvent evDisplayScaleChanged. 0. 2.0. 0. 0. 0. nil. 1}) dispatchTo: self.
 	self assert: dispatched last equals: 2.0.
+	(UIEvent fromPlatform: {UIEvent evWindowMoved. 0. 10.0. 42.0. 0. 0. nil. 1}) dispatchTo: self.
+	self assert: dispatched last equals: 10.0 @ 42.0.
 	(UIEvent fromPlatform: {UIEvent evKeyDown. 0. 0. 0. 97. 0. false. 1}) dispatchTo: self.
 	self assert: dispatched last key equals: $a
 !
@@ -93,6 +95,9 @@ handleText: anEvent
 !
 hostResized: aPoint
 	dispatched := {#hostResized:. aPoint}
+!
+hostMoved: aPoint
+	dispatched := {#hostMoved:. aPoint}
 !
 quitRequested
 	dispatched := {#quitRequested}

@@ -345,6 +345,22 @@ SDL_WINDOW_RESIZABLE
 SDL_WINDOW_HIGH_PIXEL_DENSITY
 	<cMacro: 'SDL_WindowFlags SDL_WINDOW_HIGH_PIXEL_DENSITY'>
 	^self notSimulated
+!
+SDL_WINDOW_TRANSPARENT
+	<cMacro: 'SDL_WindowFlags SDL_WINDOW_TRANSPARENT'>
+	^self notSimulated
+!
+setWindowOpacity: window opacity: opacity
+	<c: 'bool SDL_SetWindowOpacity(SDL_Window *window, float opacity)'>
+	^self notSimulated
+!
+fillSurfaceRect: surface rect: rect color: color
+	<c: 'bool SDL_FillSurfaceRect(SDL_Surface *dst, const SDL_Rect *rect, Uint32 color)'>
+	^self notSimulated
+!
+mapSurfaceRGBA: surface r: r g: g b: b a: a
+	<c: 'Uint32 SDL_MapSurfaceRGBA(SDL_Surface *surface, Uint8 r, Uint8 g, Uint8 b, Uint8 a)'>
+	^self notSimulated
 ! !
 
 !SDL methodsFor: 'cursors'!
@@ -589,6 +605,19 @@ fields
 	^#((type Uint32) (reserved Uint32) (timestamp Uint64) (windowID SDL_WindowID) (data1 Sint32) (data2 Sint32))
 ! !
 
+ExternStruct subclass: #SDLUserEvent
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-Platform'!
+
+!SDLUserEvent class methodsFor: 'declaring'!
+cName
+	^'SDL_UserEvent'
+!
+fields
+	^#((type Uint32) (reserved Uint32) (timestamp Uint64) (windowID SDL_WindowID) (code Sint32) (data1 'void *') (data2 'void *'))
+! !
+
 ExternStruct subclass: #SDLEvent
 	instanceVariableNames: ''
 	classVariableNames: ''
@@ -600,7 +629,7 @@ cName
 !
 fields
 	^#((union (type Uint32) (common SDL_CommonEvent) (motion SDL_MouseMotionEvent) (button SDL_MouseButtonEvent)
-		(wheel SDL_MouseWheelEvent) (key SDL_KeyboardEvent) (edit SDL_TextEditingEvent) (text SDL_TextInputEvent) (window SDL_WindowEvent) (padding 'Uint8[128]')))
+		(wheel SDL_MouseWheelEvent) (key SDL_KeyboardEvent) (edit SDL_TextEditingEvent) (text SDL_TextInputEvent) (window SDL_WindowEvent) (user SDL_UserEvent) (padding 'Uint8[128]')))
 ! !
 
 ExternStruct subclass: #SDLDisplayMode

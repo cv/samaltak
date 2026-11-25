@@ -182,21 +182,19 @@ choose: index
 	self close: item
 !
 close: anItem
-	"Close and run anItem's action: in the invoking window's Process when I am hosted in an overlay (closing the overlay ends its Process), else right after closing."
+	"Dismiss the menu before running the action. Closing an overlay ends its Process, so do both from outside it."
 	| w invoker |
 	parentView isNil ifFalse: [
-		"My parent does this without me (onClose makes it forget me): closing my overlay ends my Process, so I close last."
 		onClose value.
 		parentView close: anItem.
 		^self close].
 	w := self window.
-	invoker := (w notNil and: [w respondsTo: #invoker]) ifTrue: [w invoker] ifFalse: [nil].
-	invoker notNil ifTrue: [
-		invoker do: [anItem run].
-		^self close].
 	(w notNil and: [w respondsTo: #invoker]) ifTrue: [
-		[anItem run] fork.
-		^self close].
+		invoker := w invoker.
+		invoker isNil
+			ifTrue: [[self close. anItem run] fork]
+			ifFalse: [invoker do: [self close. anItem run]].
+		^self].
 	self close.
 	anItem run
 !

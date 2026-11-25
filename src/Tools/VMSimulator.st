@@ -98,15 +98,15 @@ runSimulation: argv
 			ifTrue: ['vm/tests/mini']
 			ifFalse: [image = self class st80ImagePath ifTrue: ['st80'] ifFalse: [nil]].
 		source isNil ifFalse: [
-			ms := Time millisecondsToRun: [ImageBuilder buildFrom: source to: image].
+			ms := Time millisecondsToRun: [(Smalltalk at: #ImageBuilder) buildFrom: source to: image].
 			lock critical: [pending nextPutAll: '[' , source , ' built in ' , ms printString , ' ms]' , (String with: Character lf)]].
-		sim := VMGuestSimulation
-			modules: (VMModule vmModules select: [:c | c packageName ~= 'VM-Platform'])
+		sim := (Smalltalk at: #VMGuestSimulation)
+			modules: ((Smalltalk at: #VMModule) vmModules select: [:c | c packageName ~= 'VM-Platform'])
 			display: screen.
 		sim onOutput: [:text | lock critical: [pending nextPutAll: text]].
 		started := sim microsecondClock.
 		simulation := sim.
-		sim runMain: VMMain arguments: (Array with: 'samaltak') , argv asArray]
+		sim runMain: (Smalltalk at: #VMMain) arguments: (Array with: 'samaltak') , argv asArray]
 			on: Error
 			do: [:e | e return: e messageText].
 	simulation isNil ifTrue: [^lock critical: [pending nextPutAll: '[' , code asString , ']']].

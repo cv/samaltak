@@ -306,19 +306,20 @@ cursorAt: aPoint
 	^#arrow
 !
 contextualKeyDown: event
- | context key |
+ | context key actions |
  event modifiers commandKey ifFalse: [^false].
  (self respondsTo: #agentContext) ifFalse: [^false].
- "The actions are the tools' (ActionContext): an application's runtime image has none."
- (Smalltalk includesKey: #ActionContext) ifFalse: [^false].
  key := event key.
  key isCharacter ifFalse: [^false].
  key := key asLowercase.
  (#($c $x $i $b $j) includes: key) ifFalse: [^false].
- context := (Smalltalk at: #ActionContext) for: self.
+ "The actions are the tools' (ActionContext): an application's runtime image files them in the first time (Desktop actions)."
+ actions := Desktop actions.
+ actions isNil ifTrue: [^false].
+ context := actions for: self.
  ((key = $c) or: [key = $x]) ifTrue: [
  self clipboardText: context value printString.
- (Smalltalk at: #ActionContext) copied: context.
+ actions copied: context.
  ^true].
  key = $j ifTrue: [context agent. ^true].
  key = $i ifTrue: [context inspect. ^true].

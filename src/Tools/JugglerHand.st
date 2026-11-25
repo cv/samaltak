@@ -61,7 +61,6 @@ accelerate: anAcceleration tilt: anAngle
 	turn := self class smoothPathFrom: tilt velocity: spin acceleration: turn to: anAngle velocity: 0 acceleration: 0 in: 8.
 	spin := spin + turn.
 	tilt := tilt + spin
-!
 ! !
 
 !JugglerHand methodsFor: 'the cup'!
