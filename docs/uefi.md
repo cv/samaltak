@@ -6,11 +6,12 @@ The VM runs as a UEFI application on x86-64 and arm64, with its UI on the firmwa
 
     make uefi                                       # $(OUT)/uefi-$(UEFI_ARCH)/esp: a boot volume; .../image.disk: the image
     make uefi-run UEFI_ARGS="--headless --eval '3 + 4'"   # boot it in QEMU with its UEFI firmware; fails unless the VM exits 0
+    make uefi-run UEFI_ARCH=x86_64 UEFI_VM_ARGS='--jit baseline --jit-threshold 0'   # the VM's options go before the image (disk:), UEFI_ARGS after it are the image's
     make uefi-ui                                    # the World in a QEMU window (macOS: UEFI_SCREEN points, in front; needs Accessibility)
     make uefi-ui UEFI_DISPLAY=1 UEFI_GPU=virtio-gpu-pci UEFI_SCREEN=1920x1080   # on the image's own VNC (RFB) server on 127.0.0.1:5901 instead, QEMU without a display (password: ~/.samaltak-vnc where present; docs/remote.md, Remote display)
     make uefi-ui UEFI_VNC=1 UEFI_GPU=virtio-gpu-pci UEFI_SCREEN=1920x1080   # on QEMU's VNC server on 127.0.0.1:5901, the fallback (password: ~/.samaltak-vnc)
     make uefi-control UEFI_CONTROL_PORT=7341        # no window; its control service on 127.0.0.1:7341 (samaltak-ctl open --uefi; token: docs/remote.md)
-    make test-uefi                                  # the tests that need no platform layer, the World, the network, a snapshot: its parts boot at once (UEFI_TEST_JOBS), each in $(OUT)/uefi-$(UEFI_ARCH)/run-<part> (UEFI_RUN), kept when one fails
+    make test-uefi                                  # the tests that need no platform layer, the World, the network, a snapshot: its parts boot at once (UEFI_TEST_JOBS), each in $(OUT)/uefi-$(UEFI_ARCH)/run-<part> (UEFI_RUN), kept when one fails; on arm64 also x86-jit: x86-64 under TCG, tests under --jit baseline and opt at threshold 0
     make uefi-control UEFI_AFFINITY=5-8             # QEMU on these host CPUs (the World's default: big; Pinning)
 
 `UEFI_ARCH` is `x86_64` or `arm64`, this machine's by default. Needs clang, ld.lld, `qemu-system-x86_64` or `qemu-system-aarch64` and the firmware for it, OVMF or AAVMF (`.agents/setup` installs x86-64's; Homebrew's `qemu` has both). For this machine's CPU QEMU runs the VM on it, with KVM where `/dev/kvm` is there, else on macOS with Hypervisor.framework (QEMU 11.0 fails at its start on macOS 26; 11.1 works); for another CPU it emulates (TCG), and the VM still boots in about 5 s.

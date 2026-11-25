@@ -302,6 +302,9 @@ UEFI_HOST_ARCH := $(if $(filter x86_64 amd64,$(shell uname -m)),x86_64,arm64)
 UEFI_ARCH ?= $(UEFI_HOST_ARCH)
 UEFI := $(OUT)/uefi-$(UEFI_ARCH)
 UEFI_ARGS ?= --headless --eval 'Smalltalk vmBanner'
+# UEFI_VM_ARGS: the VM's options, before the image (disk:), such as --jit baseline --jit-threshold 0; UEFI_ARGS after it
+# are the image's, where a --jit is no option of the VM's.
+UEFI_VM_ARGS ?=
 # The VM's --max-heap and QEMU's RAM, in MB: uefi-run, uefi-boot and test-uefi boot with 256 in 2048 (UEFI_HEAP_MB,
 # UEFI_RAM_MB if set); the World (uefi-ui, uefi-control) with UEFI_WORLD_HEAP_MB in UEFI_WORLD_RAM_MB, a quarter of
 # it: the heap takes twice its limit (docs/uefi.md, Memory), the rest is for the firmware, the VM and the memory the
@@ -400,19 +403,19 @@ uefi-run: uefi
 	$(MAKE) uefi-boot
 uefi-boot:
 	$(UEFI_RUN_DIR)
-	printf '%s\n' --max-heap $(UEFI_HEAP) disk: $(UEFI_ARGS) > $(UEFI_RUN)/esp/samaltak.args
+	printf '%s\n' --max-heap $(UEFI_HEAP) $(UEFI_VM_ARGS) disk: $(UEFI_ARGS) > $(UEFI_RUN)/esp/samaltak.args
 	cp $(OVMF_VARS) $(UEFI_RUN)/vars.fd
 	$(UEFI_SLOT) tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) -nographic | tee $(UEFI_RUN)/console.log
 	@grep -q 'samaltak: exit 0' $(UEFI_RUN)/console.log
 uefi-ui: uefi
 	$(UEFI_RUN_DIR)
-	rm -f $(UEFI_RUN)/esp/samaltak.args && umask 077 && printf '%s\n' --max-heap $(UEFI_HEAP) disk: --window-size $(UEFI_SCREEN) $(UEFI_DISPLAY_ARGS) > $(UEFI_RUN)/esp/samaltak.args
+	rm -f $(UEFI_RUN)/esp/samaltak.args && umask 077 && printf '%s\n' --max-heap $(UEFI_HEAP) $(UEFI_VM_ARGS) disk: --window-size $(UEFI_SCREEN) $(UEFI_DISPLAY_ARGS) > $(UEFI_RUN)/esp/samaltak.args
 	$(call DISPLAY_PASSWORD,$(if $(UEFI_DISPLAY),$(UEFI_DISPLAY_PASSWORD_FILE)),$(UEFI_RUN)/esp/samaltak.args)
 	cp $(OVMF_VARS) $(UEFI_RUN)/vars.fd
 	$(if $(UEFI_DISPLAY)$(UEFI_VNC),,$(UEFI_WINDOW)) tools/qemu-pin.sh '$(UEFI_PIN)' $(QEMU_UEFI) $(UEFI_QEMU_DISPLAY) $(UEFI_VGA) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 uefi-control: uefi
 	$(UEFI_RUN_DIR)
-	rm -f $(UEFI_RUN)/esp/samaltak.args && umask 077 && printf '%s\n' --max-heap $(UEFI_HEAP) disk: --control --control-host 0.0.0.0 --control-port 7341 \
+	rm -f $(UEFI_RUN)/esp/samaltak.args && umask 077 && printf '%s\n' --max-heap $(UEFI_HEAP) $(UEFI_VM_ARGS) disk: --control --control-host 0.0.0.0 --control-port 7341 \
 		$${UEFI_CONTROL_TOKEN:+--control-token "$$UEFI_CONTROL_TOKEN"} $(UEFI_DISPLAY_ARGS) $(UEFI_CONTROL_ARGS) > $(UEFI_RUN)/esp/samaltak.args
 	$(call DISPLAY_PASSWORD,$(if $(UEFI_DISPLAY),$(UEFI_DISPLAY_PASSWORD_FILE)),$(UEFI_RUN)/esp/samaltak.args)
 	cp $(OVMF_VARS) $(UEFI_RUN)/vars.fd
@@ -435,7 +438,8 @@ UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot:
 # (UEFI_RUN), its output shown when it ends (make -O); the snapshot's three boots one after another in theirs. Every
 # part runs to its end (-k), and the boot directories stay for a look when one fails.
 UEFI_TEST_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2); echo $$(( n > 1 ? n / 2 : 1 )))
-UEFI_TEST_PARTS = tests cutover lowspace reset world world-gpu rfb net $(if $(filter-out virtio-net-pci,$(UEFI_NIC)),nic) snapshot
+UEFI_TEST_PARTS = tests cutover lowspace reset world world-gpu rfb net $(if $(filter-out virtio-net-pci,$(UEFI_NIC)),nic) snapshot \
+	$(if $(filter arm64,$(UEFI_ARCH)),x86-jit)
 # make 3.81 (macOS's) has no -O: there the parts run one after another
 UEFI_TEST_SYNC = $(call TEST_PARTS_SYNC,$(UEFI_TEST_JOBS))
 UEFI_PART_RUN = $(UEFI)/run-$(patsubst test-uefi-part-%,%,$@)
@@ -482,6 +486,18 @@ test-uefi-part-net:
 		&& grep -q "'driver $(call UEFI_DRIVER,$(UEFI_NIC))'" $$N
 test-uefi-part-nic:
 	$(MAKE) test-uefi-nic UEFI_NIC=virtio-net-pci UEFI_RUN=$(UEFI_PART_RUN)
+# x86-64 where test-uefi boots arm64: nothing else boots the x86-64 VM there, so its JIT's two tiers run tests under QEMU's
+# emulation (TCG), every method compiled at its first activation; without x86-64 firmware (OVMF) it says it skipped.
+UEFI_X86_TESTS := IntegerTest FloatTest StringTest CollectionTest
+UEFI_X86_RUN = $(OUT)/uefi-x86_64/run-x86-jit
+UEFI_X86_BOOT = uefi-boot UEFI_ARCH=x86_64 UEFI_RUN=$(UEFI_X86_RUN) UEFI_SLOT=tests/with-slot UEFI_ARGS='--headless --test $(UEFI_X86_TESTS)'
+test-uefi-part-x86-jit:
+	@if [ -z "$$($(MAKE) -s --no-print-directory uefi-firmware UEFI_ARCH=x86_64)" ]; then echo 'test-uefi: no x86-64 firmware (OVMF): the x86-64 boot skipped'; exit 0; fi; \
+	rm -rf $(UEFI_X86_RUN) && $(MAKE) uefi UEFI_ARCH=x86_64 \
+	&& $(MAKE) $(UEFI_X86_BOOT) UEFI_VM_ARGS='--jit baseline --jit-threshold 0' \
+	&& $(MAKE) $(UEFI_X86_BOOT) UEFI_VM_ARGS='--jit opt --jit-threshold 0 --jit-flags eager'
+uefi-firmware:
+	@echo $(OVMF_CODE)
 test-uefi-part-snapshot:
 	$(MAKE) $(UEFI_PART_BOOT) UEFI_ARGS="--headless --eval \"$(UEFI_SNAPSHOT)\""
 	grep -q "'saved'" $(UEFI_PART_LOG)
@@ -567,6 +583,6 @@ clean:
 	$(MAKE) -C vm clean
 	rm -rf build vm/build/ffi-test-exports vm/build/ffi-no-platform
 
-.PHONY: $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS)) $(addprefix test-core-part-,$(TEST_CORE_PARTS)) $(addprefix test-tools-part-,$(TEST_TOOLS_PARTS)) all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control test-uefi test-uefi-nic test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels nv-shaders test video mindblown-video jit-video clean
+.PHONY: $(addprefix test-uefi-part-,$(UEFI_TEST_PARTS)) $(addprefix test-core-part-,$(TEST_CORE_PARTS)) $(addprefix test-tools-part-,$(TEST_TOOLS_PARTS)) all vm seed image fresh-image run translate uefi uefi-run uefi-boot uefi-ui uefi-control uefi-firmware test-uefi test-uefi-nic test-vm test-jit test-jit-none test-jit-baseline test-jit-opt test-jit-deopt test-jit-cache test-core test-tools test-nv nv-kernels nv-shaders test video mindblown-video jit-video clean
 
 .PHONY: test-ffi-arity test-ffi-bigint-owned test-ffi-gpu-paged test-ffi-headless test-ffi-no-platform test-ffi-display
