@@ -11,6 +11,15 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[2]
 BASES = ("necessity", "policy")
 IMAGE_DISPLAY_IDS = set(range(200, 207))
+# The fork's primitives (cv/samaltak), registered after the audit and outside it, as 422 is; upstream's registry has
+# 185 slots. One retired or added here changes this list and the catalog's fork-total and sdl-total.
+FORK_PRIMITIVES = {
+    119: "bytesMismatch", 122: "bytesLastMismatch", 147: "samplerBuffer", 207: "pngFilter", 208: "zlibMatches",
+    210: "zlibWriteTokens", 212: "rawBytesReplace", 213: "pixelsPack", 214: "zrleTiles",
+    462: "gpuUploadTextureAddress", 463: "windowPresentAddress", 485: "rasterQuadBounds",
+    590: "deviceOpen", 591: "deviceClose", 592: "deviceIoctl", 593: "deviceMap", 594: "deviceUnmap",
+    595: "deviceConstants", 596: "deviceRead", 597: "deviceWrite", 646: "cryptoCrc32",
+}
 
 
 def check(ok, message):
@@ -128,7 +137,10 @@ def main():
     check(len(registry) == len(pairs), "Duplicate registry IDs")
     live_retired_ids = retired & registry.keys()
     check(not live_retired_ids, f"Retired IDs still registered: {sorted(live_retired_ids)}")
-    check(len(registry) == 185, "Expected 185 hosted SDL registry slots")
+    fork = {number: registry.get(number) for number in FORK_PRIMITIVES}
+    check(fork == FORK_PRIMITIVES, f"The fork's primitives changed: expected {FORK_PRIMITIVES}, registered {fork}")
+    check(FORK_PRIMITIVES.keys().isdisjoint(set(keep) | retired), "The fork's primitives must be outside the audit")
+    check(len(registry) - len(FORK_PRIMITIVES) == 185, "Expected 185 hosted SDL registry slots beside the fork's")
     check(registry.get(422) == "windowSetPosition" and 422 not in keep,
           "SDL slot 422 must be registered outside the original Keep catalog")
     check(set(keep) <= registry.keys(), f"Audit IDs missing from registry: {set(keep) - registry.keys()}")
@@ -162,7 +174,7 @@ def main():
           f"Catalog/audit mismatch: missing {sorted(set(keep) - set(numbers))}; "
           f"extra {sorted(set(numbers) - set(keep))}")
     totals = {
-        "total": len(numbers), "family-total": len(catalog.groups), "sdl-total": len(registry),
+        "total": len(numbers), "family-total": len(catalog.groups), "sdl-total": len(registry), "fork-total": len(FORK_PRIMITIVES),
         "necessity-total": bases["necessity"], "policy-total": bases["policy"],
     }
     check(catalog.totals == {key: str(value) for key, value in totals.items()},
