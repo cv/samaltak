@@ -311,6 +311,14 @@ add: other times: aNumber
 			ifFalse: [CublasAPI cublasSaxpy: Cuda blas n: self realCount alpha: aNumber asFloat x: other address incx: 1 y: result address incy: 1]].
 	^result
 !
+accumulate: other times: aNumber
+	"Me := me + aNumber * other, in place (cuBLAS axpy); answer me."
+	(other size = count and: [other type = type]) ifFalse: [^self error: 'sizes or types differ'].
+	CudaTrace operation: (type == #float32 ifTrue: ['cublasSaxpy'] ifFalse: ['cublasDaxpy']) detail: [self describe] during: [
+		type == #float32
+			ifTrue: [CublasAPI cublasSaxpy: Cuda blas n: count alpha: aNumber asFloat x: other address incx: 1 y: self address incy: 1]
+			ifFalse: [CublasAPI cublasDaxpy: Cuda blas n: count alpha: aNumber asFloat x: other address incx: 1 y: self address incy: 1]]
+!
 + other
 	^self add: other times: 1
 !
