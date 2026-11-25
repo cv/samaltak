@@ -1,5 +1,5 @@
 Object subclass: #CuOptResult
-	instanceVariableNames: 'status objective values seconds'
+	instanceVariableNames: 'status objective values seconds wallSeconds'
 	classVariableNames: ''
 	package: 'System-CUDA'!
 
@@ -26,6 +26,17 @@ seconds
 !
 isOptimal
 	^status = 1
+!
+hasSolution
+	"Whether cuOpt answered values (optimal, or the best found within a time limit)."
+	^values notNil and: [#(1 5 7 8 9 10) includes: status]
+!
+wallSeconds
+	"The seconds cuOptSolve took the VM, its setup included (seconds is the solver's own)."
+	^wallSeconds ifNil: [seconds]
+!
+wallSeconds: aNumber
+	wallSeconds := aNumber
 !
 statusName
 	| c prefix |

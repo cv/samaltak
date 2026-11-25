@@ -28,7 +28,11 @@ minimize: objective subjectTo: rows atLeast: rhs
 !
 solve: objective sense: aSymbol rows: rows senses: aString rhs: rhs lower: lower upper: upper
 	"Optimize (aSymbol #minimize or #maximize) objective . x subject to, for each row i, (rows at: i) . x <= = >= (rhs at: i) as (aString at: i) is $L $E $G, and lower <= x <= upper (Float infinity for none). rows are dense; cuOpt gets them as CSR."
-	| n offsets columns values problem settings solution x result |
+	^self solve: objective sense: aSymbol rows: rows senses: aString rhs: rhs lower: lower upper: upper types: nil timeLimit: nil
+!
+solve: objective sense: aSymbol rows: rows senses: aString rhs: rhs lower: lower upper: upper types: typesOrNil timeLimit: secondsOrNil
+	"The same, with typesOrNil a String of $C (continuous) or $I (integer) per variable (a mixed-integer program: cuOpt's branch and bound on the GPU), and secondsOrNil the most the solver may take (it answers the best solution found by then, FEASIBLE_FOUND or TIME_LIMIT)."
+	| n offsets columns values problem settings solution x result types t0 |
 	n := objective size.
 	offsets := OrderedCollection with: 0.
 	columns := OrderedCollection new.
@@ -40,17 +44,22 @@ solve: objective sense: aSymbol rows: rows senses: aString rhs: rhs lower: lower
 	problem := CuOptAPI cuOptCreateProblem: rows size numVariables: n objectiveSense: (aSymbol == #maximize ifTrue: [-1] ifFalse: [1]) objectiveOffset: 0.0
 		objectiveCoefficients: (self doubles: objective) constraintMatrixRowOffsets: (self ints: offsets) constraintMatrixColumnIndices: (self ints: columns)
 		constraintMatrixCoefficentValues: (self doubles: values) constraintSense: aString asByteArray rhs: (self doubles: rhs)
-		lowerBounds: (self doubles: lower) upperBounds: (self doubles: upper) variableTypes: (ByteArray new: n withAll: $C value).
+		lowerBounds: (self doubles: lower) upperBounds: (self doubles: upper) variableTypes: (types := typesOrNil isNil ifTrue: [ByteArray new: n withAll: $C value] ifFalse: [typesOrNil asByteArray]).
 	[settings := CuOptAPI cuOptCreateSolverSettings.
 	[CuOptAPI cuOptSetParameter: settings parameterName: 'log_to_console' parameterValue: 'false'] on: CudaError do: [:e | nil].
-	solution := CuOptAPI cuOptSolve: problem settings: settings.
+	secondsOrNil isNil ifFalse: [CuOptAPI cuOptSetFloatParameter: settings parameterName: 'time_limit' parameterValue: secondsOrNil asFloat].
+	t0 := Time microsecondClockValue.
+	solution := CudaTrace hostOperation: 'cuOptSolve' detail: [((types includes: $I value) ifTrue: ['MILP '] ifFalse: ['LP ']) , n printString , ' variables x ' , rows size printString , ' constraints'] during: [
+		CuOptAPI cuOptSolve: problem settings: settings].
+	t0 := Time microsecondClockValue - t0.
 	x := ByteArray new: n * 8.
 	[CuOptAPI cuOptGetPrimalSolution: solution solutionValues: x] on: CudaError do: [:e | x := nil].
 	result := CuOptResult new
 		setStatus: (CuOptAPI cuOptGetTerminationStatus: solution)
 		objective: (CuOptAPI cuOptGetObjectiveValue: solution)
 		values: (x ifNotNil: [(1 to: n) collect: [:i | x float64At: i - 1 * 8 + 1]])
-		seconds: (CuOptAPI cuOptGetSolveTime: solution)]
+		seconds: (CuOptAPI cuOptGetSolveTime: solution).
+	result wallSeconds: t0 / 1.0e6]
 		ensure: [
 			solution ifNotNil: [CuOptAPI cuOptDestroySolution: solution].
 			settings ifNotNil: [CuOptAPI cuOptDestroySolverSettings: settings].
