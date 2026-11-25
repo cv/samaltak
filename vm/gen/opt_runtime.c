@@ -87,6 +87,7 @@ static void *bg_run(void *unused);
 static uint32_t closure_signature_of(frame *f);
 static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode);
 static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode);
+static void fill_objects(void);
 static int64_t frame_size_of(oop m, oop c);
 static bool front_end(oop m);
 static bool make_objects(jit_method *h);
@@ -1154,9 +1155,6 @@ static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode)
     uint64_t o_4;
     int32_t n_3;
     uint64_t n_4;
-    int32_t j_2;
-    int32_t sunk;
-    frame *g;
     oop *fp0_3;
     oop *fp_3;
     int32_t i_4;
@@ -1169,6 +1167,9 @@ static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode)
     uint64_t o_6;
     int32_t n_5;
     uint64_t n_6;
+    int32_t j_2;
+    int32_t sunk;
+    frame *g;
     oop *fp0_4;
     oop *fp_4;
     int32_t i_5;
@@ -1273,82 +1274,83 @@ static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode)
         n_4 = (uint64_t)(fp_2 + rt_act_depth[rt_act_count - 1] - cstack);
         cstack_used = n_4;
     }
+    if (make_objects(h)) {
+        fp0_3 = (frames + fi)->fp;
+        fp_3 = fp0_3;
+        for (i_4 = 0; i_4 <= rt_act_count - 1; i_4++) {
+            g_4 = frames + (fi + i_4);
+            m_3 = rt_act_method[i_4];
+            d_3 = rt_act_depth[i_4];
+            if (i_4 > 0) {
+                fp_3 = fp_3 + rt_act_depth[i_4 - 1] + 1;
+            }
+            fp_3[-1] = rt_deopt_vals[rt_act_rcv[i_4]];
+            for (s_3 = 0; s_3 <= d_3 - 1; s_3++) {
+                fp_3[s_3] = rt_deopt_vals[rt_act_vals[i_4] + s_3];
+            }
+            cl_3 = rt_act_closure[i_4] >= 0 ? rt_deopt_vals[rt_act_closure[i_4]] : nil_oop;
+            if ((i_4 >= rt_written) && (i_4 > 0)) {
+                g_4->ctx = nil_oop;
+            }
+            g_4->method = m_3;
+            g_4->closure = cl_3;
+            g_4->code = jit_runtime_block_code_for(m_3);
+            g_4->fp = fp_3;
+            o_5 = *(uint64_t *)(m_3 + 16 + 24);
+            g_4->ip = (uint8_t *)(o_5 + 16) + rt_act_pc[i_4];
+            g_4->pc = rt_act_pc[i_4];
+            o_6 = *(uint64_t *)(m_3 + 16 + 16);
+            g_4->lits = (oop *)(o_6 + 16);
+            g_4->sp = d_3;
+        }
+        rt_written = rt_act_count;
+        n_5 = fi + rt_act_count;
+        nframes = n_5;
+        n_6 = (uint64_t)(fp_3 + rt_act_depth[rt_act_count - 1] - cstack);
+        cstack_used = n_6;
+    }
     for (j_2 = 0; j_2 <= rt_sunk_count - 1; j_2++) {
         sunk = rt_sunk_order[j_2];
         if (rt_sunk_act[sunk] >= 0) {
             g = frames + fi + rt_sunk_act[sunk];
             marry(g);
             make_sunk(sunk, g->ctx);
-            fp0_3 = (frames + fi)->fp;
-            fp_3 = fp0_3;
-            for (i_4 = 0; i_4 <= rt_act_count - 1; i_4++) {
-                g_4 = frames + (fi + i_4);
-                m_3 = rt_act_method[i_4];
-                d_3 = rt_act_depth[i_4];
-                if (i_4 > 0) {
-                    fp_3 = fp_3 + rt_act_depth[i_4 - 1] + 1;
+            fp0_4 = (frames + fi)->fp;
+            fp_4 = fp0_4;
+            for (i_5 = 0; i_5 <= rt_act_count - 1; i_5++) {
+                g_5 = frames + (fi + i_5);
+                m_4 = rt_act_method[i_5];
+                d_4 = rt_act_depth[i_5];
+                if (i_5 > 0) {
+                    fp_4 = fp_4 + rt_act_depth[i_5 - 1] + 1;
                 }
-                fp_3[-1] = rt_deopt_vals[rt_act_rcv[i_4]];
-                for (s_3 = 0; s_3 <= d_3 - 1; s_3++) {
-                    fp_3[s_3] = rt_deopt_vals[rt_act_vals[i_4] + s_3];
+                fp_4[-1] = rt_deopt_vals[rt_act_rcv[i_5]];
+                for (s_4 = 0; s_4 <= d_4 - 1; s_4++) {
+                    fp_4[s_4] = rt_deopt_vals[rt_act_vals[i_5] + s_4];
                 }
-                cl_3 = rt_act_closure[i_4] >= 0 ? rt_deopt_vals[rt_act_closure[i_4]] : nil_oop;
-                if ((i_4 >= rt_written) && (i_4 > 0)) {
-                    g_4->ctx = nil_oop;
+                cl_4 = rt_act_closure[i_5] >= 0 ? rt_deopt_vals[rt_act_closure[i_5]] : nil_oop;
+                if ((i_5 >= rt_written) && (i_5 > 0)) {
+                    g_5->ctx = nil_oop;
                 }
-                g_4->method = m_3;
-                g_4->closure = cl_3;
-                g_4->code = jit_runtime_block_code_for(m_3);
-                g_4->fp = fp_3;
-                o_5 = *(uint64_t *)(m_3 + 16 + 24);
-                g_4->ip = (uint8_t *)(o_5 + 16) + rt_act_pc[i_4];
-                g_4->pc = rt_act_pc[i_4];
-                o_6 = *(uint64_t *)(m_3 + 16 + 16);
-                g_4->lits = (oop *)(o_6 + 16);
-                g_4->sp = d_3;
+                g_5->method = m_4;
+                g_5->closure = cl_4;
+                g_5->code = jit_runtime_block_code_for(m_4);
+                g_5->fp = fp_4;
+                o_7 = *(uint64_t *)(m_4 + 16 + 24);
+                g_5->ip = (uint8_t *)(o_7 + 16) + rt_act_pc[i_5];
+                g_5->pc = rt_act_pc[i_5];
+                o_8 = *(uint64_t *)(m_4 + 16 + 16);
+                g_5->lits = (oop *)(o_8 + 16);
+                g_5->sp = d_4;
             }
             rt_written = rt_act_count;
-            n_5 = fi + rt_act_count;
-            nframes = n_5;
-            n_6 = (uint64_t)(fp_3 + rt_act_depth[rt_act_count - 1] - cstack);
-            cstack_used = n_6;
+            n_7 = fi + rt_act_count;
+            nframes = n_7;
+            n_8 = (uint64_t)(fp_4 + rt_act_depth[rt_act_count - 1] - cstack);
+            cstack_used = n_8;
         }
     }
-    if (make_objects(h)) {
-        fp0_4 = (frames + fi)->fp;
-        fp_4 = fp0_4;
-        for (i_5 = 0; i_5 <= rt_act_count - 1; i_5++) {
-            g_5 = frames + (fi + i_5);
-            m_4 = rt_act_method[i_5];
-            d_4 = rt_act_depth[i_5];
-            if (i_5 > 0) {
-                fp_4 = fp_4 + rt_act_depth[i_5 - 1] + 1;
-            }
-            fp_4[-1] = rt_deopt_vals[rt_act_rcv[i_5]];
-            for (s_4 = 0; s_4 <= d_4 - 1; s_4++) {
-                fp_4[s_4] = rt_deopt_vals[rt_act_vals[i_5] + s_4];
-            }
-            cl_4 = rt_act_closure[i_5] >= 0 ? rt_deopt_vals[rt_act_closure[i_5]] : nil_oop;
-            if ((i_5 >= rt_written) && (i_5 > 0)) {
-                g_5->ctx = nil_oop;
-            }
-            g_5->method = m_4;
-            g_5->closure = cl_4;
-            g_5->code = jit_runtime_block_code_for(m_4);
-            g_5->fp = fp_4;
-            o_7 = *(uint64_t *)(m_4 + 16 + 24);
-            g_5->ip = (uint8_t *)(o_7 + 16) + rt_act_pc[i_5];
-            g_5->pc = rt_act_pc[i_5];
-            o_8 = *(uint64_t *)(m_4 + 16 + 16);
-            g_5->lits = (oop *)(o_8 + 16);
-            g_5->sp = d_4;
-        }
-        rt_written = rt_act_count;
-        n_7 = fi + rt_act_count;
-        nframes = n_7;
-        n_8 = (uint64_t)(fp_4 + rt_act_depth[rt_act_count - 1] - cstack);
-        cstack_used = n_8;
-    }
+    fill_objects();
     rt_deopt_count = 0;
     return 1;
 }
@@ -1891,6 +1893,27 @@ uint64_t deopt_return(frame *f, int64_t k, int64_t not_made)
     return r;
 }
 
+/* OptRuntime>>fillObjects */
+static void fill_objects(void)
+{
+    int32_t s;
+    oop o;
+    int32_t i;
+    oop v;
+    for (s = 0; s <= rt_sunk_count - 1; s++) {
+        if (rt_sunk_act[s] < 0) {
+            o = rt_deopt_vals[rt_sunk_self[s]];
+            for (i = 0; i <= rt_sunk_info[s] - 1; i++) {
+                v = rt_deopt_vals[rt_sunk_first[s] + i];
+                *(uint64_t *)(o + 16 + 8 * i) = v;
+                if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!((uint64_t)(o - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
+                    remember(o);
+                }
+            }
+        }
+    }
+}
+
 /* OptRuntime>>flushed */
 void opt_runtime_flushed(void)
 {
@@ -2100,9 +2123,6 @@ static bool make_objects(jit_method *h)
     int32_t n;
     uint64_t o;
     int32_t i_2;
-    int32_t s_2;
-    int32_t i_3;
-    oop v;
     any = false;
     for (s = 0; s <= rt_sunk_count - 1; s++) {
         if ((rt_sunk_act[s] < 0) && (rt_deopt_count < OPT_MAX_DEOPT_VALS)) {
@@ -2123,22 +2143,7 @@ static bool make_objects(jit_method *h)
             }
         }
     }
-    if (!any) {
-        return false;
-    }
-    for (s_2 = 0; s_2 <= rt_sunk_count - 1; s_2++) {
-        if (rt_sunk_act[s_2] < 0) {
-            o = rt_deopt_vals[rt_sunk_self[s_2]];
-            for (i_3 = 0; i_3 <= rt_sunk_info[s_2] - 1; i_3++) {
-                v = rt_deopt_vals[rt_sunk_first[s_2] + i_3];
-                *(uint64_t *)(o + 16 + 8 * i_3) = v;
-                if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!(o - young_lo < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
-                    remember(o);
-                }
-            }
-        }
-    }
-    return true;
+    return any;
 }
 
 /* OptRuntime>>makeSunk:outer: */
@@ -2305,13 +2310,14 @@ exit_frame_size_of_act:;
             rt_deopt_count = rt_deopt_count + 1;
         }
     }
+    make_objects(h);
     for (j_2 = 0; j_2 <= rt_sunk_count - 1; j_2++) {
         sunk = rt_sunk_order[j_2];
         if (rt_sunk_act[sunk] >= 0) {
             make_sunk(sunk, rt_deopt_vals[first + rt_sunk_act[sunk]]);
         }
     }
-    make_objects(h);
+    fill_objects();
     for (i_5 = 0; i_5 <= rt_act_count - 1; i_5++) {
         c = rt_deopt_vals[first + i_5];
         s = (oop *)(c + 16);

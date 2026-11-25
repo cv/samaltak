@@ -1961,6 +1961,20 @@ testObjectsNotMadeInFramesMadeContexts
 	self assert: (r at: 2) x equals: #(7).
 	self assert: (r at: 2) y equals: 8
 !
+testObjectsNotMadeReceiveBlocks
+	"An object never made is the receiver of an inlined method whose block (never made either) a guard fails in: deoptimization makes the object before the closure, whose outer Context is the frame married then (it takes the frame's receiver)."
+	| o |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'escSetA: x a := x'.
+	self define: 'escA ^a'.
+	self define: 'escAddAll: arr arr do: [:e | a := a + e]'.
+	self define: 'escHolder: arr | h | h := JitRuntimeTestSubject new. h escSetA: 0. h escAddAll: arr. ^h escA'.
+	o := JitRuntimeTestSubject new.
+	1 to: 3000 do: [:i | o escHolder: #(1 2 3)].
+	self assert: (o escHolder: #(1 2 3)) equals: 6.
+	self assert: (o escHolder: #(1 2.5 3)) equals: 6.5.
+	self assert: (o escHolder: {1. 2. 1 / 2}) equals: 7 / 2
+!
 testObjectsMergedByAPhiAreNotMade
 	"Points made on two ways that meet (a conditional's value, an inlined method's two returns) are one object never made, its fields phis; a guard that fails after the merge makes it from the way taken."
 	| o before |

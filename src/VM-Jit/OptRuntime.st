@@ -1186,6 +1186,8 @@ deoptFrame: f index: k regs: regs mode: mode
 	rtFloatCount > 0 ifTrue: [
 		self boxFloats.
 		self writeFrames: fi from: f fp].
+	"the objects never made before the closures: marrying a frame copies its receiver into the Context"
+	(self makeObjects: h) ifTrue: [self writeFrames: fi from: (interpreter frames + fi) fp].
 	0 to: rtSunkCount - 1 do: [:j |
 		sunk := rtSunkOrder at: j.
 		(rtSunkAct at: sunk) >= 0 ifTrue: [
@@ -1193,7 +1195,7 @@ deoptFrame: f index: k regs: regs mode: mode
 			interpreter marry: g.
 			self makeSunk: sunk outer: g ctx.
 			self writeFrames: fi from: (interpreter frames + fi) fp]].
-	(self makeObjects: h) ifTrue: [self writeFrames: fi from: (interpreter frames + fi) fp].
+	self fillObjects.
 	rtDeoptCount := 0.
 	^1
 !
@@ -1223,7 +1225,7 @@ writeFrames: fi from: fp0
 	interpreter cstackUsed: (fp + (rtActDepth at: rtActCount - 1) - interpreter cstackBase) asUInt64
 !
 makeObjects: h
-	"Make the objects h's code never made (escape analysis: OptPasses>>scalarReplace:), every value that was one becoming it, then fill their fields from deoptVals (a field that was such an object or a closure never made is it by now); answer whether there were any. Allocating may collect: the frames are valid, deoptVals are roots."
+	"Make the objects h's code never made (escape analysis: OptPasses>>scalarReplace:), every value that was one becoming it, then fill their fields from deoptVals (fillObjects, once the closures never made are made too: those need the frames married, which copies their receivers into the Contexts, so the objects come first); answer whether there were any. Allocating may collect: the frames are valid, deoptVals are roots."
 	<function>
 	<var: #h type: 'JitMethod *'>
 	| any cls o n |
@@ -1237,12 +1239,16 @@ makeObjects: h
 			rtSunkSelf at: s put: rtDeoptCount.
 			self push: o.
 			0 to: rtSunkUseCount - 1 do: [:i | (rtSunkUseId at: i) = s ifTrue: [rtDeoptVals at: (rtSunkUseVal at: i) put: o]]]].
-	any ifFalse: [^false].
+	^any
+!
+fillObjects
+	"The fields of the objects makeObjects: made, from deoptVals: the objects and the closures never made are made by now."
+	<function>
+	| o |
 	0 to: rtSunkCount - 1 do: [:s |
 		(rtSunkAct at: s) < 0 ifTrue: [
 			o := rtDeoptVals at: (rtSunkSelf at: s).
-			0 to: (rtSunkInfo at: s) - 1 do: [:i | self storeRef: o at: i put: (rtDeoptVals at: (rtSunkFirst at: s) + i)]]].
-	^true
+			0 to: (rtSunkInfo at: s) - 1 do: [:i | self storeRef: o at: i put: (rtDeoptVals at: (rtSunkFirst at: s) + i)]]]
 !
 makeSunk: s outer: ctx
 	"Make the closure of sunk entry s, its outerContext ctx; every value that was it becomes it."
@@ -1480,10 +1486,11 @@ materialize: f
 			ifTrue: [ctx := f ctx]
 			ifFalse: [ctx := memory allocContext: n asUInt32].
 		self push: ctx].
+	self makeObjects: h.
 	0 to: rtSunkCount - 1 do: [:j |
 		sunk := rtSunkOrder at: j.
 		(rtSunkAct at: sunk) >= 0 ifTrue: [self makeSunk: sunk outer: (rtDeoptVals at: first + (rtSunkAct at: sunk))]].
-	self makeObjects: h.
+	self fillObjects.
 	0 to: rtActCount - 1 do: [:i |
 		c := rtDeoptVals at: first + i.
 		s := self slotsOf: c.
