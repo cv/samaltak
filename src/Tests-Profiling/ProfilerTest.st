@@ -144,9 +144,10 @@ testAllocationSamplesTakeNoProcessSwitch
 	self assert: d processSwitches < (allocs size // 2) description: [d processSwitches printString, ' switches for ', allocs size printString, ' allocation samples and ', profile samples size printString, ' CPU samples']
 !
 testCpuSamplesInPlace
-	"With recordCpuSamplesInPlace: true CPU samples take no switch either."
-	| p t0 before d profile |
+	"CPU samples recorded in place (the default) take no switch either."
+	| p t0 before d profile was |
 	p := Profiler new.
+	was := Profiler recordsCpuSamplesInPlace.
 	Profiler recordCpuSamplesInPlace: true.
 	[self withProfiler: p do: [
 		before := Smalltalk vm statistics.
@@ -154,7 +155,7 @@ testCpuSamplesInPlace
 		[self busyFor: 50.
 		 profile := p from: t0 to: Time microsecondClockValue.
 		 profile samples size < 100 and: [profile stop - t0 < 5000000]] whileTrue.
-		d := Smalltalk vm statistics - before]] ensure: [Profiler recordCpuSamplesInPlace: false].
+		d := Smalltalk vm statistics - before]] ensure: [Profiler recordCpuSamplesInPlace: was].
 	self assert: profile samples size >= 100.
 	self assert: ((profile samplesFor: Processor activeProcess) allSatisfy: [:s | s stack notEmpty]).
 	self assert: d processSwitches * 4 < profile samples size description: [d processSwitches printString, ' switches for ', profile samples size printString, ' CPU samples']

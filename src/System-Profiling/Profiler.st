@@ -3,7 +3,7 @@ Object subclass: #Profiler
 	classVariableNames: 'BufferSlots CpuInPlace Default'
 	package: 'System-Profiling'!
 
-Profiler comment: 'I am the always-on sampling profiler. Sampling is timer-interrupt-driven: the VM signals the timer process''s Semaphore (Delay timingSemaphore; the timer process is ''timer interrupt watcher'', priority 80) every interval µs (default 1000) and after every allocInterval bytes allocated (default 256 KB), and the timer process calls me after each wakeup (Delay sampleHook:). samplerTickTake and allocationSampleTake tell what is due: for a CPU tick I record the stack of the process the timer interrupted (Processor preemptedProcess), for an allocation sample the allocating process''s stack plus the class and size of the sampled object (Context samples are only counted). The VM records allocation samples itself, where the sampled process runs, into a buffer (an Array of BufferSlots, two of them, swapped), so that no process switch and no flush of its frames into Contexts is made per sample: the timer process moves them into the ring (drainBuffer) at its next wakeup, when the buffer is three quarters full, and for queries (flushSamples). CPU samples can be recorded so too (recordCpuSamplesInPlace: true, then the timer process comes every 64 of them); by default they still wake the timer process, whose switch flushes the sampled frames: the optimizing tier relies on that for now to specialize long-running loops again (DeltaBlue runs 40 % slower without). Samples go into a StackRing: variable-length records with the stack inline (4-byte frame ids, at most maxDepth frames) in a preallocated buffer, exactly 1 MiB with its tables; recording never allocates, the oldest records are dropped. How many seconds the ring holds depends on the stacks (about 15 s at 1000 samples/s for the walkthrough''s mix). Samples of the idle process are kept but flagged.
+Profiler comment: 'I am the always-on sampling profiler. Sampling is timer-interrupt-driven: the VM signals the timer process''s Semaphore (Delay timingSemaphore; the timer process is ''timer interrupt watcher'', priority 80) every interval µs (default 1000) and after every allocInterval bytes allocated (default 256 KB), and the timer process calls me after each wakeup (Delay sampleHook:). samplerTickTake and allocationSampleTake tell what is due: for a CPU tick I record the stack of the process the timer interrupted (Processor preemptedProcess), for an allocation sample the allocating process''s stack plus the class and size of the sampled object (Context samples are only counted). The VM records allocation samples itself, where the sampled process runs, into a buffer (an Array of BufferSlots, two of them, swapped), so that no process switch and no flush of its frames into Contexts is made per sample: the timer process moves them into the ring (drainBuffer) at its next wakeup, when the buffer is three quarters full, and for queries (flushSamples). CPU samples are recorded so too (the timer process then comes every 64 of them); with recordCpuSamplesInPlace: false each wakes the timer process, whose switch flushes the sampled frames into Contexts. Samples go into a StackRing: variable-length records with the stack inline (4-byte frame ids, at most maxDepth frames) in a preallocated buffer, exactly 1 MiB with its tables; recording never allocates, the oldest records are dropped. How many seconds the ring holds depends on the stacks (about 15 s at 1000 samples/s for the walkthrough''s mix). Samples of the idle process are kept but flagged.
 
 The compositor reports each presented frame with Profiler recordFrame: aFrameRecord (kept in a ring of frameCapacity); Profiler mark: ''label'' drops a ProfileMark. Every 64 CPU samples I checkpoint the VM statistics for the GC and memory summaries.
 
@@ -107,7 +107,7 @@ startBuffer
 	buffer at: 1 put: 1.
 	spareBuffer := Array new: BufferSlots.
 	bufferIndex := Smalltalk vm registerExternalSemaphore: buffer.
-	(Smalltalk vm samplerBufferIndex: bufferIndex depth: maxDepth cpu: CpuInPlace == true) == false ifTrue: [
+	(Smalltalk vm samplerBufferIndex: bufferIndex depth: maxDepth cpu: CpuInPlace ~= false) == false ifTrue: [
 		Smalltalk vm unregisterExternalSemaphore: bufferIndex.
 		bufferIndex := spareBuffer := nil]
 !
@@ -422,8 +422,11 @@ shutDown: quitting
 
 !Profiler class methodsFor: 'accessing'!
 recordCpuSamplesInPlace: aBoolean
-	"Whether the VM records CPU samples where the sampled process runs, as it does allocation samples (see my comment); from the next start."
+	"Whether the VM records CPU samples where the sampled process runs, as it does allocation samples (see my comment; the default), or each wakes the timer process; from the next start."
 	CpuInPlace := aBoolean
+!
+recordsCpuSamplesInPlace
+	^CpuInPlace ~= false
 !
 default
 	^Default ifNil: [Default := self new]
