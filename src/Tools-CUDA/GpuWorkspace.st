@@ -3,7 +3,7 @@ Workspace subclass: #GpuWorkspace
 	classVariableNames: ''
 	package: 'Tools-CUDA'!
 
-GpuWorkspace comment: 'I am the GPU Workspace (World menu › Apps › GPU): a Workspace with ready-to-run snippets of NVIDIA''s libraries from Smalltalk (docs/cuda.md): matrix products on cuBLAS, random numbers on cuRAND, linear programs on cuOpt, and what else this VM binds, each comparison timed on the GPU and in Smalltalk on the CPU (CudaComparison: the times, the speedup, a check of the result). ⌘I on a CudaMatrix shows it in the Inspector: its fields, its first values and a heat map. Above the text, the device and the libraries found.
+GpuWorkspace comment: 'I am the GPU Workspace (World menu › Apps › GPU): a Workspace with ready-to-run snippets of NVIDIA''s libraries from Smalltalk (docs/cuda.md): matrix products on cuBLAS, random numbers on cuRAND, solvers on cuSOLVER, transforms on cuFFT, linear programs on cuOpt, and what else this VM binds, each comparison timed on the GPU and in Smalltalk on the CPU (CudaComparison: the times, the speedup, a check of the result). ⌘I on a CudaMatrix shows it in the Inspector: its fields, its first values and a heat map. Above the text, the device and the libraries found.
 
 	GpuWorkspace open'!
 
@@ -46,8 +46,8 @@ snippets
 "Not here: '; nextPutAll: GpuTools unavailableText; nextPutAll: '. The snippets need an NVIDIA GPU with CUDA."
 '].
 		s nextPutAll: self deviceSnippets; nextPutAll: self blasSnippets; nextPutAll: self randSnippets.
-		(CudaMatrix canUnderstand: #solve:) ifTrue: [s nextPutAll: self solverSnippets].
-		(CudaArray respondsTo: #fftComparison:) ifTrue: [s nextPutAll: self fftSnippets].
+		(self has: #CusolverAPI) ifTrue: [s nextPutAll: self solverSnippets].
+		(self has: #CufftAPI) ifTrue: [s nextPutAll: self fftSnippets].
 		s nextPutAll: self optSnippets; nextPutAll: self cleanupSnippets]
 !
 deviceSnippets
@@ -82,18 +82,29 @@ r norm / 1000000 sqrt    "about 1 / 3 sqrt = 0.577"
 CudaComparison norm: 10000000
 '
 !
+has: aClassName
+	"Whether the library of the binding class aClassName loads here (or, without CUDA, is bound: its snippets are shown)."
+	| c |
+	c := Smalltalk at: aClassName ifAbsent: [^false].
+	^GpuTools isAvailable not or: [c isAvailable]
+!
 solverSnippets
 	^'
-"cuSOLVER: a linear system A x = y, solved on the GPU"
-CudaComparison solve: 1024
-s := CudaMatrix uniformRows: 4 cols: 4.
-s solve: (CudaMatrix rows: 4 cols: 1 values: #(1 2 3 4))
+"cuSOLVER: a linear system solved on the GPU (LU), against Gaussian elimination in Smalltalk; factorizations"
+CudaComparison solve: 2048
+s := CudaMatrix fromRows: #(#(2 1) #(1 3)) type: #float64.
+(s solve: (CudaArray withAll: #(3 5) type: #float64)) asArray
+s determinant
+s inverse asRows
+(CudaMatrix uniformRows: 512 cols: 256) singularValues first: 4
 '
 !
 fftSnippets
 	^'
-"cuFFT: a Fourier transform on the GPU, against a Smalltalk FFT"
-CudaArray fftComparison: 1048576
+"cuFFT: Fourier transforms on the GPU, against a Smalltalk FFT (the Spectrum window shows one)"
+CudaComparison fft2d: 2048
+(CudaArray withAll: #(1 2 3 4)) fft asArray
+f := (CudaMatrix uniformRows: 1024 cols: 1024) fft
 '
 !
 optSnippets
@@ -107,7 +118,7 @@ CuOpt minimize: #(2 3) subjectTo: #(#(1 2) #(3 1)) atLeast: #(8 9)
 cleanupSnippets
 	^'
 "Device memory is freed when an array is collected, or at once:"
-{a. b. c. m. r} do: [:each | each release]
+{a. b. c. m. r. s. f} do: [:each | each isNil ifFalse: [each release]]
 CudaLibraryAPI liveAllocations
 CudaBenchmark report    "the numbers of docs/cuda.md, a few seconds"
 '

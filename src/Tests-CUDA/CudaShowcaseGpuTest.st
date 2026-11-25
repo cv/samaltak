@@ -28,7 +28,11 @@ testComparison
 	self assert: ('SGEMM 256x256: GPU * faster · corner within *' match: c printString).
 	self assert: ((c check copyFrom: 15 to: c check size - 9) asNumber) < 1.0e-4.
 	c := CudaComparison uniform: 100000.
-	self assert: c cpuNote equals: 'Random'
+	self assert: c cpuNote equals: 'Random'.
+	c := CudaComparison solve: 64.
+	self assert: ('cuSOLVER solve 64x64: GPU * residual *' match: c printString).
+	c := CudaComparison fft2d: 64.
+	self assert: ('cuFFT 2-D 64x64: GPU * of the DC term' match: c printString)
 !
 testAllocationTableAndTrace
 	| a b c before entry |
@@ -68,7 +72,14 @@ testSpectrumRoundTrip
 	self assert: worst < 1.0e-2.
 	back := s inverseMasked: (s lowPass: 4).
 	self assert: ((back inject: 0 into: [:m :x | m max: x]) < 1.0).
-	self assert: ((s times at: #forward) > 0 and: [(s times at: #inverse) > 0])]
+	self assert: ((s times at: #forward) > 0 and: [(s times at: #inverse) > 0]).
+	CudaSpectrum hasCufft ifTrue: [| a c |
+		a := s spectrum.
+		s engine: #cufft; forward.
+		c := s spectrum.
+		self assert: ((1 to: a size) inject: 0 into: [:mx :i | mx max: ((c at: i) - (a at: i)) abs]) < 1.0e-3.
+		back := s inverseMasked: (Array new: n * n withAll: 1.0).
+		self assert: ((1 to: v size) inject: 0 into: [:mx :i | mx max: ((back at: i) - (v at: i)) abs]) < 1.0e-4]]
 		ensure: [s release]
 !
 testRoutingSolved

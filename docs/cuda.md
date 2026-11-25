@@ -247,12 +247,14 @@ World menu › Apps › **GPU** (shown where `Cuda isAvailable`; `GpuTools`, pac
 #gpuWorkspace`, `#cuopt`, `#gpuMonitor`, `#spectrum`):
 
 - **GPU Workspace** (`GpuWorkspace`): a Workspace of ready-to-run snippets, a section for each library this VM has
-  (cuSOLVER and cuFFT ones appear when their classes do). `CudaComparison` times an operation on the GPU (CUDA events,
+  (cuBLAS, cuRAND, cuSOLVER, cuFFT, cuOpt). `CudaComparison` times an operation on the GPU (CUDA events,
   the median of 3–7 runs after a warm-up) and as a Smalltalk loop on the CPU (past a size, measured smaller and
   extrapolated, as it says), with the speedup and a check of the result:
   `SGEMM 1024x1024: GPU 0.142 ms (15.1 TFLOPS) · CPU 3.54 s (Smalltalk loop at 256, x64; 606.9 MFLOPS) · 24,948x
   faster · corner within 2.7e-6 relative`; 4096: 7.0 ms (19.6 TFLOPS) against 3.7 minutes; DGEMM 512: 613x; cuRAND,
-  ten million numbers: 0.21 ms against 127 ms (612x); nrm2 of ten million: 223x. ⌘I on a `CudaMatrix` opens the
+  ten million numbers: 0.21 ms against 127 ms (612x); nrm2 of ten million: 223x; `solve: 2048` (cuSOLVER's LU and
+  getrs against Gaussian elimination in Smalltalk): 6.6 ms against 13.9 s (2,113x, residual 4.6e-4 in float32);
+  `fft2d: 2048` (cuFFT, a plan made once, against a radix-2 FFT in Smalltalk): 0.235 ms against 0.9 s (3,848x). ⌘I on a `CudaMatrix` opens the
   Inspector with its device memory, first values and top left corner (`inspectorExtraFields`) and a heat map of up
   to 256 x 256 samples in the theme's colors (`inspectorForm`, `CudaHeatMap`; the Inspector shows it as it shows a
   Form's pixels).
@@ -277,11 +279,13 @@ World menu › Apps › **GPU** (shown where `Cuda isAvailable`; `GpuTools`, pac
   yet: the share shown is of traced work.
 - **Spectrum** (`SpectrumWindow`, `CudaSpectrum`): a picture (letters, a zone plate, checks, bars; 128, 256 or 512
   square), its two-dimensional DFT on the GPU, the log magnitude spectrum, and the picture again from the spectrum
-  through a low-, high- or band-pass filter whose circle one drags on the spectrum. Until cuFFT is bound the
-  transform is matrix products on cuBLAS: Y = F X F with F = C - iS, six real products forward, six back (the mask is
-  applied on the host, where the spectrum is read anyway). 256 x 256: about 1.5 ms forward and 1–2 ms back on the
-  device, 4–5 ms of copies and Smalltalk work, against 12 ms for a radix-2 FFT in Smalltalk (512: 50 ms); the
-  round trip is exact to 1e-6.
+  through a low-, high- or band-pass filter whose circle one drags on the spectrum. Two engines, a toggle: cuFFT
+  (real-to-complex and complex-to-real plans of the half spectrum, made once; the rest of the spectrum by its
+  symmetry) or the transform as matrix products on cuBLAS, Y = F X F with F = C - iS, six real products forward and
+  six back. The mask is applied on the host, where the spectrum is read anyway. 256 x 256, warm: cuFFT 0.08–0.18 ms
+  forward and 0.15 ms back, the cuBLAS DFT 0.11 ms forward (1.5 ms while the GPU's clocks are low), then 3–5 ms of
+  copies and Smalltalk work, against 11–15 ms for a radix-2 FFT in Smalltalk (512: 50 ms). The two engines' spectra
+  agree to 1e-4 and each round trip is exact to 1e-6.
 
 cuOptSolve blocks the VM (the World stops for its duration, up to the time limit): an `async` flag in the
 spec running a call on a worker thread, as NVRTC's compiles run, is the fix (`The next libraries`, Asynchrony). Tests:

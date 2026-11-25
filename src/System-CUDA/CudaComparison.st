@@ -131,6 +131,55 @@ norm: n
 		check: 'relative difference ' , (self format: (here - there) abs / here)
 ! !
 
+!CudaComparison class methodsFor: 'solvers and transforms'!
+solve: n
+	"A random n x n float32 system A x = b: cuSOLVER (LU and getrs) on the GPU, Gaussian elimination in Smalltalk on the CPU (CudaBenchmark cpuLU:, up to 256, beyond that extrapolated by n cubed); the check is the residual |A x - b| / |b|, on the device."
+	| a b x gpu m cpu ax r residual |
+	a := CudaMatrix uniformRows: n cols: n type: #float32.
+	b := CudaMatrix uniformRows: n cols: 1 type: #float32.
+	[gpu := self gpuMillisecondsOf: [(a solve: b) release].
+	x := a solve: b.
+	ax := a * x.
+	r := ax - b.
+	residual := r norm / b norm]
+		ensure: [{a. b. x. ax. r} do: [:each | each isNil ifFalse: [each release]]].
+	m := n min: 256.
+	cpu := (CudaBenchmark cpuLU: m) * 1000 * ((n / m) raisedTo: 3).
+	^self new
+		title: 'cuSOLVER solve ' , n printString , 'x' , n printString
+		gpu: gpu cpu: cpu
+		cpuNote: (m = n ifTrue: ['Smalltalk elimination'] ifFalse: ['Smalltalk elimination at ' , m printString , ', x' , ((n / m) raisedTo: 3) rounded printString])
+		work: 2.0 / 3 * n * n * n unit: 'FLOPS'
+		check: 'residual ' , (self format: residual)
+!
+fft2d: n
+	"The 2-D transform of a random n x n float32 picture: cuFFT (real to complex, a plan made once) on the GPU, a radix-2 FFT in Smalltalk on the CPU (CudaSpectrum, up to 512, beyond that extrapolated by n squared log n); the check compares the two at the CPU's size."
+	| m a half plan gpu values cpu f worst bytes h |
+	m := n min: 512.
+	a := CudaMatrix uniformRows: n cols: n type: #float32.
+	half := CudaArray new: n * (n // 2 + 1) type: #complex64.
+	plan := CudaFFTPlan shape: {n. n} kind: #r2c type: #float32 batch: 1.
+	[gpu := self gpuMillisecondsOf: [plan forward: a into: half]] ensure: [a release. half release. plan release].
+	values := (1 to: m * m) collect: [:i | (i * 7919 \\ 1009) / 1009.0].
+	cpu := (self cpuMillisecondsOf: [f := CudaSpectrum fft2D: values size: m]) * ((n * n * (n log: 2)) / (m * m * (m log: 2))).
+	a := CudaMatrix rows: m cols: m values: values.
+	h := m // 2 + 1.
+	half := CudaArray new: m * h type: #complex64.
+	plan := CudaFFTPlan shape: {m. m} kind: #r2c type: #float32 batch: 1.
+	[plan forward: a into: half. bytes := half asByteArray] ensure: [a release. half release. plan release].
+	worst := 0.
+	0 to: m - 1 do: [:r | 0 to: h - 1 do: [:c | | o i |
+		o := r * h + c * 8. i := r * m + c + 1.
+		worst := worst max: ((bytes float32At: o + 1) - (f first at: i)) abs.
+		worst := worst max: ((bytes float32At: o + 5) - (f last at: i)) abs]].
+	^self new
+		title: 'cuFFT 2-D ' , n printString , 'x' , n printString
+		gpu: gpu cpu: cpu
+		cpuNote: (m = n ifTrue: ['Smalltalk FFT'] ifFalse: ['Smalltalk FFT at ' , m printString , ', extrapolated'])
+		work: 5.0 * n * n * (n log: 2) unit: 'FLOPS'
+		check: 'within ' , (self format: worst / (f first at: 1) abs) , ' of the DC term'
+! !
+
 !CudaComparison class methodsFor: 'reporting'!
 report
 	"Each comparison on a line."

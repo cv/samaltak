@@ -53,6 +53,8 @@ testWorkspaceOpensWithSnippets
 	self assert: window title equals: 'GPU Workspace'.
 	self assert: (ws text includesSubstring: 'CudaComparison sgemm: 1024').
 	self assert: (ws text includesSubstring: 'CuOpt maximize:').
+	self assert: (ws text includesSubstring: 'CudaComparison solve: 2048').
+	self assert: (ws text includesSubstring: 'CudaComparison fft2d: 2048').
 	self assert: (ws text includesSubstring: GpuTools unavailableText).
 	self assert: (ws widgetNamed: 'gpu-header') == ws header.
 	window close
