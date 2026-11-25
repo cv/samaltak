@@ -241,6 +241,53 @@ Each is a `lib` block and a few `fn` lines in the spec; what they need beyond th
 - Not installed here: cuDNN, NCCL (only as cuOpt's dependency), TensorRT. cuDNN's graph API (`cudnnBackend*`)
   is attribute-setting through `void *` arrays: it needs a typed Smalltalk layer of its own.
 
+## The GPU demos in the World
+
+World menu › Apps › **GPU** (shown where `Cuda isAvailable`; `GpuTools`, package Tools-CUDA, layer 5; `Tools open:
+#gpuWorkspace`, `#cuopt`, `#gpuMonitor`, `#spectrum`):
+
+- **GPU Workspace** (`GpuWorkspace`): a Workspace of ready-to-run snippets, a section for each library this VM has
+  (cuSOLVER and cuFFT ones appear when their classes do). `CudaComparison` times an operation on the GPU (CUDA events,
+  the median of 3–7 runs after a warm-up) and as a Smalltalk loop on the CPU (past a size, measured smaller and
+  extrapolated, as it says), with the speedup and a check of the result:
+  `SGEMM 1024x1024: GPU 0.142 ms (15.1 TFLOPS) · CPU 3.54 s (Smalltalk loop at 256, x64; 606.9 MFLOPS) · 24,948x
+  faster · corner within 2.7e-6 relative`; 4096: 7.0 ms (19.6 TFLOPS) against 3.7 minutes; DGEMM 512: 613x; cuRAND,
+  ten million numbers: 0.21 ms against 127 ms (612x); nrm2 of ten million: 223x. ⌘I on a `CudaMatrix` opens the
+  Inspector with its device memory, first values and top left corner (`inspectorExtraFields`) and a heat map of up
+  to 256 x 256 samples in the theme's colors (`inspectorForm`, `CudaHeatMap`; the Inspector shows it as it shows a
+  Form's pixels).
+- **cuOpt** (`CuOptWindow`): *Routing*, a depot and stops on a map (click adds a stop, drag moves one or the depot,
+  shift-click removes one) and 1–4 vehicles, each visiting at most an even share of the stops plus one. cuOpt's
+  routing solver has no C API (C++ and Python only), so `CuOptRouting` states it for the MILP solver: a binary for
+  each leg, one leg into and out of each stop, as many out of the depot as back, and Miller-Tucker-Zemlin loads
+  against subtours. Ten stops and two vehicles: 120 variables, 113 constraints, optimal in 0.6–0.9 s; the window
+  gives cuOpt 1 s (14 stops and 3 vehicles reach it, answering the best found). *Linear program*: the program as
+  text (`CuOptProgram`: `maximize 3 chairs + 5 tables`, `wood: chairs <= 4`, `integer`/`binary`/`free` lines),
+  solved 0.6 s after typing pauses, the variables and the constraints' activity, bound and slack beside it; four
+  examples. An LP takes 13–25 ms; even a five-variable knapsack MILP takes cuOpt 1.5–2 s (its MIP heuristics run in
+  time slices). `CuOpt solve:...types:timeLimit:` is the general call.
+- **GPU Monitor** (`GpuMonitor`): the device's memory (`cudaMemGetInfo`; on the GB10 `free` is the system's),
+  this VM's device memory and handles from the binding's tables (`CudaLibraryAPI allocations`: the `cuda_allocations`
+  export, base and size of every live allocation, matched to the `CudaArray` holding it, `CudaArray liveArrays`),
+  the bindings' calls by C function, the recent operations with their shapes and the device's time by CUDA events,
+  and the device's share of each second spent on them. Its data is `CudaTrace`, on while a monitor is open:
+  System-CUDA's operations (products, fills, copies, norms, axpys, cuOpt solves) record themselves, and
+  `CudaLibraryAPI check:in:` counts every call; off, a traced operation costs a class variable's test.
+  `CudaTrace quietly:` keeps a tool's own reads (the Inspector's, the monitor's) out of it. No utilization from NVML
+  yet: the share shown is of traced work.
+- **Spectrum** (`SpectrumWindow`, `CudaSpectrum`): a picture (letters, a zone plate, checks, bars; 128, 256 or 512
+  square), its two-dimensional DFT on the GPU, the log magnitude spectrum, and the picture again from the spectrum
+  through a low-, high- or band-pass filter whose circle one drags on the spectrum. Until cuFFT is bound the
+  transform is matrix products on cuBLAS: Y = F X F with F = C - iS, six real products forward, six back (the mask is
+  applied on the host, where the spectrum is read anyway). 256 x 256: about 1.5 ms forward and 1–2 ms back on the
+  device, 4–5 ms of copies and Smalltalk work, against 12 ms for a radix-2 FFT in Smalltalk (512: 50 ms); the
+  round trip is exact to 1e-6.
+
+cuOptSolve blocks the VM (the World stops for its duration, up to the time limit): an `async` flag in the
+spec running a call on a worker thread, as NVRTC's compiles run, is the fix (`The next libraries`, Asynchrony). Tests:
+`CudaShowcaseModelTest` (Tests-CUDA) and `GpuToolsTest` (Tests-Tools-CUDA, the windows with `GpuTools forced:
+false`) in test-core; `CudaShowcaseGpuTest` and `GpuToolsGpuTest` in `make test-nv`.
+
 ## NvCompute and libcuda
 
 Where NVIDIA's CUDA userspace is (hosted with the driver, the appliance with the CUDA root below), NvCompute's kernels
@@ -373,7 +420,8 @@ dependencies). `CudaGpuTest` 12/12 and `CuOptGpuTest` 4/4 passed; `CudaBenchmark
 **18.75 TFLOPS** (7.33 ms a product), 1024 at 15.6 TFLOPS, the same as hosted.
 
 **How the World reaches the demos.** The World is the image: the demos are Smalltalk, run from a Workspace or the
-Inspector, in the appliance as hosted (`Cuda summary`, `CudaBenchmark report`, a `CudaMatrix`, the cuOpt LP); the
+Inspector, in the appliance as hosted, one click away in the World menu's Apps › GPU (The GPU demos in the World,
+above; `Cuda summary`, `CudaBenchmark report`, a `CudaMatrix`, the cuOpt LP); the
 agent can run them too. `make test-nv` on the appliance (or `CudaGpuTest`, `CuOptGpuTest` from the World's test
 runner) checks the set. The Spark's first boot with it: docs/linux-appliance.md, section 7.
 
