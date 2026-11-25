@@ -287,6 +287,15 @@ allocSlow: cls bytes: bytes
 	self resetAllocLimit.
 	^p
 !
+allocSampleIntervalChangedBy: delta
+	"The allocation sampling interval changed by delta (Scheduler>>adaptAllocSampling:): the bytes allocated since the last sample count toward the next one at the new interval (at least one byte stays to go)."
+	<function>
+	<var: #delta type: 'int64_t'>
+	| c |
+	c := scheduler allocSampleCountdown - (gc edenTop - sampleMark) asInt64 + delta.
+	scheduler allocSampleCountdown: (c < 1 ifTrue: [1] ifFalse: [c]).
+	self resetAllocLimit
+!
 allocOldTry: cls format: fmt slots: n
 	<function>
 	| p clsRoot |
@@ -315,7 +324,7 @@ allocObj: cls format: fmt slots: n
 	| bytes p clsRoot |
 	bytes := 16 + (8 * n asUInt64).
 	bytes > largeObjectBytes ifTrue: [
-		scheduler allocSampleInterval > 0 ifTrue: [scheduler allocSampleHit: cls bytes: bytes].
+		scheduler allocSampleInterval > 0 ifTrue: [scheduler allocSampleLargeHit: cls bytes: bytes].
 		^self allocOld: cls format: fmt slots: n].
 	p := gc edenTop.
 	p + bytes > gc allocLimit
@@ -359,7 +368,7 @@ allocObjTry: cls format: fmt slots: n
 	n > 16rFFFFFFFF ifTrue: [^0].
 	bytes := 16 + (8 * n).
 	bytes <= largeObjectBytes ifTrue: [^self allocObj: cls format: fmt slots: n asUInt32].
-	scheduler allocSampleInterval > 0 ifTrue: [scheduler allocSampleHit: cls bytes: bytes].
+	scheduler allocSampleInterval > 0 ifTrue: [scheduler allocSampleLargeHit: cls bytes: bytes].
 	^self allocOldTry: cls format: fmt slots: n asUInt32
 !
 allocContext: n

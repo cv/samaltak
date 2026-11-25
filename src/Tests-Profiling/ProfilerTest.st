@@ -138,7 +138,9 @@ testAllocationSamplesTakeNoProcessSwitch
 	| t0 before d profile allocs keep |
 	before := Smalltalk vm statistics.
 	t0 := Time microsecondClockValue.
-	[1 to: 20000 do: [:i | keep := Array new: 1000].
+	"Each query is a switch: one per 50 ms of allocating (at least tens of samples, the rate bound allowing)."
+	[ | t | t := Time millisecondClockValue.
+	 [Time millisecondClockValue - t < 50] whileTrue: [1 to: 1000 do: [:i | keep := Array new: 1000]].
 	 profile := Profiler from: t0 to: Time microsecondClockValue.
 	 allocs := profile allocationsFor: Processor activeProcess.
 	 allocs size < 200 and: [profile stop - t0 < 5000000]] whileTrue.
@@ -146,6 +148,24 @@ testAllocationSamplesTakeNoProcessSwitch
 	self assert: allocs size >= 200.
 	self assert: (allocs allSatisfy: [:s | s stack notEmpty and: [s allocatedClass == Array]]).
 	self assert: d processSwitches < (allocs size // 2) description: [d processSwitches printString, ' switches for ', allocs size printString, ' allocation samples and ', profile samples size printString, ' CPU samples']
+!
+testAllocationRateIsBounded
+	"At a high allocation rate the VM samples more sparsely (Scheduler>>adaptAllocSampling:): about Profiler allocationRate samples a second at most, each weighing the power of two of allocation intervals it stands for, so the estimated bytes still match the bytes allocated."
+	| p t0 t1 before d allocs keep seconds |
+	p := Profiler default.
+	before := Smalltalk vm statistics.
+	t0 := Time microsecondClockValue.
+	[Time microsecondClockValue - t0 < 400000] whileTrue: [1 to: 1000 do: [:i | keep := Array new: 1000]].
+	t1 := Time microsecondClockValue.
+	d := Smalltalk vm statistics - before.
+	allocs := (Profiler from: t0 to: t1) allocationsFor: Processor activeProcess.
+	seconds := (t1 - t0) / 1000000.0.
+	"8 KB Arrays as fast as they are made: GB a second, more than allocationRate samples at the base interval (unless the machine is slow)"
+	d bytesAllocated / seconds > (2 * p allocationRate * p allocationInterval) ifTrue: [
+		self assert: allocs size / seconds < (2 * p allocationRate) description: [allocs size printString, ' samples in ', seconds printString, ' s'].
+		self assert: (allocs anySatisfy: [:s | s weight > p allocationInterval])].
+	self assert: (allocs allSatisfy: [:s | #(1 2 4 8 16 32 64 128) includes: s weight / p allocationInterval]).
+	self assert: (allocs totalWeight - d bytesAllocated) abs * 4 < d bytesAllocated description: [(allocs totalWeight // 1048576) printString, ' MB estimated, ', (d bytesAllocated // 1048576) printString, ' MB allocated']
 !
 testInPlaceStacksAreWhole
 	"A record the VM makes in place leaves out the bottom frames that the one before it has too (Scheduler>>recordSample:at:); the stacks Profiler>>drainBuffer rebuilds from them are whole: an allocation sample of an Array made d activations of allocDown:size: deep has d of them, as its size tells, and this method below them."
@@ -257,7 +277,8 @@ testAllocationSamples
 	"Arrays of 1000 slots are 8 KB: hundreds of MB in 300 ms, one sample per MB."
 	self assert: allocs size >= 20 description: [allocs size printString, ' allocation samples, ', (profile samplesFor: p) size printString, ' CPU samples of the allocator'].
 	self assert: allocs unit = #bytes.
-	self assert: allocs totalWeight = (allocs size * Profiler default allocationInterval).
+	"Each weighs the interval it stands for: the allocation interval, or a power of two times it at high allocation rates (testAllocationRateIsBounded)."
+	self assert: (allocs allSatisfy: [:s | #(1 2 4 8 16 32 64 128) includes: s weight / Profiler default allocationInterval]).
 	self assert: (allocs count: [:s | s allocatedClass == Array]) * 100 / allocs size >= 90.
 	self assert: (allocs allSatisfy: [:s | s allocationSize > 0]).
 	self assert: (allocs count: [:s | self stackOf: s includes: #allocateArrays]) * 100 / allocs size >= 90.

@@ -269,7 +269,7 @@ updateAllocations
 	self updateCrumbs: allocHeader of: allocFlame.
 	seconds := ((data rangeStop - data rangeStart) max: 1) / 1000000.0.
 	allocHeader note: (ProfilerFormat bytes: allocFlame root weight), ProfilerFormat dot, (ProfilerFormat bytes: allocFlame root weight / seconds), '/s'.
-	allocHeader rightText: 'sampled every ', (Profiler printBytes: data profiler allocationInterval), ' at the bump limit'.
+	allocHeader rightText: 'sampled every ', (Profiler printBytes: data profiler allocationInterval), ' at the bump limit', (data profiler allocationRate > 0 ifTrue: [', at most ', data profiler allocationRate printString, '/s'] ifFalse: ['']).
 	sites items: (data topSites: 8)
 !
 updateCrumbs: aHeader of: aFlameGraph

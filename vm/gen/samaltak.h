@@ -75,6 +75,8 @@ typedef bool (*prim_try_guard)(oop);
 #ifndef SAMALTAK_NO_PLATFORM
 #endif
 
+#define ALLOC_RATE_WINDOW_US 100000
+#define ALLOC_SHIFT_MAX 7
 #define ANA_BLOCK 32
 #define ANA_INTERIOR 2
 #define ANA_LOOP 8
@@ -653,6 +655,8 @@ typedef bool (*prim_try_guard)(oop);
 #define R_NONE 0
 #define R_OOP 1
 #define SAMPLE_DRAIN_TICKS 64
+#define SAMPLE_DRAIN_TICKS_STATS 1024
+#define SAMPLE_STATS_TICKS 64
 #define SCHED_ACTIVE 1
 #define SCHED_LISTS 0
 #define SEM_EXCESS 2
@@ -750,6 +754,7 @@ typedef bool (*prim_try_guard)(oop);
 #define T_SMI 1
 #define VM_INT_MAX 4611686018427387903LL
 #define VM_INT_MIN -4611686018427387904LL
+#define VM_STATS 43
 #define W0 64
 #define W1 65
 #define W10 74
@@ -1668,8 +1673,6 @@ extern int32_t ledger_n;
 extern oop ledger_procs[16];
 extern bool sampler_tick_unread;
 extern uint64_t stat_process_switches;
-extern uint64_t stat_reconciles;
-extern uint64_t stat_timer_arms;
 extern int32_t argc;
 extern int32_t args_start;
 extern char **argv;
@@ -2063,6 +2066,7 @@ uint64_t alloc_context(uint32_t n);
 uint64_t alloc_obj(oop cls, int32_t fmt, uint32_t n);
 uint64_t alloc_obj_try(oop cls, int32_t fmt, uint64_t n);
 uint64_t alloc_old(oop cls, int32_t fmt, uint32_t n);
+void alloc_sample_interval_changed_by(int64_t delta);
 oop alloc_slots(oop cls, uint32_t n);
 uint64_t alloc_unfilled_try(oop cls, int32_t fmt, uint64_t n);
 size_t byte_size(oop o);
@@ -2186,6 +2190,8 @@ void *lookup_library(const uint8_t *library, size_t lib_length, const uint8_t *s
 void *notification_unregister(void);
 uint64_t active_process(void);
 void alloc_sample_hit(oop a_class, uint64_t bytes);
+void alloc_sample_large_hit(oop a_class, uint64_t bytes);
+void alloc_sampling_every(int64_t bytes, int64_t per_second);
 void handle_interrupts(void);
 void scheduler_init(void);
 int64_t scheduler_now_ms(void);
@@ -2200,6 +2206,7 @@ void request_periodic_poll(int64_t interval_us);
 int64_t resume_charging(void);
 void resume_process(oop proc);
 void sampler_buffer(int64_t index, int64_t depth, bool cpu, bool share);
+void sampler_stats(bool a_boolean);
 void scheduler_semaphore_signal(oop sem);
 void scheduler_semaphore_wait(oop sem);
 void set_sampler(int64_t interval_us, int32_t sema);
@@ -2208,6 +2215,7 @@ void set_timer(int64_t ms);
 void signal_external_semaphore(int32_t index);
 void suspend_active(void);
 void tick_fired(int32_t ident);
+void vm_stats_into(int64_t *v);
 void work_clock_charge(int64_t us);
 int64_t work_clock_held_us(void);
 void work_clock_hold(void);

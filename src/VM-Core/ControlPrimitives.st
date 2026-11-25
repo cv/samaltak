@@ -188,19 +188,22 @@ primSamplerInterval
 	self answer: self receiver
 !
 primSamplerBuffer
-	"(index, depth[, cpu[, share]]) Allocation samples (and with cpu true CPU samples) go into the Array at index (1-based) of the external objects, at most depth (1 to 255) frames each, recorded where the sampled Process runs (Scheduler>>recordSample:at:): no process switch, no frames flushed; with share true a record leaves out the bottom frames the previous one has too. 0: none (a sampler tick or an allocation sample signals its semaphore)."
+	"(index, depth[, cpu[, share[, stats]]]) Allocation samples (and with cpu true CPU samples) go into the Array at index (1-based) of the external objects, at most depth (1 to 255) frames each, recorded where the sampled Process runs (Scheduler>>recordSample:at:): no process switch, no frames flushed; with share true a record leaves out the bottom frames the previous one has too; with stats true (and cpu) the VM statistics every 64 CPU samples, the reader woken less often (Scheduler>>samplerStats:). 0: none (a sampler tick or an allocation sample signals its semaphore)."
 	<vmPrimitive: 147 name: 'samplerBuffer'>
 	(self argCount < 2 or: [(self isInt: (self arg: 0)) not or: [(self isInt: (self arg: 1)) not]]) ifTrue: [^self fail].
 	((self intVal: (self arg: 0)) < 0 or: [(self intVal: (self arg: 1)) < 1 or: [(self intVal: (self arg: 1)) > 255]]) ifTrue: [^self fail].
 	scheduler samplerBuffer: (self intVal: (self arg: 0)) depth: (self intVal: (self arg: 1)) cpu: (self argCount > 2 and: [(self arg: 2) = memory trueOop]) share: (self argCount > 3 and: [(self arg: 3) = memory trueOop]).
+	scheduler samplerStats: (self argCount > 4 and: [(self arg: 4) = memory trueOop]).
 	self answer: self receiver
 !
 primAllocationSampling
+	"(bytes, semaphore index[, samples per second]) An allocation sample every bytes allocated (0: none); with a rate, the samples recorded in the sample buffer are kept at about that many a second at most, the interval growing in powers of two (Scheduler>>allocSamplingEvery:maxRate:)."
 	<vmPrimitive: 139 name: 'allocationSampling'>
 	| n |
 	(self argCount < 2 or: [(self isInt: (self arg: 0)) not or: [(self isInt: (self arg: 1)) not]]) ifTrue: [^self fail].
+	(self argCount > 2 and: [(self isInt: (self arg: 2)) not]) ifTrue: [^self fail].
 	n := self intVal: (self arg: 0).
-	scheduler allocSampleInterval: (n > 0 ifTrue: [n] ifFalse: [0]).
+	scheduler allocSamplingEvery: (n > 0 ifTrue: [n] ifFalse: [0]) maxRate: (self argCount > 2 ifTrue: [self intVal: (self arg: 2)] ifFalse: [0]).
 	scheduler allocSampleCountdown: scheduler allocSampleInterval.
 	scheduler allocSampleSema: (self intVal: (self arg: 1)) asInt32.
 	scheduler allocSampleUnread: false.

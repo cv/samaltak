@@ -195,13 +195,20 @@ printPercent: weight of: total width: width on: aStream
 	aStream nextPutAll: s; nextPut: $%
 !
 printMemoryOn: aStream
-	| delta stats seconds bytes lf |
+	| delta stats seconds bytes lf lo hi |
 	lf := String with: Character lf.
 	delta := self statisticsDelta.
 	bytes := self allocations totalWeight.
+	"each sample weighs the interval it was taken at (a power of two times allocationInterval at high rates)"
+	self allocations do: [:s |
+		(lo isNil or: [s weight < lo]) ifTrue: [lo := s weight].
+		(hi isNil or: [s weight > hi]) ifTrue: [hi := s weight]].
+	lo isNil ifTrue: [lo := hi := profiler allocationInterval].
 	aStream nextPutAll: lf; nextPutAll: '**Memory**'; nextPutAll: lf.
 	aStream tab; nextPutAll: 'sampled'; tab; tab; nextPutAll: '+'; print: bytes; nextPutAll: ' bytes  ('; print: self allocations size;
-		nextPutAll: ' samples × '; nextPutAll: (Profiler printBytes: profiler allocationInterval); nextPutAll: ')'; nextPutAll: lf.
+		nextPutAll: ' samples × '; nextPutAll: (Profiler printBytes: lo).
+	hi > lo ifTrue: [aStream nextPutAll: ' to '; nextPutAll: (Profiler printBytes: hi)].
+	aStream nextPutAll: ')'; nextPutAll: lf.
 	delta isNil ifTrue: [^self].
 	stats := delta at: 3.
 	seconds := ((delta at: 2) max: 1) / 1000000.0.
