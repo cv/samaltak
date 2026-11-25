@@ -185,6 +185,20 @@ presentSurface: win
 	sw isNull ifTrue: [^false].
 	^sdl updateWindowSurface: sw
 !
+setIcon: win pixels: pixels width: w height: h
+	"The window's icon (the Dock's on macOS, the window manager's elsewhere): w × h pixels, 4 bytes each (red, green, blue, alpha; not premultiplied), rows top to bottom."
+	<export>
+	<var: #pixels type: 'const uint8_t *'>
+	| sw surface ok |
+	sw := self sdlWindow: win.
+	sw isNull ifTrue: [^false].
+	"SDL only reads the pixels: it copies them into the icon"
+	surface := sdl createSurfaceFrom: w height: h format: sdl SDL_PIXELFORMAT_RGBA32 pixels: (self cCoerce: pixels to: 'void *') pitch: w * 4.
+	surface isNull ifTrue: [^false].
+	ok := sdl setWindowIcon: sw icon: surface.
+	sdl destroySurface: surface.
+	^ok
+!
 setOpacity: win permille: permille
 	"Show the window at permille / 1000 opacity (where the system can)."
 	<export>

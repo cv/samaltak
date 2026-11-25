@@ -33,6 +33,9 @@ windowPixelSize: window
 windowDisplayScale: window
 	^1.0
 !
+window: window icon: aByteArray width: w
+	^false
+!
 presentWindow: window pixels: address width: w height: h
 	frames add: {window. w. h. Machine bytesAt: address count: w * h * 4}
 ! !

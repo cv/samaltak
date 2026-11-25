@@ -291,4 +291,20 @@ ffiWindow: win fillRects: bytes size: n
 			height: (self windowWire: bytes at: o + 12 count: 4) asInt32
 			rgba: (self windowWire: bytes at: o + 16 count: 4) asUInt32].
 	^(windows presentSurface: w) ifTrue: [1] ifFalse: [0]
+!
+ffiWindow: win icon: bytes size: n width: w
+	"Set the window's icon: w pixels wide, 4 bytes each (red, green, blue, alpha; not premultiplied), rows top to bottom."
+	<function>
+	<approvedFFI: 425 symbol: 'platform_windows_set_icon' arguments: #(3 8 3) result: 1>
+	<var: #win type: 'int64_t'>
+	<var: #bytes type: 'const uint8_t *'>
+	<var: #n type: 'uint64_t'>
+	<var: #w type: 'int64_t'>
+	<returns: 'int32_t'>
+	| h |
+	(w < 1 or: [w > 1024]) ifTrue: [^0].
+	(n rem: (w * 4) asUInt64) = 0 ifFalse: [^0].
+	h := (n quo: (w * 4) asUInt64) asInt64.
+	(h < 1 or: [h > 1024]) ifTrue: [^0].
+	^(windows setIcon: win asInt32 pixels: bytes width: w asInt32 height: h asInt32) ifTrue: [1] ifFalse: [0]
 ! !

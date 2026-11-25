@@ -13,7 +13,7 @@ typedefs
 	^#((Uint8 uint8_t) (Uint16 uint16_t) (Uint32 uint32_t) (Uint64 uint64_t) (Sint32 int32_t)
 		(SDL_Window opaque) (SDL_Surface opaque) (SDL_Cursor opaque) (SDL_DisplayID uint32_t) (SDL_WindowID uint32_t) (SDL_WindowFlags uint64_t)
 		(SDL_InitFlags uint32_t) (SDL_Keymod uint16_t) (SDL_Keycode uint32_t) (SDL_MouseButtonFlags uint32_t)
-		(SDL_MouseWheelDirection uint32_t) (SDL_EventAction uint32_t) (SDL_SystemCursor uint32_t) (SDL_LogPriority uint32_t)
+		(SDL_MouseWheelDirection uint32_t) (SDL_EventAction uint32_t) (SDL_SystemCursor uint32_t) (SDL_LogPriority uint32_t) (SDL_PixelFormat uint32_t)
 		(SDL_LogOutputFunction 'void (*)(void *, int, SDL_LogPriority, const char *)'))
 ! !
 
@@ -340,6 +340,22 @@ fillSurfaceRect: surface rect: rect color: color
 !
 mapSurfaceRGBA: surface r: r g: g b: b a: a
 	<c: 'Uint32 SDL_MapSurfaceRGBA(SDL_Surface *surface, Uint8 r, Uint8 g, Uint8 b, Uint8 a)'>
+	^self notSimulated
+!
+createSurfaceFrom: w height: h format: format pixels: pixels pitch: pitch
+	<c: 'SDL_Surface *SDL_CreateSurfaceFrom(int width, int height, SDL_PixelFormat format, void *pixels, int pitch)'>
+	^self notSimulated
+!
+destroySurface: surface
+	<c: 'void SDL_DestroySurface(SDL_Surface *surface)'>
+	^self notSimulated
+!
+setWindowIcon: window icon: surface
+	<c: 'bool SDL_SetWindowIcon(SDL_Window *window, SDL_Surface *icon)'>
+	^self notSimulated
+!
+SDL_PIXELFORMAT_RGBA32
+	<cMacro: 'SDL_PixelFormat SDL_PIXELFORMAT_RGBA32'>
 	^self notSimulated
 ! !
 

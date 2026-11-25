@@ -62,6 +62,13 @@ window: window fillRects: anArray
 	anArray doWithIndex: [:v :i | bytes uint32At: i - 1 * 4 + 1 put: (v bitAnd: 16rFFFFFFFF)].
 	^(binding tryInvoke2: window with: {bytes. 1. bytes size}) = 1
 !
+window: window icon: aByteArray width: w
+	"Set window's icon: w pixels wide, 4 bytes each (red, green, blue, alpha; not premultiplied), rows top to bottom; false where the VM or the system cannot."
+	| binding |
+	binding := WindowPlatformFFI iconCall.
+	binding isNil ifTrue: [^false].
+	^(binding tryInvoke3: window with: {aByteArray. 1. aByteArray size} with: w) = 1
+!
 window: window opacity: permille
 	"Show window at permille / 1000 opacity; false where the VM or the system cannot."
 	| binding |

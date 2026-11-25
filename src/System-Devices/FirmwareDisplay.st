@@ -107,6 +107,11 @@ window: window fillRects: anArray
 	self check: window.
 	^false
 !
+window: window icon: aByteArray width: w
+	"The screen has no icon."
+	self check: window.
+	^false
+!
 window: window opacity: permille
 	"The screen stays opaque."
 	self check: window.

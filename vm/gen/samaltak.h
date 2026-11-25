@@ -2482,6 +2482,7 @@ bool present_surface(int32_t win);
 double refresh_rate(int32_t win);
 SDL_Window *sdl_window(int32_t win);
 bool set_cursor(int32_t kind);
+bool set_icon(int32_t win, const uint8_t *pixels, int32_t w, int32_t h);
 bool set_opacity(int32_t win, int32_t permille);
 bool set_position(int32_t win, int32_t x, int32_t y);
 bool set_size(int32_t win, int32_t w, int32_t h);

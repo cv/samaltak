@@ -81,6 +81,7 @@ Type=Application
 Name=$name
 Comment=$comment
 Exec=$exec
+Icon=$root/icons/samaltak.svg
 Terminal=false
 StartupWMClass=$id
 Categories=Utility;

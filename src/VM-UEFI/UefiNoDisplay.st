@@ -510,6 +510,16 @@ setOpacity: win permille: permille
 	common setError: 'not on UEFI'.
 	^false
 !
+setIcon: win pixels: pixels width: w height: h
+	<function>
+	<var: #win type: 'int32_t'>
+	<var: #pixels type: 'const uint8_t *'>
+	<var: #w type: 'int32_t'>
+	<var: #h type: 'int32_t'>
+	<returns: 'bool'>
+	common setError: 'not on UEFI'.
+	^false
+!
 setTitle: win title: title
 	<function>
 	<var: #win type: 'int32_t'>

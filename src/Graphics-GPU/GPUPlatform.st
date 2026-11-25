@@ -172,6 +172,9 @@ window: window x: x y: y
 window: window opacity: permille
 	^self display window: window opacity: permille
 !
+window: window icon: aByteArray width: w
+	^self display window: window icon: aByteArray width: w
+!
 window: window fillRects: anArray
 	^self display window: window fillRects: anArray
 !
