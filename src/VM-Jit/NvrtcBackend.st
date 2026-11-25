@@ -3,7 +3,7 @@ CLibrary subclass: #NvrtcBackend
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-NvrtcBackend comment: 'NVIDIA''s runtime CUDA compiler, NVRTC, behind dlopen (vm/native/nvrtc.h: loaded on first use where the CUDA toolkit is installed; stubs on UEFI). FFIPrimitives exports it to the image as core_nvrtc_* (FFIPrimitives-nvrtc); System-NV''s NvRtc uses them. docs/nv-shaders.md. Not simulated.'!
+NvrtcBackend comment: 'NVIDIA''s runtime CUDA compiler, NVRTC, behind dlopen (vm/native/nvrtc.h: loaded on first use where the CUDA toolkit is installed; stubs on UEFI). FFIPrimitives exports it to the image as core_nvrtc_* (FFIPrimitives-nvrtc); System-NV''s NvRtc uses them; NvCudaCompute (libcuda) loads the cubins. docs/nv-shaders.md. Not simulated.'!
 
 !NvrtcBackend class methodsFor: 'declaring'!
 headers

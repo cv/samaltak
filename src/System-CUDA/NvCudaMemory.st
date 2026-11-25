@@ -3,7 +3,7 @@ Object subclass: #NvCudaMemory
 	classVariableNames: ''
 	package: 'System-CUDA'!
 
-NvCudaMemory comment: 'I am memory an NvCudaDevice allocated for the GPU and the CPU both: CUDA''s pinned host memory (cudaMallocHost; on the GB10 the GPU''s own memory, which it reads at full speed), at one address for both (unified addressing: gpuAddress = cpuAddress), zeroed. The VM knows me as a live CUDA allocation, so a cuBLAS call or a kernel launched through the bindings may take my address as a device pointer. NvMemory''s protocol; offsets are 0-based bytes. CUDA keeps the CPU''s and the GPU''s views coherent: what a kernel wrote is there once its fence is reached, what the CPU wrote before a launch the kernel sees. Of one VM session: after a snapshot is restored I am gone (isFreed), never a stale address.
+NvCudaMemory comment: 'I am memory an NvCudaDevice allocated for the GPU and the CPU both: CUDA''s pinned host memory (cudaMallocHost; on the GB10 the GPU''s own memory, which it reads at full speed), at one address for both (unified addressing: gpuAddress = cpuAddress), zeroed. The VM knows me as a live CUDA allocation, so a cuBLAS call or a kernel launched through the bindings may take my address as a device pointer. Offsets are 0-based bytes. CUDA keeps the CPU''s and the GPU''s views coherent: what a kernel wrote is there once its fence is reached, what the CPU wrote before a launch the kernel sees. Of one VM session: after a snapshot is restored I am gone (isFreed), never a stale address.
 
 	m := gpu allocate: 4096.
 	m uint32At: 0 put: 7; uint32At: 0.             "7"

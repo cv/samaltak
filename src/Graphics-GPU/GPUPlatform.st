@@ -5,7 +5,7 @@ Object subclass: #GPUPlatform
 
 GPUPlatform comment: 'I am the private gateway of Graphics-GPU to the platform''s GPU and windows (docs/platform.md): every method forwards to a backend, the VM''s primitives (GPUPrimitives: SDL3, SDL_GPU) where it has them, else, where the image drives the machine itself (UEFI), the firmware''s display (FirmwareDisplay: windows and events) and a SoftwareGPU on it; so too on Linux without a window system where SAMALTAK_SCREEN=kms asks for it (KmsDisplay, FirmwareDisplay current there: KMS and evdev). They are chosen on first use after the image starts (reset). Failures signal a GPUError carrying the platform''s explanation. Only the classes of Graphics-GPU use me.
 
-Another GPU is opt-in: --gpu NAME on the command line, else the environment''s SAMALTAK_GPU. nv is an NvComputeGPU (Graphics-NV: the raster kernels on an NVIDIA GPU, docs/nv-gpu.md), software a SoftwareGPU; hosted they present through a HostFramePresenter in the VM''s windows, on UEFI on the firmware''s display. Where it cannot be made (no NVIDIA GPU, it does not open) the default is used, with a line on stderr.'!
+Another GPU is opt-in: --gpu NAME on the command line, else the environment''s SAMALTAK_GPU. nv is an NvComputeGPU (Graphics-NV: the raster kernels on an NVIDIA GPU, docs/nv-gpu.md), software a SoftwareGPU; hosted they present through a HostFramePresenter in the VM''s windows, on UEFI on the firmware''s display. Where it cannot be made (no Graphics-NV, no CUDA userspace, it does not open) the default is used, with a line on stderr saying why: hosted the default GPU, on the firmware''s or the KMS screen software rendering.'!
 
 !GPUPlatform class methodsFor: 'backends'!
 display
@@ -33,13 +33,15 @@ device: aName on: aDisplay nv: nvClass
 	"The device aName asks for, presenting on aDisplay; nil for the default (no name, an unknown one, or one that cannot be made here). nvClass: NvComputeGPU, or nil without Graphics-NV."
 	(aName isNil or: [aName isEmpty]) ifTrue: [^nil].
 	aName = 'software' ifTrue: [^SoftwareGPU on: aDisplay].
-	aName = 'nv' ifFalse: [^self note: 'unknown GPU ', aName printString].
-	(nvClass notNil and: [nvClass isAvailable]) ifFalse: [^self note: 'no NVIDIA GPU here'].
-	^[nvClass on: aDisplay] on: Error do: [:e | e return: (self note: 'the NVIDIA GPU did not open (', e messageText asString, ')')]
+	aName = 'nv' ifFalse: [^self note: 'unknown GPU ', aName printString on: aDisplay].
+	nvClass isNil ifTrue: [^self note: 'nv: no Graphics-NV in this image' on: aDisplay].
+	nvClass isAvailable ifFalse: [
+		^self note: 'nv: ', ((nvClass respondsTo: #unavailableReason) ifTrue: [nvClass unavailableReason] ifFalse: ['no NVIDIA GPU here']) on: aDisplay].
+	^[nvClass on: aDisplay] on: Error do: [:e | e return: (self note: 'nv: the NVIDIA GPU did not open (', e messageText asString, ')' on: aDisplay)]
 !
-note: aString
-	"Say on stderr why the default GPU is used; answer nil."
-	Smalltalk vm stderrWrite: 'Samaltak: --gpu: ', aString, ': the default GPU instead', (String with: Character lf).
+note: aString on: aDisplay
+	"Say on stderr why the default is used, and what it is: hosted (aDisplay a HostFramePresenter) the default GPU, else software rendering (a SoftwareGPU on the firmware's or the KMS screen); answer nil."
+	Smalltalk vm stderrWrite: 'Samaltak: --gpu: ', aString, ': ', ((aDisplay isKindOf: HostFramePresenter) ifTrue: ['the default GPU'] ifFalse: ['software rendering']), ' instead', (String with: Character lf).
 	^nil
 !
 display: aDisplay device: aDevice

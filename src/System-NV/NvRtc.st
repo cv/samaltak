@@ -3,7 +3,7 @@ Object subclass: #NvRtc
 	classVariableNames: ''
 	package: 'System-NV'!
 
-NvRtc comment: 'I am NVIDIA''s runtime CUDA compiler, NVRTC (the CUDA toolkit''s libnvrtc), as the VM''s core_nvrtc_* exports give it (vm/native/nvrtc.h: dlopen on first use, a thread a compile): CUDA C++ to a cubin for the GB10 (-arch=sm_121), which NvCubin reads and NvCompute launches, with no CUDA driver library. isAvailable is false where the VM has no NVRTC (no toolkit; UEFI; a VM without the exports). compile:options: waits for the compile without blocking other Processes; NvShaderCompiler (Graphics-NV) uses me. docs/nv-shaders.md.
+NvRtc comment: 'I am NVIDIA''s runtime CUDA compiler, NVRTC (the CUDA toolkit''s libnvrtc), as the VM''s core_nvrtc_* exports give it (vm/native/nvrtc.h: dlopen on first use, a thread a compile): CUDA C++ to a cubin for the GB10 (-arch=sm_121), which NvCubin reads and NvCudaCompute launches (libcuda: cuModuleLoadData). isAvailable is false where the VM has no NVRTC (no toolkit; UEFI; a VM without the exports). compile:options: waits for the compile without blocking other Processes; NvShaderCompiler (Graphics-NV) uses me. docs/nv-shaders.md.
 
 	NvRtc compile: cudaSource options: #(''-arch=sm_121'')     "an Array: the cubin (nil if it did not compile) and NVRTC''s log"'!
 

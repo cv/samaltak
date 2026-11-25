@@ -5,8 +5,6 @@
 # which shows each device's own; then both again on the appliance's screen path (SAMALTAK_SCREEN=memory: KmsDisplay
 # and a KmsScreen in memory, as on the Spark's KMS but for the device, no SDL window). The readouts of the machine's speed and load (the Mandelbrot's time to render, the
 # Process Browser's CPU column and load meters) are frozen first (Tools freezeReadouts), once the Mandelbrot is done.
-# Both NvComputeGPU backends: nv on libcuda where it loads (the default), rm on System-NV's RM client
-# (SAMALTAK_NV_COMPUTE=rm), each against the SoftwareGPU.
 #   tests/nv/world_test.sh [OUT]
 set -e
 OUT=${1:-build}
@@ -28,16 +26,15 @@ sleep 1
 # else can wake it), and the open would wait for its answer for ever
 open_world() {
 	for attempt in 1 2; do
-		DISPLAY=$D SAMALTAK_GPU=$gpu SAMALTAK_SCREEN=$screen SAMALTAK_NV_COMPUTE=$nvc timeout -k 10 180 $CTL --session $S open --image "$OUT/samaltak.image" --window-size 1920x1080 --work-clock >/dev/null && return 0
+		DISPLAY=$D SAMALTAK_GPU=$gpu SAMALTAK_SCREEN=$screen timeout -k 10 180 $CTL --session $S open --image "$OUT/samaltak.image" --window-size 1920x1080 --work-clock >/dev/null && return 0
 		# a flake (tests/lib/rerun.sh): the gate lists it, the ledger records it
 		echo "flake: world_test: the World on $run did not answer its first command within 3 minutes (attempt $attempt)"
 		$CTL --session $S close >/dev/null 2>&1 || true
 	done
 	return 1
 }
-for run in nv software nv-kms software-kms rm rm-kms; do
+for run in nv software nv-kms software-kms; do
 	gpu=${run%-kms}; sfx=${run#$gpu}; screen=; [ -n "$sfx" ] && screen=memory:1920x1080
-	nvc=; [ $gpu = rm ] && { gpu=nv; nvc=rm; }
 	open_world
 	$CTL --session $S wait idle 20000 >/dev/null || true
 	$CTL --session $S wait 4000 >/dev/null
@@ -53,13 +50,9 @@ for run in nv software nv-kms software-kms rm rm-kms; do
 	$CTL --session $S wait 2000 >/dev/null
 	$CTL --session $S eval "GPUPlatform device printString, ' ', World current compositor lastError printString, ' ', GPUPlatform display printString" > "$NV/world-$run.txt"
 	$CTL --session $S eval "(World current windows detect: [:w | w title = 'Process Browser'] ifNone: [nil]) ifNil: [''] ifNotNil: [:w | | b | b := w bounds. b left printString, ' ', b top printString, ' ', b right printString, ' ', b bottom printString]" >> "$NV/world-$run.txt"
-	$CTL --session $S eval "(GPUPlatform device respondsTo: #backend) ifTrue: [GPUPlatform device backend] ifFalse: ['']" >> "$NV/world-$run.txt"
 	$CTL --session $S screenshot "$NV/world-$run.png" --scale 1 >/dev/null
 	$CTL --session $S close >/dev/null
 done
 NV_DIR="$NV" vm/build/samaltak "$OUT/samaltak.image" --headless --eval "$(cat tests/nv/world_compare.st)"
 grep -q KmsDisplay "$NV/world-nv-kms.txt" && grep -q KmsDisplay "$NV/world-software-kms.txt" || { echo "world_test: not on the KMS screen: $(head -1 "$NV/world-nv-kms.txt")"; exit 1; }
 NV_DIR="$NV" NV_SUFFIX=-kms vm/build/samaltak "$OUT/samaltak.image" --headless --eval "$(cat tests/nv/world_compare.st)"
-NV_DIR="$NV" NV_NAME=rm vm/build/samaltak "$OUT/samaltak.image" --headless --eval "$(cat tests/nv/world_compare.st)"
-NV_DIR="$NV" NV_NAME=rm NV_SUFFIX=-kms vm/build/samaltak "$OUT/samaltak.image" --headless --eval "$(cat tests/nv/world_compare.st)"
-for run in rm rm-kms; do grep -q '#rm' "$NV/world-$run.txt" || { echo "world_test: $run not on the RM backend: $(cat "$NV/world-$run.txt")"; exit 1; }; done

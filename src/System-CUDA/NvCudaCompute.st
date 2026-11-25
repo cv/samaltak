@@ -3,12 +3,12 @@ Object subclass: #NvCudaCompute
 	classVariableNames: ''
 	package: 'System-CUDA'!
 
-NvCudaCompute comment: 'I launch compute kernels (NvKernel, from an NvCubin: the precompiled raster kernels, NVRTC''s cubins) through libcuda, with NvCompute''s protocol: a kernel''s cubin is loaded once (cuModuleLoadData; the driver places its code, constant banks and data and sizes its local memory), its function looked up once (cuModuleGetFunction), and a launch is cuLaunchKernel with the parameter area as one buffer (NvKernel parameterBytes:), on the default stream of the CUDA runtime''s primary context: the stream cuBLAS and cuRAND work on, so a kernel''s results are their operands in order, with no copy and no host round trip.
+NvCudaCompute comment: 'I launch compute kernels (NvKernel, from an NvCubin: the precompiled raster kernels, NVRTC''s cubins) through libcuda: a kernel''s cubin is loaded once (cuModuleLoadData; the driver places its code, constant banks and data and sizes its local memory), its function looked up once (cuModuleGetFunction), and a launch is cuLaunchKernel with the parameter area as one buffer (NvKernel parameterBytes:), on the default stream of the CUDA runtime''s primary context: the stream cuBLAS and cuRAND work on, so a kernel''s results are their operands in order, with no copy and no host round trip.
 
 	compute := NvCudaDevice open newCompute.        "or Cuda compute: the session''s"
 	compute run: kernel grid: 16 block: 256 arguments: {aCudaArray. 4000}
 
-Arguments are as NvKernel parameterBytes: takes them, and CudaArrays and NvCudaMemory (their addresses). launch:grid:block:arguments: is asynchronous and answers a fence value; wait: waits for it (polling a word the stream writes, cuStreamWriteValue64, written when a fence is first waited for or asked about: a launch costs one call), run:... launches and waits. I am also my own channel (NvChannel''s fence, wait:, sync, completedValue, timestamp:payload:; its L2 flushes do nothing: CUDA keeps the CPU coherent), so NvComputeGPU runs on me unchanged. forget: unloads a kernel''s module once no kernel of it is left; close everything.'!
+Arguments are as NvKernel parameterBytes: takes them, and CudaArrays and NvCudaMemory (their addresses). launch:grid:block:arguments: is asynchronous and answers a fence value; wait: waits for it (polling a word the stream writes, cuStreamWriteValue64, written when a fence is first waited for or asked about: a launch costs one call), run:... launches and waits. My channel is me: NvComputeGPU asks it for fences and timestamps (fence, wait:, sync, completedValue, timestamp:payload:; flushL2 and flushAndInvalidateL2 do nothing: CUDA keeps the CPU coherent). forget: unloads a kernel''s module once no kernel of it is left; close everything.'!
 
 !NvCudaCompute methodsFor: 'initialization'!
 device: anNvCudaDevice
@@ -133,7 +133,7 @@ wait: value
 	self wait: value timeoutMilliseconds: 5000
 !
 wait: value timeoutMilliseconds: ms
-	"Return once the GPU has reached the fence value; poll without pause (as NvChannel), asking the stream now and then whether it failed (a kernel that faulted: a CudaError), an error after ms."
+	"Return once the GPU has reached the fence value; poll without pause, asking the stream now and then whether it failed (a kernel that faulted: a CudaError), an error after ms."
 	| deadline n |
 	(fenceMemory uint64At: 0) >= value ifTrue: [^self].
 	value > written ifTrue: [self writeFence].
@@ -151,7 +151,7 @@ sync
 	self wait: self fence
 !
 timestamp: gpuAddress payload: value
-	"Once the work before it is done, the GPU writes its clock (ns, %globaltimer) at gpuAddress + 8, then value at gpuAddress (64 bits each): NvChannel's timestamp release, as a one-thread kernel (PTX the driver compiles once)."
+	"Once the work before it is done, the GPU writes its clock (ns, %globaltimer) at gpuAddress + 8, then value at gpuAddress (64 bits each): a timestamp release, as a one-thread kernel (PTX the driver compiles once)."
 	| p |
 	p := ByteArray new: 16.
 	CudaLibraryAPI put64: gpuAddress at: 1 in: p.

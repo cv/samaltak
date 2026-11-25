@@ -24,10 +24,9 @@ $CXX -O2 -std=c++17 -I"$CUDA/include" tests/nv/replay.cpp "$NV/ref_off.o" "$NV/r
 "$NV/replay" fuzzbatch "$NV/raster.cubin" "${NV_FUZZ:-20000}"
 NV_RECORD="$NV/world.nvrec" NV_FRAMES="${NV_FRAMES:-6}" vm/build/samaltak "$OUT/samaltak.image" --headless --eval "$(cat tests/nv/record.st)"
 "$NV/replay" replay "$NV/raster.cubin" "$NV/world.nvrec" 3
-# the same frames through the image's NvComputeGPU (Graphics-NV: System-NV launching the kernels) and its SoftwareGPU
-# on both NvComputeGPU backends: libcuda (the default where it loads) and System-NV's RM client
+# the same frames through the image's NvComputeGPU (Graphics-NV: the kernels launched through libcuda) and its
+# SoftwareGPU
 NV_RECORD="$NV/world.nvrec" vm/build/samaltak "$OUT/samaltak.image" --headless --eval "$(cat tests/nv/replay.st)"
-NV_RECORD="$NV/world.nvrec" SAMALTAK_NV_COMPUTE=rm vm/build/samaltak "$OUT/samaltak.image" --headless --eval "$(cat tests/nv/replay.st)"
 # the World hosted on the NvComputeGPU (SAMALTAK_GPU=nv) under a private Xvfb, screenshot against the SoftwareGPU's
 tests/nv/world_test.sh "$OUT"
 echo "make test-nv: passed"

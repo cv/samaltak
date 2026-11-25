@@ -1,4 +1,4 @@
-// Test kernels for System-NV (Tests-NV): tools/nv-test-kernels.sh compiles them for sm_121 into src/Tests-NV/NvTestKernels.st.
+// Test kernels for NvCubinTest (Tests-NV) and NvCudaComputeTest (Tests-CUDA): tools/nv-test-kernels.sh compiles them for sm_121 into src/Tests-NV/NvTestKernels.st.
 // Parameters are 32-bit unsigned counts and 64-bit pointers in the kernel's order (CUDA's ABI).
 
 // c[i] = a[i] + b[i] for i < n.

@@ -7,7 +7,7 @@ NvFragmentShaderTest comment: 'Tests FragmentShaders on an NvComputeGPU: GLSL ma
 
 !NvFragmentShaderTest methodsFor: 'running'!
 setUp
-	NvComputeGPU isAvailable ifFalse: [^self error: 'no NVIDIA GPU here (no /dev/nvidiactl): NvFragmentShaderTest needs one'].
+	NvComputeGPU isAvailable ifFalse: [^self error: 'no NVIDIA GPU with CUDA here (libcuda, the CUDA runtime, a device): NvFragmentShaderTest needs one'].
 	gpu := NvComputeGPU on: SoftwareGPUTestDisplay new.
 	old := GPUPlatform display: gpu display device: gpu.
 	device := GPUDevice new.

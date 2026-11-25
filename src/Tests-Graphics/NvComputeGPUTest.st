@@ -7,7 +7,7 @@ NvComputeGPUTest comment: 'Every test of SoftwareGPUTest on an NvComputeGPU: the
 
 !NvComputeGPUTest methodsFor: 'running'!
 gpuOn: aDisplay
-	NvComputeGPU isAvailable ifFalse: [^self error: 'no NVIDIA GPU here (no /dev/nvidiactl, or no devices on this platform): NvComputeGPUTest needs one'].
+	NvComputeGPU isAvailable ifFalse: [^self error: 'no NVIDIA GPU with CUDA here (libcuda, the CUDA runtime, a device): NvComputeGPUTest needs one'].
 	^NvComputeGPU on: aDisplay
 !
 shaderLanguage

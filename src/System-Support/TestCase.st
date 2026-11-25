@@ -249,7 +249,7 @@ isAbstract
 !
 runsByDefault
 	"Does runAll (--test without names) run me? Tests that need hardware the default run cannot assume (an NVIDIA GPU:
-	NvGpuTest) answer false; they run only when named, from a make target of their own (make test-nv)."
+	NvCudaComputeTest) answer false; they run only when named, from a make target of their own (make test-nv)."
 	^true
 ! !
 

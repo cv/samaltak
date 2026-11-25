@@ -4,12 +4,12 @@ Object subclass: #NvKernel
 	package: 'System-NV'!
 
 NvKernel comment: 'I am one kernel (a __global__ function) of a cubin, as NvCubin read it, with what a launch needs:
-- code: its machine code (.text.<name>), which runs from wherever it is put (relocations lists any the ELF has, which NvCompute refuses);
+- code: its machine code (.text.<name>), which runs from wherever it is put (relocations lists any the ELF has: the CUDA driver applies them when it loads the cubin);
 - registerCount, frameSize, minStackSize (per thread), sharedSize (its static __shared__ bytes), maxThreads (the threads per block __launch_bounds__ allows, nil if it says nothing);
 - parameters: (ordinal offset size) triples in ordinal order, offsets in the parameter area; parameterOffset is where that area starts in constant bank 0 (after the driver''s part, 16r380 on sm_120 and sm_121), parameterSize its size;
 - constantBanks: bank index -> ByteArray of initial contents: 0 is the kernel''s own (the driver''s part, then the parameters), others (3: __constant__ data) are shared by the cubin''s kernels;
 - smVersion: the SM the cubin is for (121 for sm_121);
-- globals: data section name -> its initial bytes (.nv.global.init: libdevice''s tables), and bankRelocations: (bank offset section value type), the 64-bit addresses into them the constant banks hold (type 2, R_CUDA_64): NvCompute puts the data in GPU memory and writes the addresses;
+- globals: data section name -> its initial bytes (.nv.global.init: libdevice''s tables), and bankRelocations: (bank offset section value type), the 64-bit addresses into them the constant banks hold (type 2, R_CUDA_64): the CUDA driver places the data and writes the addresses when it loads the cubin;
 - cubin: the bytes of the cubin I am from, which NvCudaCompute (System-CUDA) gives the CUDA driver to load.'!
 
 !NvKernel methodsFor: 'accessing'!

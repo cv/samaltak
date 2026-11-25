@@ -1,6 +1,6 @@
 /* Samaltak's runtime CUDA compiler exports (core_nvrtc_*, FFIPrimitives-nvrtc): NVIDIA's NVRTC (libnvrtc, the CUDA
    toolkit's runtime compilation library), loaded with dlopen on first use where it is installed, compiles CUDA C++ to a
-   cubin for the GPU (-arch=sm_121: the GB10's machine code; no CUDA driver library: System-NV launches it) on a thread
+   cubin for the GPU (-arch=sm_121: the GB10's machine code; libcuda loads and launches it: NvCudaCompute) on a thread
    of its own, so the VM goes on meanwhile. Not linked: a VM without the toolkit has none (version answers -1); none on
    UEFI. Jobs are numbered from 1; at most SAMALTAK_NVRTC_JOBS at once. docs/nv-shaders.md. */
 #ifndef SAMALTAK_NATIVE_NVRTC_H

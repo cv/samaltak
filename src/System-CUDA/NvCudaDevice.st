@@ -3,7 +3,7 @@ Object subclass: #NvCudaDevice
 	classVariableNames: ''
 	package: 'System-CUDA'!
 
-NvCudaDevice comment: 'I am the NVIDIA GPU as NVIDIA''s CUDA userspace gives it (libcuda and the runtime, docs/cuda.md), with NvDevice''s protocol for what launches kernels: allocate: answers memory the GPU and the CPU both reach (an NvCudaMemory: CUDA''s pinned host memory, a CUDA allocation the VM knows, so cuBLAS and the image''s kernels can use it too), newCompute an NvCudaCompute (NvCompute''s protocol over cuModuleLoadData and cuLaunchKernel). Everything runs in the CUDA runtime''s primary context on device 0 and its default stream, the context and stream of Cuda, CudaArray, cuBLAS and cuRAND: a kernel launched here and a cuBLAS call on the same CudaArray are ordered on the device, without a host round trip. NvComputeGPU opens me where libcuda loads (NvComputeGPU class>>backend), System-NV''s NvDevice (the RM ioctls) elsewhere.
+NvCudaDevice comment: 'I am the NVIDIA GPU as NVIDIA''s CUDA userspace gives it (libcuda and the runtime, docs/cuda.md), the device side of what launches kernels (NvComputeGPU, Cuda compute, the NV shaders): allocate: answers memory the GPU and the CPU both reach (an NvCudaMemory: CUDA''s pinned host memory, a CUDA allocation the VM knows, so cuBLAS and the image''s kernels can use it too), newCompute an NvCudaCompute (cuModuleLoadData and cuLaunchKernel). Everything runs in the CUDA runtime''s primary context on device 0 and its default stream, the context and stream of Cuda, CudaArray, cuBLAS and cuRAND: a kernel launched here and a cuBLAS call on the same CudaArray are ordered on the device, without a host round trip. NvComputeGPU opens me where libcuda loads; elsewhere GPUPlatform renders in software. (The RM-ioctl device that once stood beside me, System-NV''s NvDevice, was removed: docs/nv-rm.md.)
 
 	NvCudaDevice during: [:gpu | | compute kernel a |
 		compute := gpu newCompute.
@@ -73,7 +73,7 @@ allocate: size
 	^self allocate: size gpuCached: false
 !
 allocate: size gpuCached: aBoolean
-	"As allocate: (NvDevice's protocol: CUDA keeps the GPU's caches coherent with the CPU, so whether the GPU caches it is CUDA's choice)."
+	"As allocate: (aBoolean is NvComputeGPU's hint for textures: CUDA keeps the GPU's caches coherent with the CPU, so whether the GPU caches it is CUDA's choice)."
 	| m |
 	self isOpen ifFalse: [^self error: 'the CUDA device is closed'].
 	m := NvCudaMemory new device: self size: size.

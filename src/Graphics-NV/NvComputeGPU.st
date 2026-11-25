@@ -3,18 +3,18 @@ SoftwareGPU subclass: #NvComputeGPU
 	classVariableNames: ''
 	package: 'Graphics-NV'!
 
-NvComputeGPU comment: 'I am a GPU device on an NVIDIA GPU (the GB10) without its graphics driver: a SoftwareGPU (the gpu primitives'' protocol, handles, errors, the Renderer''s shader only; docs/platform.md) whose memory is the GPU''s (NvDevice, System-NV: system memory both reach) and whose pixel work is the raster kernels (NvRasterKernels: PlatformRaster''s as CUDA kernels, bit-exact with it), launched on one compute channel. docs/nv-gpu.md.
+NvComputeGPU comment: 'I am a GPU device on an NVIDIA GPU (the GB10) without its graphics driver: a SoftwareGPU (the gpu primitives'' protocol, handles, errors, the Renderer''s shader only; docs/platform.md) whose memory is the GPU''s (NvCudaDevice, System-CUDA: CUDA''s pinned host memory, which the GPU and the CPU reach at one address) and whose pixel work is the raster kernels (NvRasterKernels: PlatformRaster''s as CUDA kernels, bit-exact with it), launched through libcuda (NvCudaCompute: cuModuleLoadData, cuLaunchKernel) on the CUDA runtime''s context and default stream, the one cuBLAS and CudaArray use. docs/nv-gpu.md.
 
-Two backends below me, one protocol (backend): where NVIDIA''s CUDA userspace is (libcuda: hosted with the driver, the appliance with the CUDA root), an NvCudaDevice and NvCudaCompute (System-CUDA: cuModuleLoadData, cuLaunchKernel, pinned host memory, on the CUDA runtime''s context and default stream, the one cuBLAS and CudaArray use); elsewhere System-NV''s own RM client, an NvDevice and NvCompute (QMDs on a channel of its own). SAMALTAK_NV_COMPUTE=cuda or rm chooses.
+libcuda is my one backend: where NVIDIA''s CUDA userspace is not (no libcuda or CUDA runtime, or no device: the appliance without its CUDA root), isAvailable is false and GPUPlatform renders in software instead, saying why (unavailableReason). The RM-ioctl backend (System-NV''s own RM client) was removed: docs/nv-rm.md.
 
 	gpu := NvComputeGPU on: aDisplay.        "opens the GPU; an error where there is none"
 	GPUPlatform display: d device: gpu       "or --gpu nv (SAMALTAK_GPU=nv): GPUPlatform chooses me"
 
-Textures, buffers and back buffers are NvMemory or NvCudaMemory (the addresses SoftwareGPU keeps are their CPU addresses). A clear is a raster_fill, a blit raster_blit. Draws are batched: consecutive draws into one target (a pass''s, or several passes'') collect their RasterDrawParams (the pass''s state), and are launched together as raster_batch_prims then raster_batch_tiles (the params in an arena of GPU memory reused as a ring, one scratch) when anything else comes: another target, a clear, a blit, a CPU access, a submit. Launches are queued in order and run while the CPU goes on. The CPU waits only where it touches memory a queued launch uses: an upload, a download, a present, freeing; each memory remembers the fence of the last launch that used it. Fences are the channel''s: done when the GPU reached them. fenceElapsed is the GPU''s time for the command buffer: the GPU''s clock written (a timestamp release) before its first clear, draw or blit and after its last, in a ring of 256 slots. shaderLanguage is ''raster'': not software (isSoftware is false); the Renderer''s shader is the raster kernels.
+Textures, buffers and back buffers are NvCudaMemory (the addresses SoftwareGPU keeps are their CPU addresses). A clear is a raster_fill, a blit raster_blit. Draws are batched: consecutive draws into one target (a pass''s, or several passes'') collect their RasterDrawParams (the pass''s state), and are launched together as raster_batch_prims then raster_batch_tiles (the params in an arena of GPU memory reused as a ring, one scratch) when anything else comes: another target, a clear, a blit, a CPU access, a submit. Launches are queued in order and run while the CPU goes on. The CPU waits only where it touches memory a queued launch uses: an upload, a download, a present, freeing; each memory remembers the fence of the last launch that used it. Fences are the channel''s: done when the GPU reached them. fenceElapsed is the GPU''s time for the command buffer: the GPU''s clock written (a timestamp release) before its first clear, draw or blit and after its last, in a ring of 256 slots. shaderLanguage is ''raster'': not software (isSoftware is false); the Renderer''s shader is the raster kernels.
 
 FragmentShaders run too (GPUDevice>>runsFragmentShaders, fragmentShaderLanguage #glsl): a fragment shader with entry main is GLSL (FragmentShader''s prelude and source), which NvShaderCompiler makes a kernel of (precompiled, or by NVRTC; a ShaderError if it does not compile); its pipeline (a triangle over an RGBA8 target, no blending, no vertices) draws by launching that kernel over the pass''s target, a thread a pixel, with the fragment uniforms pushed to slot 0 as its uniform block. A kernel''s GPU memory goes when the last pipeline using it is released.
 
-My display presents the BGRA8 back buffer from its CPU address: hosted a HostFramePresenter (SDL_GPU, the VM''s window), on UEFI it would be FirmwareDisplay (the firmware''s screen) once System-NV runs there. close closes the GPU (everything I made goes with it).'!
+My display presents the BGRA8 back buffer from its CPU address: hosted a HostFramePresenter (SDL_GPU, the VM''s window), on the appliance a KmsDisplay (the image''s own KMS screen). close closes the GPU (everything I made goes with it).'!
 
 !NvComputeGPU methodsFor: 'initialization'!
 setDisplay: aDisplay
@@ -45,12 +45,8 @@ setDisplay: aDisplay
 
 !NvComputeGPU methodsFor: 'accessing'!
 gpu
-	"The NvDevice, or the NvCudaDevice."
+	"The NvCudaDevice."
 	^gpu
-!
-backend
-	"#cuda or #rm: what my kernels are launched through (NvComputeGPU class>>backend)."
-	^(gpu isKindOf: NvCudaDevice) ifTrue: [#cuda] ifFalse: [#rm]
 !
 compute
 	^compute
@@ -479,20 +475,16 @@ present: aSwapchainTexture rects: scissorsOrNil
 
 !NvComputeGPU class methodsFor: 'testing'!
 isAvailable
-	"Whether there may be an NVIDIA GPU to open here (on: may still fail)."
-	^self backend == #cuda or: [NvDevice isAvailable]
+	"Whether there may be an NVIDIA GPU to open here: libcuda and the CUDA runtime load and see a device (on: may still fail)."
+	^NvCudaDevice isAvailable
+!
+unavailableReason
+	"Why isAvailable is false, for GPUPlatform's note."
+	^'no CUDA userspace (libcuda and the CUDA runtime, with a device)'
 ! !
 
-!NvComputeGPU class methodsFor: 'backends'!
-backend
-	"What launches my kernels: #cuda (libcuda: NvCudaDevice) or #rm (System-NV's RM ioctls: NvDevice). SAMALTAK_NV_COMPUTE (cuda, rm) if it says, else #cuda where libcuda and the CUDA runtime load and see a device, else #rm."
-	| v |
-	v := Smalltalk vm getenv: 'SAMALTAK_NV_COMPUTE'.
-	v = 'rm' ifTrue: [^#rm].
-	v = 'cuda' ifTrue: [^#cuda].
-	^NvCudaDevice isAvailable ifTrue: [#cuda] ifFalse: [#rm]
-!
+!NvComputeGPU class methodsFor: 'opening'!
 openDevice
-	"The device my backend gives, open."
-	^self backend == #cuda ifTrue: [NvCudaDevice open] ifFalse: [NvDevice open]
+	"The GPU, open: libcuda's (NvCudaDevice)."
+	^NvCudaDevice open
 ! !

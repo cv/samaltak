@@ -142,7 +142,7 @@ cellsFrom: info allocations: live handles: handles
 		{'calls'. 'calls'. callRate rounded asStringWithCommas , '/s'. ''. nil}}
 !
 holderOf: anAssociation
-	"What holds an allocation: its CudaArray (described), or none (memory another part of the image allocated through the bindings, such as NvCompute's buffers on libcuda)."
+	"What holds an allocation: its CudaArray (described), or none (memory another part of the image allocated through the bindings, such as NvComputeGPU's buffers)."
 	| a |
 	a := byAddress at: anAssociation key ifAbsent: [nil].
 	a isNil ifTrue: [^'(not a CudaArray)'].
