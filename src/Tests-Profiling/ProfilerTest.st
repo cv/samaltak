@@ -189,7 +189,7 @@ testCpuSamplesInPlace
 	self assert: d processSwitches * 4 < profile samples size description: [d processSwitches printString, ' switches for ', profile samples size printString, ' CPU samples']
 !
 testAttributionToProcesses
-	| a b t0 t1 cpuA cpuB profile as bs total both samples cpu |
+	| a b t0 t1 cpuA cpuB profile as bs total both samples cpu run |
 	t0 := Time microsecondClockValue.
 	a := self fork: #factorialLoop named: 'factorials'.
 	b := self fork: #floatLoop named: 'floats'.
@@ -203,8 +203,10 @@ testAttributionToProcesses
 	as := profile samplesFor: a.
 	bs := profile samplesFor: b.
 	self assert: total >= 200.
+	"of the samples not of the Processes that wake to poll for samples (see testRangeFiltering)"
+	run := profile samples reject: [:s | (Array with: Processor activeProcess with: Delay timerProcess) includes: s process].
+	self assert: (as size + bs size) * 100 / run size >= 85 description: [(as size + bs size) printString, ' of ', run size printString, ' samples (', total printString, ' with the polls'') are the workers''; the others: ', (self processNamesOf: (run reject: [:s | s process == a or: [s process == b]]))].
 	both := (profile percentFor: a) + (profile percentFor: b).
-	self assert: both >= 85.
 	"Equal priorities take turns, but the OS may let the VM run less during the turns of one: of the samples of both each has the share that it has of their CPU time."
 	samples := (profile percentFor: a) * 100 / both.
 	cpu := cpuA * 100.0 / (cpuA + cpuB).

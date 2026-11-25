@@ -591,11 +591,12 @@ testOverTcpWithBackoff
 	server startOn: 0 host: '127.0.0.1' source: source.
 	c := RfbTestClient new socket: (RemoteSocket connectTo: '127.0.0.1' port: server port).
 	self assert: (c handshakeVersion: 'RFB 003.008' security: 2 password: 'wrong') equals: 'authentication failed'.
-	c := RfbTestClient new socket: (s := RemoteSocket connectTo: '127.0.0.1' port: server port).
+	"the backoff runs from the failure: timed from its answer, not from the next connection (on a loaded machine connecting takes a while)"
 	t0 := Time millisecondClockValue.
+	c := RfbTestClient new socket: (s := RemoteSocket connectTo: '127.0.0.1' port: server port).
 	result := c handshakeVersion: 'RFB 003.003' security: 2 password: 'secret12'.
 	self assert: result isNil.
-	self assert: Time millisecondClockValue - t0 >= 250.
+	self assert: Time millisecondClockValue - t0 >= 250 description: [(Time millisecondClockValue - t0) printString, ' ms from the failure to the screen'].
 	c send: (RfbTestClient setEncodings: #(16)), (RfbTestClient updateRequest: false rect: (0 @ 0 extent: source extent)).
 	c readUpdate.
 	self assert: c framebuffer equals: source bytes.

@@ -10,14 +10,26 @@ count: aSymbol
 	^Smalltalk vm platformHandleCounts at: aSymbol
 !
 assertDropping: aBlock releases: aSymbol
-	"aBlock answers a new GPU object with a live handle; dropping it must free that handle."
+	"aBlock answers a new GPU object with a live handle; dropping it must free that handle. Counted from a settled count: the objects earlier tests dropped are finalized first (on a loaded machine the finalization Process runs late)."
 	| before object |
-	before := self count: aSymbol.
+	before := self settledCount: aSymbol.
 	object := aBlock value.
 	self assert: (self count: aSymbol) equals: before + 1.
 	object := nil.
 	Smalltalk vm garbageCollect.
-	self assert: (self waitFor: [(self count: aSymbol) = before])
+	self assert: (self waitFor: [(self count: aSymbol) = before]) description: [aSymbol, ': ', (self count: aSymbol) printString, ' live, ', before printString, ' before']
+!
+settledCount: aSymbol
+	"The count once garbage collections no longer change it (at most 5 s)."
+	| n t |
+	t := Time millisecondClockValue.
+	[Smalltalk vm garbageCollect.
+	 n := self count: aSymbol.
+	 (Delay forMilliseconds: 20) wait.
+	 Smalltalk vm garbageCollect.
+	 (Delay forMilliseconds: 20) wait.
+	 (self count: aSymbol) ~= n and: [Time millisecondClockValue - t < 5000]] whileTrue.
+	^self count: aSymbol
 ! !
 
 !GPUFinalizationTest methodsFor: 'tests'!
