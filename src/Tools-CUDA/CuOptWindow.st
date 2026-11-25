@@ -18,7 +18,7 @@ build
 	| toolbar side |
 	tabs := Tabs options: {#routing -> 'Routing'. #program -> 'Linear program'}.
 	tabs name: 'tabs'; selection: #routing; onChange: [:key | self showTab: key].
-	toolbar := Row with: {tabs sizeToContent. (Label text: (CuOpt isAvailable ifTrue: ['cuOpt ' , ([CuOpt version] on: Error do: [:e | e return: '?'])] ifFalse: ['no cuOpt here']) font: #smallItalic) color: #ink3; align: #right; flex: 1; yourself}.
+	toolbar := Row with: {tabs sizeToContent. (Label text: (GpuTools cuOptAvailable ifTrue: ['cuOpt ' , ([CuOpt version] on: Error do: [:e | e return: '?'])] ifFalse: ['no cuOpt here']) font: #smallItalic) color: #ink3; align: #right; flex: 1; yourself}.
 	toolbar spacing: 6; padding: (8 @ 5 corner: 8 @ 5); fixed: 30.
 	map := CuOptRouteMap new name: 'map'; yourself.
 	map tool: self.
@@ -142,7 +142,7 @@ solveRouting
 	"Solve the routes now (blocking the VM for cuOpt's time) and show them."
 	map markStale.
 	routing stops isEmpty ifTrue: [routing solve. ^self showRouting].
-	CuOpt isAvailable ifFalse: [^self showUnavailable].
+	GpuTools cuOptAvailable ifFalse: [^self showUnavailable].
 	self showSolving: 'MILP: ' , routing stops size printString , ' stops, ' , routing vehicles printString , ' vehicles'.
 	[routing solve] on: CudaError do: [:e | ^self showError: e messageText].
 	lastResult := routing result.
@@ -180,7 +180,7 @@ solveProgram
 	| p |
 	p := [CuOptProgram fromText: editor text] on: CuOptSyntaxError do: [:e | ^self showError: e messageText].
 	program := p.
-	CuOpt isAvailable ifFalse: [self showProgram. ^self showUnavailable].
+	GpuTools cuOptAvailable ifFalse: [self showProgram. ^self showUnavailable].
 	self showSolving: p summary.
 	[p solve] on: CudaError do: [:e | ^self showError: e messageText].
 	lastResult := p result.

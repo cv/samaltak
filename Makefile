@@ -242,7 +242,7 @@ test-ffi-display: $(TEST_IMAGE)
 # cuOpt is no CUDA toolkit library: its wheel's lib64 (docs/cuda.md), where it is installed, adds CuOptGpuTest.
 CUOPT_LIB ?= $(wildcard $(HOME)/.local/share/samaltak-cuopt/venv/lib/python3.12/site-packages/libcuopt_mathopt/lib64)
 test-nv: $(TEST_IMAGE)
-	SAMALTAK_CUDA_LIBS=$(CUOPT_LIB) tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvCudaComputeTest NvComputeGPUTest NvFragmentShaderTest CudaGpuTest CudaSolverGpuTest CudaFFTGpuTest $(if $(CUOPT_LIB),CuOptGpuTest)
+	SAMALTAK_CUDA_LIBS=$(CUOPT_LIB) tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvCudaComputeTest NvComputeGPUTest NvFragmentShaderTest CudaGpuTest CudaSolverGpuTest CudaFFTGpuTest CudaShowcaseGpuTest GpuToolsGpuTest $(if $(CUOPT_LIB),CuOptGpuTest)
 	SAMALTAK_NV_COMPUTE=rm tests/st_suite.sh $(OUT)/samaltak.image -- NvComputeGPUTest NvFragmentShaderTest
 	tests/rerun.sh nv-kernels tests/nv/run.sh $(OUT)
 # test-tools's parts run at once too (TEST_TOOLS_JOBS, all by default; 1: one after another), the longest first, each
