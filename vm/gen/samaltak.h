@@ -16,6 +16,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <limits.h>
+#include <sys/random.h>
 #include <dlfcn.h>
 #if defined(__x86_64__)
 #include <emmintrin.h>
