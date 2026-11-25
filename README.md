@@ -62,3 +62,8 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - `st80/README.md` — the Smalltalk-80 guest on the VM Simulator
 - `docs/uefi.md` — the headless VM as a UEFI application (bare metal, QEMU)
 - `prototypes/` — the HTML prototypes the UI started from
+
+## License
+
+Samaltak's original code and documentation are licensed under the [MIT License](LICENSE).
+Third-party material remains under its own terms; see [Third-party notices](THIRD_PARTY_NOTICES.md).
