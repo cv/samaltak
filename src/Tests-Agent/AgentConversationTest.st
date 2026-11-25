@@ -40,6 +40,26 @@ frameOf: x
 ! !
 
 !AgentConversationTest methodsFor: 'tests'!
+testInstructionsSayWhereChangesGo
+	| account previousAccount previousFiler |
+	previousAccount := GitHubAccount default.
+	previousFiler := SourceFiler default.
+	account := GitHubAccount new.
+	GitHubAccount default: account.
+	SourceFiler default: (SourceFiler new sourceDirectory: nil; yourself).
+	[self assert: (AgentInstructions sourceState includesSubstring: 'cannot be saved').
+	self assert: (AgentInstructions sourceState includesSubstring: 'samaltak-ctl github-config').
+	account configure: (Dictionary new at: 'repository' put: 'octo/demo'; at: 'token' put: 'x', 'y'; yourself).
+	(Smalltalk includesKey: #GitHubSourceStore) ifTrue: [
+		self assert: (AgentInstructions sourceState includesSubstring: 'GitHub, octo/demo').
+		self assert: (AgentInstructions sourceState includesSubstring: 'into main').
+		self assert: ((AgentInstructions textFor: conversation context) includesSubstring: 'Source: changes go to GitHub, octo/demo')].
+	self assert: (AgentInstructions text includesSubstring: 'default commit:')]
+		ensure: [
+			account forgetToken.
+			GitHubAccount default: previousAccount.
+			SourceFiler default: previousFiler]
+!
 testTurnWithCellsAndShow
 	| second third fourth outputs |
 	provider reply: (Array with: (self code: '3 + 4
