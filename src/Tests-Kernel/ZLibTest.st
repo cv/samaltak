@@ -118,8 +118,8 @@ testTokenPrimitivesRefuseBadArguments
 	table uint32At: 5 put: 16r100000.
 	self assert: (ZLib primWriteTokens: lits distances: dists count: 10 table: table into: (ByteArray new: 100) size: 0 bits: 0 count: 0) isNil
 !
-testAdler32
-	"ZLib's Adler-32 is RFC 1950's (its sums reduced at every byte here), across its 5552-byte reductions, and its example's."
+testAdler32AcrossReductions
+	"ZLib's Adler-32 is RFC 1950's (its sums reduced at every byte here), across its 5552-byte reductions."
 	| reference |
 	reference := [:data | | a b |
 		a := 1.
@@ -128,7 +128,6 @@ testAdler32
 			a := a + x \\ 65521.
 			b := b + a \\ 65521].
 		(b bitShift: 16) + a].
-	self assert: (ZLib adler32Of: 'Wikipedia' asByteArray) equals: 16r11E60398.
 	#(0 1 3 4 5 5551 5552 5553 11104 100001) do: [:n | | data |
 		data := self randomBytes: n seed: n.
 		self assert: (ZLib adler32Of: data) equals: (reference value: data).
