@@ -13,13 +13,14 @@ rerun_fail_lines() {
     | grep -a -E '^(FAIL|ERROR) |^st_suite: FAILED|^make(\[[0-9]+\])?: \*\*\*|^test-uefi[^:]*: |^[a-z_-]+: FAILED|FAIL(ED)? '
 }
 # rerun_flakes FIRST SECOND NAME: FIRST's failure lines that SECOND (which passed) has not, numbers aside, as
-# "flake: <line>" (not make's and st_suite's generic lines); "flake: NAME failed" if there are none.
+# "flake: <line>" (not make's and st_suite's generic lines); "flake: NAME failed: <its last line>" if there are none.
 rerun_flakes() {
   rerun_fail_lines "$2" | sed -E 's/[0-9]+/N/g' | sort -u >"$1.seen"
-  rerun_fail_lines "$1" | grep -a -v -E '^make(\[[0-9]+\])?: \*\*\*|^st_suite: FAILED [(]exit' | awk -v seen="$1.seen" -v name="$3" '
+  last=$(tr -d '\r' <"$1" | grep -a -v -E '^make(\[[0-9]+\])?: |^rerun: |^flake: ' | grep -a . | tail -n 1 | cut -c1-200)
+  rerun_fail_lines "$1" | grep -a -v -E '^make(\[[0-9]+\])?: \*\*\*|^st_suite: FAILED [(]exit' | awk -v seen="$1.seen" -v name="$3" -v last="$last" '
     BEGIN { while ((getline l < seen) > 0) s[l] = 1 }
     { k = $0; gsub(/[0-9]+/, "N", k); if (!(k in s) && !(k in done)) { done[k] = 1; n++; print "flake: " $0 } }
-    END { if (!n) print "flake: " name " failed" }'
+    END { if (!n) print "flake: " name " failed: " last }'
   rm -f "$1.seen"
 }
 # rerun_first LOG: the first run's output, prefixed "rerun: 1| ": all of it up to 300 lines, else its failure lines

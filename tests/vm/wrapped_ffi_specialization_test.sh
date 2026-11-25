@@ -73,7 +73,9 @@ expect true --eden 1 --jit none "$IMAGE" --headless --load "$PROOF" --eval "
     WrappedFFIProof borrows.
     WrappedFFIProof boxingGC.
     true"
-expect true --jit opt --jit-threshold 0 --jit-flags eager,deopt "$IMAGE" --headless --load "$PROOF" --eval "
+# -bg: compiled on the VM's thread, so that the counts below do not wait for the helper thread (on a loaded machine it
+# may not have installed anything yet)
+expect true --jit opt --jit-threshold 0 --jit-flags eager,deopt,-bg "$IMAGE" --headless --load "$PROOF" --eval "
     | counts |
     counts := WrappedFFIProof scalars.
     WrappedFFIProof require: counts optMethodsCompiled > 0 description: 'no opt compilation'.

@@ -101,7 +101,7 @@ TEST_CORE_JOBS ?= $(words $(TEST_CORE_PARTS))
 TEST_PARTS_SYNC = $(if $(filter 3.%,$(MAKE_VERSION)),-j1,-j$(1) -O --no-print-directory)
 # A part that fails runs once more (tests/rerun.sh, SAMALTAK_TEST_RERUN; a suite reruns its failed shards itself): one
 # that passes then is a flake, listed as "flake: <line>". The runtime image comes first, for the three parts using it.
-RERUN_PART = @tests/rerun.sh $(1)-part-$* $(MAKE) --no-print-directory $(1)-part-$*
+RERUN_PART = +@tests/rerun.sh $(1)-part-$* $(MAKE) --no-print-directory $(1)-part-$*
 test-core-rerun-%:
 	$(call RERUN_PART,test-core)
 test-tools-rerun-%:
