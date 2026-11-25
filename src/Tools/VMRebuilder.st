@@ -48,6 +48,8 @@ isRunning
 rebuild
 	"Rebuild and reboot in a Process of its own (my window's Process)."
 	self isRunning ifTrue: [^Tools toast: 'The VM is being rebuilt'].
+	"started before the timer's first update, which may come before the Process runs (on a loaded machine)"
+	started := Time utcMicroseconds.
 	timer isNil ifTrue: [timer := self every: 100 do: [self update]].
 	output text: ''.
 	process := [self rebuildAndReboot] forkAt: Processor userBackgroundPriority named: 'VM rebuild'
@@ -118,7 +120,7 @@ update
 	| text |
 	text := lock critical: [| t | t := pending contents. pending := WriteStream on: String new. t].
 	text isEmpty ifFalse: [output appendText: text].
-	status text: ((self isRunning and: [phase ~= 'rebooted'])
+	status text: ((self isRunning and: [phase ~= 'rebooted' and: [started notNil]])
 		ifTrue: [phase, ', ', (self secondsSinceUtc: started), ' s']
 		ifFalse: [phase])
 !
