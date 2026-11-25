@@ -25,6 +25,9 @@ PixelPack 213, ZRLE 214, PixelDiff 215, the byte-range compares 119/122, the dev
   Optimized code calls them through a bound site: a 1440×900 `RfbDiffSource` frame 0.44 ms, as with the primitive;
   unoptimized calls pay the send and invocation (16 bytes: 36 ns in the interpreter and baseline code, 22 and 7
   with the primitive), and UEFI's static wrapper with its cache 41 ns (11).
+- 207 `pngFilter` is `core_png_filter` (key 207), called by `PNGWriter class>>primFilter:width:height:channels:into:`
+  with the image's bytes, or a Form's Bitmap itself, and the output ByteArray as raw objects: a 1920×1080 RGBA filter
+  1.93 ms in every tier (the primitive 1.98–2.02; one call an image).
   `tests/vm/ffi_cutover.py check` passes with them in the table.
 - The one fork change that the FFI cannot carry is uploading a texture from an address outside the heap
   (`HostFramePresenter`, `NvComputeGPU`'s back buffer): the image passes no raw pointers through the FFI, so it is
@@ -51,7 +54,8 @@ are not there at all.
 | AES-CTR | key + in + out + counter | 8 slots: no, unless the counter rides in a buffer |
 | bytesMismatch, bytesLastMismatch | two raw objects, offsets, count | an export since (raw objects) |
 | ByteSearch's String search, compare and case (92–93, 103, 116–118) | Strings, short calls | no: upstream's own primitives (Keep), with String semantics (byte and wide layouts, case folding, a new String) an export cannot carry, and baseline code compares Strings inline; the fork only made their kernels NEON |
-| PNG filter, PixelPack, ZRLE, PixelDiff, deflate, rawBytesReplace | Bitmaps, word tables, several outputs | no: word objects are not slices, and most take more than six slots |
+| PNG filter | raw RGBA bytes or words, sizes, the output | an export since (raw objects) |
+| PixelPack, ZRLE, deflate, rawBytesReplace | Bitmaps, word tables, several outputs | would fit now (raw objects, sixteen slots); PixelPack, ZRLE and deflate are fork-feature kernels, kept numbered for now |
 | devices (open/ioctl/mmap/pread/pwrite), NV, machine | descriptors and addresses | no: addresses (upstream keeps its machine primitives 470–478 for the same reason) |
 
 So the candidates are the checksums, `cryptoFeatures` and, with a ByteArray state, GHASH, AES block and SHA. Upstream

@@ -129,7 +129,6 @@ primitive_entry vm_primitive_table[] = {
     {197, 2, "nextHandlerContext", prim_next_handler_context},
     {198, 2, "ensureMarker", prim_ensure_marker},
     {199, 2, "onDoMarker", prim_on_do_marker},
-    {207, 3, "pngFilter", prim_png_filter},
     {208, 3, "zlibMatches", prim_zlib_matches},
     {210, 3, "zlibWriteTokens", prim_zlib_write_tokens},
     {212, 3, "rawBytesReplace", prim_raw_bytes_replace},

@@ -38,6 +38,24 @@ nativeBytesLastMismatch: a size: aSize at: start with: b size: bSize at: otherSt
 		with: (self cCoerce: b to: 'uint8_t *') + (otherStart - 1)
 		size: n) + 1
 !
+nativePngFilter: rgba size: rgbaSize width: w height: h channels: n into: raw size: rawSize
+	"PNGWriter class>>filtered:width:height:channels: (once primitive 207): raw := the PNG rows of rgba (w * h pixels of 4 bytes, rows top to bottom), each its filter type byte and its pixels packed to n channels (3: alpha dropped, 4), filtered with the filter of the smallest cost (PngFilter, 16 bytes at a time); 0, or -1 unless rgba and raw are distinct, of w * h * 4 and (w * n + 1) * h bytes, 1 <= w, h <= 2^22 and n 3 or 4."
+	<function>
+	<approvedFFI: 207 symbol: 'core_png_filter' arguments: #(17 3 3 3 18) result: 3>
+	<var: #rgba type: 'const uint8_t *'>
+	<var: #rgbaSize type: 'uint64_t'>
+	<var: #w type: 'int64_t'>
+	<var: #h type: 'int64_t'>
+	<var: #n type: 'int64_t'>
+	<var: #raw type: 'uint8_t *'>
+	<var: #rawSize type: 'uint64_t'>
+	<returns: 'int64_t'>
+	((w >= 1 and: [w <= 16r400000]) and: [(h >= 1 and: [h <= 16r400000]) and: [n = 3 or: [n = 4]]]) ifFalse: [^-1].
+	(rgbaSize = (w * h * 4) asUInt64 and: [rawSize = ((w * n + 1) * h) asUInt64]) ifFalse: [^-1].
+	(self cCoerce: rgba to: 'uint64_t') = (self cCoerce: raw to: 'uint64_t') ifTrue: [^-1].
+	png filterPng: (self cCoerce: rgba to: 'uint8_t *') width: w height: h channels: n into: raw.
+	^0
+!
 range: start count: n within: size
 	"Whether the n bytes from the 1-based start are inside size bytes."
 	<function>

@@ -68,7 +68,7 @@ testCropForm
 
 !PNGWriterTest methodsFor: 'filtering'!
 assertFilterOf: rgba width: w height: h
-	"The VM's pngFilter primitive and the Smalltalk loop give the same rows, RGB and RGBA."
+	"The VM's core_png_filter and the Smalltalk loop give the same rows, RGB and RGBA."
 	#(3 4) do: [:n | | raw |
 		raw := ByteArray new: (w * n + 1) * h.
 		self assert: (PNGWriter primFilter: rgba width: w height: h channels: n into: raw) == raw.

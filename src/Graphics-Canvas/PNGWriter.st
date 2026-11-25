@@ -79,16 +79,19 @@ indexedBytesFor: rgba width: w height: h palette: palette
 			ifFalse: [Array with: 'PLTE' -> plte with: 'tRNS' -> trns with: 'IDAT' -> (ZLib compress: raw)])
 !
 filtered: rgba width: w height: h channels: n
-	"Rows of n channels (RGB or RGBA) each after its filter type byte, with the filter whose output has the smallest sum of absolute (signed byte) values: the VM's primitive (16 bytes at a time with NEON or SSE2), or filteredInSmalltalk:width:height:channels: where it fails (an older VM, w or h 0)."
+	"Rows of n channels (RGB or RGBA) each after its filter type byte, with the filter whose output has the smallest sum of absolute (signed byte) values: the VM's core_png_filter (16 bytes at a time with NEON or SSE2), or filteredInSmalltalk:width:height:channels: where it fails (an older VM, w or h 0)."
 	| raw |
 	raw := ByteArray new: (w * n + 1) * h.
 	(self primFilter: rgba width: w height: h channels: n into: raw) isNil ifFalse: [^raw].
 	^self filteredInSmalltalk: rgba width: w height: h channels: n
 !
 primFilter: rgba width: w height: h channels: n into: raw
-	"raw, filled as filtered:width:height:channels: answers it; nil if the VM cannot."
-	<primitive: 'pngFilter'>
-	^nil
+	"raw, filled as filtered:width:height:channels: answers it (the VM's core_png_filter); nil if the VM cannot."
+	<ffiSite>
+	^((self ffiSite: #(call 'vm:core' 'core_png_filter' (rawBytesWithLength i64 i64 i64 writableRawBytesWithLength) i64))
+		tryInvoke5: rgba with: w with: h with: n with: raw) = 0
+			ifTrue: [raw]
+			ifFalse: [nil]
 !
 filteredInSmalltalk: rgba width: w height: h channels: n
 	"filtered:width:height:channels: one byte at a time: the definition the primitive keeps to."

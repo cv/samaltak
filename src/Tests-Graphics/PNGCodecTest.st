@@ -43,7 +43,7 @@ testReadsStoredPNG
 	self assert: (PNGReader formFrom: (PNGWriter storedBytesFor: form asByteArray width: 50 height: 40)) bits equals: form bits
 !
 testFilterPrimitiveMatchesSmalltalk
-	"The VM's pngFilter primitive (NEON or SSE2) gives PNGWriter's Smalltalk loop's rows, RGB and RGBA: random bytes, a gradient and the screen-sized Form."
+	"The VM's core_png_filter (NEON or SSE2) gives PNGWriter's Smalltalk loop's rows, RGB and RGBA: random bytes, a gradient and the screen-sized Form."
 	| random |
 	random := Random seed: 2718.
 	#(1 2 5 6 17 33 100) do: [:w | #(1 3) do: [:h |
@@ -134,4 +134,35 @@ screenForm
 		((x between: 1000 and: 1800) and: [y between: 50 and: 300]) ifTrue: [v := 16rFF000000 + ((x \\ 256) bitShift: 8) + (y \\ 256)].
 		form bits at: y * 1920 + x + 1 put: v]].
 	^form
+! !
+
+!PNGCodecTest methodsFor: 'core_png_filter'!
+pngFilter
+	^FFI bind: #(call 'vm:core' 'core_png_filter' (rawBytesWithLength i64 i64 i64 writableRawBytesWithLength) i64)
+!
+testPngFilter
+	"The rows of PNGWriter's Smalltalk loop, RGB and RGBA, from bytes or from a Form's words."
+	| rgba bits raw |
+	rgba := ((1 to: 37 * 5 * 4) collect: [:i | i * 97 \\ 251]) asByteArray.
+	bits := Bitmap new: 37 * 5.
+	1 to: bits size do: [:i | bits at: i put: (rgba uint32At: i * 4 - 3)].
+	#(3 4) do: [:n |
+		raw := ByteArray new: (37 * n + 1) * 5.
+		self assert: (self pngFilter invoke: {rgba. 37. 5. n. raw}) equals: 0.
+		self assert: raw equals: (PNGWriter filteredInSmalltalk: rgba width: 37 height: 5 channels: n).
+		raw := ByteArray new: (37 * n + 1) * 5.
+		self assert: (self pngFilter invoke: {bits. 37. 5. n. raw}) equals: 0.
+		self assert: raw equals: (PNGWriter filteredInSmalltalk: rgba width: 37 height: 5 channels: n)]
+!
+testPngFilterRefusals
+	| rgba raw |
+	rgba := ByteArray new: 16.
+	raw := ByteArray new: 26.
+	self assert: (self pngFilter invoke: {rgba. 2. 2. 3. raw}) equals: -1. "raw of 14 bytes, not 26"
+	self assert: (self pngFilter invoke: {rgba. 2. 2. 5. ByteArray new: 22}) equals: -1.
+	self assert: (self pngFilter invoke: {rgba. 0. 2. 3. ByteArray new: 2}) equals: -1.
+	self assert: (self pngFilter invoke: {rgba. 4. 1. 4. rgba}) equals: -1.
+	self assert: (self pngFilter invoke: {rgba. 2. 2. 4. ByteArray new: 18}) equals: 0.
+	self should: [self pngFilter invoke: {rgba. 2. 2. 4. (ByteArray new: 18) beReadOnlyObject; yourself}] raise: FFIError.
+	self should: [self pngFilter invoke: {rgba. 2. 2. 4. Array new: 18}] raise: FFIError
 ! !

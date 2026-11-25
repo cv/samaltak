@@ -239,6 +239,7 @@ static int64_t native_nvrtc_output(int64_t job, int64_t kind, uint8_t *out, uint
 static int64_t native_nvrtc_poll(int64_t job);
 static int64_t native_nvrtc_start(const uint8_t *src, uint64_t src_len, const uint8_t *opts, uint64_t opts_len);
 static int64_t native_nvrtc_version(void);
+static int64_t native_png_filter(const uint8_t *rgba, uint64_t rgba_size, int64_t w, int64_t h, int64_t n, uint8_t *raw, uint64_t raw_size);
 static double native_sin(double x);
 static double native_sqrt(double x);
 static int64_t native_test_writable_pair(uint8_t *first, uint64_t first_length, double marker, int32_t status, uint8_t *second, uint64_t second_length);
@@ -836,6 +837,10 @@ static void native_write_stderr_entry_witness(const void *a1, uint64_t a2) {
 static int32_t native_getenv_entry_witness(const void *a1, uint64_t a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1196\n");
     return native_getenv(a1, a2, a3);
+}
+static int64_t native_png_filter_entry_witness(const uint8_t *a1, uint64_t a2, int64_t a3, int64_t a4, int64_t a5, uint8_t *a6, uint64_t a7) {
+    fprintf(stderr, "\nffi-native-entry 1231\n");
+    return native_png_filter(a1, a2, a3, a4, a5, a6, a7);
 }
 static int64_t native_crypto_digest_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3, uint8_t *a4, uint64_t a5) {
     fprintf(stderr, "\nffi-native-entry 1744\n");
@@ -1682,6 +1687,12 @@ static int32_t ffi_approved_core(const char *approved_name, const uint8_t *signa
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_getenv_entry_witness;
         return 1196;
+    }
+    if (strcmp((const char *) signature, "\021\003\003\003\022\003") == 0 && strcmp(approved_name, "core_png_filter") == 0) {
+        *target_out = (uint64_t) native_png_filter;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_png_filter_entry_witness;
+        return 1231;
     }
     if (strcmp((const char *) signature, "\003\010\011\003") == 0 && strcmp(approved_name, "core_crypto_digest") == 0) {
         *target_out = (uint64_t) native_crypto_digest;
@@ -4372,6 +4383,22 @@ static int64_t native_nvrtc_start(const uint8_t *src, uint64_t src_len, const ui
 static int64_t native_nvrtc_version(void)
 {
     return samaltak_nvrtc_version();
+}
+
+/* FFIPrimitives>>nativePngFilter:size:width:height:channels:into:size: */
+static int64_t native_png_filter(const uint8_t *rgba, uint64_t rgba_size, int64_t w, int64_t h, int64_t n, uint8_t *raw, uint64_t raw_size)
+{
+    if (!((w >= 1) && (w <= 0x400000) && ((h >= 1) && (h <= 0x400000) && ((n == 3) || (n == 4))))) {
+        return -1;
+    }
+    if (!((rgba_size == (uint64_t)(w * h * 4)) && (raw_size == (uint64_t)((w * n + 1) * h)))) {
+        return -1;
+    }
+    if ((uint64_t)rgba == (uint64_t)raw) {
+        return -1;
+    }
+    filter_png((uint8_t *)rgba, w, h, n, raw);
+    return 0;
 }
 
 /* FFIPrimitives>>nativeSin: */
