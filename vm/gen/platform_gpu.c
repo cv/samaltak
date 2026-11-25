@@ -11,7 +11,7 @@ static pthread_mutex_t watch_lock[1];
 static bool watcher_started;
 static fence_watch *watches;
 
-static gpu_dev *device(int32_t h);
+static gpu_dev *platform_gpu_device(int32_t h);
 static gpu_dev *device_of(pf_obj *o);
 static void *fence_watcher(void *unused);
 static int32_t ffi_attribute_width(int32_t format);
@@ -40,7 +40,7 @@ int32_t acquire_command_buffer(int32_t dev)
     SDL_GPUCommandBuffer *c;
     int32_t r_add;
     int32_t h;
-    d = device(dev);
+    d = platform_gpu_device(dev);
     if (d == NULL) {
         return 0;
     }
@@ -271,7 +271,7 @@ bool claim_window(int32_t dev, int32_t win)
     SDL_Window *w;
     int i;
     SDL_GPUPresentMode mode;
-    d = device(dev);
+    d = platform_gpu_device(dev);
     w = sdl_window(win);
     if ((d == NULL) || (w == NULL)) {
         return false;
@@ -323,7 +323,7 @@ int32_t create_buffer(int32_t dev, int32_t usage, uint32_t size)
     int32_t r_add;
     int32_t h_2;
     int32_t h;
-    d = device(dev);
+    d = platform_gpu_device(dev);
     if (d == NULL) {
         return 0;
     }
@@ -399,7 +399,7 @@ int32_t create_pipeline(int32_t dev, int32_t vs, int32_t fs, int32_t stride, pf_
     int32_t r_add;
     int32_t h_2;
     int32_t h;
-    d = device(dev);
+    d = platform_gpu_device(dev);
     v = get(vs, K_SHADER, "vertex shader");
     f = get(fs, K_SHADER, "fragment shader");
     if ((d == NULL) || ((v == NULL) || (f == NULL))) {
@@ -506,7 +506,7 @@ int32_t create_sampler(int32_t dev, bool linear, bool repeat)
     SDL_GPUSampler *s;
     int32_t r_add;
     int32_t h;
-    d = device(dev);
+    d = platform_gpu_device(dev);
     if (d == NULL) {
         return 0;
     }
@@ -558,7 +558,7 @@ int32_t platform_gpu_create_shader_source_entry_stage_samplers_uniform_buffers_s
     int32_t h_5;
     int32_t h_4;
     int h;
-    d = device(dev);
+    d = platform_gpu_device(dev);
     if (d == NULL) {
         return 0;
     }
@@ -650,7 +650,7 @@ int32_t platform_gpu_create_shader_spirv_size_entry_stage_samplers_uniform_buffe
     int32_t r_add;
     int32_t h_2;
     int32_t h;
-    d = device(dev);
+    d = platform_gpu_device(dev);
     if (d == NULL) {
         return 0;
     }
@@ -700,7 +700,7 @@ int32_t create_texture(int32_t dev, int32_t w, int32_t h, int32_t format, int32_
     SDL_GPUTexture *t;
     int32_t th;
     pf_obj *o;
-    d = device(dev);
+    d = platform_gpu_device(dev);
     if (d == NULL) {
         return 0;
     }
@@ -733,7 +733,7 @@ int32_t create_texture(int32_t dev, int32_t w, int32_t h, int32_t format, int32_
 }
 
 /* PlatformGPU>>device: */
-static gpu_dev *device(int32_t h)
+static gpu_dev *platform_gpu_device(int32_t h)
 {
     pf_obj *o;
     o = get(h, K_DEV, "device");
@@ -1426,7 +1426,7 @@ char *shader_language(int32_t dev)
 {
     gpu_dev *d;
     SDL_GPUShaderFormat f;
-    d = device(dev);
+    d = platform_gpu_device(dev);
     if (d == NULL) {
         return (char *)NULL;
     }
@@ -1506,7 +1506,7 @@ int swapchain_format(int32_t dev, int32_t win)
     SDL_GPUTextureFormat f;
     int i;
     int32_t a;
-    d = device(dev);
+    d = platform_gpu_device(dev);
     w = sdl_window(win);
     if ((d == NULL) || (w == NULL)) {
         return 0;
@@ -1788,7 +1788,7 @@ bool wait_fence(int32_t fence)
 bool wait_idle(int32_t dev)
 {
     gpu_dev *d;
-    d = device(dev);
+    d = platform_gpu_device(dev);
     if (d == NULL) {
         return false;
     }

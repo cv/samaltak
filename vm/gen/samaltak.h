@@ -15,6 +15,7 @@
 #endif
 #endif
 #include "crypto.h"
+#include "cudalib_gen.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>

@@ -75,6 +75,87 @@ static int64_t native_crypto_digest_update(int64_t alg_id, uint8_t *state_bytes,
 static int64_t native_crypto_public_key(const uint8_t *spki_bytes, uint64_t spki_bytes_len);
 static int64_t native_crypto_verify(int64_t key_id, int64_t verify_params, const uint8_t *digest_bytes, uint64_t digest_bytes_len, const uint8_t *sig_bytes, uint64_t sig_bytes_len);
 static int64_t native_crypto_x25519(const uint8_t *k_bytes, uint64_t k_bytes_len, const uint8_t *u_bytes, uint64_t u_bytes_len, uint8_t *out_bytes, uint64_t out_bytes_len);
+static int64_t native_cuda_cu_device_get(int32_t ordinal, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_device_get_attribute(int32_t attrib, int32_t dev, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_device_get_count(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_device_get_name(uint8_t *name, uint64_t name_length, int32_t len, int32_t dev);
+static int64_t native_cuda_cu_device_total_mem(int32_t dev, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_driver_get_version(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_init(uint32_t flags);
+static int64_t native_cuda_cu_opt_create_problem(int32_t num_constraints, int32_t num_variables, int32_t objective_sense, double objective_offset, const uint8_t *pack, uint64_t pack_length, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_opt_create_solver_settings(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_opt_destroy_problem(int64_t problem_ptr);
+static int64_t native_cuda_cu_opt_destroy_solution(int64_t solution_ptr);
+static int64_t native_cuda_cu_opt_destroy_solver_settings(int64_t settings_ptr);
+static int64_t native_cuda_cu_opt_get_error_status(int64_t solution, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_opt_get_num_variables(int64_t problem, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_opt_get_objective_value(int64_t solution, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_opt_get_primal_solution(int64_t solution, uint8_t *solution_values, uint64_t solution_values_length);
+static int64_t native_cuda_cu_opt_get_solve_time(int64_t solution, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_opt_get_termination_status(int64_t solution, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_opt_get_version(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_opt_set_float_parameter(int64_t settings, const uint8_t *parameter_name, uint64_t parameter_name_length, double parameter_value);
+static int64_t native_cuda_cu_opt_set_integer_parameter(int64_t settings, const uint8_t *parameter_name, uint64_t parameter_name_length, int32_t parameter_value);
+static int64_t native_cuda_cu_opt_set_parameter(int64_t settings, const uint8_t *parameter_name, uint64_t parameter_name_length, const uint8_t *parameter_value, uint64_t parameter_value_length);
+static int64_t native_cuda_cu_opt_solve(int64_t problem, int64_t settings, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cublas_available(void);
+static int64_t native_cuda_cublas_create(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cublas_daxpy(int64_t handle, int32_t n, double alpha, uint64_t x, int32_t incx, uint64_t y, int32_t incy);
+static int64_t native_cuda_cublas_destroy(int64_t handle);
+static int64_t native_cuda_cublas_dgemm(int64_t handle, int32_t transa, int32_t transb, int32_t m, int32_t n, int32_t k, double alpha, uint64_t a, int32_t lda, uint64_t b, int32_t ldb, double beta, uint64_t c, int32_t ldc);
+static int64_t native_cuda_cublas_dnrm2(int64_t handle, int32_t n, uint64_t x, int32_t incx, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cublas_get_version(int64_t handle, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cublas_saxpy(int64_t handle, int32_t n, float alpha, uint64_t x, int32_t incx, uint64_t y, int32_t incy);
+static int64_t native_cuda_cublas_set_math_mode(int64_t handle, int32_t mode);
+static int64_t native_cuda_cublas_set_stream(int64_t handle, int64_t stream_id);
+static int64_t native_cuda_cublas_sgemm(int64_t handle, int32_t transa, int32_t transb, int32_t m, int32_t n, int32_t k, float alpha, uint64_t a, int32_t lda, uint64_t b, int32_t ldb, float beta, uint64_t c, int32_t ldc);
+static int64_t native_cuda_cublas_snrm2(int64_t handle, int32_t n, uint64_t x, int32_t incx, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cublas_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length);
+static int64_t native_cuda_cuda_device_get_attribute(int32_t attr, int32_t device, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cuda_device_synchronize(void);
+static int64_t native_cuda_cuda_driver_get_version(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cuda_event_create(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cuda_event_destroy(int64_t event);
+static int64_t native_cuda_cuda_event_elapsed_time(int64_t start, int64_t end, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cuda_event_query(int64_t event);
+static int64_t native_cuda_cuda_event_record(int64_t event, int64_t stream);
+static int64_t native_cuda_cuda_event_synchronize(int64_t event);
+static int64_t native_cuda_cuda_free(uint64_t dev_ptr);
+static int64_t native_cuda_cuda_get_device(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cuda_get_device_count(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cuda_get_last_error(void);
+static int64_t native_cuda_cuda_malloc(uint64_t size, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cuda_mem_get_info(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cuda_memcpy_dto_d(uint64_t dst, uint64_t src, uint64_t count);
+static int64_t native_cuda_cuda_memcpy_dto_h(uint8_t *dst, uint64_t dst_length, uint64_t src, uint64_t count);
+static int64_t native_cuda_cuda_memcpy_hto_d(uint64_t dst, const uint8_t *src, uint64_t src_length, uint64_t count);
+static int64_t native_cuda_cuda_memset(uint64_t dev_ptr, int32_t value, uint64_t count);
+static int64_t native_cuda_cuda_peek_at_last_error(void);
+static int64_t native_cuda_cuda_runtime_get_version(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cuda_set_device(int32_t device);
+static int64_t native_cuda_cuda_stream_create(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cuda_stream_destroy(int64_t stream);
+static int64_t native_cuda_cuda_stream_query(int64_t stream);
+static int64_t native_cuda_cuda_stream_synchronize(int64_t stream);
+static int64_t native_cuda_cudart_available(void);
+static int64_t native_cuda_cudart_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length);
+static int64_t native_cuda_cuopt_available(void);
+static int64_t native_cuda_cuopt_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length);
+static int64_t native_cuda_curand_available(void);
+static int64_t native_cuda_curand_create_generator(int32_t rng_type, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_curand_destroy_generator(int64_t generator);
+static int64_t native_cuda_curand_generate_normal(int64_t generator, uint64_t output_ptr, uint64_t n, float mean, float stddev);
+static int64_t native_cuda_curand_generate_normal_double(int64_t generator, uint64_t output_ptr, uint64_t n, double mean, double stddev);
+static int64_t native_cuda_curand_generate_uniform(int64_t generator, uint64_t output_ptr, uint64_t num);
+static int64_t native_cuda_curand_generate_uniform_double(int64_t generator, uint64_t output_ptr, uint64_t num);
+static int64_t native_cuda_curand_get_version(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_curand_set_pseudo_random_generator_seed(int64_t generator, uint64_t seed);
+static int64_t native_cuda_curand_set_stream(int64_t generator, int64_t stream);
+static int64_t native_cuda_curand_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length);
+static int64_t native_cuda_driver_available(void);
+static int64_t native_cuda_driver_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length);
+static int64_t native_cuda_live(int64_t kind);
+static int64_t native_cuda_session(void);
 static double native_exp(double x);
 static double native_fabs(double x);
 static double native_float_fraction_part(double x);
@@ -740,6 +821,330 @@ static int64_t native_nvrtc_free_entry_witness(int64_t a1) {
     fprintf(stderr, "\nffi-native-entry 1768\n");
     return native_nvrtc_free(a1);
 }
+static int64_t native_cuda_session_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 1824\n");
+    return native_cuda_session();
+}
+static int64_t native_cuda_live_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1825\n");
+    return native_cuda_live(a1);
+}
+static int64_t native_cuda_cudart_available_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 1829\n");
+    return native_cuda_cudart_available();
+}
+static int64_t native_cuda_cudart_status_text_entry_witness(int64_t a1, int64_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1830\n");
+    return native_cuda_cudart_status_text(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cuda_runtime_get_version_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1831\n");
+    return native_cuda_cuda_runtime_get_version(a1, a2);
+}
+static int64_t native_cuda_cuda_driver_get_version_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1832\n");
+    return native_cuda_cuda_driver_get_version(a1, a2);
+}
+static int64_t native_cuda_cuda_get_device_count_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1833\n");
+    return native_cuda_cuda_get_device_count(a1, a2);
+}
+static int64_t native_cuda_cuda_set_device_entry_witness(int32_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1834\n");
+    return native_cuda_cuda_set_device(a1);
+}
+static int64_t native_cuda_cuda_get_device_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1835\n");
+    return native_cuda_cuda_get_device(a1, a2);
+}
+static int64_t native_cuda_cuda_device_get_attribute_entry_witness(int32_t a1, int32_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1836\n");
+    return native_cuda_cuda_device_get_attribute(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cuda_mem_get_info_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1837\n");
+    return native_cuda_cuda_mem_get_info(a1, a2);
+}
+static int64_t native_cuda_cuda_device_synchronize_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 1838\n");
+    return native_cuda_cuda_device_synchronize();
+}
+static int64_t native_cuda_cuda_malloc_entry_witness(uint64_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1839\n");
+    return native_cuda_cuda_malloc(a1, a2, a3);
+}
+static int64_t native_cuda_cuda_free_entry_witness(uint64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1840\n");
+    return native_cuda_cuda_free(a1);
+}
+static int64_t native_cuda_cuda_memcpy_hto_d_entry_witness(uint64_t a1, const uint8_t *a2, uint64_t a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1841\n");
+    return native_cuda_cuda_memcpy_hto_d(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cuda_memcpy_dto_h_entry_witness(uint8_t *a1, uint64_t a2, uint64_t a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1842\n");
+    return native_cuda_cuda_memcpy_dto_h(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cuda_memcpy_dto_d_entry_witness(uint64_t a1, uint64_t a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1843\n");
+    return native_cuda_cuda_memcpy_dto_d(a1, a2, a3);
+}
+static int64_t native_cuda_cuda_memset_entry_witness(uint64_t a1, int32_t a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1844\n");
+    return native_cuda_cuda_memset(a1, a2, a3);
+}
+static int64_t native_cuda_cuda_stream_create_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1845\n");
+    return native_cuda_cuda_stream_create(a1, a2);
+}
+static int64_t native_cuda_cuda_stream_destroy_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1846\n");
+    return native_cuda_cuda_stream_destroy(a1);
+}
+static int64_t native_cuda_cuda_stream_synchronize_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1847\n");
+    return native_cuda_cuda_stream_synchronize(a1);
+}
+static int64_t native_cuda_cuda_stream_query_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1848\n");
+    return native_cuda_cuda_stream_query(a1);
+}
+static int64_t native_cuda_cuda_event_create_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1849\n");
+    return native_cuda_cuda_event_create(a1, a2);
+}
+static int64_t native_cuda_cuda_event_destroy_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1850\n");
+    return native_cuda_cuda_event_destroy(a1);
+}
+static int64_t native_cuda_cuda_event_record_entry_witness(int64_t a1, int64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1851\n");
+    return native_cuda_cuda_event_record(a1, a2);
+}
+static int64_t native_cuda_cuda_event_query_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1852\n");
+    return native_cuda_cuda_event_query(a1);
+}
+static int64_t native_cuda_cuda_event_synchronize_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1853\n");
+    return native_cuda_cuda_event_synchronize(a1);
+}
+static int64_t native_cuda_cuda_event_elapsed_time_entry_witness(int64_t a1, int64_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1854\n");
+    return native_cuda_cuda_event_elapsed_time(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cuda_get_last_error_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 1855\n");
+    return native_cuda_cuda_get_last_error();
+}
+static int64_t native_cuda_cuda_peek_at_last_error_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 1856\n");
+    return native_cuda_cuda_peek_at_last_error();
+}
+static int64_t native_cuda_driver_available_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 1869\n");
+    return native_cuda_driver_available();
+}
+static int64_t native_cuda_driver_status_text_entry_witness(int64_t a1, int64_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1870\n");
+    return native_cuda_driver_status_text(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cu_init_entry_witness(uint32_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1871\n");
+    return native_cuda_cu_init(a1);
+}
+static int64_t native_cuda_cu_driver_get_version_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1872\n");
+    return native_cuda_cu_driver_get_version(a1, a2);
+}
+static int64_t native_cuda_cu_device_get_count_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1873\n");
+    return native_cuda_cu_device_get_count(a1, a2);
+}
+static int64_t native_cuda_cu_device_get_entry_witness(int32_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1874\n");
+    return native_cuda_cu_device_get(a1, a2, a3);
+}
+static int64_t native_cuda_cu_device_get_name_entry_witness(uint8_t *a1, uint64_t a2, int32_t a3, int32_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1875\n");
+    return native_cuda_cu_device_get_name(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cu_device_total_mem_entry_witness(int32_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1876\n");
+    return native_cuda_cu_device_total_mem(a1, a2, a3);
+}
+static int64_t native_cuda_cu_device_get_attribute_entry_witness(int32_t a1, int32_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1877\n");
+    return native_cuda_cu_device_get_attribute(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cublas_available_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 1894\n");
+    return native_cuda_cublas_available();
+}
+static int64_t native_cuda_cublas_status_text_entry_witness(int64_t a1, int64_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1895\n");
+    return native_cuda_cublas_status_text(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cublas_create_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1896\n");
+    return native_cuda_cublas_create(a1, a2);
+}
+static int64_t native_cuda_cublas_destroy_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1897\n");
+    return native_cuda_cublas_destroy(a1);
+}
+static int64_t native_cuda_cublas_get_version_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1898\n");
+    return native_cuda_cublas_get_version(a1, a2, a3);
+}
+static int64_t native_cuda_cublas_set_stream_entry_witness(int64_t a1, int64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1899\n");
+    return native_cuda_cublas_set_stream(a1, a2);
+}
+static int64_t native_cuda_cublas_set_math_mode_entry_witness(int64_t a1, int32_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1900\n");
+    return native_cuda_cublas_set_math_mode(a1, a2);
+}
+static int64_t native_cuda_cublas_sgemm_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, float a7, uint64_t a8, int32_t a9, uint64_t a10, int32_t a11, float a12, uint64_t a13, int32_t a14) {
+    fprintf(stderr, "\nffi-native-entry 1901\n");
+    return native_cuda_cublas_sgemm(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14);
+}
+static int64_t native_cuda_cublas_dgemm_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, double a7, uint64_t a8, int32_t a9, uint64_t a10, int32_t a11, double a12, uint64_t a13, int32_t a14) {
+    fprintf(stderr, "\nffi-native-entry 1902\n");
+    return native_cuda_cublas_dgemm(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14);
+}
+static int64_t native_cuda_cublas_snrm2_entry_witness(int64_t a1, int32_t a2, uint64_t a3, int32_t a4, uint8_t *a5, uint64_t a6) {
+    fprintf(stderr, "\nffi-native-entry 1903\n");
+    return native_cuda_cublas_snrm2(a1, a2, a3, a4, a5, a6);
+}
+static int64_t native_cuda_cublas_dnrm2_entry_witness(int64_t a1, int32_t a2, uint64_t a3, int32_t a4, uint8_t *a5, uint64_t a6) {
+    fprintf(stderr, "\nffi-native-entry 1904\n");
+    return native_cuda_cublas_dnrm2(a1, a2, a3, a4, a5, a6);
+}
+static int64_t native_cuda_cublas_saxpy_entry_witness(int64_t a1, int32_t a2, float a3, uint64_t a4, int32_t a5, uint64_t a6, int32_t a7) {
+    fprintf(stderr, "\nffi-native-entry 1905\n");
+    return native_cuda_cublas_saxpy(a1, a2, a3, a4, a5, a6, a7);
+}
+static int64_t native_cuda_cublas_daxpy_entry_witness(int64_t a1, int32_t a2, double a3, uint64_t a4, int32_t a5, uint64_t a6, int32_t a7) {
+    fprintf(stderr, "\nffi-native-entry 1906\n");
+    return native_cuda_cublas_daxpy(a1, a2, a3, a4, a5, a6, a7);
+}
+static int64_t native_cuda_curand_available_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 1924\n");
+    return native_cuda_curand_available();
+}
+static int64_t native_cuda_curand_status_text_entry_witness(int64_t a1, int64_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1925\n");
+    return native_cuda_curand_status_text(a1, a2, a3, a4);
+}
+static int64_t native_cuda_curand_create_generator_entry_witness(int32_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1926\n");
+    return native_cuda_curand_create_generator(a1, a2, a3);
+}
+static int64_t native_cuda_curand_destroy_generator_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1927\n");
+    return native_cuda_curand_destroy_generator(a1);
+}
+static int64_t native_cuda_curand_get_version_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1928\n");
+    return native_cuda_curand_get_version(a1, a2);
+}
+static int64_t native_cuda_curand_set_stream_entry_witness(int64_t a1, int64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1929\n");
+    return native_cuda_curand_set_stream(a1, a2);
+}
+static int64_t native_cuda_curand_set_pseudo_random_generator_seed_entry_witness(int64_t a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1930\n");
+    return native_cuda_curand_set_pseudo_random_generator_seed(a1, a2);
+}
+static int64_t native_cuda_curand_generate_uniform_entry_witness(int64_t a1, uint64_t a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1931\n");
+    return native_cuda_curand_generate_uniform(a1, a2, a3);
+}
+static int64_t native_cuda_curand_generate_uniform_double_entry_witness(int64_t a1, uint64_t a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1932\n");
+    return native_cuda_curand_generate_uniform_double(a1, a2, a3);
+}
+static int64_t native_cuda_curand_generate_normal_entry_witness(int64_t a1, uint64_t a2, uint64_t a3, float a4, float a5) {
+    fprintf(stderr, "\nffi-native-entry 1933\n");
+    return native_cuda_curand_generate_normal(a1, a2, a3, a4, a5);
+}
+static int64_t native_cuda_curand_generate_normal_double_entry_witness(int64_t a1, uint64_t a2, uint64_t a3, double a4, double a5) {
+    fprintf(stderr, "\nffi-native-entry 1934\n");
+    return native_cuda_curand_generate_normal_double(a1, a2, a3, a4, a5);
+}
+static int64_t native_cuda_cuopt_available_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 1954\n");
+    return native_cuda_cuopt_available();
+}
+static int64_t native_cuda_cuopt_status_text_entry_witness(int64_t a1, int64_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1955\n");
+    return native_cuda_cuopt_status_text(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cu_opt_get_version_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1956\n");
+    return native_cuda_cu_opt_get_version(a1, a2);
+}
+static int64_t native_cuda_cu_opt_create_problem_entry_witness(int32_t a1, int32_t a2, int32_t a3, double a4, const uint8_t *a5, uint64_t a6, uint8_t *a7, uint64_t a8) {
+    fprintf(stderr, "\nffi-native-entry 1957\n");
+    return native_cuda_cu_opt_create_problem(a1, a2, a3, a4, a5, a6, a7, a8);
+}
+static int64_t native_cuda_cu_opt_destroy_problem_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1958\n");
+    return native_cuda_cu_opt_destroy_problem(a1);
+}
+static int64_t native_cuda_cu_opt_get_num_variables_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1959\n");
+    return native_cuda_cu_opt_get_num_variables(a1, a2, a3);
+}
+static int64_t native_cuda_cu_opt_create_solver_settings_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1960\n");
+    return native_cuda_cu_opt_create_solver_settings(a1, a2);
+}
+static int64_t native_cuda_cu_opt_destroy_solver_settings_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1961\n");
+    return native_cuda_cu_opt_destroy_solver_settings(a1);
+}
+static int64_t native_cuda_cu_opt_set_parameter_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3, const uint8_t *a4, uint64_t a5) {
+    fprintf(stderr, "\nffi-native-entry 1962\n");
+    return native_cuda_cu_opt_set_parameter(a1, a2, a3, a4, a5);
+}
+static int64_t native_cuda_cu_opt_set_integer_parameter_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3, int32_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1963\n");
+    return native_cuda_cu_opt_set_integer_parameter(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cu_opt_set_float_parameter_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3, double a4) {
+    fprintf(stderr, "\nffi-native-entry 1964\n");
+    return native_cuda_cu_opt_set_float_parameter(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cu_opt_solve_entry_witness(int64_t a1, int64_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1965\n");
+    return native_cuda_cu_opt_solve(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cu_opt_destroy_solution_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1966\n");
+    return native_cuda_cu_opt_destroy_solution(a1);
+}
+static int64_t native_cuda_cu_opt_get_termination_status_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1967\n");
+    return native_cuda_cu_opt_get_termination_status(a1, a2, a3);
+}
+static int64_t native_cuda_cu_opt_get_error_status_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1968\n");
+    return native_cuda_cu_opt_get_error_status(a1, a2, a3);
+}
+static int64_t native_cuda_cu_opt_get_objective_value_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1969\n");
+    return native_cuda_cu_opt_get_objective_value(a1, a2, a3);
+}
+static int64_t native_cuda_cu_opt_get_solve_time_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1970\n");
+    return native_cuda_cu_opt_get_solve_time(a1, a2, a3);
+}
+static int64_t native_cuda_cu_opt_get_primal_solution_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1971\n");
+    return native_cuda_cu_opt_get_primal_solution(a1, a2, a3);
+}
 static void native_text_stdout_entry_witness(const uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 2193\n");
     native_text_stdout(a1, a2);
@@ -1029,6 +1434,492 @@ static int32_t ffi_approved_core(const char *approved_name, const uint8_t *signa
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_nvrtc_free_entry_witness;
         return 1768;
+    }
+    if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_session") == 0) {
+        *target_out = (uint64_t) native_cuda_session;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_session_entry_witness;
+        return 1824;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_live") == 0) {
+        *target_out = (uint64_t) native_cuda_live;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_live_entry_witness;
+        return 1825;
+    }
+    if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_cudart_available") == 0) {
+        *target_out = (uint64_t) native_cuda_cudart_available;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cudart_available_entry_witness;
+        return 1829;
+    }
+    if (strcmp((const char *) signature, "\003\003\011\003") == 0 && strcmp(approved_name, "cuda_cudart_status_text") == 0) {
+        *target_out = (uint64_t) native_cuda_cudart_status_text;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cudart_status_text_entry_witness;
+        return 1830;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cudaRuntimeGetVersion") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_runtime_get_version;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_runtime_get_version_entry_witness;
+        return 1831;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cudaDriverGetVersion") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_driver_get_version;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_driver_get_version_entry_witness;
+        return 1832;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cudaGetDeviceCount") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_get_device_count;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_get_device_count_entry_witness;
+        return 1833;
+    }
+    if (strcmp((const char *) signature, "\001\003") == 0 && strcmp(approved_name, "cuda_cudaSetDevice") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_set_device;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_set_device_entry_witness;
+        return 1834;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cudaGetDevice") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_get_device;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_get_device_entry_witness;
+        return 1835;
+    }
+    if (strcmp((const char *) signature, "\001\001\011\003") == 0 && strcmp(approved_name, "cuda_cudaDeviceGetAttribute") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_device_get_attribute;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_device_get_attribute_entry_witness;
+        return 1836;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cudaMemGetInfo") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_mem_get_info;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_mem_get_info_entry_witness;
+        return 1837;
+    }
+    if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_cudaDeviceSynchronize") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_device_synchronize;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_device_synchronize_entry_witness;
+        return 1838;
+    }
+    if (strcmp((const char *) signature, "\004\011\003") == 0 && strcmp(approved_name, "cuda_cudaMalloc") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_malloc;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_malloc_entry_witness;
+        return 1839;
+    }
+    if (strcmp((const char *) signature, "\004\003") == 0 && strcmp(approved_name, "cuda_cudaFree") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_free;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_free_entry_witness;
+        return 1840;
+    }
+    if (strcmp((const char *) signature, "\004\010\004\003") == 0 && strcmp(approved_name, "cuda_cudaMemcpyHtoD") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_memcpy_hto_d;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_memcpy_hto_d_entry_witness;
+        return 1841;
+    }
+    if (strcmp((const char *) signature, "\011\004\004\003") == 0 && strcmp(approved_name, "cuda_cudaMemcpyDtoH") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_memcpy_dto_h;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_memcpy_dto_h_entry_witness;
+        return 1842;
+    }
+    if (strcmp((const char *) signature, "\004\004\004\003") == 0 && strcmp(approved_name, "cuda_cudaMemcpyDtoD") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_memcpy_dto_d;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_memcpy_dto_d_entry_witness;
+        return 1843;
+    }
+    if (strcmp((const char *) signature, "\004\001\004\003") == 0 && strcmp(approved_name, "cuda_cudaMemset") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_memset;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_memset_entry_witness;
+        return 1844;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cudaStreamCreate") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_stream_create;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_stream_create_entry_witness;
+        return 1845;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_cudaStreamDestroy") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_stream_destroy;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_stream_destroy_entry_witness;
+        return 1846;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_cudaStreamSynchronize") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_stream_synchronize;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_stream_synchronize_entry_witness;
+        return 1847;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_cudaStreamQuery") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_stream_query;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_stream_query_entry_witness;
+        return 1848;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cudaEventCreate") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_event_create;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_event_create_entry_witness;
+        return 1849;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_cudaEventDestroy") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_event_destroy;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_event_destroy_entry_witness;
+        return 1850;
+    }
+    if (strcmp((const char *) signature, "\003\003\003") == 0 && strcmp(approved_name, "cuda_cudaEventRecord") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_event_record;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_event_record_entry_witness;
+        return 1851;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_cudaEventQuery") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_event_query;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_event_query_entry_witness;
+        return 1852;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_cudaEventSynchronize") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_event_synchronize;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_event_synchronize_entry_witness;
+        return 1853;
+    }
+    if (strcmp((const char *) signature, "\003\003\011\003") == 0 && strcmp(approved_name, "cuda_cudaEventElapsedTime") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_event_elapsed_time;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_event_elapsed_time_entry_witness;
+        return 1854;
+    }
+    if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_cudaGetLastError") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_get_last_error;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_get_last_error_entry_witness;
+        return 1855;
+    }
+    if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_cudaPeekAtLastError") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_peek_at_last_error;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_peek_at_last_error_entry_witness;
+        return 1856;
+    }
+    if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_driver_available") == 0) {
+        *target_out = (uint64_t) native_cuda_driver_available;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_driver_available_entry_witness;
+        return 1869;
+    }
+    if (strcmp((const char *) signature, "\003\003\011\003") == 0 && strcmp(approved_name, "cuda_driver_status_text") == 0) {
+        *target_out = (uint64_t) native_cuda_driver_status_text;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_driver_status_text_entry_witness;
+        return 1870;
+    }
+    if (strcmp((const char *) signature, "\002\003") == 0 && strcmp(approved_name, "cuda_cuInit") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_init;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_init_entry_witness;
+        return 1871;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cuDriverGetVersion") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_driver_get_version;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_driver_get_version_entry_witness;
+        return 1872;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cuDeviceGetCount") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_device_get_count;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_device_get_count_entry_witness;
+        return 1873;
+    }
+    if (strcmp((const char *) signature, "\001\011\003") == 0 && strcmp(approved_name, "cuda_cuDeviceGet") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_device_get;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_device_get_entry_witness;
+        return 1874;
+    }
+    if (strcmp((const char *) signature, "\011\001\001\003") == 0 && strcmp(approved_name, "cuda_cuDeviceGetName") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_device_get_name;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_device_get_name_entry_witness;
+        return 1875;
+    }
+    if (strcmp((const char *) signature, "\001\011\003") == 0 && strcmp(approved_name, "cuda_cuDeviceTotalMem") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_device_total_mem;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_device_total_mem_entry_witness;
+        return 1876;
+    }
+    if (strcmp((const char *) signature, "\001\001\011\003") == 0 && strcmp(approved_name, "cuda_cuDeviceGetAttribute") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_device_get_attribute;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_device_get_attribute_entry_witness;
+        return 1877;
+    }
+    if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_cublas_available") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_available;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_available_entry_witness;
+        return 1894;
+    }
+    if (strcmp((const char *) signature, "\003\003\011\003") == 0 && strcmp(approved_name, "cuda_cublas_status_text") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_status_text;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_status_text_entry_witness;
+        return 1895;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cublasCreate") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_create;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_create_entry_witness;
+        return 1896;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_cublasDestroy") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_destroy;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_destroy_entry_witness;
+        return 1897;
+    }
+    if (strcmp((const char *) signature, "\003\011\003") == 0 && strcmp(approved_name, "cuda_cublasGetVersion") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_get_version;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_get_version_entry_witness;
+        return 1898;
+    }
+    if (strcmp((const char *) signature, "\003\003\003") == 0 && strcmp(approved_name, "cuda_cublasSetStream") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_set_stream;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_set_stream_entry_witness;
+        return 1899;
+    }
+    if (strcmp((const char *) signature, "\003\001\003") == 0 && strcmp(approved_name, "cuda_cublasSetMathMode") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_set_math_mode;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_set_math_mode_entry_witness;
+        return 1900;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\001\001\001\020\004\001\004\001\020\004\001\003") == 0 && strcmp(approved_name, "cuda_cublasSgemm") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_sgemm;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_sgemm_entry_witness;
+        return 1901;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\001\001\001\006\004\001\004\001\006\004\001\003") == 0 && strcmp(approved_name, "cuda_cublasDgemm") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_dgemm;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_dgemm_entry_witness;
+        return 1902;
+    }
+    if (strcmp((const char *) signature, "\003\001\004\001\011\003") == 0 && strcmp(approved_name, "cuda_cublasSnrm2") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_snrm2;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_snrm2_entry_witness;
+        return 1903;
+    }
+    if (strcmp((const char *) signature, "\003\001\004\001\011\003") == 0 && strcmp(approved_name, "cuda_cublasDnrm2") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_dnrm2;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_dnrm2_entry_witness;
+        return 1904;
+    }
+    if (strcmp((const char *) signature, "\003\001\020\004\001\004\001\003") == 0 && strcmp(approved_name, "cuda_cublasSaxpy") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_saxpy;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_saxpy_entry_witness;
+        return 1905;
+    }
+    if (strcmp((const char *) signature, "\003\001\006\004\001\004\001\003") == 0 && strcmp(approved_name, "cuda_cublasDaxpy") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_daxpy;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_daxpy_entry_witness;
+        return 1906;
+    }
+    if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_curand_available") == 0) {
+        *target_out = (uint64_t) native_cuda_curand_available;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_curand_available_entry_witness;
+        return 1924;
+    }
+    if (strcmp((const char *) signature, "\003\003\011\003") == 0 && strcmp(approved_name, "cuda_curand_status_text") == 0) {
+        *target_out = (uint64_t) native_cuda_curand_status_text;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_curand_status_text_entry_witness;
+        return 1925;
+    }
+    if (strcmp((const char *) signature, "\001\011\003") == 0 && strcmp(approved_name, "cuda_curandCreateGenerator") == 0) {
+        *target_out = (uint64_t) native_cuda_curand_create_generator;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_curand_create_generator_entry_witness;
+        return 1926;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_curandDestroyGenerator") == 0) {
+        *target_out = (uint64_t) native_cuda_curand_destroy_generator;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_curand_destroy_generator_entry_witness;
+        return 1927;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_curandGetVersion") == 0) {
+        *target_out = (uint64_t) native_cuda_curand_get_version;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_curand_get_version_entry_witness;
+        return 1928;
+    }
+    if (strcmp((const char *) signature, "\003\003\003") == 0 && strcmp(approved_name, "cuda_curandSetStream") == 0) {
+        *target_out = (uint64_t) native_cuda_curand_set_stream;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_curand_set_stream_entry_witness;
+        return 1929;
+    }
+    if (strcmp((const char *) signature, "\003\004\003") == 0 && strcmp(approved_name, "cuda_curandSetPseudoRandomGeneratorSeed") == 0) {
+        *target_out = (uint64_t) native_cuda_curand_set_pseudo_random_generator_seed;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_curand_set_pseudo_random_generator_seed_entry_witness;
+        return 1930;
+    }
+    if (strcmp((const char *) signature, "\003\004\004\003") == 0 && strcmp(approved_name, "cuda_curandGenerateUniform") == 0) {
+        *target_out = (uint64_t) native_cuda_curand_generate_uniform;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_curand_generate_uniform_entry_witness;
+        return 1931;
+    }
+    if (strcmp((const char *) signature, "\003\004\004\003") == 0 && strcmp(approved_name, "cuda_curandGenerateUniformDouble") == 0) {
+        *target_out = (uint64_t) native_cuda_curand_generate_uniform_double;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_curand_generate_uniform_double_entry_witness;
+        return 1932;
+    }
+    if (strcmp((const char *) signature, "\003\004\004\020\020\003") == 0 && strcmp(approved_name, "cuda_curandGenerateNormal") == 0) {
+        *target_out = (uint64_t) native_cuda_curand_generate_normal;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_curand_generate_normal_entry_witness;
+        return 1933;
+    }
+    if (strcmp((const char *) signature, "\003\004\004\006\006\003") == 0 && strcmp(approved_name, "cuda_curandGenerateNormalDouble") == 0) {
+        *target_out = (uint64_t) native_cuda_curand_generate_normal_double;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_curand_generate_normal_double_entry_witness;
+        return 1934;
+    }
+    if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_cuopt_available") == 0) {
+        *target_out = (uint64_t) native_cuda_cuopt_available;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuopt_available_entry_witness;
+        return 1954;
+    }
+    if (strcmp((const char *) signature, "\003\003\011\003") == 0 && strcmp(approved_name, "cuda_cuopt_status_text") == 0) {
+        *target_out = (uint64_t) native_cuda_cuopt_status_text;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuopt_status_text_entry_witness;
+        return 1955;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cuOptGetVersion") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_get_version;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_get_version_entry_witness;
+        return 1956;
+    }
+    if (strcmp((const char *) signature, "\001\001\001\006\010\011\003") == 0 && strcmp(approved_name, "cuda_cuOptCreateProblem") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_create_problem;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_create_problem_entry_witness;
+        return 1957;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_cuOptDestroyProblem") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_destroy_problem;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_destroy_problem_entry_witness;
+        return 1958;
+    }
+    if (strcmp((const char *) signature, "\003\011\003") == 0 && strcmp(approved_name, "cuda_cuOptGetNumVariables") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_get_num_variables;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_get_num_variables_entry_witness;
+        return 1959;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cuOptCreateSolverSettings") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_create_solver_settings;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_create_solver_settings_entry_witness;
+        return 1960;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_cuOptDestroySolverSettings") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_destroy_solver_settings;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_destroy_solver_settings_entry_witness;
+        return 1961;
+    }
+    if (strcmp((const char *) signature, "\003\010\010\003") == 0 && strcmp(approved_name, "cuda_cuOptSetParameter") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_set_parameter;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_set_parameter_entry_witness;
+        return 1962;
+    }
+    if (strcmp((const char *) signature, "\003\010\001\003") == 0 && strcmp(approved_name, "cuda_cuOptSetIntegerParameter") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_set_integer_parameter;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_set_integer_parameter_entry_witness;
+        return 1963;
+    }
+    if (strcmp((const char *) signature, "\003\010\006\003") == 0 && strcmp(approved_name, "cuda_cuOptSetFloatParameter") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_set_float_parameter;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_set_float_parameter_entry_witness;
+        return 1964;
+    }
+    if (strcmp((const char *) signature, "\003\003\011\003") == 0 && strcmp(approved_name, "cuda_cuOptSolve") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_solve;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_solve_entry_witness;
+        return 1965;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_cuOptDestroySolution") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_destroy_solution;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_destroy_solution_entry_witness;
+        return 1966;
+    }
+    if (strcmp((const char *) signature, "\003\011\003") == 0 && strcmp(approved_name, "cuda_cuOptGetTerminationStatus") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_get_termination_status;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_get_termination_status_entry_witness;
+        return 1967;
+    }
+    if (strcmp((const char *) signature, "\003\011\003") == 0 && strcmp(approved_name, "cuda_cuOptGetErrorStatus") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_get_error_status;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_get_error_status_entry_witness;
+        return 1968;
+    }
+    if (strcmp((const char *) signature, "\003\011\003") == 0 && strcmp(approved_name, "cuda_cuOptGetObjectiveValue") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_get_objective_value;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_get_objective_value_entry_witness;
+        return 1969;
+    }
+    if (strcmp((const char *) signature, "\003\011\003") == 0 && strcmp(approved_name, "cuda_cuOptGetSolveTime") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_get_solve_time;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_get_solve_time_entry_witness;
+        return 1970;
+    }
+    if (strcmp((const char *) signature, "\003\011\003") == 0 && strcmp(approved_name, "cuda_cuOptGetPrimalSolution") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_opt_get_primal_solution;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_get_primal_solution_entry_witness;
+        return 1971;
     }
     if (strcmp((const char *) signature, "\015\007") == 0 && strcmp(approved_name, "core_stdout_text") == 0) {
         *target_out = (uint64_t) native_text_stdout;
@@ -1591,6 +2482,492 @@ static int64_t native_crypto_verify(int64_t key_id, int64_t verify_params, const
 static int64_t native_crypto_x25519(const uint8_t *k_bytes, uint64_t k_bytes_len, const uint8_t *u_bytes, uint64_t u_bytes_len, uint8_t *out_bytes, uint64_t out_bytes_len)
 {
     return samaltak_crypto_x25519(k_bytes, k_bytes_len, u_bytes, u_bytes_len, out_bytes, out_bytes_len);
+}
+
+/* FFIPrimitives>>nativeCudaCuDeviceGet:outs:outsLength: */
+static int64_t native_cuda_cu_device_get(int32_t ordinal, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuDeviceGet(ordinal, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuDeviceGetAttribute:dev:outs:outsLength: */
+static int64_t native_cuda_cu_device_get_attribute(int32_t attrib, int32_t dev, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuDeviceGetAttribute(attrib, dev, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuDeviceGetCount:outsLength: */
+static int64_t native_cuda_cu_device_get_count(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuDeviceGetCount(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuDeviceGetName:nameLength:len:dev: */
+static int64_t native_cuda_cu_device_get_name(uint8_t *name, uint64_t name_length, int32_t len, int32_t dev)
+{
+    return samaltak_cuda_cuDeviceGetName(name, name_length, len, dev);
+}
+
+/* FFIPrimitives>>nativeCudaCuDeviceTotalMem:outs:outsLength: */
+static int64_t native_cuda_cu_device_total_mem(int32_t dev, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuDeviceTotalMem(dev, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuDriverGetVersion:outsLength: */
+static int64_t native_cuda_cu_driver_get_version(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuDriverGetVersion(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuInit: */
+static int64_t native_cuda_cu_init(uint32_t flags)
+{
+    return samaltak_cuda_cuInit(flags);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptCreateProblem:numVariables:objectiveSense:objectiveOffset:pack:packLength:outs:outsLength: */
+static int64_t native_cuda_cu_opt_create_problem(int32_t num_constraints, int32_t num_variables, int32_t objective_sense, double objective_offset, const uint8_t *pack, uint64_t pack_length, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuOptCreateProblem(num_constraints, num_variables, objective_sense, objective_offset, pack, pack_length, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptCreateSolverSettings:outsLength: */
+static int64_t native_cuda_cu_opt_create_solver_settings(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuOptCreateSolverSettings(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptDestroyProblem: */
+static int64_t native_cuda_cu_opt_destroy_problem(int64_t problem_ptr)
+{
+    return samaltak_cuda_cuOptDestroyProblem(problem_ptr);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptDestroySolution: */
+static int64_t native_cuda_cu_opt_destroy_solution(int64_t solution_ptr)
+{
+    return samaltak_cuda_cuOptDestroySolution(solution_ptr);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptDestroySolverSettings: */
+static int64_t native_cuda_cu_opt_destroy_solver_settings(int64_t settings_ptr)
+{
+    return samaltak_cuda_cuOptDestroySolverSettings(settings_ptr);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptGetErrorStatus:outs:outsLength: */
+static int64_t native_cuda_cu_opt_get_error_status(int64_t solution, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuOptGetErrorStatus(solution, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptGetNumVariables:outs:outsLength: */
+static int64_t native_cuda_cu_opt_get_num_variables(int64_t problem, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuOptGetNumVariables(problem, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptGetObjectiveValue:outs:outsLength: */
+static int64_t native_cuda_cu_opt_get_objective_value(int64_t solution, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuOptGetObjectiveValue(solution, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptGetPrimalSolution:solutionValues:solutionValuesLength: */
+static int64_t native_cuda_cu_opt_get_primal_solution(int64_t solution, uint8_t *solution_values, uint64_t solution_values_length)
+{
+    return samaltak_cuda_cuOptGetPrimalSolution(solution, solution_values, solution_values_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptGetSolveTime:outs:outsLength: */
+static int64_t native_cuda_cu_opt_get_solve_time(int64_t solution, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuOptGetSolveTime(solution, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptGetTerminationStatus:outs:outsLength: */
+static int64_t native_cuda_cu_opt_get_termination_status(int64_t solution, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuOptGetTerminationStatus(solution, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptGetVersion:outsLength: */
+static int64_t native_cuda_cu_opt_get_version(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuOptGetVersion(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptSetFloatParameter:parameterName:parameterNameLength:parameterValue: */
+static int64_t native_cuda_cu_opt_set_float_parameter(int64_t settings, const uint8_t *parameter_name, uint64_t parameter_name_length, double parameter_value)
+{
+    return samaltak_cuda_cuOptSetFloatParameter(settings, parameter_name, parameter_name_length, parameter_value);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptSetIntegerParameter:parameterName:parameterNameLength:parameterValue: */
+static int64_t native_cuda_cu_opt_set_integer_parameter(int64_t settings, const uint8_t *parameter_name, uint64_t parameter_name_length, int32_t parameter_value)
+{
+    return samaltak_cuda_cuOptSetIntegerParameter(settings, parameter_name, parameter_name_length, parameter_value);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptSetParameter:parameterName:parameterNameLength:parameterValue:parameterValueLength: */
+static int64_t native_cuda_cu_opt_set_parameter(int64_t settings, const uint8_t *parameter_name, uint64_t parameter_name_length, const uint8_t *parameter_value, uint64_t parameter_value_length)
+{
+    return samaltak_cuda_cuOptSetParameter(settings, parameter_name, parameter_name_length, parameter_value, parameter_value_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuOptSolve:settings:outs:outsLength: */
+static int64_t native_cuda_cu_opt_solve(int64_t problem, int64_t settings, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuOptSolve(problem, settings, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCublasAvailable */
+static int64_t native_cuda_cublas_available(void)
+{
+    return samaltak_cuda_cublas_available();
+}
+
+/* FFIPrimitives>>nativeCudaCublasCreate:outsLength: */
+static int64_t native_cuda_cublas_create(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cublasCreate(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCublasDaxpy:n:alpha:x:incx:y:incy: */
+static int64_t native_cuda_cublas_daxpy(int64_t handle, int32_t n, double alpha, uint64_t x, int32_t incx, uint64_t y, int32_t incy)
+{
+    return samaltak_cuda_cublasDaxpy(handle, n, alpha, x, incx, y, incy);
+}
+
+/* FFIPrimitives>>nativeCudaCublasDestroy: */
+static int64_t native_cuda_cublas_destroy(int64_t handle)
+{
+    return samaltak_cuda_cublasDestroy(handle);
+}
+
+/* FFIPrimitives>>nativeCudaCublasDgemm:transa:transb:m:n:k:alpha:a:lda:b:ldb:beta:c:ldc: */
+static int64_t native_cuda_cublas_dgemm(int64_t handle, int32_t transa, int32_t transb, int32_t m, int32_t n, int32_t k, double alpha, uint64_t a, int32_t lda, uint64_t b, int32_t ldb, double beta, uint64_t c, int32_t ldc)
+{
+    return samaltak_cuda_cublasDgemm(handle, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+}
+
+/* FFIPrimitives>>nativeCudaCublasDnrm2:n:x:incx:outs:outsLength: */
+static int64_t native_cuda_cublas_dnrm2(int64_t handle, int32_t n, uint64_t x, int32_t incx, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cublasDnrm2(handle, n, x, incx, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCublasGetVersion:outs:outsLength: */
+static int64_t native_cuda_cublas_get_version(int64_t handle, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cublasGetVersion(handle, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCublasSaxpy:n:alpha:x:incx:y:incy: */
+static int64_t native_cuda_cublas_saxpy(int64_t handle, int32_t n, float alpha, uint64_t x, int32_t incx, uint64_t y, int32_t incy)
+{
+    return samaltak_cuda_cublasSaxpy(handle, n, alpha, x, incx, y, incy);
+}
+
+/* FFIPrimitives>>nativeCudaCublasSetMathMode:mode: */
+static int64_t native_cuda_cublas_set_math_mode(int64_t handle, int32_t mode)
+{
+    return samaltak_cuda_cublasSetMathMode(handle, mode);
+}
+
+/* FFIPrimitives>>nativeCudaCublasSetStream:streamId: */
+static int64_t native_cuda_cublas_set_stream(int64_t handle, int64_t stream_id)
+{
+    return samaltak_cuda_cublasSetStream(handle, stream_id);
+}
+
+/* FFIPrimitives>>nativeCudaCublasSgemm:transa:transb:m:n:k:alpha:a:lda:b:ldb:beta:c:ldc: */
+static int64_t native_cuda_cublas_sgemm(int64_t handle, int32_t transa, int32_t transb, int32_t m, int32_t n, int32_t k, float alpha, uint64_t a, int32_t lda, uint64_t b, int32_t ldb, float beta, uint64_t c, int32_t ldc)
+{
+    return samaltak_cuda_cublasSgemm(handle, transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+}
+
+/* FFIPrimitives>>nativeCudaCublasSnrm2:n:x:incx:outs:outsLength: */
+static int64_t native_cuda_cublas_snrm2(int64_t handle, int32_t n, uint64_t x, int32_t incx, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cublasSnrm2(handle, n, x, incx, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCublasStatusText:kind:out:outLength: */
+static int64_t native_cuda_cublas_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length)
+{
+    return samaltak_cuda_cublas_status_text(status, kind, out, out_length);
+}
+
+/* FFIPrimitives>>nativeCudaCudaDeviceGetAttribute:device:outs:outsLength: */
+static int64_t native_cuda_cuda_device_get_attribute(int32_t attr, int32_t device, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cudaDeviceGetAttribute(attr, device, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCudaDeviceSynchronize */
+static int64_t native_cuda_cuda_device_synchronize(void)
+{
+    return samaltak_cuda_cudaDeviceSynchronize();
+}
+
+/* FFIPrimitives>>nativeCudaCudaDriverGetVersion:outsLength: */
+static int64_t native_cuda_cuda_driver_get_version(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cudaDriverGetVersion(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCudaEventCreate:outsLength: */
+static int64_t native_cuda_cuda_event_create(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cudaEventCreate(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCudaEventDestroy: */
+static int64_t native_cuda_cuda_event_destroy(int64_t event)
+{
+    return samaltak_cuda_cudaEventDestroy(event);
+}
+
+/* FFIPrimitives>>nativeCudaCudaEventElapsedTime:end:outs:outsLength: */
+static int64_t native_cuda_cuda_event_elapsed_time(int64_t start, int64_t end, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cudaEventElapsedTime(start, end, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCudaEventQuery: */
+static int64_t native_cuda_cuda_event_query(int64_t event)
+{
+    return samaltak_cuda_cudaEventQuery(event);
+}
+
+/* FFIPrimitives>>nativeCudaCudaEventRecord:stream: */
+static int64_t native_cuda_cuda_event_record(int64_t event, int64_t stream)
+{
+    return samaltak_cuda_cudaEventRecord(event, stream);
+}
+
+/* FFIPrimitives>>nativeCudaCudaEventSynchronize: */
+static int64_t native_cuda_cuda_event_synchronize(int64_t event)
+{
+    return samaltak_cuda_cudaEventSynchronize(event);
+}
+
+/* FFIPrimitives>>nativeCudaCudaFree: */
+static int64_t native_cuda_cuda_free(uint64_t dev_ptr)
+{
+    return samaltak_cuda_cudaFree(dev_ptr);
+}
+
+/* FFIPrimitives>>nativeCudaCudaGetDevice:outsLength: */
+static int64_t native_cuda_cuda_get_device(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cudaGetDevice(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCudaGetDeviceCount:outsLength: */
+static int64_t native_cuda_cuda_get_device_count(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cudaGetDeviceCount(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCudaGetLastError */
+static int64_t native_cuda_cuda_get_last_error(void)
+{
+    return samaltak_cuda_cudaGetLastError();
+}
+
+/* FFIPrimitives>>nativeCudaCudaMalloc:outs:outsLength: */
+static int64_t native_cuda_cuda_malloc(uint64_t size, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cudaMalloc(size, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCudaMemGetInfo:outsLength: */
+static int64_t native_cuda_cuda_mem_get_info(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cudaMemGetInfo(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCudaMemcpyDtoD:src:count: */
+static int64_t native_cuda_cuda_memcpy_dto_d(uint64_t dst, uint64_t src, uint64_t count)
+{
+    return samaltak_cuda_cudaMemcpyDtoD(dst, src, count);
+}
+
+/* FFIPrimitives>>nativeCudaCudaMemcpyDtoH:dstLength:src:count: */
+static int64_t native_cuda_cuda_memcpy_dto_h(uint8_t *dst, uint64_t dst_length, uint64_t src, uint64_t count)
+{
+    return samaltak_cuda_cudaMemcpyDtoH(dst, dst_length, src, count);
+}
+
+/* FFIPrimitives>>nativeCudaCudaMemcpyHtoD:src:srcLength:count: */
+static int64_t native_cuda_cuda_memcpy_hto_d(uint64_t dst, const uint8_t *src, uint64_t src_length, uint64_t count)
+{
+    return samaltak_cuda_cudaMemcpyHtoD(dst, src, src_length, count);
+}
+
+/* FFIPrimitives>>nativeCudaCudaMemset:value:count: */
+static int64_t native_cuda_cuda_memset(uint64_t dev_ptr, int32_t value, uint64_t count)
+{
+    return samaltak_cuda_cudaMemset(dev_ptr, value, count);
+}
+
+/* FFIPrimitives>>nativeCudaCudaPeekAtLastError */
+static int64_t native_cuda_cuda_peek_at_last_error(void)
+{
+    return samaltak_cuda_cudaPeekAtLastError();
+}
+
+/* FFIPrimitives>>nativeCudaCudaRuntimeGetVersion:outsLength: */
+static int64_t native_cuda_cuda_runtime_get_version(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cudaRuntimeGetVersion(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCudaSetDevice: */
+static int64_t native_cuda_cuda_set_device(int32_t device)
+{
+    return samaltak_cuda_cudaSetDevice(device);
+}
+
+/* FFIPrimitives>>nativeCudaCudaStreamCreate:outsLength: */
+static int64_t native_cuda_cuda_stream_create(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cudaStreamCreate(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCudaStreamDestroy: */
+static int64_t native_cuda_cuda_stream_destroy(int64_t stream)
+{
+    return samaltak_cuda_cudaStreamDestroy(stream);
+}
+
+/* FFIPrimitives>>nativeCudaCudaStreamQuery: */
+static int64_t native_cuda_cuda_stream_query(int64_t stream)
+{
+    return samaltak_cuda_cudaStreamQuery(stream);
+}
+
+/* FFIPrimitives>>nativeCudaCudaStreamSynchronize: */
+static int64_t native_cuda_cuda_stream_synchronize(int64_t stream)
+{
+    return samaltak_cuda_cudaStreamSynchronize(stream);
+}
+
+/* FFIPrimitives>>nativeCudaCudartAvailable */
+static int64_t native_cuda_cudart_available(void)
+{
+    return samaltak_cuda_cudart_available();
+}
+
+/* FFIPrimitives>>nativeCudaCudartStatusText:kind:out:outLength: */
+static int64_t native_cuda_cudart_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length)
+{
+    return samaltak_cuda_cudart_status_text(status, kind, out, out_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuoptAvailable */
+static int64_t native_cuda_cuopt_available(void)
+{
+    return samaltak_cuda_cuopt_available();
+}
+
+/* FFIPrimitives>>nativeCudaCuoptStatusText:kind:out:outLength: */
+static int64_t native_cuda_cuopt_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length)
+{
+    return samaltak_cuda_cuopt_status_text(status, kind, out, out_length);
+}
+
+/* FFIPrimitives>>nativeCudaCurandAvailable */
+static int64_t native_cuda_curand_available(void)
+{
+    return samaltak_cuda_curand_available();
+}
+
+/* FFIPrimitives>>nativeCudaCurandCreateGenerator:outs:outsLength: */
+static int64_t native_cuda_curand_create_generator(int32_t rng_type, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_curandCreateGenerator(rng_type, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCurandDestroyGenerator: */
+static int64_t native_cuda_curand_destroy_generator(int64_t generator)
+{
+    return samaltak_cuda_curandDestroyGenerator(generator);
+}
+
+/* FFIPrimitives>>nativeCudaCurandGenerateNormal:outputPtr:n:mean:stddev: */
+static int64_t native_cuda_curand_generate_normal(int64_t generator, uint64_t output_ptr, uint64_t n, float mean, float stddev)
+{
+    return samaltak_cuda_curandGenerateNormal(generator, output_ptr, n, mean, stddev);
+}
+
+/* FFIPrimitives>>nativeCudaCurandGenerateNormalDouble:outputPtr:n:mean:stddev: */
+static int64_t native_cuda_curand_generate_normal_double(int64_t generator, uint64_t output_ptr, uint64_t n, double mean, double stddev)
+{
+    return samaltak_cuda_curandGenerateNormalDouble(generator, output_ptr, n, mean, stddev);
+}
+
+/* FFIPrimitives>>nativeCudaCurandGenerateUniform:outputPtr:num: */
+static int64_t native_cuda_curand_generate_uniform(int64_t generator, uint64_t output_ptr, uint64_t num)
+{
+    return samaltak_cuda_curandGenerateUniform(generator, output_ptr, num);
+}
+
+/* FFIPrimitives>>nativeCudaCurandGenerateUniformDouble:outputPtr:num: */
+static int64_t native_cuda_curand_generate_uniform_double(int64_t generator, uint64_t output_ptr, uint64_t num)
+{
+    return samaltak_cuda_curandGenerateUniformDouble(generator, output_ptr, num);
+}
+
+/* FFIPrimitives>>nativeCudaCurandGetVersion:outsLength: */
+static int64_t native_cuda_curand_get_version(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_curandGetVersion(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCurandSetPseudoRandomGeneratorSeed:seed: */
+static int64_t native_cuda_curand_set_pseudo_random_generator_seed(int64_t generator, uint64_t seed)
+{
+    return samaltak_cuda_curandSetPseudoRandomGeneratorSeed(generator, seed);
+}
+
+/* FFIPrimitives>>nativeCudaCurandSetStream:stream: */
+static int64_t native_cuda_curand_set_stream(int64_t generator, int64_t stream)
+{
+    return samaltak_cuda_curandSetStream(generator, stream);
+}
+
+/* FFIPrimitives>>nativeCudaCurandStatusText:kind:out:outLength: */
+static int64_t native_cuda_curand_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length)
+{
+    return samaltak_cuda_curand_status_text(status, kind, out, out_length);
+}
+
+/* FFIPrimitives>>nativeCudaDriverAvailable */
+static int64_t native_cuda_driver_available(void)
+{
+    return samaltak_cuda_driver_available();
+}
+
+/* FFIPrimitives>>nativeCudaDriverStatusText:kind:out:outLength: */
+static int64_t native_cuda_driver_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length)
+{
+    return samaltak_cuda_driver_status_text(status, kind, out, out_length);
+}
+
+/* FFIPrimitives>>nativeCudaLive: */
+static int64_t native_cuda_live(int64_t kind)
+{
+    return samaltak_cuda_live(kind);
+}
+
+/* FFIPrimitives>>nativeCudaSession */
+static int64_t native_cuda_session(void)
+{
+    return samaltak_cuda_session();
 }
 
 /* FFIPrimitives>>nativeExp: */
