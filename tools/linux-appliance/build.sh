@@ -9,10 +9,12 @@
 # Environment: OUT (build), VM (vm/build/samaltak), IMAGE (OUT/samaltak.image), LINUX_KVER (the kernel's version,
 # 7.0.0-1024-nvidia), LINUX_GPU (virtio, the default: QEMU's virtio-gpu, the World a SoftwareGPU on the image's KMS
 # screen, no GPU userspace; mesa: instead SDL's KMS/DRM window with Mesa's EGL/GBM and lavapipe, the World's frames in
-# its surface; nvidia: the Spark's, the open kernel modules and the GSP firmware, no NVIDIA userspace: the World an
-# NvComputeGPU (System-NV over the RM ioctls) on the image's KMS screen on nvidia-drm; nvidia-vulkan: also NVIDIA's
-# Vulkan, EGL and GBM userspace, the default World on SDL_GPU through VK_KHR_display; both: mesa and nvidia-vulkan),
-# LINUX_MODULES (more modules,
+# its surface; nvidia: the Spark's, the open kernel modules and the GSP firmware, and the CUDA root (cuda.sh, made
+# after the root: NVIDIA's CUDA userspace, mounted at /opt/cuda): the World an NvComputeGPU (the raster kernels through
+# libcuda) on the image's KMS screen on nvidia-drm, a SoftwareGPU where CUDA does not start; nvidia-vulkan: also
+# NVIDIA's Vulkan, EGL and GBM userspace, the default World on SDL_GPU through VK_KHR_display; both: mesa and
+# nvidia-vulkan; the variants with NVIDIA's modules all get the CUDA root), LINUX_CUDA (none: no CUDA root, the
+# Spark's World then in software), LINUX_MODULES (more modules,
 # by name), LINUX_ARGS_FILE (the VM's arguments, one per line, into /etc/samaltak.args), LINUX_CONTROL_TOKEN_FILE
 # (the control service's token, into the root 0600: anyone who can read the initramfs can read it), SDL_SRC (an SDL3
 # checkout of the version the VM was built against; default: cloned into the cache), LINUX_CACHE
@@ -120,7 +122,8 @@ for f in $data; do mkdir -p "$R$(dirname "$f")" && cp -L "$f" "$R$f"; done
 # The World's GPU and screen: virtio, a SoftwareGPU on the image's KMS screen (no SDL window); with Mesa alone (QEMU)
 # lavapipe cannot show on KMS (no VK_KHR_display), so a SoftwareGPU draws and HostFramePresenter copies its frames into
 # SDL's window surface (GLES over GBM); NVIDIA's Vulkan shows on KMS itself.
-# nvidia: an NvComputeGPU on the KMS screen (a SoftwareGPU on it where the GPU does not open: GPUPlatform falls back).
+# nvidia: an NvComputeGPU on the KMS screen, on libcuda from the CUDA root (a SoftwareGPU on it where CUDA does not
+# start: GPUPlatform falls back and says why).
 [ "$GPU" = virtio ] && echo 'export SAMALTAK_SCREEN=kms SAMALTAK_GPU=software' >> "$R/etc/samaltak.env"
 [ "$GPU" = nvidia ] && echo 'export SAMALTAK_SCREEN=kms SAMALTAK_GPU=nv' >> "$R/etc/samaltak.env"
 mesa && ! nvuser && echo 'export SAMALTAK_GPU=software' >> "$R/etc/samaltak.env"
@@ -175,3 +178,9 @@ chmod 755 "$R/etc/init.d/"* "$R/sbin/samaltak-run" "$R/sbin/samaltak-hotplug" "$
 (cd "$R" && find . | LC_ALL=C sort | cpio -o -H newc -R 0:0 --quiet) | zstd -q -T0 -"${LINUX_ZSTD_LEVEL:-12}" > "$W/initrd.zst"
 [ -n "${LINUX_CONTROL_TOKEN_FILE:-}" ] && chmod 600 "$W/initrd.zst"
 say "$W/vmlinuz $(($(wc -c < "$W/vmlinuz") / 1048576)) MB, $W/initrd.zst $(($(wc -c < "$W/initrd.zst") / 1048576)) MB ($(du -sm "$R" | cut -f1) MB unpacked; gpu $GPU)"
+
+# The Spark's variants: their CUDA root (docs/cuda.md), against this root (kept when its MANIFEST is the last build's).
+if nvidia && [ "${LINUX_CUDA:-}" != none ]; then
+	say "the CUDA root (cuda.sh; LINUX_CUDA=none: without)"
+	OUT=$OUT LINUX_KVER=$KVER LINUX_CACHE=$CACHE "$HERE/cuda.sh"
+fi

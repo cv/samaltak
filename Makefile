@@ -501,7 +501,7 @@ test-uefi-nic:
 # The Linux appliance (docs/linux-appliance.md): Ubuntu's NVIDIA kernel booted by its EFI stub with an initramfs of
 # busybox (PID 1), the hosted VM and image, SDL3 for KMS/DRM, into OUT/linux-appliance; LINUX_GPU=virtio (QEMU, the
 # default: the image's KMS screen), mesa (QEMU, SDL's kmsdrm) or nvidia (the DGX Spark: the open kernel modules, GSP
-# firmware, NVIDIA's Vulkan). linux-appliance-run boots
+# firmware, and the CUDA root below: the World on libcuda; nvidia-vulkan adds NVIDIA's Vulkan). linux-appliance-run boots
 # it in QEMU (arm64, KVM), linux-appliance-test end to end: the World on KMS, control, HTTPS, RFB, input, power off.
 linux-appliance: fresh-image
 	OUT=$(OUT) tools/linux-appliance/build.sh
@@ -516,15 +516,17 @@ linux-appliance-usb: linux-appliance
 linux-appliance-usb-test: linux-appliance-usb
 	OUT=$(OUT) tools/linux-appliance/usb-test.sh
 # The CUDA root (docs/cuda.md): NVIDIA's driver userspace of nvidia.ko's version, the toolkit's cu* libraries and
-# cuOpt in OUT/linux-appliance/samaltak-cuda-13.squashfs (needs the nvidia variant's modules: LINUX_GPU=nvidia once),
-# which rcS mounts at /opt/cuda and linux-appliance-usb puts on the stick. linux-appliance-cuda-test boots it in QEMU
-# (no GPU: the libraries load and say so); linux-appliance-cuda-check runs the appliance's root with it on this
-# machine's GPU (chroot in a mount namespace: sudo).
+# cuOpt in OUT/linux-appliance/samaltak-cuda-13.squashfs, which rcS mounts at /opt/cuda and linux-appliance-usb puts
+# on the stick. make linux-appliance LINUX_GPU=nvidia makes it after the root (LINUX_CUDA=none: without);
+# linux-appliance-cuda makes it again for the nvidia root there. linux-appliance-cuda-test boots the nvidia variant
+# in QEMU (no GPU: the libraries load and say so, the World is in software); linux-appliance-cuda-check runs its root
+# with the CUDA root on this machine's GPU (chroot in a mount namespace: sudo).
 linux-appliance-cuda:
 	OUT=$(OUT) tools/linux-appliance/cuda.sh
-linux-appliance-cuda-test: linux-appliance linux-appliance-cuda
+linux-appliance-cuda-test linux-appliance-cuda-check: export LINUX_GPU = nvidia
+linux-appliance-cuda-test: linux-appliance
 	OUT=$(OUT) tools/linux-appliance/cuda-test.sh
-linux-appliance-cuda-check: linux-appliance linux-appliance-cuda
+linux-appliance-cuda-check: linux-appliance
 	OUT=$(OUT) tools/linux-appliance/cuda-check.sh
 
 

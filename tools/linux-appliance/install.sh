@@ -7,7 +7,8 @@
 #     and VNC password: copied from the stick's data partition when it is mounted, given with --data-from, else made
 #     here, 0600, copies in /var/lib/samaltak), unless it is there already;
 #   - the CUDA root (docs/cuda.md), /var/lib/samaltak/samaltak-cuda-13.squashfs: the stick's SAMALTAK-CUDA partition
-#     (or --cuda FILE), checked against the sha256 next to this script, unless the same one is there already;
+#     (or --cuda FILE), checked against the sha256 next to this script, unless the same one is there already; the
+#     World renders on the GPU through it, so without one (and none installed) install.sh stops unless --no-cuda;
 #   - a boot option "Samaltak Linux" for the UKI whose load options are its command line plus samaltak.data=UUID=<the
 #     root's>:/var/lib/samaltak/data.img and samaltak.cuda=UUID=<the same>:<the squashfs> (Secure Boot off: systemd's stub takes them over its built-in one); BootOrder
 #     is put back as it was, so the machine still boots DGX OS unless asked (--bootnext, or efibootmgr -n).
@@ -141,6 +142,7 @@ if [ $cuda = 1 ] && [ -n "$cfrom" ]; then
 		say "the CUDA root $csq"
 	fi
 fi
+[ $cuda = 0 ] || [ -n "$cfrom" ] || [ -f "$csq" ] || die "no CUDA root to install (no SAMALTAK-CUDA partition, no samaltak-cuda-13.squashfs next to this script): --cuda FILE, or --no-cuda (the World then renders in software)"
 copt=""
 { [ -f "$csq" ] || { [ $dry = 1 ] && [ -n "$cfrom" ]; }; } && copt=" samaltak.cuda=UUID=$root_uuid:$csq"
 

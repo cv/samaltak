@@ -78,6 +78,9 @@ say "cuBLAS, CudaMatrix, cuOpt without a device: $r"
 r=$(ev "| t c | t := Time millisecondClockValue. c := NvRtc compile: 'extern \"C\" __global__ void k(float *a) { a[threadIdx.x] *= 2.0f; }' options: #('-arch=sm_121'). {NvRtc version. c first size. Time millisecondClockValue - t}")
 say "NVRTC {version. cubin bytes. ms}: $r"
 case $r in "#(13"??" "[1-9]*) ;; *) fail "NVRTC did not compile from the CUDA root: $r" ;; esac
+r=$(ev "GPUPlatform device class name")
+say "the World's GPU without a device: $r"
+case $r in *SoftwareGPU*) ;; *) fail "the World is not on a SoftwareGPU without a device: $r" ;; esac
 r=$(ev '3 + 4') && [ "$r" = 7 ] || fail "the VM after the CUDA calls: $r"
 say "the VM goes on: 3 + 4 = 7"
 $CTL screenshot "$T/screenshot.png" > /dev/null 2>&1 || true

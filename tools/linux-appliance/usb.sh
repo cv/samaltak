@@ -4,16 +4,17 @@
 # EFI application the firmware starts without load options) and a GPT disk image to write to a stick: an ESP with the
 # UKI as \EFI\BOOT\BOOTAA64.EFI (removable media boot) and as \EFI\samaltak-linux\samaltak-linux.efi with install.sh
 # (to install it on the machine's NVMe next to DGX OS), the data volume (ext4, SAMALTAK-DATA): samaltak.args with
-# control and RFB on every address, a control token and a VNC password of its own (0600, copies kept in OUT), and,
-# after make linux-appliance-cuda, the CUDA root: a partition named SAMALTAK-CUDA that is the squashfs (rcS mounts it
-# at /opt/cuda; install.sh copies it, checked against the sha256 on the ESP).
+# control and RFB on every address, a control token and a VNC password of its own (0600, copies kept in OUT), and
+# the CUDA root (the Spark's variants make it: LINUX_GPU=nvidia): a partition named SAMALTAK-CUDA that is the squashfs
+# (rcS mounts it at /opt/cuda; install.sh copies it, checked against the sha256 on the ESP).
 #
 #   tools/linux-appliance/usb.sh            (make linux-appliance-usb)  ->  OUT/linux-appliance/{samaltak-linux.efi,usb.img}
 #   sudo dd if=build/linux-appliance/usb.img of=/dev/sdX bs=4M conv=fsync    (the stick: check the device with lsblk)
 #
 # Environment: OUT (build), LINUX_CMDLINE (the kernel's command line; default: console=tty0 console=ttyAMA0 quiet
 # loglevel=3), LINUX_USB_DATA_MB (the data volume, 1024), LINUX_USB_ARGS_FILE (samaltak.args instead of the default),
-# LINUX_USB_CUDA (the CUDA root's squashfs: OUT/linux-appliance/samaltak-cuda-13.squashfs when there; none: without),
+# LINUX_USB_CUDA (the CUDA root's squashfs: OUT/linux-appliance/samaltak-cuda-13.squashfs, required for the Spark's
+# variants, used when there for QEMU's; none: without),
 # LINUX_USB_TOKEN_FILE and LINUX_USB_VNC_PASSWORD_FILE (the control token and VNC password; default: made here, kept as
 # OUT/linux-appliance/usb-control-token and usb-vnc-password, 0600), LINUX_CACHE (systemd-boot-efi's stub is downloaded
 # there). Needs: objcopy (binutils 2.42: PE for aarch64), mtools, sfdisk, mkfs.ext4 (-d), apt-get download. No root.
@@ -28,12 +29,14 @@ DATA_MB=${LINUX_USB_DATA_MB:-1024}
 PATH=$PATH:/sbin:/usr/sbin
 say() { echo "linux-appliance-usb: $*"; }
 [ -f "$W/vmlinuz" ] && [ -f "$W/initrd.zst" ] || { echo "linux-appliance-usb: no $W/vmlinuz or initrd.zst: make linux-appliance first" >&2; exit 1; }
-# The CUDA root (make linux-appliance-cuda), if there is one: the stick's third partition.
+# The CUDA root: the stick's third partition; the Spark's variants need it (their World is on libcuda).
 CUDA=${LINUX_USB_CUDA:-$W/samaltak-cuda-13.squashfs}
+case $(cat "$W/variant" 2>/dev/null) in nvidia | nvidia-vulkan | both) spark=1 ;; *) spark=0 ;; esac
 if [ "$CUDA" = none ]; then CUDA=""
 elif [ ! -f "$CUDA" ]; then
 	[ -z "${LINUX_USB_CUDA:-}" ] || { echo "linux-appliance-usb: no $CUDA (LINUX_USB_CUDA)" >&2; exit 1; }
-	say "no $CUDA: a stick without the CUDA root (make linux-appliance-cuda first)"; CUDA=""
+	[ $spark = 0 ] || { echo "linux-appliance-usb: no $CUDA: the Spark's stick carries the CUDA root (make linux-appliance LINUX_GPU=nvidia makes it; LINUX_USB_CUDA=none: without, the World then in software)" >&2; exit 1; }
+	say "no $CUDA: a stick without the CUDA root"; CUDA=""
 fi
 cuda_mb=0; [ -z "$CUDA" ] || cuda_mb=$(( ($(wc -c < "$CUDA") + 1048575) / 1048576 ))
 rm -rf "$U" && mkdir -p "$U" "$CACHE/debs"

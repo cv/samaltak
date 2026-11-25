@@ -5,16 +5,16 @@ of a desktop: no systemd, no X11, no Wayland. The World draws itself and shows o
 KMS screen (`KmsDisplay`: a dumb buffer, damage-limited atomic commits), input comes from evdev read by the image
 (`EvdevInput`), the network from Linux (DHCP by busybox), TLS from OpenSSL, the GPU from NVIDIA's open kernel
 module; SDL3's kmsdrm backend remains as a variant (section 2). The question behind it was cv/samaltak#20: the bare-metal UEFI app would need its own GB10 driver (GSP boot, RPC
-transport, kernel-RM side); an appliance gets all of that from `nvidia.ko` and runs System-NV (Phase A, RM ioctls)
-and NvComputeGPU as they are.
+transport, kernel-RM side); an appliance gets all of that from `nvidia.ko`, and NVIDIA's CUDA userspace (its CUDA root) runs
+NvComputeGPU and the CUDA libraries as hosted.
 
-    make linux-appliance               # OUT/linux-appliance/{vmlinuz,initrd.zst}; LINUX_GPU=virtio (QEMU), nvidia (the Spark)
+    make linux-appliance               # OUT/linux-appliance/{vmlinuz,initrd.zst}; LINUX_GPU=virtio (QEMU), nvidia (the Spark: + the CUDA root)
     make linux-appliance-run           # boot it in QEMU (arm64, KVM), serial console on stdio
     make linux-appliance-test          # end to end in QEMU: World on KMS, control, HTTPS, RFB, input, power off
     make linux-appliance-usb           # the UKI and a USB stick image (OUT/linux-appliance/{samaltak-linux.efi,usb.img})
     make linux-appliance-usb-test      # the stick end to end in QEMU (removable media boot, data on the stick)
-    make linux-appliance-cuda          # the CUDA root: OUT/linux-appliance/samaltak-cuda-13.squashfs (docs/cuda.md)
-    make linux-appliance-cuda-test     # it in QEMU (no GPU); linux-appliance-cuda-check: on this machine's GPU (sudo, chroot)
+    make linux-appliance-cuda          # the CUDA root again (LINUX_GPU=nvidia makes it): OUT/linux-appliance/samaltak-cuda-13.squashfs (docs/cuda.md)
+    make linux-appliance-cuda-test     # the nvidia variant in QEMU (no GPU); linux-appliance-cuda-check: on this machine's GPU (sudo, chroot)
 
 `tools/linux-appliance/` holds the build (`build.sh`), the QEMU runner (`run.sh`), the end-to-end test (`test.sh`),
 the UKI and stick (`usb.sh`, `usb-test.sh`), the installer for a machine's disk (`install.sh`), the CUDA root and its
@@ -28,8 +28,8 @@ variables are in each script's header.
 | --- | --- | --- |
 | QEMU start to the World on the screen | **1.2-2.2 s** on the image's KMS screen, under a load of 23-27 (SDL's kmsdrm: 1.85-2.05 s, unloaded) (KVM, AAVMF, 1920x1080 virtio-gpu) | QEMU start to `3 + 4` headless: 5.4 s (vvfat ESP, 512 MB image disk, boot manager scan) |
 | kernel start to the VM's start (uptime) | 0.42-0.51 s; DHCP lease at 0.44 s, in the background | - |
-| artifacts | kernel 20 MB + initramfs 30 MB (QEMU, the image's KMS screen; 89 MB with Mesa for SDL's) or 97 MB (Spark, `LINUX_GPU=nvidia`: GSP firmware 60 MB, no NVIDIA userspace; 136 MB with it, `nvidia-vulkan`) | 1.06 MB EFI application + the image on a disk |
-| GPU on the Spark | `nvidia.ko` boots GSP; System-NV, NvComputeGPU, CUDA, Vulkan as hosted | none (#20's GSP boot was dropped) |
+| artifacts | kernel 20 MB + initramfs 30 MB (QEMU, the image's KMS screen; 89 MB with Mesa for SDL's) or 97 MB (Spark, `LINUX_GPU=nvidia`: GSP firmware 60 MB; 136 MB with NVIDIA's Vulkan, `nvidia-vulkan`), and the CUDA root beside it, 1.6 GB | 1.06 MB EFI application + the image on a disk |
+| GPU on the Spark | `nvidia.ko` boots GSP; NvComputeGPU and CUDA (the CUDA root), Vulkan as hosted | none (#20's GSP boot was dropped) |
 | NICs, Wi-Fi, NVMe, USB | Linux's (r8127 for the Spark's 10 GbE, mt7925e, nvme, xhci) | virtio, e1000e, the firmware's SNP and Block I/O |
 | TCP/TLS | Linux, OpenSSL: an HTTPS GET of example.com from the guest in 68-284 ms | our NetworkStack; no TLS (no HTTPS) |
 | control, RFB, agent | as hosted, on every address (token, VNC password on the data volume) | as on UEFI |
@@ -251,16 +251,19 @@ quit: 0` to QEMU's end about 3 s, most of it the VM's own quit.
 
 ## 3. The GPU on the Spark
 
-System-NV (Phase A) needs only the RM: `nvidia.ko` with its GSP firmware, `/dev/nvidiactl` and `/dev/nvidia0`
-(`rcS` makes them; nvidia.ko makes no devtmpfs nodes). `nvidia-modeset` and `nvidia-drm` (modeset=1) are for the
-display; `nvidia-uvm` is CUDA's, not System-NV's (loaded anyway: cheap, and CUDA programs would need it). No NVIDIA
-userspace library is involved: NvComputeGPU renders the World with the raster kernels through RM ioctls (docs/nv-gpu.md).
+The GPU is `nvidia.ko` with its GSP firmware and NVIDIA's CUDA userspace from the CUDA root (docs/cuda.md): `rcS`
+makes `/dev/nvidiactl`, `/dev/nvidia0` and `/dev/nvidia-uvm` (nvidia.ko makes no devtmpfs nodes; libcuda needs all
+three), `nvidia-modeset` and `nvidia-drm` (modeset=1) are for the display. NvComputeGPU renders the World with the
+raster kernels through libcuda (docs/nv-gpu.md); without the CUDA root it cannot, and GPUPlatform renders in software
+(`Samaltak: --gpu: nv: no CUDA userspace (...): software rendering instead` in the VM's log). An earlier Spark variant
+had no NVIDIA userspace at all and drove the GPU through RM ioctls (System-NV's own RM client); it was dropped with that
+backend (docs/nv-rm.md, archived).
 
 Two ways to get the World onto the Spark's screen:
 
-| | SDL_GPU on NVIDIA's Vulkan (the default World, or `--gpu nv` presenting through it) | NvComputeGPU, presenting without NVIDIA userspace |
+| | SDL_GPU on NVIDIA's Vulkan (the default World, or `--gpu nv` presenting through it) | NvComputeGPU on the image's KMS screen |
 | --- | --- | --- |
-| userspace | NVIDIA's Vulkan ICD, EGL and GBM: 116 MB, 39 MB compressed, proprietary (redistributable), version-locked to nvidia.ko | none beyond our VM and SDL |
+| userspace | NVIDIA's Vulkan ICD, EGL and GBM: 116 MB, 39 MB compressed, proprietary (redistributable), version-locked to nvidia.ko | the CUDA root's libcuda (also version-locked to nvidia.ko), which the CUDA libraries use anyway; nothing for the display |
 | present | VK_KHR_display through SDL's kmsdrm: as in a window | the window surface (this change) needs a GLES driver on KMS (NVIDIA's EGL+GBM again); a KMS dumb-buffer presenter does not |
 | shaders | the Renderer's GLSL via shaderc, as on any Linux | the raster kernels (cubins in the image); FragmentShaders precompiled in the image, live edits only with NVRTC (the CUDA toolkit's, not shipped: docs/nv-shaders.md, Licensing) |
 | works today | yes, on this Spark's userspace (untested on bare KMS: the Spark's display is the desktop's now) | rendering yes; presenting through `KmsDisplay` (section 2), proven on virtio-gpu, untested on nvidia-drm |
@@ -269,8 +272,8 @@ The KMS screen and evdev input in the image (section 2) are done, so the Spark's
 
 | `LINUX_GPU` | root | the World |
 | --- | --- | --- |
-| `nvidia` (the Spark's default) | the open modules (nvidia, -modeset, -drm, -uvm: 28 MB), `gsp_ga10x.bin`; no NVIDIA userspace: 97 MB compressed, 193 MB unpacked | `SAMALTAK_SCREEN=kms SAMALTAK_GPU=nv`: an NvComputeGPU (RM ioctls on `/dev/nvidiactl`, `/dev/nvidia0`) on the image's KMS screen on nvidia-drm; a SoftwareGPU on it where the GPU does not open (GPUPlatform falls back, with a line on stderr), SDL's windows where no KMS screen opens (which, without userspace, fails: the console says why, `samaltak-run` retries) |
-| `nvidia-vulkan` | also NVIDIA's Vulkan ICD, EGL and GBM: 136 MB | the default World on SDL_GPU through VK_KHR_display (section 2's SDL path) |
+| `nvidia` (the Spark's default) | the open modules (nvidia, -modeset, -drm, -uvm: 28 MB), `gsp_ga10x.bin`: 97 MB compressed, 193 MB unpacked; and the CUDA root (`samaltak-cuda-13.squashfs`, made after the root; `LINUX_CUDA=none`: without), on the stick's third partition or next to the data volume | `SAMALTAK_SCREEN=kms SAMALTAK_GPU=nv`: an NvComputeGPU (libcuda from `/opt/cuda`) on the image's KMS screen on nvidia-drm; a SoftwareGPU on it where CUDA does not start (no CUDA root, a driver mismatch: GPUPlatform falls back and says why), SDL's windows where no KMS screen opens (which, without Vulkan's userspace, fails: the console says why, `samaltak-run` retries) |
+| `nvidia-vulkan` | also NVIDIA's Vulkan ICD, EGL and GBM: 136 MB; the CUDA root | the default World on SDL_GPU through VK_KHR_display (section 2's SDL path) |
 
 What nvidia-drm gives the KMS screen, from its source (`/usr/src/nvidia-580.178.04/nvidia-drm`, the module the
 appliance ships): dumb buffers (`nv_drm_dumb_create`: scanout memory, pitch-aligned, mapped write-combined by
@@ -290,7 +293,8 @@ nvidia-drm's mode, SETCRTC as master, and the frames on its screen.
 ## 4. The spike
 
 `make linux-appliance` builds the variants on this Spark (`LINUX_GPU=virtio`, the default, for QEMU with the image's
-KMS screen; `mesa`, QEMU with SDL's kmsdrm; `nvidia`; `both`: mesa and nvidia)
+KMS screen; `mesa`, QEMU with SDL's kmsdrm; `nvidia`, the Spark's, which then makes its CUDA root; `both`: mesa and
+nvidia-vulkan)
 in about 20 s once the packages are cached (the first build downloads 391 MB of .debs, most of it the kernel's
 modules package, and builds SDL in 30 s). `make linux-appliance-test` (15 s) boots the QEMU variant with a data
 volume made for it (ext4 with `samaltak.args`, a random control token and VNC password, 0600) and checks:
@@ -315,7 +319,7 @@ nothing in the design is arm64-specific (Ubuntu's generic or nvidia kernel for a
 | size | ~110-160 MB (kernel + initramfs) | ~1 MB + the image |
 | self-contained | no: Ubuntu's kernel, glibc, OpenSSL, SDL, Mesa or NVIDIA userspace | yes: one EFI binary, the image drives everything |
 | drivers | all of Linux's: GB10 (with GSP), 10 GbE, Wi-Fi, ConnectX-7, NVMe, USB | ours (virtio, e1000e) and the firmware's (SNP, Block I/O, GOP, HID) |
-| GPU | System-NV, NvComputeGPU, CUDA, Vulkan as hosted | none: a driver's worth of work (#20, dropped) |
+| GPU | NvComputeGPU and CUDA (libcuda), Vulkan as hosted | none: a driver's worth of work (#20, dropped) |
 | explorable to the metal | no: below the syscall line is Linux | yes: PCI, firmware tables, MMIO from the Debugger |
 | licensing | the kernel is GPLv2, the VM a separate program over syscalls (fine); shipping the kernel means pointing at Ubuntu's source; NVIDIA's userspace is proprietary but redistributable, the open modules MIT/GPL | our code plus the firmware's |
 | attack surface | Linux's (well patched, large), OpenSSL; only what we run listens: control (token), RFB (VNC auth) | our NetworkStack, young and small |
@@ -328,11 +332,10 @@ Phase B was dropped and its code removed (kept at the tag `archive/uefi-bare-met
 (nvidia.ko does them): step 3, booting GSP (WPR, FRTS, SEC2, the booter, the RISC-V start); step 4, the RPC transport
 over the message queues and GSP's init RPCs; step 5's kernel-RM side (system memory described to GSP, GMMU page tables
 for client VA spaces, BAR mappings); the fake GSP and the VFIO development loop (docs/nv-gsp.md 10-14) as means to
-those ends; and the open questions about the firmware's handling of the GPU, SMMU and ATS. Step 6's exit (Tests-NV pass, `fill` gives 7) holds on the appliance on its first boot, because Phase A is
-what runs there.
+those ends; and the open questions about the firmware's handling of the GPU, SMMU and ATS. Step 6's exit (the test kernels run, `fill` gives 7) holds on the appliance, now through libcuda (NvCudaComputeTest).
 
-Kept: the transport seam (`NvTransport`, `NvIoctlTransport`) and its fake (`NvFakeTransport`), as tests of System-NV
-without a GPU; docs/nv-gsp.md, archived, as the record of how GB10 boots. The probe (step 1) went too: on the
+Kept: docs/nv-gsp.md, archived, as the record of how GB10 boots. Phase A, the RM-ioctl client that ran here first,
+was retired in turn for libcuda, with its transport seam and fake (docs/nv-rm.md, archived; tag `archive/nv-rm`). The probe (step 1) went too: on the
 appliance `nvidia-smi` and the kernel module report the GPU. Phase B would only make sense if the product were the UEFI
 app owning the GPU: a driver's worth of work with nvidia.ko and nova-core as references and GB10 support in neither
 fully public.
@@ -342,8 +345,7 @@ fully public.
 Make the stick (on this Spark, or any arm64 Ubuntu 24.04 with the VM's build dependencies), after trying the same
 flow on QEMU's variant (`make linux-appliance-usb-test`):
 
-    make linux-appliance OUT=build/spark LINUX_GPU=nvidia         # the kernel, its nvidia modules, the initramfs
-    make linux-appliance-cuda OUT=build/spark                      # the CUDA root (docs/cuda.md), 1.6 GB: optional
+    make linux-appliance OUT=build/spark LINUX_GPU=nvidia         # the kernel, its nvidia modules, the initramfs, the CUDA root (1.6 GB)
     make linux-appliance-usb OUT=build/spark LINUX_GPU=nvidia     # build/spark/linux-appliance/usb.img: 1.4 GB, 3 GB with CUDA
     lsblk                                                          # the stick's device (4 GB or more with CUDA): not the NVMe
     sudo dd if=build/spark/linux-appliance/usb.img of=/dev/sdX bs=4M conv=fsync
@@ -370,7 +372,7 @@ is to take the stick out and power-cycle.
 | the screen | `eval '{GPUPlatform display class name. GPUPlatform display screen description. GPUPlatform device class name. GPUPlatform display screen counts}'` | `KmsDisplay`, `/dev/dri/cardN (nvidia-drm) WxH@R` in the display's preferred mode, `NvComputeGPU`, `how: #none` (no flush: nvidia-drm scans the buffer out as it is), damaged presents counting up |
 | keyboard, mouse | `eval 'GPUPlatform display input counts'`; type into the Workspace, click | the USB keyboard and mouse listed (also when plugged in later) |
 | RFB | a VNC viewer on `<address>:5900`, `usb-vnc-password` | the World |
-| the GPU's tests | `eval '(NvComputeGPUTest suite run) printString'`, `eval '(NvGpuTest suite run) printString'` | all passed |
+| the GPU's tests | `eval '(NvComputeGPUTest suite run) printString'`, `eval '(NvCudaComputeTest suite run) printString'` | all passed |
 | CUDA (the CUDA root) | the console's `samaltak-linux: cuda on /dev/sdX3 (driver 580.178.04)`; `eval 'Cuda summary'`, `eval '(CudaGpuTest run) printString'`, `eval '(CuOptGpuTest run) printString'`, `eval 'CudaBenchmark report'` | `NVIDIA GB10, compute 12.1, 48 SMs ...; CUDA runtime 13.0, driver 13.0; cuBLAS 130101; ...; cuOpt 26.10.1`; all passed; the 4096 SGEMM about 18 TFLOPS (18.75 from the appliance's root on DGX OS's kernel) |
 | agent, GitHub | `samaltak-ctl agent-config --from-pi`, `github-config --from-gh` over the same connection; an Agent window | answers (HTTPS through OpenSSL); keys are never saved: send them again after each start |
 | keeping the World | `eval "Smalltalk snapshot: '/data/samaltak.image'"` | the next start resumes it (accounts without their keys) |
@@ -381,7 +383,8 @@ Then install it next to DGX OS: boot DGX OS with the stick in (its ESP and `SAMA
 volume is copied from the stick; the CUDA root from the stick's `SAMALTAK-CUDA` partition to
 `/var/lib/samaltak/samaltak-cuda-13.squashfs`, 1.6 GB, checked against the sha256 on the ESP, and the boot option's
 command line gets `samaltak.cuda=UUID=<root>:<that file>`), take the stick out (its `SAMALTAK-DATA` and
-`SAMALTAK-CUDA` would be preferred), reboot. `--no-cuda` leaves the CUDA root out; `--cuda FILE` takes another one.
+`SAMALTAK-CUDA` would be preferred), reboot. Without a CUDA root to copy (and none installed) install.sh stops: `--no-cuda` leaves it out (the World then renders
+in software), `--cuda FILE` takes another one.
 
 **Recovery.**
 

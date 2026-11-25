@@ -13,7 +13,8 @@
 # Layout: lib/ (each library under its file name, with links for the names it is loaded by: the one directory of
 # SAMALTAK_CUDA_LIBS and LD_LIBRARY_PATH), LICENSES/ (the CUDA EULA, the driver's licence, each wheel's own), MANIFEST
 # (versions, sha256 and origin of each file), README. What the libraries need of the system (glibc, libstdc++,
-# libz, OpenSSL) is the appliance root's, checked against OUT/linux-appliance/root when it is there. Reproducible:
+# libz, OpenSSL) is the appliance root's, checked against OUT/linux-appliance/root, which must be a variant with
+# NVIDIA's modules (make linux-appliance LINUX_GPU=nvidia, which runs me after it). Reproducible:
 # fixed owners and times (SOURCE_DATE_EPOCH, default 0), sorted, no xattrs; when the MANIFEST is the last build's,
 # the squashfs is kept.
 #
@@ -22,8 +23,8 @@
 # Environment: OUT (build), LINUX_KVER (7.0.0-1024-nvidia), LINUX_CACHE (where build.sh extracted the kernel's
 # modules), CUDA_HOME (/usr/local/cuda-13.0), CUOPT_SITE (the cuOpt venv's site-packages; none: without cuOpt),
 # LINUX_CUDA_ZSTD (zstd level, 15), LINUX_CUDA_JOBS (mksquashfs's threads, 8). Needs: mksquashfs (squashfs-tools 4.5
-# or later), readelf, modinfo, python3, the nvidia variant's kernel modules (make linux-appliance LINUX_GPU=nvidia
-# extracts them). No root.
+# or later), readelf, modinfo, python3, the nvidia variant's root and kernel modules (make linux-appliance
+# LINUX_GPU=nvidia). No root.
 set -eu
 OUT=${OUT:-build}
 W=$OUT/linux-appliance
@@ -46,6 +47,13 @@ die() { echo "linux-appliance-cuda: $*" >&2; exit 1; }
 for t in mksquashfs readelf modinfo python3 sha256sum; do command -v $t > /dev/null || die "needs $t"; done
 [ -f "$CUDA/version.json" ] || die "no CUDA toolkit at $CUDA (CUDA_HOME)"
 mkdir -p "$W"
+# The root the CUDA root goes with: the Spark's (a variant with NVIDIA's modules), not QEMU's.
+variant=$(cat "$W/variant" 2>/dev/null || true)
+case $variant in
+nvidia | nvidia-vulkan | both) ;;
+"") die "no appliance root in $W: make linux-appliance LINUX_GPU=nvidia OUT=$OUT (it makes the CUDA root too)" ;;
+*) die "$W is the $variant variant (QEMU's), not the Spark's: make linux-appliance LINUX_GPU=nvidia (it makes the CUDA root too), in another OUT to keep this one" ;;
+esac
 
 # The versions: nvidia.ko's, the driver userspace's (the same, or libcuda refuses the module), the CUDA version the
 # driver supports, the toolkit's.
@@ -112,9 +120,7 @@ while [ -n "$todo" ]; do
 	todo=$next
 done
 sys=$(echo $sys | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//')
-if [ -d "$W/root" ]; then
-	for d in $sys; do [ -e "$W/root$LIB/$d" ] || [ -e "$W/root/usr/lib/$d" ] || die "the appliance's root ($W/root) has no $d (build.sh's list of libraries)"; done
-fi
+for d in $sys; do [ -e "$W/root$LIB/$d" ] || [ -e "$W/root/usr/lib/$d" ] || die "the appliance's root ($W/root, $variant) has no $d: make linux-appliance LINUX_GPU=$variant again (build.sh's list of libraries)"; done
 
 # The MANIFEST: what it is made of, by content (no paths of this machine in it), and how it is compressed.
 M=$W/cuda.MANIFEST
