@@ -157,15 +157,15 @@ testAttributionToProcesses
 	samples := (profile percentFor: a) * 100 / both.
 	cpu := cpuA * 100.0 / (cpuA + cpuB).
 	self assert: (samples - cpu) abs < 20 description: ['factorials: ', samples rounded printString, '% of the samples, ', cpu rounded printString, '% of the CPU time'].
-	self assert: (profile processes first: 2) asSet = (Set with: a with: b).
-	self assert: (profile processSummary first at: 2) = (profile processes first name).
+	self assert: (profile processes first: 2) asSet = (Set with: a with: b) description: ['the most sampled: ', ((profile processes first: 2) collect: [:p | p name]) printString].
+	self assert: (profile processSummary first at: 2) = (profile processes first name) description: ['the summary''s first: ', (profile processSummary first at: 2) printString].
 	"Right methods: the factorial worker multiplies (LargeInteger primitives, no frames) in the loop of its inject:into:, the float worker never is."
-	self assert: (as count: [:s | self stackOf: s includes: #factorialLoop]) * 100 / as size >= 95.
-	self assert: (bs count: [:s | self stackOf: s includes: #floatLoop]) * 100 / bs size >= 95.
-	self assert: (as noneSatisfy: [:s | self stackOf: s includes: #floatLoop]).
-	self assert: (bs noneSatisfy: [:s | self stackOf: s includes: #factorialLoop]).
-	self assert: as leaves notEmpty.
-	self assert: ((as leaves first: (5 min: as leaves size)) anySatisfy: [:assoc | #(#do: #inject:into: #factorialLoop) includes: assoc key method selector])
+	self assert: (as count: [:s | self stackOf: s includes: #factorialLoop]) * 100 / as size >= 95 description: [(as count: [:s | self stackOf: s includes: #factorialLoop]) printString, ' of the factorial worker''s ', as size printString, ' samples are in factorialLoop'].
+	self assert: (bs count: [:s | self stackOf: s includes: #floatLoop]) * 100 / bs size >= 95 description: [(bs count: [:s | self stackOf: s includes: #floatLoop]) printString, ' of the float worker''s ', bs size printString, ' samples are in floatLoop'].
+	self assert: (as noneSatisfy: [:s | self stackOf: s includes: #floatLoop]) description: 'a factorial sample in floatLoop'.
+	self assert: (bs noneSatisfy: [:s | self stackOf: s includes: #factorialLoop]) description: 'a float sample in factorialLoop'.
+	self assert: as leaves notEmpty description: 'no leaves'.
+	self assert: ((as leaves first: (5 min: as leaves size)) anySatisfy: [:assoc | #(#do: #inject:into: #factorialLoop) includes: assoc key method selector]) description: ['the top leaves: ', ((as leaves first: (5 min: as leaves size)) collect: [:assoc | assoc key method selector]) printString]
 !
 testLabels
 	| t0 profile frames block method |
@@ -368,8 +368,8 @@ testInlineStacksDecodeShared
 		self sleep: 400 untilSamples: 201.
 		self stopWorkers].
 	profile := fresh last.
-	self assert: profile samples size > 200.
-	self assert: fresh buffer lostFrames = 0.
+	self assert: profile samples size > 200 description: [profile samples size printString, ' samples'].
+	self assert: fresh buffer lostFrames = 0 description: [fresh buffer lostFrames printString, ' frames lost'].
 	self assert: (profile samples allSatisfy: [:s | s stack allSatisfy: [:f | f method isCompiledMethod]]).
 	stacks := IdentitySet new.
 	profile samples do: [:s | stacks add: s stack].
@@ -377,10 +377,10 @@ testInlineStacksDecodeShared
 	"The factorial loop has few distinct stacks (the compiler's are mostly unique)."
 	stacks := IdentitySet new.
 	(profile samplesFor: factorials) do: [:s | stacks add: s stack].
-	self assert: stacks size * 4 < (profile samplesFor: factorials) size.
-	self assert: ((profile samplesFor: factorials) allSatisfy: [:s | self stackOf: s includes: #factorialLoop]).
+	self assert: stacks size * 4 < (profile samplesFor: factorials) size description: [stacks size printString, ' distinct stacks in ', (profile samplesFor: factorials) size printString, ' factorial samples'].
+	self assert: ((profile samplesFor: factorials) allSatisfy: [:s | self stackOf: s includes: #factorialLoop]) description: [((profile samplesFor: factorials) reject: [:s | self stackOf: s includes: #factorialLoop]) size printString, ' factorial samples not in factorialLoop'].
 	self assert: ((profile samplesFor: compiler)
-		allSatisfy: [:s | s isTruncated or: [self stackOf: s includes: #compileLoop]]).
+		allSatisfy: [:s | s isTruncated or: [self stackOf: s includes: #compileLoop]]) description: [((profile samplesFor: compiler) reject: [:s | s isTruncated or: [self stackOf: s includes: #compileLoop]]) size printString, ' compiler samples not in compileLoop'].
 	self assertConsistent: profile tallyTree
 !
 testHistoryFitsInOneMegabyte
