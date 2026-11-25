@@ -8,8 +8,8 @@ ProfilerViewTest comment: 'I run the Profiler window on real data: a factorial l
 !ProfilerViewTest methodsFor: 'running'!
 setUp
 	previous := World current.
-	"A ring of this test's own, as in the walkthrough (not the earlier tests' Processes and marks)."
-	Profiler default reset.
+	"A profiler of this test's own, as in the walkthrough (not the earlier tests' Processes and marks, nor the image's)."
+	self useOwnProfiler.
 	world := World openHidden: 1100 @ 760.
 	crunch := self fork: [[true] whileTrue: [300 factorial]] named: 'crunch' at: 30.
 	"1.5 s of samples to show."
@@ -30,6 +30,20 @@ timeLimitMilliseconds
 ! !
 
 !ProfilerViewTest methodsFor: 'support'!
+useOwnProfiler
+	"A new Profiler, running, is the system profiler during the test; the image's comes back after it, running if it was."
+	| old wasRunning new |
+	old := Profiler default.
+	wasRunning := old isRunning.
+	old stop.
+	new := Profiler new.
+	self addCleanup: [
+		new stop.
+		Profiler default: old.
+		wasRunning ifTrue: [old start]].
+	Profiler default: new.
+	new start
+!
 goLive
 	"Refresh ten times a second, as the window does when not under test."
 	window sync: [view scheduleTick]

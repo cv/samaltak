@@ -11,9 +11,10 @@ setUp
 !
 tearDown
 	Application removeMenuItem: #test.
-	(app notNil and: [app world notNil and: [app world isRunning]]) ifTrue: [app world stop].
-	World current: previous.
-	Profiler resume
+	[(app notNil and: [app world notNil and: [app world isRunning]]) ifTrue: [app world stop]]
+		ensure: [
+			World current: previous.
+			Profiler resume]
 !
 timeLimitMilliseconds
 	^30000
