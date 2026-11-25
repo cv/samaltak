@@ -1,9 +1,9 @@
 Object subclass: #CudaSpectrum
-	instanceVariableNames: 'n cosine sine image re im pm qm t1 t2 t3 t4 reValues imValues times'
+	instanceVariableNames: 'n cosine sine image re im pm qm t1 t2 t3 t4 reValues imValues times engine r2c c2r half halfIn'
 	classVariableNames: ''
 	package: 'System-CUDA'!
 
-CudaSpectrum comment: 'I am the two-dimensional discrete Fourier transform of an n x n picture on the GPU, as the Spectrum window shows it: the transform as matrix products on cuBLAS (Y = F X F with F the DFT matrix C - iS, cosines and sines, so six real products forward and six back), the magnitude spectrum read back (log scaled, the zero frequency in the middle), a mask applied to it on the host, and the masked spectrum transformed back. The device''s times of each direction are measured by CUDA events. fftMilliseconds: is the same forward transform as a radix-2 FFT in Smalltalk, for comparison. Release me (release) to free my matrices.
+CudaSpectrum comment: 'I am the two-dimensional discrete Fourier transform of an n x n picture on the GPU, as the Spectrum window shows it, by one of two engines (engine:): #cufft, cuFFT''s real-to-complex and complex-to-real plans of the half spectrum (made once), or #cublas, the transform as matrix products on cuBLAS (Y = F X F with F the DFT matrix C - iS, cosines and sines, so six real products forward and six back); the magnitude spectrum read back (log scaled, the zero frequency in the middle), a mask applied to it on the host, and the masked spectrum transformed back. The device''s times of each direction are measured by CUDA events. fftMilliseconds: is the same forward transform as a radix-2 FFT in Smalltalk, for comparison. Release me (release) to free my matrices.
 
 	| s | s := CudaSpectrum size: 256.
 	s image: ((1 to: 256 * 256) collect: [:i | (i \\ 256 // 16) odd ifTrue: [1.0] ifFalse: [0.0]]).
@@ -12,6 +12,15 @@ CudaSpectrum comment: 'I am the two-dimensional discrete Fourier transform of an
 !CudaSpectrum class methodsFor: 'instance creation'!
 size: anInteger
 	^self new setSize: anInteger
+! !
+
+!CudaSpectrum class methodsFor: 'engines'!
+hasCufft
+	^CufftAPI isAvailable
+!
+engines
+	"The engines this VM has: #cufft where cuFFT loads, #cublas."
+	^self hasCufft ifTrue: [#(#cufft #cublas)] ifFalse: [#(#cublas)]
 ! !
 
 !CudaSpectrum class methodsFor: 'Smalltalk FFT'!
@@ -81,17 +90,26 @@ setSize: anInteger
 	t3 := CudaMatrix rows: n cols: n.
 	t4 := CudaMatrix rows: n cols: n.
 	times := Dictionary new.
+	engine := #cublas.
 	"Once, so that the times shown are not cuBLAS's first call (its handle, its kernels' loading)."
 	image zero.
 	self forward
 !
 release
-	{cosine. sine. image. re. im. pm. qm. t1. t2. t3. t4} do: [:m | m isNil ifFalse: [m release]]
+	{cosine. sine. image. re. im. pm. qm. t1. t2. t3. t4. half. halfIn. r2c. c2r} do: [:m | m isNil ifFalse: [m release]]
 ! !
 
 !CudaSpectrum methodsFor: 'accessing'!
 size
 	^n
+!
+engine
+	^engine
+!
+engine: aSymbol
+	"#cufft or #cublas (the spectrum of the current image needs forward again)."
+	(self class engines includes: aSymbol) ifFalse: [^self error: 'no ' , aSymbol , ' engine here'].
+	engine := aSymbol
 !
 times
 	"#forward, #inverse: the device's milliseconds; #read, #mask: the host's for copies and Smalltalk work."
@@ -113,6 +131,30 @@ timed: aSymbol during: aBlock
 		ensure: [start release. stop isNil ifFalse: [stop release]]
 !
 forward
+	"The transform of the image, read back for spectrum and inverseMasked:."
+	engine == #cufft ifTrue: [^self forwardFFT].
+	self forwardDFT
+!
+forwardFFT
+	"cuFFT's half spectrum (n x (n // 2 + 1)), read back and completed by its symmetry Y(r, c) = conj Y(-r, -c)."
+	| t0 h bytes |
+	h := n // 2 + 1.
+	r2c isNil ifTrue: [r2c := CudaFFTPlan shape: {n. n} kind: #r2c type: #float32 batch: 1].
+	half isNil ifTrue: [half := CudaArray new: n * h type: #complex64].
+	self timed: #forward during: [r2c forward: image into: half].
+	t0 := Time microsecondClockValue.
+	bytes := half asByteArray.
+	reValues := Array new: n * n.
+	imValues := Array new: n * n.
+	0 to: n - 1 do: [:r | 0 to: n - 1 do: [:c | | o sign |
+		c < h
+			ifTrue: [o := r * h + c * 8. sign := 1]
+			ifFalse: [o := (n - r \\ n) * h + (n - c) * 8. sign := -1].
+		reValues at: r * n + c + 1 put: (bytes float32At: o + 1).
+		imValues at: r * n + c + 1 put: sign * (bytes float32At: o + 5)]].
+	times at: #read put: Time microsecondClockValue - t0 / 1000.0
+!
+forwardDFT
 	"Y = (C - iS) X (C - iS): re := C X C - S X S, im := -(C X S + S X C) negated, kept as C X S + S X C (the sign does not matter to magnitudes; inverse knows it). Then read both back."
 	| t0 |
 	self timed: #forward during: [
@@ -170,7 +212,34 @@ bandPass: radius width: w
 	^(1 to: n * n) collect: [:i | ((self frequencyOf: i) - radius) abs <= (w / 2) ifTrue: [1.0] ifFalse: [0.0]]
 !
 inverseMasked: mask
-	"The picture back from the spectrum times mask (n * n, unshifted), real part: X = Re[(C + iS) Y (C + iS)] / n^2, values row by row."
+	"The picture back from the spectrum times mask (n * n, unshifted, symmetric as a filter is), values row by row."
+	engine == #cufft ifTrue: [^self inverseFFTMasked: mask].
+	^self inverseDFTMasked: mask
+!
+inverseFFTMasked: mask
+	"cuFFT's complex-to-real transform of the masked half spectrum, normalized here."
+	| t0 h bytes scale out |
+	h := n // 2 + 1.
+	t0 := Time microsecondClockValue.
+	bytes := ByteArray new: n * h * 8.
+	0 to: n - 1 do: [:r | 0 to: h - 1 do: [:c | | i o m |
+		i := r * n + c + 1.
+		o := r * h + c * 8.
+		m := mask at: i.
+		bytes float32At: o + 1 put: (reValues at: i) * m.
+		bytes float32At: o + 5 put: (imValues at: i) * m]].
+	halfIn isNil ifTrue: [halfIn := CudaArray new: n * h type: #complex64].
+	halfIn fromBytes: bytes.
+	times at: #mask put: Time microsecondClockValue - t0 / 1000.0.
+	c2r isNil ifTrue: [c2r := CudaFFTPlan shape: {n. n} kind: #c2r type: #float32 batch: 1].
+	self timed: #inverse during: [c2r inverse: halfIn into: t2].
+	scale := 1.0 / (n * n).
+	out := t2 asArray.
+	1 to: out size do: [:i | out at: i put: (out at: i) * scale].
+	^out
+!
+inverseDFTMasked: mask
+	"Real part of X = (C + iS) Y (C + iS) / n^2 on cuBLAS."
 	| t0 p q scale out |
 	t0 := Time microsecondClockValue.
 	p := Array new: n * n.

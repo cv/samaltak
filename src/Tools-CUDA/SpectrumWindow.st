@@ -1,9 +1,9 @@
 ToolPane subclass: #SpectrumWindow
-	instanceVariableNames: 'spectrum size source filter radius values filtered sourceToggle sizeToggle filterToggle picture spectrumImage filteredImage status cpuMs pictureForm'
+	instanceVariableNames: 'spectrum size source filter radius values filtered engine engineToggle sourceToggle sizeToggle filterToggle picture spectrumImage filteredImage status cpuMs pictureForm'
 	classVariableNames: ''
 	package: 'Tools-CUDA'!
 
-SpectrumWindow comment: 'I am the Spectrum (World menu › Apps › GPU): a picture''s two-dimensional Fourier transform on the GPU (CudaSpectrum: the DFT as matrix products on cuBLAS), its magnitude spectrum, and the picture again from the spectrum filtered: low-pass (only the frequencies inside the circle: blurred), high-pass (only those outside: the edges) or a band. Drag on the spectrum to set the circle; the filtered picture follows as one drags. The status bar has the device''s times of the two transforms and, for comparison, a radix-2 FFT in Smalltalk of the same picture.
+SpectrumWindow comment: 'I am the Spectrum (World menu › Apps › GPU): a picture''s two-dimensional Fourier transform on the GPU (CudaSpectrum: cuFFT, or the DFT as matrix products on cuBLAS, as chosen), its magnitude spectrum, and the picture again from the spectrum filtered: low-pass (only the frequencies inside the circle: blurred), high-pass (only those outside: the edges) or a band. Drag on the spectrum to set the circle; the filtered picture follows as one drags. The status bar has the device''s times of the two transforms and, for comparison, a radix-2 FFT in Smalltalk of the same picture.
 
 	SpectrumWindow open'!
 
@@ -11,6 +11,7 @@ SpectrumWindow comment: 'I am the Spectrum (World menu › Apps › GPU): a pict
 initialize
 	super initialize.
 	size := 256.
+	engine := (GpuTools isAvailable and: [CudaSpectrum hasCufft]) ifTrue: [#cufft] ifFalse: [#cublas].
 	source := #letters.
 	filter := #low.
 	radius := 24.
@@ -24,7 +25,9 @@ build
 	sizeToggle name: 'size'; selection: size; onChange: [:k | self size: k].
 	filterToggle := ToggleGroup options: {#low -> 'Low-pass'. #high -> 'High-pass'. #band -> 'Band'. #none -> 'None'}.
 	filterToggle name: 'filter'; selection: filter; onChange: [:k | self filter: k].
-	toolbar := Row with: {sourceToggle fixed: 330; yourself. sizeToggle fixed: 150; yourself. Widget new flex: 1; yourself. filterToggle fixed: 330; yourself}.
+	engineToggle := ToggleGroup options: {#cufft -> 'cuFFT'. #cublas -> 'cuBLAS DFT'}.
+	engineToggle name: 'engine'; selection: engine; onChange: [:k | self engine: k].
+	toolbar := Row with: {sourceToggle fixed: 330; yourself. sizeToggle fixed: 150; yourself. engineToggle fixed: 190; yourself. Widget new flex: 1; yourself. filterToggle fixed: 330; yourself}.
 	toolbar spacing: 10; padding: (8 @ 5 corner: 8 @ 5); fixed: 30.
 	picture := SpectrumImage new name: 'picture'; yourself.
 	picture tool: self role: #picture.
@@ -99,6 +102,18 @@ size: anInteger
 	cpuMs := nil.
 	self transform
 !
+engine: aSymbol
+	"cuFFT or the DFT as cuBLAS products."
+	(aSymbol == #cufft and: [GpuTools isAvailable and: [CudaSpectrum hasCufft not]]) ifTrue: [engineToggle selection: engine. ^self].
+	engine := aSymbol.
+	engineToggle selection: aSymbol.
+	spectrum isNil ifTrue: [^self transform].
+	spectrum engine: aSymbol.
+	self transform
+!
+engine
+	^engine
+!
 filter: aSymbol
 	filter := aSymbol.
 	filterToggle selection: aSymbol.
@@ -122,7 +137,9 @@ transform
 	picture form: (self class grayForm: values size: size).
 	GpuTools isAvailable ifFalse: [^self showUnavailable].
 	spectrum isNil ifTrue: [spectrum := CudaSpectrum size: size].
+	spectrum engine: engine.
 	spectrum image: values.
+	spectrum forward.
 	spectrum forward.
 	spectrumImage form: (self class heatForm: spectrum spectrum size: size).
 	cpuMs := spectrum fftMilliseconds: values.
@@ -144,7 +161,7 @@ showTimes
 	| t |
 	t := spectrum times.
 	status clear.
-	status add: 'cuBLAS DFT ' , size printString , '²' style: #mono.
+	status add: (engine == #cufft ifTrue: ['cuFFT '] ifFalse: ['cuBLAS DFT ']) , size printString , '²' style: #mono.
 	status add: 'forward ' , (CudaComparison milliseconds: (t at: #forward)) , ' · inverse ' , (CudaComparison milliseconds: (t at: #inverse ifAbsent: [0])) , ' on the device' style: #text.
 	status add: 'copies and mask ' , (CudaComparison milliseconds: (t at: #read) + (t at: #mask ifAbsent: [0])) , ' here' style: #text.
 	cpuMs isNil ifFalse: [status addRight: 'Smalltalk FFT ' , (CudaComparison milliseconds: cpuMs) style: #mono]

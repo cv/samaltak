@@ -57,7 +57,12 @@ testSpectrumFilters
 	self settle.
 	self assert: tool spectrum notNil.
 	self assert: tool spectrumImage form width equals: 256.
+	self assert: tool engine equals: #cufft.
+	self assert: ((self in: window do: [tool statusBar fullText]) includesSubstring: 'cuFFT 256').
+	self in: window do: [tool engine: #cublas].
+	self assert: tool spectrum engine equals: #cublas.
 	self assert: ((self in: window do: [tool statusBar fullText]) includesSubstring: 'cuBLAS DFT 256').
+	self in: window do: [tool engine: #cufft].
 	before := tool filteredImage form.
 	r := tool spectrumImage.
 	self click: (self in: window do: [r remotePointAt: '60']) rounded.
