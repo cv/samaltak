@@ -209,7 +209,8 @@ async function open() {
       writeSession({ pid: child.pid, port: p, token, tokenFile, image, log: logFile, started: new Date().toISOString(), ...(displayPort ? { displayPort } : {}) });
       if (displayPort) console.log(`its screen: RFB on 127.0.0.1:${displayPort}`);
       // On the work clock nothing runs between commands: this command lets the image start.
-      if (flags['work-clock']) await call({ cmd: 'wait', idle: true, eval: 'World current notNil', timeout: 120000 }, HOUR);
+      // (bounded: a VM that never answers fails the open instead of hanging its caller, a test, for an hour)
+      if (flags['work-clock']) await call({ cmd: 'wait', idle: true, eval: 'World current notNil', timeout: 120000 }, 600000);
       console.log(`opened ${image} (session ${session}, pid ${child.pid}, port ${p})`);
       return;
     }
