@@ -1415,6 +1415,58 @@ testShiftRightByAConstant
 	self assert: (listing includesSubstring: 'bitShift: right by the constant 32').
 	self assert: (listing includesSubstring: 'bitShift: right by the constant 61')
 !
+testShiftsByConstantsAtTheEdges
+	"bitShift: by constants either way, 0 to past 64, of SmallIntegers at the ends of the range, around 0 and 2^32 (results LargeIntegers where they do not fit), and by counts that are no constants: what floored division and multiplication by a power of two give."
+	| o counts receivers right left |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	counts := #(0 1 2 3 5 31 32 33 60 61 62 63 64 65 100 1000).
+	self define: (String new: 1000 streamContents: [:s | s nextPutAll: 'rights: x ^{'. counts do: [:k | s nextPutAll: 'x bitShift: '; print: k negated] separatedBy: [s nextPutAll: '. ']. s nextPutAll: '}']).
+	self define: (String new: 1000 streamContents: [:s | s nextPutAll: 'lefts: x ^{'. counts do: [:k | s nextPutAll: 'x bitShift: '; print: k] separatedBy: [s nextPutAll: '. ']. s nextPutAll: '}']).
+	self define: 'shift: x by: n ^x bitShift: n'.
+	o := JitRuntimeTestSubject new.
+	receivers := {0. 1. -1. 2. -2. 3. -3. 12345. -12345. 16rFFFFFFFF. 16r100000000. -16r100000000. SmallInteger maxVal. SmallInteger maxVal - 1. SmallInteger maxVal // 2. SmallInteger minVal. SmallInteger minVal + 1. SmallInteger minVal // 2}.
+	right := receivers collect: [:x | counts collect: [:k | x // (2 raisedTo: k)]].
+	left := receivers collect: [:x | counts collect: [:k | x * (2 raisedTo: k)]].
+	1 to: 1200 do: [:i | | j |
+		j := i - 1 \\ receivers size + 1.
+		self assert: (o rights: (receivers at: j)) equals: (right at: j).
+		self assert: (o lefts: (receivers at: j)) equals: (left at: j)].
+	receivers do: [:x |
+		-70 to: 70 do: [:n | self assert: (o shift: x by: n) equals: (n < 0 ifTrue: [x // (2 raisedTo: n negated)] ifFalse: [x * (2 raisedTo: n)])]].
+	self assert: ((JitRuntimeTestSubject >> #rights:) jitCode: #opt) notNil description: 'rights: is not compiled by the optimizer'
+!
+testArithmeticInlineBesideAnotherMethodsFloats
+	"That an instruction saw a Float is a byte instructions share by hash (testDivisionByAConstantIsInTheCode); only those with an inline Float path (+ - * / and comparisons) set and clear theirs, so at bitShift:, // and \\ the byte is another method's and the optimizer takes none there. Copies of a method of Float additions until the bytes of its additions are those of the shifts and divisions (FB_FLOAT_BITS of them, at the method's hash times 31 plus the pc: JitFeedback>>floatBitAddressFor:pc:), run once to set them: still one shift, a shift and a mask. (Bytes a gate's earlier tests had set made bitShift: -32 a send once in some hundred runs of testShiftRightByAConstant.)"
+	| o m filler sites targets covered copies listing |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'byConstants: x ^{x bitShift: -32. x // 16. x \\ 1024}'.
+	self define: (String new: 2000 streamContents: [:s | s nextPutAll: 'floats: x | y | y := x. '. 100 timesRepeat: [s nextPutAll: 'y := y + x. ']. s nextPutAll: '^y']).
+	o := JitRuntimeTestSubject new.
+	1 to: 1200 do: [:i | self assert: (o byConstants: i - 600) equals: {i - 600 bitShift: -32. i - 600 // 16. i - 600 \\ 1024}].
+	m := JitRuntimeTestSubject >> #byConstants:.
+	filler := JitRuntimeTestSubject >> #floats:.
+	sites := ((filler jitBytecodeTexts associations select: [:each | each value includesSubstring: 'send: #+']) collect: [:each | each key]) asSet.
+	targets := (m jitBytecodeTexts associations select: [:each | each value includesSubstring: 'send: #']) collect: [:each | each key].
+	self assert: sites size equals: 100.
+	self assert: targets size equals: 3.
+	covered := Set new.
+	copies := 0.
+	[(covered includesAll: targets) or: [copies >= 1000000]] whileFalse: [| c d met |
+		c := filler copy.
+		copies := copies + 1.
+		d := (m identityHash - c identityHash) * 31.
+		met := targets select: [:q | (covered includes: q) not and: [sites includes: q + d \\ 1048576]].
+		met isEmpty ifFalse: [| selector |
+			covered addAll: met.
+			selector := ('floats' , copies printString , ':') asSymbol.
+			JitRuntimeTestSubject addSelector: selector withMethod: c.
+			2 timesRepeat: [self assert: (o perform: selector with: 0.5) equals: 50.5]]].
+	self assert: (covered includesAll: targets) description: 'no copy met the bytes of the shift and the divisions'.
+	listing := self listingOf: #byConstants:.
+	self assert: (listing includesSubstring: 'bitShift: right by the constant 32').
+	self assert: (listing includesSubstring: 'floored division by the constant 16').
+	self assert: (listing includesSubstring: 'modulo the constant 1024')
+!
 testBranchesMakeNoBoolean
 	"A comparison an inlined method answers is branched on without a Boolean made, a phi of Booleans without a mustBeBoolean check."
 	| o |
