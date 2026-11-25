@@ -78,11 +78,11 @@ render: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBu
 	^self render: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer within: nil
 !
 fill: scissors color: aColor into: aTexture commandBuffer: aCommandBuffer
-	"Encode a render pass filling the rectangles scissors ({x. y. width. height} device pixels) of aTexture with aColor, as a clear would (an opaque color: blending over anything leaves it)."
+	"Encode a render pass filling the rectangles scissors ({x. y. width. height} device pixels) of aTexture with aColor, as a clear would (an opaque color: blending over anything leaves it); scissored to them, so a device that rasterizes only the clips (NvComputeGPU's tiles) touches nothing else."
 	| c |
 	c := Canvas extent: aTexture width @ aTexture height scale: 1.
 	scissors do: [:s | c fillRect: ((s at: 1) @ (s at: 2) extent: (s at: 3) @ (s at: 4)) color: aColor].
-	self render: c displayList into: aTexture clear: nil commandBuffer: aCommandBuffer
+	self render: c displayList into: aTexture clear: nil commandBuffer: aCommandBuffer within: scissors
 !
 render: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer within: scissorsOrNil
 	"The same, drawing only inside the rectangles scissorsOrNil ({x. y. width. height} device pixels; nil: everywhere): each batch once per rectangle, its clip cut to it and to the batch's quads (DisplayList>>boundsOfBatch:), those it leaves nothing of skipped. Inside them the pixels are those of drawing everywhere (damage-limited rendering, DamageRegion). One Process at a time: the uniforms, the vertex buffer's ring and the pipeline are shared, and the Compositor (priority 70) may wake in the middle of another Process's encoding (a Surface's render:clear:) and leave its own width and height in the uniforms that Process pushes next."

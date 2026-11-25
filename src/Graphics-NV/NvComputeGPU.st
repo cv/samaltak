@@ -1,5 +1,5 @@
 SoftwareGPU subclass: #NvComputeGPU
-	instanceVariableNames: 'gpu compute kernels memories fences lastFence scratch starts batch batchStarts batchSlots batchTarget batchClip batchUsed arena arenaOffset stamps stampCount recent blocks cached gpuDirty l2Stale fragmentUniforms shaderKernels launchCount spans gpuSpan ranges batchRanges waitCount'
+	instanceVariableNames: 'gpu compute kernels memories fences lastFence scratch starts batch batchStarts batchSlots batchTarget batchClip batchUsed arena arenaOffset stamps stampCount recent blocks cached gpuDirty l2Stale fragmentUniforms shaderKernels launchCount spans gpuSpan ranges batchRanges batchRects waitCount'
 	classVariableNames: ''
 	package: 'Graphics-NV'!
 
@@ -323,17 +323,20 @@ resetBatch
 	batchSlots := 0.
 	batchTarget := batchClip := nil.
 	batchUsed := Set new.
-	batchRanges := OrderedCollection new
+	batchRanges := OrderedCollection new.
+	batchRects := OrderedCollection new
 !
 flush
 	"Launch the batched draws: raster_batch_prims, raster_batch_tiles over the union of their clips."
-	| draws startsOf slots target clip used read n bytes at p base |
+	| draws startsOf slots target clip used read tiles n bytes at p base |
 	batch isEmpty ifTrue: [^self].
 	draws := batch. startsOf := batchStarts. slots := batchSlots. target := batchTarget. clip := batchClip. used := batchUsed. read := batchRanges.
+	tiles := self tilesOf: batchRects within: clip.
 	self resetBatch.
 	clip isNil ifTrue: [^self].
 	n := draws size.
-	bytes := ByteArray new: n * 200 + (n + 1 * 8).
+	bytes := ByteArray new: n * 200 + (n + 1 * 8) + (tiles isNil ifTrue: [0] ifFalse: [tiles size]).
+	tiles isNil ifFalse: [bytes replaceFrom: n * 200 + (n + 1 * 8) + 1 to: bytes size with: tiles startingAt: 1].
 	draws doWithIndex: [:d :i | bytes replaceFrom: i - 1 * 200 + 1 to: i * 200 with: d startingAt: 1].
 	startsOf doWithIndex: [:s :i | self put: s at: n * 200 + (i - 1 * 8) in: bytes].
 	self put: slots at: n * 200 + (n * 8) in: bytes.
@@ -348,11 +351,45 @@ flush
 	self put: n at: 24 in: p.
 	self put: slots at: 32 in: p.
 	1 to: 4 do: [:i | self put: (clip at: i) at: i * 8 + 32 in: p].
+	tiles isNil ifFalse: [
+		self put: base + (n * 200) + (n + 1 * 8) at: 72 in: p.
+		self put: tiles size // 4 at: 80 in: p].
 	used := used asArray, (Array with: target with: scratch cpuAddress with: arena cpuAddress).
 	self launch: 'raster_batch_prims' grid: slots + NvRasterKernels batchChunk - 1 // NvRasterKernels batchChunk parameters: p using: used.
-	self launch: 'raster_batch_tiles' grid: ((clip at: 3) - (clip at: 1) + 15 // 16) * ((clip at: 4) - (clip at: 2) + 15 // 16)
+	self launch: 'raster_batch_tiles' grid: (tiles isNil
+			ifTrue: [((clip at: 3) - (clip at: 1) + 15 // 16) * ((clip at: 4) - (clip at: 2) + 15 // 16)]
+			ifFalse: [tiles size // 4])
 		parameters: p using: used.
 	read do: [:r | (ranges at: r first ifAbsentPut: [OrderedCollection new]) add: (Array with: (r at: 2) with: (r at: 3) with: lastFence)]
+!
+tilesOf: rects within: clip
+	"The 16 x 16 tiles (uint32 x | y << 16, in tiles, as raster_batch_tiles takes them) that the batch's clips, rects, meet, when that is clearly fewer than those of their bounds clip (a damaged frame's scattered rectangles); else nil."
+	| boxTiles count seen bytes k |
+	(clip isNil or: [rects isNil or: [rects size < 2]]) ifTrue: [^nil].
+	boxTiles := ((clip at: 3) + 15 // 16 - ((clip at: 1) // 16)) * ((clip at: 4) + 15 // 16 - ((clip at: 2) // 16)).
+	count := rects inject: 0 into: [:sum :r | sum + (((r at: 3) + 15 // 16 - ((r at: 1) // 16)) * ((r at: 4) + 15 // 16 - ((r at: 2) // 16)))].
+	count * 4 > (boxTiles * 3) ifTrue: [^nil].
+	seen := Set new: count * 2.
+	bytes := ByteArray new: count * 4.
+	k := 0.
+	rects do: [:r |
+		(r at: 2) // 16 to: (r at: 4) + 15 // 16 - 1 do: [:ty |
+			(r at: 1) // 16 to: (r at: 3) + 15 // 16 - 1 do: [:tx | | t |
+				t := (ty bitShift: 16) + tx.
+				(seen includes: t) ifFalse: [
+					seen add: t.
+					bytes uint32At: k * 4 + 1 put: t.
+					k := k + 1]]]].
+	^k = count ifTrue: [bytes] ifFalse: [bytes copyFrom: 1 to: k * 4]
+!
+addRect: r
+	"A draw's clip joins the batch's rectangles: not when one of them holds it; those it holds go; past 16 the bounds are used (nil)."
+	batchRects isNil ifTrue: [^self].
+	(batchRects anySatisfy: [:o | (o at: 1) <= (r at: 1) and: [(o at: 2) <= (r at: 2) and: [(o at: 3) >= (r at: 3) and: [(o at: 4) >= (r at: 4)]]]])
+		ifTrue: [^self].
+	batchRects := batchRects reject: [:o | (r at: 1) <= (o at: 1) and: [(r at: 2) <= (o at: 2) and: [(r at: 3) >= (o at: 3) and: [(r at: 4) >= (o at: 4)]]]].
+	batchRects add: r.
+	batchRects size > 16 ifTrue: [batchRects := nil]
 !
 arenaFor: byteCount
 	"Where in the arena (GPU memory for batches' draws, used as a ring) byteCount bytes go; when it starts over, the GPU must be done with what it held."
@@ -528,12 +565,17 @@ draw: st buffer: aBuffer offset: byteOffset first: first count: count
 	x1 := (st at: 6) + (st at: 8) min: (st at: 2).
 	y1 := (st at: 7) + (st at: 9) min: (st at: 3).
 	(x0 < x1 and: [y0 < y1]) ifTrue: [
+		self addRect: (Array with: x0 with: y0 with: x1 with: y1).
 		batchClip := batchClip isNil
 			ifTrue: [Array with: x0 with: y0 with: x1 with: y1]
 			ifFalse: [Array with: ((batchClip at: 1) min: x0) with: ((batchClip at: 2) min: y0) with: ((batchClip at: 3) max: x1) with: ((batchClip at: 4) max: y1)]]
 !
 blit: s rect: sr to: d rect: dr linear: aBoolean
-	| p |
+	"raster_blit over the destination rectangle (within the destination) only."
+	| p w h |
+	w := ((dr at: 1) + (dr at: 3) min: (d at: 2)) - ((dr at: 1) max: 0).
+	h := ((dr at: 2) + (dr at: 4) min: (d at: 3)) - ((dr at: 2) max: 0).
+	(w > 0 and: [h > 0 and: [(sr at: 3) > 0 and: [(sr at: 4) > 0]]]) ifFalse: [^self].
 	self flush.
 	p := ByteArray new: (NvRasterKernels sizeOf: #RasterBlitParams).
 	self put: (self gpuAddress: s first) at: 0 in: p.
@@ -548,7 +590,7 @@ blit: s rect: sr to: d rect: dr linear: aBoolean
 	self put32: (s at: 4) at: 112 in: p.
 	self put32: (d at: 4) at: 116 in: p.
 	self put32: aBoolean at: 120 in: p.
-	self launch: 'raster_blit' grid: (Array with: (d at: 2) + 255 // 256 with: ((d at: 3) min: 65535)) parameters: p
+	self launch: 'raster_blit' grid: (Array with: w + 255 // 256 with: (h min: 65535)) parameters: p
 		using: (Array with: s first with: d first)
 !
 present: aSwapchainTexture rects: scissorsOrNil

@@ -108,8 +108,10 @@ typedef struct {
  * prims: scratch of RASTER_BATCH_SLOT_BYTES * slots bytes, written by raster_batch_prims, read by raster_batch_tiles
  * (each slot's rectangle, draw and record, and each RASTER_BATCH_CHUNK slots' bounding box: tiles skip what misses them).
  * clipX0 clipY0 clipX1 clipY1: a rectangle that holds every draw's clip (the union of their scissors within the target).
+ * tiles, tileCount: 0, or tileCount uint32 tiles to draw (x | y << 16, in RASTER_TILE units from the target's origin; each
+ * cut to the clip rectangle) holding every draw's clip: a damaged frame's few scattered rectangles, not their bounds.
  * raster_batch_prims: any grid, x over the chunks of RASTER_BATCH_CHUNK slots, block RASTER_BATCH_CHUNK. raster_batch_tiles: block RASTER_TILE_THREADS, any grid: x
- * over the 16 x 16 tiles of the clip rectangle. */
+ * over the 16 x 16 tiles of the clip rectangle, or over the tiles listed. */
 #define RASTER_BATCH_SLOT_BYTES 432
 #define RASTER_BATCH_CHUNK 64
 typedef struct {
@@ -122,6 +124,8 @@ typedef struct {
 	int64_t clipY0;
 	int64_t clipX1;
 	int64_t clipY1;
+	uint64_t tiles;
+	int64_t tileCount;
 } RasterBatchParams;
 
 #endif

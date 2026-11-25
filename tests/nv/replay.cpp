@@ -13,6 +13,7 @@
 //                                as one raster_batch_prims and raster_batch_tiles (RasterBatchParams).
 // Exit status 1 if the GPU differs from the reference without contraction anywhere, or a recorded frame matches
 // neither reference (the replay would not be faithful).
+#include <algorithm>
 #include <cuda.h>
 #include <cstdint>
 #include <cstdio>
@@ -125,10 +126,14 @@ static void gpuDraw(RasterDrawParams p)
 }
 
 // Draws into one target as one batch: the draws and their slot starts uploaded, the tiles over the union of the
-// scissors within the target (as NvComputeGPU launches them).
+// scissors within the target, every other batch as the list of the tiles the scissors meet (as NvComputeGPU launches
+// them: a damaged frame's scattered rectangles).
+static int batchCount = 0;
 static void gpuBatch(const std::vector<RasterDrawParams> &draws)
 {
 	std::vector<int64_t> starts;
+	std::vector<uint32_t> tiles;
+	bool listed = (batchCount++ & 1) != 0;
 	int64_t slots = 0, x0 = 0, y0 = 0, x1 = 0, y1 = 0;
 	bool any = false;
 	for (const RasterDrawParams &p : draws) {
@@ -137,6 +142,12 @@ static void gpuBatch(const std::vector<RasterDrawParams> &draws)
 		int64_t a = std::max<int64_t>(p.scissorX, 0), b = std::max<int64_t>(p.scissorY, 0);
 		int64_t c = std::min(p.scissorX + p.scissorW, p.width), d = std::min(p.scissorY + p.scissorH, p.height);
 		if (a < c && b < d) {
+			if (listed)
+				for (int64_t ty = b / 16; ty < (d + 15) / 16; ty++)
+					for (int64_t tx = a / 16; tx < (c + 15) / 16; tx++) {
+						uint32_t t = (uint32_t)(tx | (ty << 16));
+						if (std::find(tiles.begin(), tiles.end(), t) == tiles.end()) tiles.push_back(t);
+					}
 			if (!any) { x0 = a; y0 = b; x1 = c; y1 = d; any = true; }
 			else { x0 = std::min(x0, a); y0 = std::min(y0, b); x1 = std::max(x1, c); y1 = std::max(y1, d); }
 		}
@@ -148,13 +159,19 @@ static void gpuBatch(const std::vector<RasterDrawParams> &draws)
 	CK(cuMemcpyHtoD(dDraws, draws.data(), draws.size() * sizeof(RasterDrawParams)));
 	CK(cuMemAlloc(&dStarts, starts.size() * 8));
 	CK(cuMemcpyHtoD(dStarts, starts.data(), starts.size() * 8));
+	CUdeviceptr dTiles = 0;
+	if (listed) {
+		CK(cuMemAlloc(&dTiles, tiles.size() * 4));
+		CK(cuMemcpyHtoD(dTiles, tiles.data(), tiles.size() * 4));
+	}
 	ensureScratch((size_t)slots * RASTER_BATCH_SLOT_BYTES);
-	RasterBatchParams b{dDraws, dStarts, scratch, (int64_t)draws.size(), slots, x0, y0, x1, y1};
+	RasterBatchParams b{dDraws, dStarts, scratch, (int64_t)draws.size(), slots, x0, y0, x1, y1, dTiles, listed ? (int64_t)tiles.size() : 0};
 	launch(fBatchPrims, (unsigned)((slots + RASTER_BATCH_CHUNK - 1) / RASTER_BATCH_CHUNK), 1, RASTER_BATCH_CHUNK, &b);
-	launch(fBatchTiles, (unsigned)(((x1 - x0 + 15) / 16) * ((y1 - y0 + 15) / 16)), 1, RASTER_TILE_THREADS, &b);
+	launch(fBatchTiles, listed ? (unsigned)tiles.size() : (unsigned)(((x1 - x0 + 15) / 16) * ((y1 - y0 + 15) / 16)), 1, RASTER_TILE_THREADS, &b);
 	CK(cuStreamSynchronize(stream));
 	CK(cuMemFree(dDraws));
 	CK(cuMemFree(dStarts));
+	if (dTiles) CK(cuMemFree(dTiles));
 }
 
 static void gpuFill(CUdeviceptr px, int64_t n, int bpp, uint32_t v)

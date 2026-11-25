@@ -739,11 +739,19 @@ extern "C" __global__ void __maxnreg__(128) raster_batch_tiles(const RasterBatch
 	const int4 *slotBoxes = batch_boxes(b);
 	const int *slotDraws = batch_draws(b);
 	const int4 *chunkBoxes = batch_chunks(b);
-	for (i64 tile = blockIdx.x; tile < tilesX * tilesY; tile += gridDim.x) {
-		int tx0 = (int)(b.clipX0 + (tile % tilesX) * RASTER_TILE), ty0 = (int)(b.clipY0 + (tile / tilesX) * RASTER_TILE);
+	const u32 *tiles = (const u32 *)b.tiles;
+	i64 ntiles = b.tileCount > 0 ? b.tileCount : tilesX * tilesY;
+	for (i64 tile = blockIdx.x; tile < ntiles; tile += gridDim.x) {
+		int tx0, ty0;
+		if (b.tileCount > 0) {
+			u32 t = tiles[tile];
+			tx0 = (int)(t & 0xFFFF) * RASTER_TILE; ty0 = (int)(t >> 16) * RASTER_TILE;
+		} else {
+			tx0 = (int)(b.clipX0 + (tile % tilesX) * RASTER_TILE); ty0 = (int)(b.clipY0 + (tile / tilesX) * RASTER_TILE);
+		}
 		int tx1 = min(tx0 + RASTER_TILE, (int)b.clipX1), ty1 = min(ty0 + RASTER_TILE, (int)b.clipY1);
 		int px = tx0 + (tid % RASTER_TILE), py = ty0 + (tid / RASTER_TILE);
-		bool inside = px < tx1 && py < ty1;
+		bool inside = px >= b.clipX0 && px < tx1 && py >= b.clipY0 && py < ty1;
 		u32 *dp = (u32 *)(pixels + ((i64)py * width + px) * 4);
 		u32 d = 0;
 		bool touched = false;

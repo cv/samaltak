@@ -39,8 +39,8 @@ grid is correct and the one below covers the work in one pass. Blocks are 256 th
 | --- | --- | --- | --- |
 | `raster_prims` | RasterDrawParams (200) | ceil(slots / 256), slots = count / 3 | parse and set up a draw's primitives, write its clip |
 | `raster_tiles` | RasterDrawParams (200) | ceil(w / 16) x ceil(h / 16) blocks in x, w x h the scissor within the target | shade the draw's pixels, 16 x 16 a block |
-| `raster_batch_prims` | RasterBatchParams (72) | ceil(slots / 64), slots of all the draws (blocks of 64) | `raster_prims`' work for a batch's draws, each slot with its draw's state |
-| `raster_batch_tiles` | RasterBatchParams (72) | the 16 x 16 tiles of the clip rectangle (the union of the scissors within the target) | `raster_tiles`' work for all the batch's slots, each applied with its draw's state |
+| `raster_batch_prims` | RasterBatchParams (88) | ceil(slots / 64), slots of all the draws (blocks of 64) | `raster_prims`' work for a batch's draws, each slot with its draw's state |
+| `raster_batch_tiles` | RasterBatchParams (88) | the 16 x 16 tiles of the clip rectangle (the union of the scissors within the target), or the tiles listed | `raster_tiles`' work for all the batch's slots, each applied with its draw's state |
 | `raster_fill` | RasterFillParams (24) | ceil(count / 256) (any) | count pixels of 1 or 4 bytes := value |
 | `raster_copy` | RasterCopyParams (64) | (ceil(width / 256), height) | rows of pixels; swap red and blue, copy only alpha ≠ 0 (mode bits 1, 2) |
 | `raster_blit` | RasterBlitParams (128) | (ceil(dstWidth / 256), dstHeight) | SDL_BlitGPUTexture's sampling of a source rect into a destination rect, converting formats |
@@ -62,9 +62,11 @@ path's value at a pixel depends only on that pixel and the primitive, so each pi
 sequence of operations.
 
 A **batch** (RasterBatchParams: an array of RasterDrawParams into one target, each draw's first slot, a scratch of
-`RASTER_BATCH_SLOT_BYTES` a slot, the union of the draws' clips) is `raster_batch_prims` then `raster_batch_tiles`: the
+`RASTER_BATCH_SLOT_BYTES` a slot, the union of the draws' clips, optionally a list of the tiles to draw) is `raster_batch_prims` then `raster_batch_tiles`: the
 slots of all the draws in order, each record with its draw's index, and each 64 slots' bounding box; a tile skips the
-slots whose chunks all miss it and lists the others over it across the draws, in order, and applies each with its own draw's blend, texture, sampler and format. A pixel still sees the draws one after
+slots whose chunks all miss it and lists the others over it across the draws, in order, and applies each with its own draw's blend, texture, sampler and format. With `tileCount` > 0 the blocks take the listed
+tiles instead (uint32 `x | y << 16` in 16-pixel units of the target, each cut to the clip rectangle): a damaged frame's
+scattered rectangles (a typed character and the top bar's readout) draw their few tiles, not the 8160 of their bounds. A pixel still sees the draws one after
 another, so a batch draws what its draws one at a time would (`replay fuzzbatch`). NvComputeGPU draws this way.
 
 ## Parameters
