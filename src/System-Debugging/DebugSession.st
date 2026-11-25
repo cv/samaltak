@@ -440,12 +440,14 @@ proceed
 	"Resume the process. After a halt it continues after the halt; after a watchpoint the store is performed; after a doesNotUnderstand: the message is sent again; after other errors the signal answers nil."
 	process isTerminated ifTrue: [
 		state := #terminated.
+		self class forget: self.
 		^self announce: #terminated].
 	self checkSuspended.
 	self completePendingStore.
 	self isAtPendingError ifTrue: [self newSimulator stepProcess].
 	self dnuContext notNil ifTrue: [self resend: false].
 	state := #running.
+	self class forget: self.
 	self announce: #proceeded.
 	self class process: process changed: #released.
 	process resume
@@ -453,6 +455,7 @@ proceed
 abandon
 	"Terminate the process (its unwind blocks run)."
 	state := #terminated.
+	self class forget: self.
 	process terminate.
 	self announce: #terminated.
 	self class process: process changed: #released
@@ -837,6 +840,10 @@ noteShown: aSession
 	(Shown ifNil: [Shown := IdentitySet new]) add: aSession.
 	self process: aSession process changed: #held.
 	^aSession
+!
+forget: aSession
+	"aSession no longer holds its process (proceeded or terminated): drop it, and with it the process and its stack, at once rather than at the next isDebugging:."
+	Shown isNil ifFalse: [Shown remove: aSession ifAbsent: [nil]]
 !
 isDebugging: aProcess
 	"Whether a session handed to the opener (a debugger or notifier window) still holds aProcess suspended."
