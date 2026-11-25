@@ -52,6 +52,8 @@ staticCoreEntry: name signature: signature
 			^self cCoerce: (self functionPointer: #staticBytesLastMismatch:) to: 'uint64_t']].
 	(signature = 16r110303031203 and: [(libc strcmp: name with: 'core_png_filter') = 0]) ifTrue: [
 		^self cCoerce: (self functionPointer: #staticPngFilter:) to: 'uint64_t'].
+	(signature = 16r120303110303 and: [(libc strcmp: name with: 'core_raw_bytes_replace') = 0]) ifTrue: [
+		^self cCoerce: (self functionPointer: #staticRawBytesReplace:) to: 'uint64_t'].
 	^0
 ! !
 
@@ -163,6 +165,28 @@ staticPngFilter: args
 		nativePngFilter: (self cCoerce: rgba value to: 'const uint8_t *') size: rgbaSize value
 		width: w value height: h value channels: n value
 		into: (self cCoerce: raw value to: 'uint8_t *') size: rawSize value)
+!
+staticRawBytesReplace: args
+	"(writableRawBytesWithLength i64 i64 rawBytesWithLength i64) i64: core_raw_bytes_replace."
+	<function>
+	<var: #args type: 'const oop *'>
+	<returns: 'oop'>
+	| dst dstSize start stop src srcSize s |
+	dst := self local: 'uint64_t'.
+	dstSize := self local: 'uint64_t'.
+	start := self local: 'int64_t'.
+	stop := self local: 'int64_t'.
+	src := self local: 'uint64_t'.
+	srcSize := self local: 'uint64_t'.
+	s := self local: 'int64_t'.
+	((wrappers ffiBorrowWritableRawBytes: (args at: 0) into: dst length: dstSize)
+		and: [(wrappers ffiUnboxI64: (args at: 1) into: start)
+		and: [(wrappers ffiUnboxI64: (args at: 2) into: stop)
+		and: [(wrappers ffiBorrowRawBytes: (args at: 3) into: src length: srcSize)
+		and: [wrappers ffiUnboxI64: (args at: 4) into: s]]]]) ifFalse: [^0].
+	^wrappers ffiBoxI64: (core
+		nativeRawBytesReplace: (self cCoerce: dst value to: 'uint8_t *') size: dstSize value from: start value to: stop value
+		with: (self cCoerce: src value to: 'const uint8_t *') size: srcSize value at: s value)
 !
 staticWrite: text stderr: useStderr
 	<function>

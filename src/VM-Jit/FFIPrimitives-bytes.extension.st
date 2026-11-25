@@ -56,6 +56,24 @@ nativePngFilter: rgba size: rgbaSize width: w height: h channels: n into: raw si
 	png filterPng: (self cCoerce: rgba to: 'uint8_t *') width: w height: h channels: n into: raw.
 	^0
 !
+nativeRawBytesReplace: dst size: dstSize from: start to: stop with: src size: srcSize at: s
+	"ByteArray>>replaceFrom:to:withRawBytesOf:startingAt: (once primitive 212): dst's bytes start to stop (1-based) := src's memory from its byte s (bytes, or words as the CPU stores them; the two may overlap); 0, or -1 unless both ranges are inside."
+	<function>
+	<approvedFFI: 212 symbol: 'core_raw_bytes_replace' arguments: #(18 3 3 17 3) result: 3>
+	<var: #dst type: 'uint8_t *'>
+	<var: #dstSize type: 'uint64_t'>
+	<var: #start type: 'int64_t'>
+	<var: #stop type: 'int64_t'>
+	<var: #src type: 'const uint8_t *'>
+	<var: #srcSize type: 'uint64_t'>
+	<var: #s type: 'int64_t'>
+	<returns: 'int64_t'>
+	| n |
+	n := stop - start + 1.
+	((self range: start count: n within: dstSize) and: [self range: s count: n within: srcSize]) ifFalse: [^-1].
+	libc memmove: dst + (start - 1) from: (self cCoerce: src to: 'uint8_t *') + (s - 1) size: n asUInt64.
+	^0
+!
 range: start count: n within: size
 	"Whether the n bytes from the 1-based start are inside size bytes."
 	<function>

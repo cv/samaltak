@@ -59,6 +59,33 @@ testRawBytesOnlyForApprovedExports
 	self should: [FFI bind: #(call 'libc' 'memcmp' (rawBytesWithLength rawBytesWithLength u64) i32)] raise: FFIError.
 	self should: [FFI bind: #(call 'vm:core' 'core_bytes_mismatch' (i64) rawBytesWithLength)] raise: FFIError
 !
+rawBytesReplace
+	^FFI bind: #(call 'vm:core' 'core_raw_bytes_replace' (writableRawBytesWithLength i64 i64 rawBytesWithLength i64) i64)
+!
+testRawBytesReplace
+	| d w |
+	d := ByteArray new: 8.
+	w := Bitmap new: 2.
+	w at: 1 put: 16r04030201; at: 2 put: 16r08070605.
+	self assert: (self rawBytesReplace invoke: {d. 1. 8. w. 1}) equals: 0.
+	self assert: d equals: #[1 2 3 4 5 6 7 8].
+	self assert: (self rawBytesReplace invoke: {d. 2. 4. d. 1}) equals: 0.
+	self assert: d equals: #[1 1 2 3 5 6 7 8].
+	self assert: (self rawBytesReplace invoke: {d. 9. 8. w. 9}) equals: 0.
+	self assert: (self rawBytesReplace invoke: {w. 1. 2. #[9 9]. 1}) equals: 0.
+	self assert: (w at: 1) equals: 16r04030909
+!
+testRawBytesReplaceRefusals
+	| d |
+	d := ByteArray new: 8.
+	#(#(0 1 1) #(1 9 1) #(1 8 2) #(1 1 0) #(3 1 1)) do: [:r |
+		self assert: (self rawBytesReplace invoke: {d. r first. r second. d. r third}) equals: -1].
+	self should: [self rawBytesReplace invoke: {#[1 2] beReadOnlyObject; yourself. 1. 1. d. 1}] raise: FFIError.
+	self should: [self rawBytesReplace invoke: {d. 1. 1. #(1). 1}] raise: FFIError.
+	self assert: (d copy replaceFrom: 1 to: 2 withRawBytesOf: #(1 2) startingAt: 1) isNil.
+	self assert: (d replaceFrom: 1 to: 4 withRawBytesOf: (Bitmap with: 16r44332211) startingAt: 1) == d.
+	self assert: (d first: 4) equals: #[16r11 16r22 16r33 16r44]
+!
 testByteArrayUsesTheExports
 	| a b |
 	a := (0 to: 99) asByteArray.

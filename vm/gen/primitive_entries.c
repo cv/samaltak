@@ -131,7 +131,6 @@ primitive_entry vm_primitive_table[] = {
     {199, 2, "onDoMarker", prim_on_do_marker},
     {208, 3, "zlibMatches", prim_zlib_matches},
     {210, 3, "zlibWriteTokens", prim_zlib_write_tokens},
-    {212, 3, "rawBytesReplace", prim_raw_bytes_replace},
     {213, 3, "pixelsPack", prim_pixels_pack},
     {214, 3, "zrleTiles", prim_zrle_tiles},
     {250, 2, "ffiBind", prim_ffi_bind},

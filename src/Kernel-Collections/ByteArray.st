@@ -104,9 +104,12 @@ uint16At: byteOffset put: anInteger
 	^anInteger
 !
 replaceFrom: start to: stop withRawBytesOf: anObject startingAt: byteIndex
-	"My bytes start to stop := the memory of anObject, bytes or words (a Bitmap's as the CPU stores them: little-endian on every CPU the VM runs on), from its byte byteIndex; answer me, or nil if the VM cannot (an older VM, anObject has pointers)."
-	<primitive: 'rawBytesReplace'>
-	^nil
+	"My bytes start to stop := the memory of anObject, bytes or words (a Bitmap's as the CPU stores them: little-endian on every CPU the VM runs on), from its byte byteIndex (the VM's core_raw_bytes_replace); answer me, or nil if the VM cannot (an older VM, anObject has pointers, a range is outside)."
+	<ffiSite>
+	^((self ffiSite: #(call 'vm:core' 'core_raw_bytes_replace' (writableRawBytesWithLength i64 i64 rawBytesWithLength i64) i64))
+		tryInvoke5: self with: start with: stop with: anObject with: byteIndex) = 0
+			ifTrue: [self]
+			ifFalse: [nil]
 ! !
 
 !ByteArray methodsFor: 'converting'!
