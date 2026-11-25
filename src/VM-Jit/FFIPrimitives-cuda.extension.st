@@ -12,6 +12,14 @@ nativeCudaLive: kind
 	<returns: 'int64_t'>
 	^cudaBackend callLive: kind
 !
+nativeCudaAllocations: out outLength: outLength
+	<function>
+	<approvedFFI: 802 symbol: 'cuda_allocations' arguments: #(9) result: 3>
+	<var: #out type: 'uint8_t *'>
+	<var: #outLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callAllocations: out outLength: outLength
+!
 nativeCudaCudartAvailable
 	<function>
 	<approvedFFI: 805 symbol: 'cuda_cudart_available' arguments: #() result: 3>

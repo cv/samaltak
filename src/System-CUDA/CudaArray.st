@@ -54,6 +54,14 @@ complexTypeOf: aSymbol
 ! !
 
 !CudaArray class methodsFor: 'converting'!
+describe: n type: aSymbol
+	^aSymbol , '[' , n printString , '] (' , (self sizeString: n * (self elementSize: aSymbol)) , ')'
+!
+sizeString: bytes
+	bytes < 1024 ifTrue: [^bytes printString , ' bytes'].
+	bytes < (1024 * 1024) ifTrue: [^(bytes / 1024) rounded printString , ' KB'].
+	^(bytes / (1024 * 1024)) rounded printString , ' MB'
+!
 bytesOf: anArray type: aSymbol
 	"anArray's numbers as packed floats, doubles, (float, float) or (double, double) pairs for Complex numbers, or integers."
 	| size bytes put |
@@ -98,7 +106,7 @@ setCount: anInteger type: aSymbol
 	(anInteger isInteger and: [anInteger >= 0]) ifFalse: [^self error: 'a CudaArray''s size is an Integer >= 0'].
 	count := anInteger.
 	type := aSymbol.
-	address := CudaRuntimeAPI cudaMalloc: (self byteSize max: 8).
+	address := CudaTrace hostOperation: 'cudaMalloc' detail: [self describe] during: [CudaRuntimeAPI cudaMalloc: (self byteSize max: 8)].
 	session := CudaLibraryAPI session.
 	WeakRegistry default add: self executor: (CudaReleaser kind: #memory value: address session: session)
 ! !
@@ -159,7 +167,9 @@ fromArray: anArray
 fromBytes: aByteArray
 	"Copy packed floats (or doubles) to the device; answer me."
 	aByteArray size = self byteSize ifFalse: [^self error: 'I hold ' , self byteSize printString , ' bytes'].
-	count > 0 ifTrue: [CudaRuntimeAPI cudaMemcpyHtoD: self address src: aByteArray count: aByteArray size]
+	count > 0 ifTrue: [
+		CudaTrace hostOperation: 'cudaMemcpy' detail: ['host to device, ' , self describe] during: [
+			CudaRuntimeAPI cudaMemcpyHtoD: self address src: aByteArray count: aByteArray size]]
 !
 asByteArray
 	^self bytesFrom: 1 count: count
@@ -168,7 +178,9 @@ bytesFrom: index count: n
 	| bytes |
 	(index >= 1 and: [n >= 0 and: [index + n - 1 <= count]]) ifFalse: [^self error: 'out of bounds'].
 	bytes := ByteArray new: n * self elementSize.
-	n > 0 ifTrue: [CudaRuntimeAPI cudaMemcpyDtoH: bytes src: (self addressAt: index) count: bytes size].
+	n > 0 ifTrue: [
+		CudaTrace hostOperation: 'cudaMemcpy' detail: ['device to host, ' , (self class describe: n type: type)] during: [
+			CudaRuntimeAPI cudaMemcpyDtoH: bytes src: (self addressAt: index) count: bytes size]].
 	^bytes
 !
 asArray
@@ -191,7 +203,9 @@ copyOnDevice
 	"A new array with my values, copied on the device."
 	| copy |
 	copy := self emptyLike.
-	count > 0 ifTrue: [CudaRuntimeAPI cudaMemcpyDtoD: copy address src: self address count: self byteSize].
+	count > 0 ifTrue: [
+		CudaTrace operation: 'cudaMemcpy' detail: ['device to device, ' , self describe] during: [
+			CudaRuntimeAPI cudaMemcpyDtoD: copy address src: self address count: self byteSize]].
 	^copy
 !
 newVector: n type: aSymbol
@@ -245,18 +259,20 @@ fillUniform
 	"Fill me with random Floats in (0, 1] (cuRAND, this session's generator); answer me."
 	count = 0 ifTrue: [^self].
 	self isReal | self isComplex ifFalse: [^self error: 'fillUniform fills Floats'].
-	self isDouble
-		ifTrue: [CurandAPI curandGenerateUniformDouble: Cuda rng outputPtr: self address num: self realCount]
-		ifFalse: [CurandAPI curandGenerateUniform: Cuda rng outputPtr: self address num: self realCount]
+	CudaTrace operation: (self isDouble ifTrue: ['curandGenerateUniformDouble'] ifFalse: ['curandGenerateUniform']) detail: [self describe] during: [
+		self isDouble
+			ifTrue: [CurandAPI curandGenerateUniformDouble: Cuda rng outputPtr: self address num: self realCount]
+			ifFalse: [CurandAPI curandGenerateUniform: Cuda rng outputPtr: self address num: self realCount]]
 !
 zero
-	CudaRuntimeAPI cudaMemset: self address value: 0 count: self byteSize
+	CudaTrace operation: 'cudaMemset' detail: [self describe] during: [CudaRuntimeAPI cudaMemset: self address value: 0 count: self byteSize]
 !
 norm
 	"My Euclidean norm (cuBLAS nrm2; a complex array's as its interleaved parts)."
-	^self isDouble
-		ifTrue: [CublasAPI cublasDnrm2: Cuda blas n: self realCount x: self address incx: 1]
-		ifFalse: [CublasAPI cublasSnrm2: Cuda blas n: self realCount x: self address incx: 1]
+	^CudaTrace operation: (self isDouble ifTrue: ['cublasDnrm2'] ifFalse: ['cublasSnrm2']) detail: [self describe] during: [
+		self isDouble
+			ifTrue: [CublasAPI cublasDnrm2: Cuda blas n: self realCount x: self address incx: 1]
+			ifFalse: [CublasAPI cublasSnrm2: Cuda blas n: self realCount x: self address incx: 1]]
 !
 scale: aNumber
 	"Multiply me by the real aNumber in place (cuBLAS scal); answer me."
@@ -271,9 +287,10 @@ add: other times: aNumber
 	| result |
 	(other size = count and: [other type = type]) ifFalse: [^self error: 'sizes or types differ'].
 	result := self copyOnDevice.
-	self isDouble
-		ifTrue: [CublasAPI cublasDaxpy: Cuda blas n: self realCount alpha: aNumber asFloat x: other address incx: 1 y: result address incy: 1]
-		ifFalse: [CublasAPI cublasSaxpy: Cuda blas n: self realCount alpha: aNumber asFloat x: other address incx: 1 y: result address incy: 1].
+	CudaTrace operation: (self isDouble ifTrue: ['cublasDaxpy'] ifFalse: ['cublasSaxpy']) detail: [self describe] during: [
+		self isDouble
+			ifTrue: [CublasAPI cublasDaxpy: Cuda blas n: self realCount alpha: aNumber asFloat x: other address incx: 1 y: result address incy: 1]
+			ifFalse: [CublasAPI cublasSaxpy: Cuda blas n: self realCount alpha: aNumber asFloat x: other address incx: 1 y: result address incy: 1]].
 	^result
 !
 + other
@@ -348,21 +365,21 @@ ifftReal: dims batch: batch
 !CudaArray methodsFor: 'releasing'!
 release
 	"Free my device memory now."
-	self isAlive ifTrue: [CudaRuntimeAPI cudaFree: address].
+	self isAlive ifTrue: [CudaTrace hostOperation: 'cudaFree' detail: [self describe] during: [CudaRuntimeAPI cudaFree: address]].
 	address := nil.
 	WeakRegistry default remove: self
 ! !
 
 !CudaArray methodsFor: 'printing'!
+describe
+	"float32[1000] (4 KB), as the GPU Monitor lists me."
+	^type , self shapeString , ' (' , self sizeString , ')'
+!
 shapeString
 	^'[' , count printString , ']'
 !
 sizeString
-	| bytes |
-	bytes := self byteSize.
-	bytes < 1024 ifTrue: [^bytes printString , ' bytes'].
-	bytes < (1024 * 1024) ifTrue: [^(bytes / 1024) rounded printString , ' KB'].
-	^(bytes / (1024 * 1024)) rounded printString , ' MB'
+	^self class sizeString: self byteSize
 !
 printOn: aStream
 	aStream nextPutAll: 'a '; nextPutAll: self class name; space; nextPutAll: type; nextPutAll: self shapeString.

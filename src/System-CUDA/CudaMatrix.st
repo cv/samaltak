@@ -72,6 +72,12 @@ isSquare
 at: i at: j
 	^self at: i - 1 * cols + j
 !
+rows: first to: last
+	"Rows first to last, each an Array (one copy from the device)."
+	| values |
+	values := self copyFrom: first - 1 * cols + 1 count: last - first + 1 * cols.
+	^(1 to: last - first + 1) collect: [:i | values copyFrom: i - 1 * cols + 1 to: i * cols]
+!
 asRows
 	| values |
 	values := self asArray.
@@ -96,11 +102,12 @@ multiply: b into: c
 	(type = b type and: [type = c type]) ifFalse: [^self error: 'types differ'].
 	self isReal ifFalse: [^self error: 'products of ' , type , ' matrices are not bound'].
 	(rows = 0 or: [b cols = 0]) ifTrue: [^c].
+	CudaTrace operation: (type == #float32 ifTrue: ['cublasSgemm'] ifFalse: ['cublasDgemm']) detail: [self shapeString , ' * ' , b shapeString , ' ' , type] during: [
 	type == #float32
 		ifTrue: [CublasAPI cublasSgemm: Cuda blas transa: 0 transb: 0 m: b cols n: rows k: cols
 			alpha: 1.0 a: b address lda: (b cols max: 1) b: self address ldb: (cols max: 1) beta: 0.0 c: c address ldc: (c cols max: 1)]
 		ifFalse: [CublasAPI cublasDgemm: Cuda blas transa: 0 transb: 0 m: b cols n: rows k: cols
-			alpha: 1.0 a: b address lda: (b cols max: 1) b: self address ldb: (cols max: 1) beta: 0.0 c: c address ldc: (c cols max: 1)].
+			alpha: 1.0 a: b address lda: (b cols max: 1) b: self address ldb: (cols max: 1) beta: 0.0 c: c address ldc: (c cols max: 1)]].
 	^c
 !
 transposed
@@ -309,6 +316,7 @@ ifftRealRows: c
 
 !CudaMatrix methodsFor: 'printing'!
 shapeString
+	rows isNil ifTrue: [^super shapeString].
 	^'[' , rows printString , 'x' , cols printString , ']'
 !
 printValuesOn: aStream

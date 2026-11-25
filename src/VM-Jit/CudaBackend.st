@@ -19,6 +19,10 @@ callLive: kind
 	<c: 'int64_t samaltak_cuda_live(int64_t kind)'>
 	^-1
 !
+callAllocations: out outLength: outLength
+	<c: 'int64_t samaltak_cuda_allocations(uint8_t *out, uint64_t outLength)'>
+	^-1
+!
 callCudartAvailable
 	<c: 'int64_t samaltak_cuda_cudart_available(void)'>
 	^-1

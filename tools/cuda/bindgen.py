@@ -655,6 +655,7 @@ def gen(libs):
     names_table = []
     exports.append((800, "cuda_session", [], []))
     exports.append((801, "cuda_live", [], [("kind", "int64_t", 3)]))
+    exports.append((802, "cuda_allocations", [], [("out", "uint8_t *", 9), ("outLength", "uint64_t", None)]))
     c_lib_bodies = []
     st_files = {}
     for li, lib in enumerate(libs):

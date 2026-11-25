@@ -75,6 +75,7 @@ static int64_t native_crypto_digest_update(int64_t alg_id, uint8_t *state_bytes,
 static int64_t native_crypto_public_key(const uint8_t *spki_bytes, uint64_t spki_bytes_len);
 static int64_t native_crypto_verify(int64_t key_id, int64_t verify_params, const uint8_t *digest_bytes, uint64_t digest_bytes_len, const uint8_t *sig_bytes, uint64_t sig_bytes_len);
 static int64_t native_crypto_x25519(const uint8_t *k_bytes, uint64_t k_bytes_len, const uint8_t *u_bytes, uint64_t u_bytes_len, uint8_t *out_bytes, uint64_t out_bytes_len);
+static int64_t native_cuda_allocations(uint8_t *out, uint64_t out_length);
 static int64_t native_cuda_cu_device_get(int32_t ordinal, uint8_t *outs, uint64_t outs_length);
 static int64_t native_cuda_cu_device_get_attribute(int32_t attrib, int32_t dev, uint8_t *outs, uint64_t outs_length);
 static int64_t native_cuda_cu_device_get_count(uint8_t *outs, uint64_t outs_length);
@@ -888,6 +889,10 @@ static int64_t native_cuda_session_entry_witness(void) {
 static int64_t native_cuda_live_entry_witness(int64_t a1) {
     fprintf(stderr, "\nffi-native-entry 1825\n");
     return native_cuda_live(a1);
+}
+static int64_t native_cuda_allocations_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1826\n");
+    return native_cuda_allocations(a1, a2);
 }
 static int64_t native_cuda_cudart_available_entry_witness(void) {
     fprintf(stderr, "\nffi-native-entry 1829\n");
@@ -1746,6 +1751,12 @@ static int32_t ffi_approved_core(const char *approved_name, const uint8_t *signa
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_live_entry_witness;
         return 1825;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_allocations") == 0) {
+        *target_out = (uint64_t) native_cuda_allocations;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_allocations_entry_witness;
+        return 1826;
     }
     if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_cudart_available") == 0) {
         *target_out = (uint64_t) native_cuda_cudart_available;
@@ -3142,6 +3153,12 @@ static int64_t native_crypto_verify(int64_t key_id, int64_t verify_params, const
 static int64_t native_crypto_x25519(const uint8_t *k_bytes, uint64_t k_bytes_len, const uint8_t *u_bytes, uint64_t u_bytes_len, uint8_t *out_bytes, uint64_t out_bytes_len)
 {
     return samaltak_crypto_x25519(k_bytes, k_bytes_len, u_bytes, u_bytes_len, out_bytes, out_bytes_len);
+}
+
+/* FFIPrimitives>>nativeCudaAllocations:outLength: */
+static int64_t native_cuda_allocations(uint8_t *out, uint64_t out_length)
+{
+    return samaltak_cuda_allocations(out, out_length);
 }
 
 /* FFIPrimitives>>nativeCudaCuDeviceGet:outs:outsLength: */

@@ -268,4 +268,14 @@ int64_t samaltak_cuda_live(int64_t kind) {
     return kind == 0 ? allocationCount : kind == 1 ? liveHandles : kind == 2 ? (int64_t)allocatedBytes : -1;
 }
 
+/* The live allocations as (base, size) pairs of 64-bit integers, as many as fit in out; answers how many there are. */
+int64_t samaltak_cuda_allocations(uint8_t *out, uint64_t outLength) {
+    uint64_t room = outLength / 16;
+    for (int i = 0; i < allocationCount && (uint64_t)i < room; i++) {
+        memcpy(out + 16 * i, &allocations[i].base, 8);
+        memcpy(out + 16 * i + 8, &allocations[i].size, 8);
+    }
+    return allocationCount;
+}
+
 #endif

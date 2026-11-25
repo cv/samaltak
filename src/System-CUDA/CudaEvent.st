@@ -14,6 +14,9 @@ new
 ! !
 
 !CudaEvent methodsFor: 'using'!
+isAlive
+	^handle notNil and: [session = CudaLibraryAPI session]
+!
 create
 	handle := CudaRuntimeAPI cudaEventCreate.
 	session := CudaLibraryAPI session.

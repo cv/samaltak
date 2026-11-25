@@ -57,11 +57,22 @@ liveHandles
 !
 allocatedBytes
 	^self ffiLive: 2
+!
+allocations
+	"The VM's table of the live device allocations (cudaMalloc, not yet cudaFree), in no order: an Array of base address -> bytes."
+	| n bytes |
+	n := self liveAllocations.
+	(n isInteger and: [n > 0]) ifFalse: [^#()].
+	bytes := ByteArray new: n + 16 * 16.
+	n := (self ffiAllocations: (self slice: bytes)) min: bytes size // 16.
+	(n isInteger and: [n > 0]) ifFalse: [^#()].
+	^(1 to: n) collect: [:i | (self uint64At: i * 16 - 15 of: bytes) -> (self uint64At: i * 16 - 7 of: bytes)]
 ! !
 
 !CudaLibraryAPI class methodsFor: 'checking'!
 check: result in: functionName
 	"A call's result: false if the FFI refused it, below zero if the VM refused its arguments."
+	CudaTrace call: functionName.
 	result == false ifTrue: [^(CudaUnavailable library: self function: functionName code: nil) signal: functionName , ': this VM has no CUDA exports'].
 	(result isInteger and: [result < 0]) ifTrue: [^self refused: result in: functionName].
 	^result
@@ -147,4 +158,8 @@ ffiSession
 ffiLive: kind
 	<ffiSite>
 	^(self ffiSite: #(call 'vm:core' 'cuda_live' (i64) i64)) tryInvoke1: kind
+!
+ffiAllocations: slice
+	<ffiSite>
+	^(self ffiSite: #(call 'vm:core' 'cuda_allocations' (writableBytesWithLength) i64)) tryInvoke1: slice
 ! !
