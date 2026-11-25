@@ -1,5 +1,5 @@
 OptModule subclass: #OptPasses
-	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter psMemEnd psMemMark psMemKill psCounted psAffine psTPhi psTLo psTHi psTCount psRLo psRHi psILo psIHi psCHi psCStep psCHead psCLimit psCCond psLoopK psLoopConst psLoopCap psEscOf psEscNode psEscGone psEscCount psEscPos psEscEnd psEscCur psEscClone psEscStamp psEscVersion psEscVobj psEscPhi psEscPhiField psEscPhiCount psEscNil psEscEntry psEscEstStates psEscEstOps psEscReplaced'
+	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter psMemEnd psMemMark psMemKill psCounted psAffine psTPhi psTLo psTHi psTCount psRLo psRHi psILo psIHi psCHi psCStep psCHead psCLimit psCCond psLoopK psLoopConst psLoopCap psEscOf psEscNode psEscGone psEscCount psEscPos psEscEnd psEscCur psEscClone psEscStamp psEscVersion psEscVobj psEscPhi psEscPhiField psEscPhiCount psEscNil psEscEntry psEscEstStates psEscEstOps psEscReplaced psEscFields psEscCls psEscKind psEscFeeds psEscMergeIn psEscUseStates psEscUseOps psEscUseNodes'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -16,7 +16,8 @@ declarations
 		(psTPhi 'int32_t[16]') (psTLo 'int64_t[16]') (psTHi 'int64_t[16]') (psTCount int32_t) (psRLo int64_t) (psRHi int64_t) (psILo int64_t) (psIHi int64_t)
 		(psCHi int64_t) (psCStep int64_t) (psCHead bool) (psCLimit int32_t) (psCCond int32_t) (psLoopK 'int64_t[OPT_MAX_BLOCKS]') (psLoopConst 'int32_t[OPT_MAX_BLOCKS]') (psLoopCap 'uint8_t[OPT_MAX_BLOCKS]') (psEscOf 'int32_t[OPT_MAX_NODES]') (psEscNode 'int32_t[64]') (psEscGone 'uint8_t[64]') (psEscCount int32_t) (psEscPos 'int32_t[OPT_MAX_NODES]') (psEscEnd 'int32_t[32768]') (psEscCur 'int32_t[16]')
 		(psEscClone 'int32_t[OPT_MAX_STATES]') (psEscStamp 'int32_t[OPT_MAX_STATES]') (psEscVersion int32_t) (psEscVobj int32_t) (psEscPhi 'int32_t[16384]') (psEscPhiField 'int32_t[16384]') (psEscPhiCount int32_t)
-		(psEscNil int32_t) (psEscEntry int32_t) (psEscEstStates 'int64_t[64]') (psEscEstOps 'int64_t[64]') (psEscReplaced int32_t))
+		(psEscNil int32_t) (psEscEntry int32_t) (psEscEstStates 'int64_t[64]') (psEscEstOps 'int64_t[64]') (psEscReplaced int32_t)
+		(psEscFields 'int32_t[64]') (psEscCls 'uint64_t[64]') (psEscKind 'uint8_t[64]') (psEscFeeds 'int32_t[64]') (psEscMergeIn 'int32_t[16384]') (psEscUseStates int64_t) (psEscUseOps int64_t) (psEscUseNodes int64_t))
 ! !
 
 !OptPasses methodsFor: 'accessing'!
@@ -2286,27 +2287,35 @@ scalarReplace: entry
 	psEscCount := 0.
 	psEscReplaced := 0.
 	psEscEntry := entry.
+	0 to: ir nodeCount - 1 do: [:n | psEscOf at: n put: -1].
 	0 to: ir nodeCount - 1 do: [:n |
-		psEscOf at: n put: -1.
-		(psEscCount < 64 and: [self isVirtualizable: n]) ifTrue: [
-			psEscOf at: n put: psEscCount.
-			psEscNode at: psEscCount put: n.
-			psEscGone at: psEscCount put: 0.
-			psEscEstStates at: psEscCount put: 0.
-			psEscEstOps at: psEscCount put: 0.
-			psEscCount := psEscCount + 1]].
+		(psEscCount < 64 and: [self isVirtualizable: n]) ifTrue: [self newCandidate: n fields: ((ir node: n) c >> 8) asInt32 class: (ir node: n) tcls kind: 0]].
 	psEscCount = 0 ifTrue: [^false].
+	self dominators: entry.
 	self foldGuardsOfAllocations.
 	self resolveOperands.
-	self dominators: entry.
+	self findMerges.
+	"a phi of allocations of one class has it too (the sends to it guarded it)"
+	self foldGuardsOfAllocations.
+	self resolveOperands.
 	self escPositions.
 	self findEscapes.
+	self mergesEscape.
+	"what the copies of states and the phis take, all candidates together"
+	psEscUseStates := 0.
+	psEscUseOps := 0.
+	psEscUseNodes := 0.
+	0 to: psEscCount - 1 do: [:c | ((psEscGone at: c) = 0 and: [(self roomFor: c) not]) ifTrue: [psEscGone at: c put: 1]].
+	self mergesEscape.
+	(libc getenv: 'SAMALTAK_OPT_TRACE') notNull ifTrue: [
+		0 to: psEscCount - 1 do: [:c | libc fprintf: libc stderr format: 'escape: v%d kind %d fields %d escapes %d
+' with: (psEscNode at: c) with: (psEscKind at: c) asInt32 with: (psEscFields at: c) with: (psEscGone at: c) asInt32]].
 	any := false.
 	psEscVersion := 0.
 	psEscNil := -1.
 	0 to: ir stateCount - 1 do: [:s | psEscStamp at: s put: 0].
 	0 to: psEscCount - 1 do: [:c |
-		((psEscGone at: c) = 0 and: [self roomFor: c]) ifTrue: [
+		(psEscGone at: c) = 0 ifTrue: [
 			self virtualize: c.
 			ir full ifTrue: [^false].
 			any := true]].
@@ -2323,7 +2332,94 @@ isVirtualizable: n
 	^nd block >= 0 and: [nd op asInt32 = O_SEND and: [(nd flags bitAnd: NF_ALLOC) ~= 0 and: [nd nargs asInt32 = 1 and: [nd fwd < 0 and: [((nd c bitAnd: 255) = F_FIXED or: [(nd c bitAnd: 255) = F_EMPTY]) and: [(nd c >> 8) <= 16]]]]]]
 !
 fieldsOf: c
-	^((ir node: (psEscNode at: c)) c >> 8) asInt32
+	^psEscFields at: c
+!
+newCandidate: n fields: f class: cls kind: k
+	"n (an allocation, kind 0, or a phi of allocations, kind 1: findMerges) may be left unmade: its object has f fields and class cls."
+	psEscOf at: n put: psEscCount.
+	psEscNode at: psEscCount put: n.
+	psEscGone at: psEscCount put: 0.
+	psEscEstStates at: psEscCount put: 0.
+	psEscEstOps at: psEscCount put: 0.
+	psEscFields at: psEscCount put: f.
+	psEscCls at: psEscCount put: cls.
+	psEscKind at: psEscCount put: k.
+	psEscFeeds at: psEscCount put: -1.
+	psEscCount := psEscCount + 1
+!
+findMerges
+	"A phi of allocations of one class (each in a block that does not dominate the phi's, no loop coming around into it, each in no other such phi) is a candidate too: an object made on every way there (treeAt:insert:'s two InsertResults where at:put: inlines it). It escapes with any of them, and they with it (mergesEscape)."
+	<function>
+	| nd ok v k cls bl e |
+	0 to: ir nodeCount - 1 do: [:n |
+		nd := ir node: n.
+		(psEscCount < 64 and: [nd op asInt32 = O_PHI and: [nd block >= 0 and: [nd fwd < 0 and: [nd nargs asInt32 >= 2 and: [nd nargs asInt32 <= 16]]]]]) ifTrue: [
+			bl := ir block: nd block.
+			ok := bl npreds = nd nargs asInt32.
+			e := bl preds.
+			[e >= 0] whileTrue: [
+				(ir block: (ir edge: e) from) rpo >= bl rpo ifTrue: [ok := false].
+				e := (ir edge: e) next].
+			cls := 0 asUInt64.
+			0 to: nd nargs asInt32 - 1 do: [:i |
+				v := ir resolve: (ir operand: nd args + i).
+				k := v >= 0 ifTrue: [psEscOf at: v] ifFalse: [-1].
+				(k < 0 or: [(psEscKind at: k) ~= 0 or: [(psEscFeeds at: k) >= 0]])
+					ifTrue: [ok := false]
+					ifFalse: [
+						(cls ~= 0 asUInt64 and: [cls ~= (psEscCls at: k)]) ifTrue: [ok := false].
+						cls := psEscCls at: k.
+						(self dominates: (ir node: v) block block: nd block) ifTrue: [ok := false]]].
+			ok ifTrue: [
+				0 to: nd nargs asInt32 - 1 do: [:i | psEscFeeds at: (psEscOf at: (ir resolve: (ir operand: nd args + i))) put: psEscCount].
+				self newCandidate: n fields: (psEscFields at: (psEscOf at: (ir resolve: (ir operand: nd args)))) class: cls kind: 1]]]
+!
+mergesEscape
+	"A phi of allocations (findMerges) escapes with any allocation it merges, and they with it."
+	<function>
+	| changed p nd gone |
+	changed := true.
+	[changed] whileTrue: [
+		changed := false.
+		0 to: psEscCount - 1 do: [:c |
+			(psEscKind at: c) = 1 ifTrue: [
+				nd := ir node: (psEscNode at: c).
+				gone := (psEscGone at: c) ~= 0.
+				0 to: nd nargs asInt32 - 1 do: [:i | (psEscGone at: (psEscOf at: (ir resolve: (ir operand: nd args + i)))) ~= 0 ifTrue: [gone := true]].
+				gone ifTrue: [
+					(psEscGone at: c) = 0 ifTrue: [changed := true].
+					psEscGone at: c put: 1.
+					0 to: nd nargs asInt32 - 1 do: [:i |
+						p := psEscOf at: (ir resolve: (ir operand: nd args + i)).
+						(psEscGone at: p) = 0 ifTrue: [
+							changed := true.
+							psEscGone at: p put: 1]]]]]]
+!
+mergeStartOf: c
+	"psEscCur: phi-of-allocations c's fields where its block starts: what the allocations' fields hold at the ends of its predecessors (psEscMergeIn), a phi where they differ."
+	| a bl nf np v same n nd args |
+	a := ir node: (psEscNode at: c).
+	bl := ir block: a block.
+	nf := self fieldsOf: c.
+	np := bl npreds.
+	0 to: nf - 1 do: [:f |
+		v := psEscMergeIn at: c * 256 + f.
+		same := true.
+		1 to: np - 1 do: [:k | (psEscMergeIn at: c * 256 + (k * 16) + f) = v ifFalse: [same := false]].
+		same ifFalse: [
+			n := ir newNode: O_PHI rep: R_OOP.
+			ir full ifTrue: [^self].
+			args := ir allocOperands: np.
+			ir full ifTrue: [^self].
+			nd := ir node: n.
+			nd args: args.
+			nd nargs: np asUInt16.
+			nd bcact: a bcact.
+			nd bcpc: a bcpc.
+			0 to: np - 1 do: [:k | ir operand: args + k put: (psEscMergeIn at: c * 256 + (k * 16) + f)].
+			ir prepend: n to: a block.
+			v := n].
+		psEscCur at: f put: v]
 !
 foldGuardsOfAllocations
 	"A class guard of an allocation of that class passes: it is the allocation."
@@ -2332,7 +2428,7 @@ foldGuardsOfAllocations
 		nd := ir node: n.
 		(nd block >= 0 and: [nd op asInt32 = O_GUARDCLASS and: [nd a >= 0 and: [(psEscOf at: (ir resolve: nd a)) >= 0]]]) ifTrue: [
 			x := ir node: (ir resolve: nd a).
-			nd aux asUInt64 = x tcls ifTrue: [
+			nd aux asUInt64 = (psEscCls at: (psEscOf at: (ir resolve: nd a))) ifTrue: [
 				nd fwd: (ir resolve: nd a).
 				ir unlink: n]]]
 !
@@ -2368,7 +2464,9 @@ findEscapes
 				(k >= 0 and: [((op = O_LOADFIELD or: [op = O_STOREFIELD]) and: [nd aux >= 0 and: [nd aux < (self fieldsOf: k)]]) not]) ifTrue: [psEscGone at: k put: 1]].
 			nd b >= 0 ifTrue: [self escapes: nd b].
 			(nd c >= 0 and: [op ~= O_SEND]) ifTrue: [self escapes: nd c].
-			0 to: nd nargs asInt32 - 1 do: [:i | self escapes: (ir operand: nd args + i)].
+			"a phi of allocations (findMerges) does not make them escape"
+			(op = O_PHI and: [(psEscOf at: n) >= 0]) ifFalse: [
+				0 to: nd nargs asInt32 - 1 do: [:i | self escapes: (ir operand: nd args + i)]].
 			nd state >= 0 ifTrue: [self escapesIn: nd state block: nd block pos: (psEscPos at: n)]]].
 	0 to: ir blockCount - 1 do: [:b |
 		((ir block: b) rpo >= 0 and: [(ir block: b) entryState >= 0]) ifTrue: [self escapesIn: (ir block: b) entryState block: b pos: -1]]
@@ -2414,9 +2512,13 @@ roomFor: c
 	0 to: ir blockCount - 1 do: [:b |
 		((ir block: b) rpo >= 0 and: [b ~= ab and: [(ir block: b) npreds > 1 and: [self dominates: ab block: b]]]) ifTrue: [merges := merges + (ir block: b) npreds]].
 	merges * nf > 16000 ifTrue: [^false].
-	ir stateCount + (psEscEstStates at: c) + 64 > OPT_MAX_STATES ifTrue: [^false].
-	ir nodeCount + (psEscEstStates at: c) + (merges * nf) + 64 > OPT_MAX_NODES ifTrue: [^false].
-	^ir operandCount + (psEscEstOps at: c) + ((psEscEstStates at: c) * nf) + (merges * nf) + 1024 <= OPT_MAX_OPERANDS
+	ir stateCount + psEscUseStates + (psEscEstStates at: c) + 64 > OPT_MAX_STATES ifTrue: [^false].
+	ir nodeCount + psEscUseNodes + (psEscEstStates at: c) + (merges * nf) + 64 > OPT_MAX_NODES ifTrue: [^false].
+	ir operandCount + psEscUseOps + (psEscEstOps at: c) + ((psEscEstStates at: c) * nf) + (merges * nf) + 1024 > OPT_MAX_OPERANDS ifTrue: [^false].
+	psEscUseStates := psEscUseStates + (psEscEstStates at: c).
+	psEscUseNodes := psEscUseNodes + (psEscEstStates at: c) + (merges * nf).
+	psEscUseOps := psEscUseOps + (psEscEstOps at: c) + ((psEscEstStates at: c) * nf) + (merges * nf).
+	^true
 !
 virtualize: c
 	"Allocation c's fields as values (scalarReplace:): over the blocks it dominates in order, a load is the value its field has there, a store goes, the frame states that name it name its O_VOBJ of the values at their point; phis where ways meet (their operands filled once every block is done: around loops)."
@@ -2433,8 +2535,13 @@ virtualize: c
 		(b = ab or: [self dominates: ab block: b]) ifTrue: [
 			b = ab
 				ifTrue: [
-					0 to: nf - 1 do: [:f | psEscCur at: f put: self nilValue].
-					n := (ir node: a) next]
+					(psEscKind at: c) = 0
+						ifTrue: [
+							0 to: nf - 1 do: [:f | psEscCur at: f put: self nilValue].
+							n := (ir node: a) next]
+						ifFalse: [
+							self mergeStartOf: c.
+							n := (ir block: b) first]]
 				ifFalse: [
 					self startOf: b candidate: c.
 					(ir block: b) entryState >= 0 ifTrue: [(ir block: b) entryState: (self virtualState: (ir block: b) entryState candidate: c)].
@@ -2449,9 +2556,21 @@ virtualize: c
 		b := (ir node: n) block.
 		0 to: (ir block: b) npreds - 1 do: [:k |
 			ir operand: (ir node: n) args + k put: (psEscEnd at: (ir pred: k of: b) * 16 + (psEscPhiField at: j))]].
+	"what a phi of allocations it flows into takes from it"
+	(psEscFeeds at: c) >= 0 ifTrue: [self feed: c].
 	(ir node: a) flags: ((ir node: a) flags bitOr: NF_DEAD).
 	ir unlink: a.
 	psEscReplaced := psEscReplaced + 1
+!
+feed: c
+	"Allocation c's fields at the ends of the predecessors of the phi of allocations it flows into (findMerges) where the phi takes it: psEscMergeIn of that phi."
+	| m p b |
+	m := psEscFeeds at: c.
+	p := ir node: (psEscNode at: m).
+	b := p block.
+	0 to: p nargs asInt32 - 1 do: [:k |
+		(ir resolve: (ir operand: p args + k)) = (psEscNode at: c) ifTrue: [
+			0 to: (self fieldsOf: c) - 1 do: [:f | psEscMergeIn at: m * 256 + (k * 16) + f put: (psEscEnd at: (ir pred: k of: b) * 16 + f)]]]
 !
 startOf: b candidate: c
 	"psEscCur: allocation c's fields where block b starts: what its predecessors end with, a phi where they differ or a loop comes around."
@@ -2571,7 +2690,7 @@ vobjOf: c
 	nd args: args.
 	nd nargs: nf asUInt16.
 	nd aux: (psEscNode at: c) asInt64.
-	nd tcls: a tcls.
+	nd tcls: (psEscCls at: c).
 	nd tkind: T_OBJ.
 	nd bcact: a bcact.
 	nd bcpc: a bcpc.

@@ -12,13 +12,18 @@ static int32_t ps_chain[16384];
 static int32_t ps_child[2048];
 static int64_t ps_counted[4];
 static int32_t ps_esc_clone[16384];
+static uint64_t ps_esc_cls[64];
 static int32_t ps_esc_count;
 static int32_t ps_esc_cur[16];
 static int32_t ps_esc_end[32768];
 static int32_t ps_esc_entry;
 static int64_t ps_esc_est_ops[64];
 static int64_t ps_esc_est_states[64];
+static int32_t ps_esc_feeds[64];
+static int32_t ps_esc_fields[64];
 static uint8_t ps_esc_gone[64];
+static uint8_t ps_esc_kind[64];
+static int32_t ps_esc_merge_in[16384];
 static int32_t ps_esc_nil;
 static int32_t ps_esc_node[64];
 static int32_t ps_esc_of[16384];
@@ -28,6 +33,9 @@ static int32_t ps_esc_phi_field[16384];
 static int32_t ps_esc_pos[16384];
 int32_t ps_esc_replaced;
 static int32_t ps_esc_stamp[16384];
+static int64_t ps_esc_use_nodes;
+static int64_t ps_esc_use_ops;
+static int64_t ps_esc_use_states;
 static int32_t ps_esc_version;
 static int32_t ps_esc_vobj;
 static int32_t ps_heads[4096];
@@ -79,6 +87,7 @@ static void escapes_in(int32_t s, int32_t b, int32_t p);
 static int64_t evaluate_loop(int32_t h, int64_t index, int64_t t, int64_t counter);
 static void find_escapes(void);
 static void find_loops(void);
+static void find_merges(void);
 static bool fold_int_tests(void);
 static void forward_ranges(void);
 static void forward_unboxes(void);
@@ -94,6 +103,7 @@ static bool opt_passes_loop_changes_outer_temp(int32_t h, int64_t i);
 static int64_t opt_passes_loop_reaches_sp(int32_t h, int32_t b, int64_t sp);
 static bool loop_ranges(void);
 static bool memory_kept_from(int32_t d, int32_t b, int32_t k);
+static void merges_escape(void);
 static void mutability_out_of(int32_t h, int64_t entry, int64_t index);
 static void outer_slots_out_of(int32_t h, int64_t entry);
 static void polls_at_heads(void);
@@ -1836,7 +1846,6 @@ static void find_escapes(void)
     opt_node *nd;
     int32_t op;
     int32_t k;
-    int32_t n_2;
     int32_t v;
     int32_t k_2;
     int32_t v_2;
@@ -1852,9 +1861,7 @@ static void find_escapes(void)
             op = (int32_t)nd->op;
             if (nd->a >= 0) {
                 k = ps_esc_of[opt_ir_resolve(nd->a)];
-                if ((k >= 0) && (!(((op == O_LOADFIELD) || (op == O_STOREFIELD)) && ((nd->aux >= 0) && ({
-    n_2 = ps_esc_node[k];
-    nd->aux < ((opt_nodes + n_2)->c >> 8); }))))) {
+                if ((k >= 0) && (!(((op == O_LOADFIELD) || (op == O_STOREFIELD)) && ((nd->aux >= 0) && (nd->aux < ps_esc_fields[k]))))) {
                     ps_esc_gone[k] = 1;
                 }
             }
@@ -1880,17 +1887,19 @@ static void find_escapes(void)
                 }
             exit_escapes_2:;
             }
-            for (i = 0; i <= (int32_t)nd->nargs - 1; i++) {
-                i_2 = nd->args + i;
-                v_3 = opt_operands[i_2];
-                if (v_3 < 0) {
-                    goto exit_escapes_3;
+            if (!((op == O_PHI) && (ps_esc_of[n] >= 0))) {
+                for (i = 0; i <= (int32_t)nd->nargs - 1; i++) {
+                    i_2 = nd->args + i;
+                    v_3 = opt_operands[i_2];
+                    if (v_3 < 0) {
+                        goto exit_escapes_3;
+                    }
+                    k_4 = ps_esc_of[opt_ir_resolve(v_3)];
+                    if (k_4 >= 0) {
+                        ps_esc_gone[k_4] = 1;
+                    }
+                exit_escapes_3:;
                 }
-                k_4 = ps_esc_of[opt_ir_resolve(v_3)];
-                if (k_4 >= 0) {
-                    ps_esc_gone[k_4] = 1;
-                }
-            exit_escapes_3:;
             }
             if (nd->state >= 0) {
                 escapes_in(nd->state, nd->block, ps_esc_pos[n]);
@@ -1939,6 +1948,82 @@ static void find_loops(void)
                     sp = opt_passes_loop_reaches_sp(h, (opt_edges + e)->from, sp);
                     e = (opt_edges + e)->next;
                 }
+            }
+        }
+    }
+}
+
+/* OptPasses>>findMerges */
+static void find_merges(void)
+{
+    int32_t n;
+    opt_node *nd;
+    int32_t b;
+    opt_block *bl;
+    bool ok;
+    int32_t e;
+    int32_t b_2;
+    uint64_t cls;
+    int32_t i;
+    int32_t i_2;
+    int32_t v;
+    int32_t k;
+    int32_t x;
+    int32_t y;
+    int32_t i_3;
+    int32_t i_4;
+    int32_t i_5;
+    int32_t f;
+    for (n = 0; n <= opt_node_count - 1; n++) {
+        nd = opt_nodes + n;
+        if ((ps_esc_count < 64) && (((int32_t)nd->op == O_PHI) && ((nd->block >= 0) && ((nd->fwd < 0) && (((int32_t)nd->nargs >= 2) && ((int32_t)nd->nargs <= 16)))))) {
+            b = nd->block;
+            bl = opt_blocks + b;
+            ok = bl->npreds == (int32_t)nd->nargs;
+            e = bl->preds;
+            while (e >= 0) {
+                b_2 = (opt_edges + e)->from;
+                if ((opt_blocks + b_2)->rpo >= bl->rpo) {
+                    ok = false;
+                }
+                e = (opt_edges + e)->next;
+            }
+            cls = 0ULL;
+            for (i = 0; i <= (int32_t)nd->nargs - 1; i++) {
+                i_2 = nd->args + i;
+                v = opt_ir_resolve(opt_operands[i_2]);
+                k = v >= 0 ? ps_esc_of[v] : -1;
+                if ((k < 0) || ((ps_esc_kind[k] != 0) || (ps_esc_feeds[k] >= 0))) {
+                    ok = false;
+                } else {
+                    if ((cls != 0ULL) && (cls != ps_esc_cls[k])) {
+                        ok = false;
+                    }
+                    cls = ps_esc_cls[k];
+                    x = (opt_nodes + v)->block;
+                    y = nd->block;
+                    if ((ps_pre[x] <= ps_pre[y]) && (ps_post[y] <= ps_post[x])) {
+                        ok = false;
+                    }
+                }
+            }
+            if (ok) {
+                for (i_3 = 0; i_3 <= (int32_t)nd->nargs - 1; i_3++) {
+                    i_4 = nd->args + i_3;
+                    ps_esc_feeds[ps_esc_of[opt_ir_resolve(opt_operands[i_4])]] = ps_esc_count;
+                }
+                i_5 = nd->args;
+                f = ps_esc_fields[ps_esc_of[opt_ir_resolve(opt_operands[i_5])]];
+                ps_esc_of[n] = ps_esc_count;
+                ps_esc_node[ps_esc_count] = n;
+                ps_esc_gone[ps_esc_count] = 0;
+                ps_esc_est_states[ps_esc_count] = 0;
+                ps_esc_est_ops[ps_esc_count] = 0;
+                ps_esc_fields[ps_esc_count] = f;
+                ps_esc_cls[ps_esc_count] = cls;
+                ps_esc_kind[ps_esc_count] = 1;
+                ps_esc_feeds[ps_esc_count] = -1;
+                ps_esc_count = ps_esc_count + 1;
             }
         }
     }
@@ -3348,6 +3433,52 @@ static bool memory_kept_from(int32_t d, int32_t b, int32_t k)
     return true;
 }
 
+/* OptPasses>>mergesEscape */
+static void merges_escape(void)
+{
+    bool changed;
+    int32_t c;
+    int32_t n;
+    opt_node *nd;
+    bool gone;
+    int32_t i;
+    int32_t i_2;
+    int32_t i_3;
+    int32_t i_4;
+    int32_t p;
+    changed = true;
+    while (changed) {
+        changed = false;
+        for (c = 0; c <= ps_esc_count - 1; c++) {
+            if (ps_esc_kind[c] == 1) {
+                n = ps_esc_node[c];
+                nd = opt_nodes + n;
+                gone = ps_esc_gone[c] != 0;
+                for (i = 0; i <= (int32_t)nd->nargs - 1; i++) {
+                    i_2 = nd->args + i;
+                    if (ps_esc_gone[ps_esc_of[opt_ir_resolve(opt_operands[i_2])]] != 0) {
+                        gone = true;
+                    }
+                }
+                if (gone) {
+                    if (ps_esc_gone[c] == 0) {
+                        changed = true;
+                    }
+                    ps_esc_gone[c] = 1;
+                    for (i_3 = 0; i_3 <= (int32_t)nd->nargs - 1; i_3++) {
+                        i_4 = nd->args + i_3;
+                        p = ps_esc_of[opt_ir_resolve(opt_operands[i_4])];
+                        if (ps_esc_gone[p] == 0) {
+                            changed = true;
+                            ps_esc_gone[p] = 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /* OptPasses>>mutabilityOutOf:entry:index: */
 static void mutability_out_of(int32_t h, int64_t entry, int64_t index)
 {
@@ -4644,80 +4775,106 @@ static void resolve_operands(void)
 static bool scalar_replace(int32_t entry)
 {
     int32_t n;
+    int32_t n_2;
     bool r_is_virtualizable;
     opt_node *nd;
-    int32_t n_2;
-    opt_node *nd_2;
+    int32_t f;
+    uint64_t cls;
     int32_t n_3;
+    opt_node *nd_2;
+    int32_t n_4;
     opt_node *x;
+    int32_t n_5;
+    opt_node *nd_3;
+    int32_t n_6;
+    opt_node *x_2;
     int32_t b;
     int64_t p;
-    int32_t n_4;
-    bool any;
-    int32_t s;
+    int32_t n_7;
     int32_t c;
     bool r_room_for;
     int32_t a;
     int32_t ab;
-    int32_t n_5;
     int32_t nf;
     int64_t merges;
     int32_t b_2;
+    int32_t c_2;
+    bool any;
+    int32_t s;
+    int32_t c_3;
     ps_esc_count = 0;
     ps_esc_replaced = 0;
     ps_esc_entry = entry;
     for (n = 0; n <= opt_node_count - 1; n++) {
         ps_esc_of[n] = -1;
+    }
+    for (n_2 = 0; n_2 <= opt_node_count - 1; n_2++) {
         if ((ps_esc_count < 64) && ({
-    nd = opt_nodes + n;
+    nd = opt_nodes + n_2;
     r_is_virtualizable = (nd->block >= 0) && (((int32_t)nd->op == O_SEND) && (((nd->flags & NF_ALLOC) != 0) && (((int32_t)nd->nargs == 1) && ((nd->fwd < 0) && ((((nd->c & 255) == F_FIXED) || ((nd->c & 255) == F_EMPTY)) && ((nd->c >> 8) <= 16))))));
     r_is_virtualizable; })) {
-            ps_esc_of[n] = ps_esc_count;
-            ps_esc_node[ps_esc_count] = n;
+            f = (opt_nodes + n_2)->c >> 8;
+            cls = (opt_nodes + n_2)->tcls;
+            ps_esc_of[n_2] = ps_esc_count;
+            ps_esc_node[ps_esc_count] = n_2;
             ps_esc_gone[ps_esc_count] = 0;
             ps_esc_est_states[ps_esc_count] = 0;
             ps_esc_est_ops[ps_esc_count] = 0;
+            ps_esc_fields[ps_esc_count] = f;
+            ps_esc_cls[ps_esc_count] = cls;
+            ps_esc_kind[ps_esc_count] = 0;
+            ps_esc_feeds[ps_esc_count] = -1;
             ps_esc_count = ps_esc_count + 1;
         }
     }
     if (ps_esc_count == 0) {
         return false;
     }
-    for (n_2 = 0; n_2 <= opt_node_count - 1; n_2++) {
-        nd_2 = opt_nodes + n_2;
+    dominators(entry);
+    for (n_3 = 0; n_3 <= opt_node_count - 1; n_3++) {
+        nd_2 = opt_nodes + n_3;
         if ((nd_2->block >= 0) && (((int32_t)nd_2->op == O_GUARDCLASS) && ((nd_2->a >= 0) && (ps_esc_of[opt_ir_resolve(nd_2->a)] >= 0)))) {
-            n_3 = opt_ir_resolve(nd_2->a);
-            x = opt_nodes + n_3;
-            if ((uint64_t)nd_2->aux == x->tcls) {
+            n_4 = opt_ir_resolve(nd_2->a);
+            x = opt_nodes + n_4;
+            if ((uint64_t)nd_2->aux == ps_esc_cls[ps_esc_of[opt_ir_resolve(nd_2->a)]]) {
                 nd_2->fwd = opt_ir_resolve(nd_2->a);
-                opt_ir_unlink(n_2);
+                opt_ir_unlink(n_3);
             }
         }
     }
     resolve_operands();
-    dominators(entry);
+    find_merges();
+    for (n_5 = 0; n_5 <= opt_node_count - 1; n_5++) {
+        nd_3 = opt_nodes + n_5;
+        if ((nd_3->block >= 0) && (((int32_t)nd_3->op == O_GUARDCLASS) && ((nd_3->a >= 0) && (ps_esc_of[opt_ir_resolve(nd_3->a)] >= 0)))) {
+            n_6 = opt_ir_resolve(nd_3->a);
+            x_2 = opt_nodes + n_6;
+            if ((uint64_t)nd_3->aux == ps_esc_cls[ps_esc_of[opt_ir_resolve(nd_3->a)]]) {
+                nd_3->fwd = opt_ir_resolve(nd_3->a);
+                opt_ir_unlink(n_5);
+            }
+        }
+    }
+    resolve_operands();
     for (b = 0; b <= opt_block_count - 1; b++) {
         p = 0;
-        n_4 = (opt_blocks + b)->first;
-        while (n_4 >= 0) {
-            ps_esc_pos[n_4] = p;
+        n_7 = (opt_blocks + b)->first;
+        while (n_7 >= 0) {
+            ps_esc_pos[n_7] = p;
             p = p + 1;
-            n_4 = (opt_nodes + n_4)->next;
+            n_7 = (opt_nodes + n_7)->next;
         }
     }
     find_escapes();
-    any = false;
-    ps_esc_version = 0;
-    ps_esc_nil = -1;
-    for (s = 0; s <= opt_state_count - 1; s++) {
-        ps_esc_stamp[s] = 0;
-    }
+    merges_escape();
+    ps_esc_use_states = 0;
+    ps_esc_use_ops = 0;
+    ps_esc_use_nodes = 0;
     for (c = 0; c <= ps_esc_count - 1; c++) {
-        if ((ps_esc_gone[c] == 0) && ({
+        if ((ps_esc_gone[c] == 0) && (!({
     a = ps_esc_node[c];
     ab = (opt_nodes + a)->block;
-    n_5 = ps_esc_node[c];
-    nf = (opt_nodes + n_5)->c >> 8;
+    nf = ps_esc_fields[c];
     merges = 0;
     for (b_2 = 0; b_2 <= opt_block_count - 1; b_2++) {
         if (((opt_blocks + b_2)->rpo >= 0) && ((b_2 != ab) && (((opt_blocks + b_2)->npreds > 1) && ((ps_pre[ab] <= ps_pre[b_2]) && (ps_post[b_2] <= ps_post[ab]))))) {
@@ -4728,18 +4885,42 @@ static bool scalar_replace(int32_t entry)
         r_room_for = false;
         goto exit_room_for;
     }
-    if (opt_state_count + ps_esc_est_states[c] + 64 > OPT_MAX_STATES) {
+    if (opt_state_count + ps_esc_use_states + ps_esc_est_states[c] + 64 > OPT_MAX_STATES) {
         r_room_for = false;
         goto exit_room_for;
     }
-    if (opt_node_count + ps_esc_est_states[c] + merges * nf + 64 > OPT_MAX_NODES) {
+    if (opt_node_count + ps_esc_use_nodes + ps_esc_est_states[c] + merges * nf + 64 > OPT_MAX_NODES) {
         r_room_for = false;
         goto exit_room_for;
     }
-    r_room_for = opt_operand_count + ps_esc_est_ops[c] + ps_esc_est_states[c] * nf + merges * nf + 1024 <= OPT_MAX_OPERANDS;
+    if (opt_operand_count + ps_esc_use_ops + ps_esc_est_ops[c] + ps_esc_est_states[c] * nf + merges * nf + 1024 > OPT_MAX_OPERANDS) {
+        r_room_for = false;
+        goto exit_room_for;
+    }
+    ps_esc_use_states = ps_esc_use_states + ps_esc_est_states[c];
+    ps_esc_use_nodes = ps_esc_use_nodes + ps_esc_est_states[c] + merges * nf;
+    ps_esc_use_ops = ps_esc_use_ops + ps_esc_est_ops[c] + ps_esc_est_states[c] * nf + merges * nf;
+    r_room_for = true;
 exit_room_for:;
-    r_room_for; })) {
-            virtualize(c);
+    r_room_for; }))) {
+            ps_esc_gone[c] = 1;
+        }
+    }
+    merges_escape();
+    if (getenv("SAMALTAK_OPT_TRACE") != NULL) {
+        for (c_2 = 0; c_2 <= ps_esc_count - 1; c_2++) {
+            fprintf(stderr, "escape: v%d kind %d fields %d escapes %d\n", ps_esc_node[c_2], (int32_t)ps_esc_kind[c_2], ps_esc_fields[c_2], (int32_t)ps_esc_gone[c_2]);
+        }
+    }
+    any = false;
+    ps_esc_version = 0;
+    ps_esc_nil = -1;
+    for (s = 0; s <= opt_state_count - 1; s++) {
+        ps_esc_stamp[s] = 0;
+    }
+    for (c_3 = 0; c_3 <= ps_esc_count - 1; c_3++) {
+        if (ps_esc_gone[c_3] == 0) {
+            virtualize(c_3);
             if (opt_full) {
                 return false;
             }
@@ -5853,7 +6034,6 @@ static int32_t virtual_state(int32_t s, int32_t c)
     int32_t r_vobj_of;
     int32_t n_2;
     opt_node *a_2;
-    int32_t n_3;
     int32_t nf;
     int32_t n;
     int32_t args;
@@ -5908,8 +6088,7 @@ static int32_t virtual_state(int32_t s, int32_t c)
     }
     n_2 = ps_esc_node[c];
     a_2 = opt_nodes + n_2;
-    n_3 = ps_esc_node[c];
-    nf = (opt_nodes + n_3)->c >> 8;
+    nf = ps_esc_fields[c];
     n = new_node(O_VOBJ, R_OOP);
     if (opt_full) {
         r_vobj_of = n;
@@ -5924,7 +6103,7 @@ static int32_t virtual_state(int32_t s, int32_t c)
     nd->args = args;
     nd->nargs = (uint16_t)nf;
     nd->aux = (int64_t)ps_esc_node[c];
-    nd->tcls = a_2->tcls;
+    nd->tcls = ps_esc_cls[c];
     nd->tkind = T_OBJ;
     nd->bcact = a_2->bcact;
     nd->bcpc = a_2->bcpc;
@@ -5952,46 +6131,66 @@ static void virtualize(int32_t c)
 {
     int32_t a;
     int32_t ab;
-    int32_t n_2;
     int32_t nf;
     int32_t i;
     int32_t b;
     int32_t f;
     int32_t r_nil_value;
-    int32_t n_3;
+    int32_t n_2;
     opt_node *nd;
     int32_t n;
-    opt_block *bl;
     int32_t n_4;
+    opt_node *a_2;
+    int32_t b_2;
+    opt_block *bl;
     int32_t nf_2;
+    int32_t np;
+    int32_t f_2;
+    int32_t v;
+    bool same;
+    int32_t k;
+    int32_t n_3;
+    int32_t args;
+    opt_node *nd_2;
+    int32_t k_2;
+    int32_t i_2;
+    int32_t v_2;
+    opt_block *bl_2;
+    int32_t nf_3;
     bool back;
     int32_t e;
-    int32_t b_2;
-    int32_t f_2;
-    int64_t v;
-    bool same;
+    int32_t b_3;
+    int32_t f_3;
+    int64_t v_3;
+    bool same_2;
     int32_t p;
     int32_t r_phi_for;
     int32_t n_6;
-    opt_node *a_2;
+    opt_node *a_3;
     int32_t n_5;
-    int32_t args;
-    opt_node *nd_2;
-    int32_t f_3;
-    int32_t i_2;
-    int32_t next;
+    int32_t args_2;
     opt_node *nd_3;
-    int32_t op;
-    int32_t a_3;
     int32_t f_4;
-    int32_t j;
-    int32_t k;
     int32_t i_3;
-    int32_t v_2;
+    int32_t next;
+    opt_node *nd_4;
+    int32_t op;
+    int32_t a_4;
+    int32_t f_5;
+    int32_t j;
+    int32_t k_3;
+    int32_t i_4;
+    int32_t v_4;
+    int32_t m;
+    int32_t n_7;
+    opt_node *p_2;
+    int32_t b_4;
+    int32_t k_4;
+    int32_t i_5;
+    int32_t f_6;
     a = ps_esc_node[c];
     ab = (opt_nodes + a)->block;
-    n_2 = ps_esc_node[c];
-    nf = (opt_nodes + n_2)->c >> 8;
+    nf = ps_esc_fields[c];
     ps_esc_version = ps_esc_version + 1;
     ps_esc_vobj = -1;
     ps_esc_phi_count = 0;
@@ -5999,79 +6198,121 @@ static void virtualize(int32_t c)
         b = ps_order[i];
         if ((b == ab) || ((ps_pre[ab] <= ps_pre[b]) && (ps_post[b] <= ps_post[ab]))) {
             if (b == ab) {
-                for (f = 0; f <= nf - 1; f++) {
-                    ps_esc_cur[f] = ({
+                if (ps_esc_kind[c] == 0) {
+                    for (f = 0; f <= nf - 1; f++) {
+                        ps_esc_cur[f] = ({
     if (ps_esc_nil >= 0) {
         r_nil_value = ps_esc_nil;
         goto exit_nil_value;
     }
-    n_3 = new_node(O_CONST, R_OOP);
+    n_2 = new_node(O_CONST, R_OOP);
     if (opt_full) {
-        r_nil_value = n_3;
+        r_nil_value = n_2;
         goto exit_nil_value;
     }
-    nd = opt_nodes + n_3;
+    nd = opt_nodes + n_2;
     nd->aux = (int64_t)nil_oop;
     nd->flags = NF_PURE;
     nd->tkind = T_NIL;
-    insert(n_3, (opt_blocks + ps_esc_entry)->last);
-    ps_esc_nil = n_3;
-    r_nil_value = n_3;
+    insert(n_2, (opt_blocks + ps_esc_entry)->last);
+    ps_esc_nil = n_2;
+    r_nil_value = n_2;
 exit_nil_value:;
     r_nil_value; });
+                    }
+                    n = (opt_nodes + a)->next;
+                } else {
+                    n_4 = ps_esc_node[c];
+                    a_2 = opt_nodes + n_4;
+                    b_2 = a_2->block;
+                    bl = opt_blocks + b_2;
+                    nf_2 = ps_esc_fields[c];
+                    np = bl->npreds;
+                    for (f_2 = 0; f_2 <= nf_2 - 1; f_2++) {
+                        v = ps_esc_merge_in[c * 256 + f_2];
+                        same = true;
+                        for (k = 1; k <= np - 1; k++) {
+                            if (!(ps_esc_merge_in[c * 256 + k * 16 + f_2] == v)) {
+                                same = false;
+                            }
+                        }
+                        if (!same) {
+                            n_3 = new_node(O_PHI, R_OOP);
+                            if (opt_full) {
+                                goto exit_merge_start_of;
+                            }
+                            args = alloc_operands(np);
+                            if (opt_full) {
+                                goto exit_merge_start_of;
+                            }
+                            nd_2 = opt_nodes + n_3;
+                            nd_2->args = args;
+                            nd_2->nargs = (uint16_t)np;
+                            nd_2->bcact = a_2->bcact;
+                            nd_2->bcpc = a_2->bcpc;
+                            for (k_2 = 0; k_2 <= np - 1; k_2++) {
+                                i_2 = args + k_2;
+                                v_2 = ps_esc_merge_in[c * 256 + k_2 * 16 + f_2];
+                                opt_operands[i_2] = v_2;
+                            }
+                            prepend(n_3, a_2->block);
+                            v = n_3;
+                        }
+                        ps_esc_cur[f_2] = v;
+                    }
+                exit_merge_start_of:;
+                    n = (opt_blocks + b)->first;
                 }
-                n = (opt_nodes + a)->next;
             } else {
-                bl = opt_blocks + b;
-                n_4 = ps_esc_node[c];
-                nf_2 = (opt_nodes + n_4)->c >> 8;
+                bl_2 = opt_blocks + b;
+                nf_3 = ps_esc_fields[c];
                 back = false;
-                e = bl->preds;
+                e = bl_2->preds;
                 while (e >= 0) {
-                    b_2 = (opt_edges + e)->from;
-                    if ((opt_blocks + b_2)->rpo >= bl->rpo) {
+                    b_3 = (opt_edges + e)->from;
+                    if ((opt_blocks + b_3)->rpo >= bl_2->rpo) {
                         back = true;
                     }
                     e = (opt_edges + e)->next;
                 }
-                for (f_2 = 0; f_2 <= nf_2 - 1; f_2++) {
-                    v = -1;
-                    same = true;
-                    e = bl->preds;
+                for (f_3 = 0; f_3 <= nf_3 - 1; f_3++) {
+                    v_3 = -1;
+                    same_2 = true;
+                    e = bl_2->preds;
                     while (e >= 0) {
                         p = (opt_edges + e)->from;
-                        if ((opt_blocks + p)->rpo < bl->rpo) {
-                            if (v < 0) {
-                                v = ps_esc_end[p * 16 + f_2];
-                            } else if (!(ps_esc_end[p * 16 + f_2] == v)) {
-                                same = false;
+                        if ((opt_blocks + p)->rpo < bl_2->rpo) {
+                            if (v_3 < 0) {
+                                v_3 = ps_esc_end[p * 16 + f_3];
+                            } else if (!(ps_esc_end[p * 16 + f_3] == v_3)) {
+                                same_2 = false;
                             }
                         }
                         e = (opt_edges + e)->next;
                     }
-                    if (back || (!same)) {
-                        v = ({
+                    if (back || (!same_2)) {
+                        v_3 = ({
     n_6 = ps_esc_node[c];
-    a_2 = opt_nodes + n_6;
+    a_3 = opt_nodes + n_6;
     n_5 = new_node(O_PHI, R_OOP);
     if (opt_full) {
         r_phi_for = n_5;
         goto exit_phi_for;
     }
-    args = alloc_operands((opt_blocks + b)->npreds);
+    args_2 = alloc_operands((opt_blocks + b)->npreds);
     if (opt_full) {
         r_phi_for = n_5;
         goto exit_phi_for;
     }
-    nd_2 = opt_nodes + n_5;
-    nd_2->args = args;
-    nd_2->nargs = (uint16_t)(opt_blocks + b)->npreds;
-    nd_2->bcact = a_2->bcact;
-    nd_2->bcpc = a_2->bcpc;
+    nd_3 = opt_nodes + n_5;
+    nd_3->args = args_2;
+    nd_3->nargs = (uint16_t)(opt_blocks + b)->npreds;
+    nd_3->bcact = a_3->bcact;
+    nd_3->bcpc = a_3->bcpc;
     prepend(n_5, b);
     if (ps_esc_phi_count < 16384) {
         ps_esc_phi[ps_esc_phi_count] = n_5;
-        ps_esc_phi_field[ps_esc_phi_count] = f_2;
+        ps_esc_phi_field[ps_esc_phi_count] = f_3;
         ps_esc_phi_count = ps_esc_phi_count + 1;
     } else {
         opt_full = true;
@@ -6080,12 +6321,12 @@ exit_nil_value:;
 exit_phi_for:;
     r_phi_for; });
                     }
-                    ps_esc_cur[f_2] = v;
+                    ps_esc_cur[f_3] = v_3;
                 }
                 if (ps_esc_vobj >= 0) {
-                    for (f_3 = 0; f_3 <= nf_2 - 1; f_3++) {
-                        i_2 = (opt_nodes + ps_esc_vobj)->args + f_3;
-                        if (!(opt_operands[i_2] == ps_esc_cur[f_3])) {
+                    for (f_4 = 0; f_4 <= nf_3 - 1; f_4++) {
+                        i_3 = (opt_nodes + ps_esc_vobj)->args + f_4;
+                        if (!(opt_operands[i_3] == ps_esc_cur[f_4])) {
                             ps_esc_vobj = -1;
                         }
                     }
@@ -6100,40 +6341,54 @@ exit_phi_for:;
             }
             while (n >= 0) {
                 next = (opt_nodes + n)->next;
-                nd_3 = opt_nodes + n;
-                op = (int32_t)nd_3->op;
-                a_3 = ps_esc_node[c];
-                if ((op == O_STOREFIELD) && (opt_ir_resolve(nd_3->a) == a_3)) {
-                    ps_esc_cur[nd_3->aux] = opt_ir_resolve(nd_3->b);
+                nd_4 = opt_nodes + n;
+                op = (int32_t)nd_4->op;
+                a_4 = ps_esc_node[c];
+                if ((op == O_STOREFIELD) && (opt_ir_resolve(nd_4->a) == a_4)) {
+                    ps_esc_cur[nd_4->aux] = opt_ir_resolve(nd_4->b);
                     ps_esc_vobj = -1;
                     ps_esc_version = ps_esc_version + 1;
-                    nd_3->flags = nd_3->flags | NF_DEAD;
+                    nd_4->flags = nd_4->flags | NF_DEAD;
                     opt_ir_unlink(n);
                     goto exit_virtualize;
                 }
-                if ((op == O_LOADFIELD) && (opt_ir_resolve(nd_3->a) == a_3)) {
-                    nd_3->fwd = ps_esc_cur[nd_3->aux];
+                if ((op == O_LOADFIELD) && (opt_ir_resolve(nd_4->a) == a_4)) {
+                    nd_4->fwd = ps_esc_cur[nd_4->aux];
                     opt_ir_unlink(n);
                     goto exit_virtualize;
                 }
-                if (nd_3->state >= 0) {
-                    nd_3->state = virtual_state(nd_3->state, c);
+                if (nd_4->state >= 0) {
+                    nd_4->state = virtual_state(nd_4->state, c);
                 }
             exit_virtualize:;
                 n = next;
             }
-            for (f_4 = 0; f_4 <= nf - 1; f_4++) {
-                ps_esc_end[b * 16 + f_4] = ps_esc_cur[f_4];
+            for (f_5 = 0; f_5 <= nf - 1; f_5++) {
+                ps_esc_end[b * 16 + f_5] = ps_esc_cur[f_5];
             }
         }
     }
     for (j = 0; j <= ps_esc_phi_count - 1; j++) {
         n = ps_esc_phi[j];
         b = (opt_nodes + n)->block;
-        for (k = 0; k <= (opt_blocks + b)->npreds - 1; k++) {
-            i_3 = (opt_nodes + n)->args + k;
-            v_2 = ps_esc_end[pred(k, b) * 16 + ps_esc_phi_field[j]];
-            opt_operands[i_3] = v_2;
+        for (k_3 = 0; k_3 <= (opt_blocks + b)->npreds - 1; k_3++) {
+            i_4 = (opt_nodes + n)->args + k_3;
+            v_4 = ps_esc_end[pred(k_3, b) * 16 + ps_esc_phi_field[j]];
+            opt_operands[i_4] = v_4;
+        }
+    }
+    if (ps_esc_feeds[c] >= 0) {
+        m = ps_esc_feeds[c];
+        n_7 = ps_esc_node[m];
+        p_2 = opt_nodes + n_7;
+        b_4 = p_2->block;
+        for (k_4 = 0; k_4 <= (int32_t)p_2->nargs - 1; k_4++) {
+            i_5 = p_2->args + k_4;
+            if (opt_ir_resolve(opt_operands[i_5]) == ps_esc_node[c]) {
+                for (f_6 = 0; f_6 <= ps_esc_fields[c] - 1; f_6++) {
+                    ps_esc_merge_in[m * 256 + k_4 * 16 + f_6] = ps_esc_end[pred(k_4, b_4) * 16 + f_6];
+                }
+            }
         }
     }
     (opt_nodes + a)->flags = (opt_nodes + a)->flags | NF_DEAD;

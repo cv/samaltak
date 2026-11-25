@@ -1960,4 +1960,27 @@ testObjectsNotMadeInFramesMadeContexts
 	self assert: (r at: 2) class equals: Point.
 	self assert: (r at: 2) x equals: #(7).
 	self assert: (r at: 2) y equals: 8
+!
+testObjectsMergedByAPhiAreNotMade
+	"Points made on two ways that meet (a conditional's value, an inlined method's two returns) are one object never made, its fields phis; a guard that fails after the merge makes it from the way taken."
+	| o before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'escPick: n n > 5 ifTrue: [^n @ 1]. ^0 @ n'.
+	self define: 'escMerge: n | r | r := n > 5 ifTrue: [n @ 1] ifFalse: [0 @ n]. ^r x + r y'.
+	self define: 'escMerge: n by: d | r | r := self escPick: n. ^(r x + d) + r y'.
+	self define: 'escMergeSum: n | s | s := 0. 1 to: n do: [:i | | r | r := self escPick: i \\ 10. s := s + r x + r y]. ^s'.
+	o := JitRuntimeTestSubject new.
+	1 to: 3000 do: [:i | o escMerge: i \\ 10. o escMerge: i \\ 10 by: 1. o escMergeSum: 10].
+	self assert: (o escMerge: 3) equals: 3.
+	self assert: (o escMerge: 7) equals: 8.
+	self assert: (o escMerge: 7 by: 1) equals: 9.
+	self assert: (o escMerge: 3 by: 1) equals: 4.
+	self assert: (o escMerge: 7 by: 0.5) equals: 8.5.
+	self assert: (o escMerge: 2 by: 0.5) equals: 2.5.
+	self assert: (o escMergeSum: 10) equals: 49.
+	#(#escMerge: #escMergeSum:) do: [:each |
+		self assert: ((JitRuntimeTestSubject >> each) jitCode: #opt) notNil description: [each , ' is not compiled by the optimizer']].
+	before := self statistics.
+	self assert: (o escMergeSum: 100000) equals: 490000.
+	self stressed ifFalse: [self assert: (self statistics - before) bytesAllocated < 100000]
 ! !
