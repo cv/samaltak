@@ -1,52 +1,36 @@
 Object subclass: #NvShaderCompiler
 	instanceVariableNames: ''
-	classVariableNames: 'Cubins Translations Identity Times Precompiled Failed Pending'
+	classVariableNames: 'Cache Translations Identity Times Precompiled'
 	package: 'Graphics-NV'!
 
-NvShaderCompiler comment: 'I make the GB10''s kernels of GLSL fragment shaders (FragmentShader''s, their prelude included): GlslShader parses and checks the source (a ShaderError at its line and column if it is not the GLSL subset), GlslCudaWriter writes it as CUDA C++ (the kernel gl_fragment), and its key, the SHA-256 of that CUDA, finds the cubin: made already in this session (kept), precompiled at build time (NvPrecompiledShaders, the shipped shaders: no compiler needed), or compiled now by NVRTC (NvRtc; NVRTC''s errors as ShaderErrors). A shader whose translation changed (a new GlslCudaWriter, or an edited source) has another key, so a precompiled cubin is never stale. docs/nv-shaders.md.
+NvShaderCompiler comment: 'I make the GB10''s kernels of GLSL fragment shaders (FragmentShader''s, their prelude included): GlslShader parses and checks the source (a ShaderError at its line and column if it is not the GLSL subset), GlslCudaWriter writes it as CUDA C++ (the kernel gl_fragment), and its key, the SHA-256 of that CUDA, finds the cubin: made already in this session (kept: an NvRtcCache, which waits for a compile under way and keeps failures), precompiled at build time (NvPrecompiledShaders, the shipped shaders: no compiler needed), or compiled now by NVRTC (NvRtc; NVRTC''s errors as ShaderErrors). A shader whose translation changed (a new GlslCudaWriter, or an edited source) has another key, so a precompiled cubin is never stale. docs/nv-shaders.md.
 
 	NvShaderCompiler cubinFor: glslSource      "a ByteArray, or a ShaderError"
 	NvShaderCompiler canBuild: glslSource      "precompiled, or NVRTC is here"
 	NvShaderCompiler times                     "the last compiles: key -> milliseconds (translation, NVRTC)"'!
 
 !NvShaderCompiler class methodsFor: 'compiling'!
+cache
+	"The cubins of this session's shaders (NvRtcCache: by their CUDA's SHA-256, waiting for a compile under way, failures kept)."
+	^Cache ifNil: [Cache := NvRtcCache options: self options]
+!
 cubinFor: aString
 	"The cubin (gl_fragment for sm_121) of the GLSL fragment shader aString; a ShaderError if it does not compile."
 	| cuda key |
 	cuda := self cudaFor: aString.
 	key := self keyOf: cuda.
-	Cubins isNil ifTrue: [Cubins := Dictionary new. Failed := Dictionary new. Pending := Dictionary new].
-	[Pending includesKey: key] whileTrue: [(Delay forMilliseconds: 5) wait].
-	(Failed at: key ifAbsent: [nil]) ifNotNil: [:e | ^ShaderError line: e line column: e column detail: e detail].
-	^Cubins at: key ifAbsent: [| cubin |
-		cubin := self precompiledAt: key.
-		cubin isNil ifTrue: [
-			cubin := [self compile: cuda key: key] on: ShaderError do: [:e |
-				Failed size >= 32 ifTrue: [Failed := Dictionary new].
-				Failed at: key put: e.
-				e pass]].
-		Cubins at: key put: cubin.
-		cubin]
+	((self cache includesKey: key) or: [self cache isPending: key]) ifFalse: [
+		(self precompiledAt: key) ifNotNil: [:cubin | ^self cache at: key put: cubin].
+		NvRtc isAvailable ifFalse: [
+			^ShaderError line: nil column: nil detail: 'this shader is not precompiled (make nv-shaders), and there is no NVRTC here to compile it (the CUDA toolkit''s libnvrtc)']].
+	^self cache cubinFor: cuda key: key ifFail: [:log | self signalErrorIn: log]
 !
 isReady: aString
 	"Whether cubinFor: aString answers (or signals its error) at once; if it would compile, start compiling in the background and answer false (a FragmentShader keeps its old pipeline meanwhile)."
 	| key |
 	key := [self keyFor: aString] on: ShaderError do: [:e | ^true].
-	Cubins isNil ifTrue: [Cubins := Dictionary new. Failed := Dictionary new. Pending := Dictionary new].
-	((Cubins includesKey: key) or: [(Failed includesKey: key) or: [self precompiled includesKey: key]]) ifTrue: [^true].
-	(Pending includesKey: key) ifTrue: [^false].
-	NvRtc isAvailable ifFalse: [^true].
-	Pending at: key put: nil.
-	[[self compileInBackground: aString key: key] ensure: [Pending removeKey: key ifAbsent: []]] fork.
-	^false
-!
-compileInBackground: aString key: key
-	| cubin |
-	cubin := [self compile: (self cudaFor: aString) key: key] on: ShaderError do: [:e |
-		Failed size >= 32 ifTrue: [Failed := Dictionary new].
-		Failed at: key put: e.
-		^self].
-	Cubins at: key put: cubin
+	((self cache includesKey: key) or: [self precompiled includesKey: key]) ifTrue: [^true].
+	^self cache isReady: (self cudaFor: aString) key: key
 !
 keyFor: aString
 	"The key of the GLSL fragment shader aString (a ShaderError if it does not parse)."
@@ -55,7 +39,7 @@ keyFor: aString
 canBuild: aString
 	"Whether cubinFor: can make aString's kernel: NVRTC is here, or it is precompiled. A source that does not parse can be built (to report its error) where NVRTC is."
 	NvRtc isAvailable ifTrue: [^true].
-	^[| key | key := self keyFor: aString. (Cubins notNil and: [Cubins includesKey: key]) or: [self precompiled includesKey: key]]
+	^[| key | key := self keyFor: aString. (self cache at: key) notNil or: [self precompiled includesKey: key]]
 		on: ShaderError do: [:e | e return: false]
 !
 canBuildAny
@@ -89,17 +73,6 @@ translationOf: aString
 keyOf: aCudaString
 	^(SHA256 hash: aCudaString asByteArray) hex
 !
-compile: cuda key: key
-	"NVRTC's cubin of cuda; a ShaderError (NVRTC's first error) if it does not compile, or if there is no NVRTC."
-	| t0 r |
-	NvRtc isAvailable ifFalse: [
-		^ShaderError line: nil column: nil detail: 'this shader is not precompiled (make nv-shaders), and there is no NVRTC here to compile it (the CUDA toolkit''s libnvrtc)'].
-	t0 := Time millisecondClockValue.
-	r := NvRtc compile: cuda options: self options.
-	self note: #nvrtc ms: Time millisecondClockValue - t0.
-	r first isNil ifTrue: [^self signalErrorIn: r last].
-	^r first
-!
 options
 	"NVRTC's options at run time: the GB10's code, ptxas at -O1 (a third of -O3's time for the World's shaders; NvPrecompiledShaders are -O3)."
 	^#('-arch=sm_121' '-std=c++17' '-Xptxas=-O1')
@@ -130,11 +103,11 @@ note: aSymbol ms: n
 !
 times
 	"The last translations and NVRTC compiles: #translate or #nvrtc -> milliseconds."
-	^Times ifNil: [#()]
+	^(Times ifNil: [#()]) asArray , (self cache times asArray collect: [:each | #nvrtc -> each value])
 !
 flush
 	"Forget the cubins and translations made in this session."
-	Cubins := Translations := Identity := Failed := Pending := nil
+	Cache := Translations := Identity := nil
 ! !
 
 !NvShaderCompiler class methodsFor: 'precompiling'!
