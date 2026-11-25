@@ -426,12 +426,12 @@ do: aBlock
 	queue nextPut: aBlock
 !
 sync: aBlock
-	"Run aBlock in my Process and answer its value (at most 10 s). An Error in aBlock is signaled again here, with its stack in my Process (Exception>>freeze)."
+	"Run aBlock in my Process and answer its value (at most 30 s, generous for a loaded machine). An Error in aBlock is signaled again here, with its stack in my Process (Exception>>freeze)."
 	| done result error |
 	Processor activeProcess == process ifTrue: [^aBlock value].
 	done := Semaphore new.
 	self do: [[result := aBlock on: Error do: [:e | error := e freeze. e return: nil]] ensure: [done signal]].
-	(done waitTimeoutMSecs: 10000) ifTrue: [^self error: 'Window ', title printString, ' did not answer within 10 s'].
+	(done waitTimeoutMSecs: 30000) ifTrue: [^self error: 'Window ', title printString, ' did not answer within 30 s'].
 	error isNil ifFalse: [^error resignal].
 	^result
 !

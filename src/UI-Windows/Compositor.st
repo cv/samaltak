@@ -370,12 +370,12 @@ do: aBlock
 	self wake
 !
 sync: aBlock
-	"Run aBlock in my Process; answer its value (at most 10 s)."
+	"Run aBlock in my Process; answer its value (at most 30 s: a frame of a software device on a loaded machine may take seconds)."
 	| done result error |
 	Processor activeProcess == process ifTrue: [^aBlock cull: self].
 	done := Semaphore new.
 	self do: [:c | [result := [aBlock cull: c] on: Error do: [:e | error := e messageText. e return: nil]] ensure: [done signal]].
-	(done waitTimeoutMSecs: 10000) ifTrue: [^self error: 'The compositor did not answer within 10 s'].
+	(done waitTimeoutMSecs: 30000) ifTrue: [^self error: 'The compositor did not answer within 30 s'].
 	error isNil ifFalse: [^self error: error].
 	^result
 !
