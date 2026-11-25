@@ -14,6 +14,14 @@ isAvailable
 	"Whether the CUDA runtime is here with a device."
 	CudaRuntimeAPI isAvailable ifFalse: [^false].
 	^([CudaRuntimeAPI cudaGetDeviceCount] on: CudaError do: [:e | 0]) > 0
+!
+unavailableReason
+	"Why isAvailable is false, or nil: the runtime is not here, or its own words for having no device, e.g. 'cudaGetDeviceCount: cudaErrorNoDevice (no CUDA-capable device is detected)' (the Linux appliance without a GPU), 'cudaErrorInsufficientDriver' (no nvidia.ko, or one of another version)."
+	| n |
+	CudaRuntimeAPI isAvailable ifFalse: [^'no CUDA runtime (libcudart: SAMALTAK_CUDA_LIBS names the directories to look in)'].
+	n := [CudaRuntimeAPI cudaGetDeviceCount] on: CudaError do: [:e | ^e messageText].
+	n > 0 ifFalse: [^'no device'].
+	^nil
 ! !
 
 !Cuda class methodsFor: 'accessing'!
@@ -74,7 +82,7 @@ versionString: anInteger
 summary
 	"One line about the device and the libraries, e.g. NVIDIA GB10, compute 12.1, 48 SMs, 119.6 GB (110.2 free); CUDA runtime 13.0, driver 13.0; cuBLAS 130100; cuRAND 10400."
 	| memory gb |
-	self isAvailable ifFalse: [^'no CUDA here (no libcudart, or no device)'].
+	self isAvailable ifFalse: [^'no CUDA here: ' , self unavailableReason].
 	memory := self memoryInfo.
 	gb := [:bytes | (bytes / 1.0e9 printShowingDecimalPlaces: 1) , ' GB'].
 	^String streamContents: [:s |
