@@ -330,8 +330,8 @@ testRecordingStepsOneFramePerTick
 	world compositor stopRecording.
 	frames := world compositor frameCount - n.
 	"A second of the clock: 60 ticks, one more when the first came before the Delay started."
-	self assert: (frames between: 59 and: 61).
-	self assert: (recorder framesWritten between: frames // 2 and: frames + 1 // 2).
+	self assert: (frames between: 59 and: 61) description: [frames printString, ' frames in a second of the recording clock'].
+	self assert: (recorder framesWritten between: frames // 2 and: frames + 1 // 2) description: [recorder framesWritten printString, ' frames written of ', frames printString].
 	File delete: path
 !
 testTheTickGridIsWholeMilliseconds

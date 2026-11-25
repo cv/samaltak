@@ -423,7 +423,7 @@ testArithmeticBaselineCodeSent
 !
 testSmallIntegersWhereLargeIntegersWere
 	"Arithmetic that reported LargeIntegers only (baseline code takes SmallIntegers inline, unreported) takes SmallIntegers at all its sites once one of them deoptimized on one: the optimized code does not deoptimize and compile again, site after site (unless --jit-flags deopt makes it)."
-	| o f sum large small expectedLarge expectedSmall before |
+	| o f sum large small expectedLarge expectedSmall before me priority deopts |
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
 	self define: 'sum: a | s x | s := 0. 1 to: a size do: [:i | x := a at: i. s := s + (x \\ 7) + (x // 3 \\ 5) + (x * 3 \\ 11) + (x - 1 \\ 13)]. ^s'.
 	o := JitRuntimeTestSubject new.
@@ -433,11 +433,16 @@ testSmallIntegersWhereLargeIntegersWere
 	small := (1 to: 20000) asArray.
 	expectedLarge := sum value: large.
 	expectedSmall := sum value: small.
-	before := self statistics.
-	2 timesRepeat: [
+	"The count is the VM's: measured above the priorities of the UI's Processes (the compositor's 70), whose code the JIT compiles as well meanwhile, and which a loaded machine gives more time to run in the middle."
+	me := Processor activeProcess.
+	priority := me priority.
+	[me priority: 75.
+	 before := self statistics.
+	 2 timesRepeat: [
 		self assert: (o sum: large) equals: expectedLarge.
 		self assert: (o sum: small) equals: expectedSmall].
-	self stressed ifFalse: [self assert: (self statistics - before) optDeoptimizations < 4]
+	 deopts := (self statistics - before) optDeoptimizations] ensure: [me priority: priority].
+	self stressed ifFalse: [self assert: deopts < 4 description: [deopts printString, ' deoptimizations']]
 !
 testBoxedFloatsInFloatArithmetic
 	"BoxedFloat64s (the infinities, NaN) are decoded as SmallFloat64s are: comparing them does not deoptimize (unless --jit-flags deopt makes it); NaN compares false."
