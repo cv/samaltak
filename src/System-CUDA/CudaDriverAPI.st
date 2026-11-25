@@ -19,7 +19,7 @@ ffiStatusText: code kind: kind into: slice
 !
 constants
 	"The library's constants, name and value."
-	^#('CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT' 16 'CU_DEVICE_ATTRIBUTE_CLOCK_RATE' 13 'CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR' 75 'CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR' 76 'CU_DEVICE_ATTRIBUTE_L2_CACHE_SIZE' 38)
+	^#('CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT' 16 'CU_DEVICE_ATTRIBUTE_CLOCK_RATE' 13 'CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR' 75 'CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR' 76 'CU_DEVICE_ATTRIBUTE_L2_CACHE_SIZE' 38 'CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK' 0 'CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES' 1 'CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES' 3 'CU_FUNC_ATTRIBUTE_NUM_REGS' 4)
 ! !
 
 !CudaDriverAPI class methodsFor: 'generated'!
@@ -90,4 +90,61 @@ cuDeviceGetAttribute: attrib dev: dev
 		tryInvoke3: attrib with: dev with: (self slice: ffiOuts).
 	self check: ffiResult in: 'cuDeviceGetAttribute' allowing: #().
 	^self outs: ffiOuts at: 1 kind: #int
+!
+cuModuleLoadData: image
+	"CUresult cuModuleLoadData(CUmodule *module, const void *image)"
+	<ffiSite>
+	| ffiResult ffiOuts |
+	ffiOuts := ByteArray new: 8.
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cuModuleLoadData' (bytesWithLength writableBytesWithLength) i64))
+		tryInvoke2: (self slice: image) with: (self slice: ffiOuts).
+	self check: ffiResult in: 'cuModuleLoadData' allowing: #().
+	^self outs: ffiOuts at: 1 kind: #int
+!
+cuModuleUnload: hmod
+	"CUresult cuModuleUnload(CUmodule hmod)"
+	<ffiSite>
+	| ffiResult |
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cuModuleUnload' (i64) i64))
+		tryInvoke1: hmod.
+	self check: ffiResult in: 'cuModuleUnload' allowing: #().
+	^ffiResult
+!
+cuModuleGetFunction: hmod name: name
+	"CUresult cuModuleGetFunction(CUfunction *hfunc, CUmodule hmod, const char *name)"
+	<ffiSite>
+	| ffiResult ffiOuts |
+	ffiOuts := ByteArray new: 8.
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cuModuleGetFunction' (i64 bytesWithLength writableBytesWithLength) i64))
+		tryInvoke3: hmod with: (self slice: name) with: (self slice: ffiOuts).
+	self check: ffiResult in: 'cuModuleGetFunction' allowing: #().
+	^self outs: ffiOuts at: 1 kind: #int
+!
+cuFuncGetAttribute: attrib hfunc: hfunc
+	"CUresult cuFuncGetAttribute(int *pi, CUfunction_attribute attrib, CUfunction hfunc)"
+	<ffiSite>
+	| ffiResult ffiOuts |
+	ffiOuts := ByteArray new: 8.
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cuFuncGetAttribute' (i32 i64 writableBytesWithLength) i64))
+		tryInvoke3: attrib with: hfunc with: (self slice: ffiOuts).
+	self check: ffiResult in: 'cuFuncGetAttribute' allowing: #().
+	^self outs: ffiOuts at: 1 kind: #int
+!
+cuLaunchKernel: f gridDimX: gridDimX gridDimY: gridDimY gridDimZ: gridDimZ blockDimX: blockDimX blockDimY: blockDimY blockDimZ: blockDimZ sharedMemBytes: sharedMemBytes hStream: hStream extra: extra
+	"CUresult cuLaunchKernel(CUfunction f, unsigned int gridDimX, unsigned int gridDimY, unsigned int gridDimZ, unsigned int blockDimX, unsigned int blockDimY, unsigned int blockDimZ, unsigned int sharedMemBytes, CUstream hStream, void **kernelParams, void **extra)"
+	<ffiSite>
+	| ffiResult |
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cuLaunchKernel' (i64 u32 u32 u32 u32 u32 u32 u32 i64 bytesWithLength) i64))
+		tryInvoke10: f with: gridDimX with: gridDimY with: gridDimZ with: blockDimX with: blockDimY with: blockDimZ with: sharedMemBytes with: hStream with: (self slice: extra).
+	self check: ffiResult in: 'cuLaunchKernel' allowing: #().
+	^ffiResult
+!
+cuStreamWriteValue64: stream addr: addr value: value flags: flags
+	"CUresult cuStreamWriteValue64_v2(CUstream stream, CUdeviceptr addr, cuuint64_t value, unsigned int flags)"
+	<ffiSite>
+	| ffiResult |
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cuStreamWriteValue64' (i64 u64 u64 u32) i64))
+		tryInvoke4: stream with: addr with: value with: flags.
+	self check: ffiResult in: 'cuStreamWriteValue64' allowing: #().
+	^ffiResult
 ! !

@@ -81,7 +81,12 @@ static int64_t native_cuda_cu_device_get_count(uint8_t *outs, uint64_t outs_leng
 static int64_t native_cuda_cu_device_get_name(uint8_t *name, uint64_t name_length, int32_t len, int32_t dev);
 static int64_t native_cuda_cu_device_total_mem(int32_t dev, uint8_t *outs, uint64_t outs_length);
 static int64_t native_cuda_cu_driver_get_version(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_func_get_attribute(int32_t attrib, int64_t hfunc, uint8_t *outs, uint64_t outs_length);
 static int64_t native_cuda_cu_init(uint32_t flags);
+static int64_t native_cuda_cu_launch_kernel(int64_t f, uint32_t grid_dim_x, uint32_t grid_dim_y, uint32_t grid_dim_z, uint32_t block_dim_x, uint32_t block_dim_y, uint32_t block_dim_z, uint32_t shared_mem_bytes, int64_t h_stream, const uint8_t *extra, uint64_t extra_length);
+static int64_t native_cuda_cu_module_get_function(int64_t hmod, const uint8_t *name, uint64_t name_length, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_module_load_data(const uint8_t *image, uint64_t image_length, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_module_unload(int64_t hmod);
 static int64_t native_cuda_cu_opt_create_problem(int32_t num_constraints, int32_t num_variables, int32_t objective_sense, double objective_offset, const uint8_t *pack, uint64_t pack_length, uint8_t *outs, uint64_t outs_length);
 static int64_t native_cuda_cu_opt_create_solver_settings(uint8_t *outs, uint64_t outs_length);
 static int64_t native_cuda_cu_opt_destroy_problem(int64_t problem_ptr);
@@ -98,6 +103,7 @@ static int64_t native_cuda_cu_opt_set_float_parameter(int64_t settings, const ui
 static int64_t native_cuda_cu_opt_set_integer_parameter(int64_t settings, const uint8_t *parameter_name, uint64_t parameter_name_length, int32_t parameter_value);
 static int64_t native_cuda_cu_opt_set_parameter(int64_t settings, const uint8_t *parameter_name, uint64_t parameter_name_length, const uint8_t *parameter_value, uint64_t parameter_value_length);
 static int64_t native_cuda_cu_opt_solve(int64_t problem, int64_t settings, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cu_stream_write_value64(int64_t stream, uint64_t addr, uint64_t value, uint32_t flags);
 static int64_t native_cuda_cublas_available(void);
 static int64_t native_cuda_cublas_create(uint8_t *outs, uint64_t outs_length);
 static int64_t native_cuda_cublas_daxpy(int64_t handle, int32_t n, double alpha, uint64_t x, int32_t incx, uint64_t y, int32_t incy);
@@ -121,10 +127,12 @@ static int64_t native_cuda_cuda_event_query(int64_t event);
 static int64_t native_cuda_cuda_event_record(int64_t event, int64_t stream);
 static int64_t native_cuda_cuda_event_synchronize(int64_t event);
 static int64_t native_cuda_cuda_free(uint64_t dev_ptr);
+static int64_t native_cuda_cuda_free_host(uint64_t ptr);
 static int64_t native_cuda_cuda_get_device(uint8_t *outs, uint64_t outs_length);
 static int64_t native_cuda_cuda_get_device_count(uint8_t *outs, uint64_t outs_length);
 static int64_t native_cuda_cuda_get_last_error(void);
 static int64_t native_cuda_cuda_malloc(uint64_t size, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cuda_malloc_host(uint64_t size, uint8_t *outs, uint64_t outs_length);
 static int64_t native_cuda_cuda_mem_get_info(uint8_t *outs, uint64_t outs_length);
 static int64_t native_cuda_cuda_memcpy_dto_d(uint64_t dst, uint64_t src, uint64_t count);
 static int64_t native_cuda_cuda_memcpy_dto_h(uint8_t *dst, uint64_t dst_length, uint64_t src, uint64_t count);
@@ -941,6 +949,14 @@ static int64_t native_cuda_cuda_peek_at_last_error_entry_witness(void) {
     fprintf(stderr, "\nffi-native-entry 1856\n");
     return native_cuda_cuda_peek_at_last_error();
 }
+static int64_t native_cuda_cuda_malloc_host_entry_witness(uint64_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1857\n");
+    return native_cuda_cuda_malloc_host(a1, a2, a3);
+}
+static int64_t native_cuda_cuda_free_host_entry_witness(uint64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1858\n");
+    return native_cuda_cuda_free_host(a1);
+}
 static int64_t native_cuda_driver_available_entry_witness(void) {
     fprintf(stderr, "\nffi-native-entry 1869\n");
     return native_cuda_driver_available();
@@ -976,6 +992,30 @@ static int64_t native_cuda_cu_device_total_mem_entry_witness(int32_t a1, uint8_t
 static int64_t native_cuda_cu_device_get_attribute_entry_witness(int32_t a1, int32_t a2, uint8_t *a3, uint64_t a4) {
     fprintf(stderr, "\nffi-native-entry 1877\n");
     return native_cuda_cu_device_get_attribute(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cu_module_load_data_entry_witness(const uint8_t *a1, uint64_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1878\n");
+    return native_cuda_cu_module_load_data(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cu_module_unload_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1879\n");
+    return native_cuda_cu_module_unload(a1);
+}
+static int64_t native_cuda_cu_module_get_function_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3, uint8_t *a4, uint64_t a5) {
+    fprintf(stderr, "\nffi-native-entry 1880\n");
+    return native_cuda_cu_module_get_function(a1, a2, a3, a4, a5);
+}
+static int64_t native_cuda_cu_func_get_attribute_entry_witness(int32_t a1, int64_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1881\n");
+    return native_cuda_cu_func_get_attribute(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cu_launch_kernel_entry_witness(int64_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6, uint32_t a7, uint32_t a8, int64_t a9, const uint8_t *a10, uint64_t a11) {
+    fprintf(stderr, "\nffi-native-entry 1882\n");
+    return native_cuda_cu_launch_kernel(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11);
+}
+static int64_t native_cuda_cu_stream_write_value64_entry_witness(int64_t a1, uint64_t a2, uint64_t a3, uint32_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1883\n");
+    return native_cuda_cu_stream_write_value64(a1, a2, a3, a4);
 }
 static int64_t native_cuda_cublas_available_entry_witness(void) {
     fprintf(stderr, "\nffi-native-entry 1894\n");
@@ -1615,6 +1655,18 @@ static int32_t ffi_approved_core(const char *approved_name, const uint8_t *signa
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_peek_at_last_error_entry_witness;
         return 1856;
     }
+    if (strcmp((const char *) signature, "\004\011\003") == 0 && strcmp(approved_name, "cuda_cudaMallocHost") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_malloc_host;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_malloc_host_entry_witness;
+        return 1857;
+    }
+    if (strcmp((const char *) signature, "\004\003") == 0 && strcmp(approved_name, "cuda_cudaFreeHost") == 0) {
+        *target_out = (uint64_t) native_cuda_cuda_free_host;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuda_free_host_entry_witness;
+        return 1858;
+    }
     if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_driver_available") == 0) {
         *target_out = (uint64_t) native_cuda_driver_available;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
@@ -1668,6 +1720,42 @@ static int32_t ffi_approved_core(const char *approved_name, const uint8_t *signa
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_device_get_attribute_entry_witness;
         return 1877;
+    }
+    if (strcmp((const char *) signature, "\010\011\003") == 0 && strcmp(approved_name, "cuda_cuModuleLoadData") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_module_load_data;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_module_load_data_entry_witness;
+        return 1878;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_cuModuleUnload") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_module_unload;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_module_unload_entry_witness;
+        return 1879;
+    }
+    if (strcmp((const char *) signature, "\003\010\011\003") == 0 && strcmp(approved_name, "cuda_cuModuleGetFunction") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_module_get_function;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_module_get_function_entry_witness;
+        return 1880;
+    }
+    if (strcmp((const char *) signature, "\001\003\011\003") == 0 && strcmp(approved_name, "cuda_cuFuncGetAttribute") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_func_get_attribute;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_func_get_attribute_entry_witness;
+        return 1881;
+    }
+    if (strcmp((const char *) signature, "\003\002\002\002\002\002\002\002\003\010\003") == 0 && strcmp(approved_name, "cuda_cuLaunchKernel") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_launch_kernel;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_launch_kernel_entry_witness;
+        return 1882;
+    }
+    if (strcmp((const char *) signature, "\003\004\004\002\003") == 0 && strcmp(approved_name, "cuda_cuStreamWriteValue64") == 0) {
+        *target_out = (uint64_t) native_cuda_cu_stream_write_value64;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_stream_write_value64_entry_witness;
+        return 1883;
     }
     if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_cublas_available") == 0) {
         *target_out = (uint64_t) native_cuda_cublas_available;
@@ -2520,10 +2608,40 @@ static int64_t native_cuda_cu_driver_get_version(uint8_t *outs, uint64_t outs_le
     return samaltak_cuda_cuDriverGetVersion(outs, outs_length);
 }
 
+/* FFIPrimitives>>nativeCudaCuFuncGetAttribute:hfunc:outs:outsLength: */
+static int64_t native_cuda_cu_func_get_attribute(int32_t attrib, int64_t hfunc, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuFuncGetAttribute(attrib, hfunc, outs, outs_length);
+}
+
 /* FFIPrimitives>>nativeCudaCuInit: */
 static int64_t native_cuda_cu_init(uint32_t flags)
 {
     return samaltak_cuda_cuInit(flags);
+}
+
+/* FFIPrimitives>>nativeCudaCuLaunchKernel:gridDimX:gridDimY:gridDimZ:blockDimX:blockDimY:blockDimZ:sharedMemBytes:hStream:extra:extraLength: */
+static int64_t native_cuda_cu_launch_kernel(int64_t f, uint32_t grid_dim_x, uint32_t grid_dim_y, uint32_t grid_dim_z, uint32_t block_dim_x, uint32_t block_dim_y, uint32_t block_dim_z, uint32_t shared_mem_bytes, int64_t h_stream, const uint8_t *extra, uint64_t extra_length)
+{
+    return samaltak_cuda_cuLaunchKernel(f, grid_dim_x, grid_dim_y, grid_dim_z, block_dim_x, block_dim_y, block_dim_z, shared_mem_bytes, h_stream, extra, extra_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuModuleGetFunction:name:nameLength:outs:outsLength: */
+static int64_t native_cuda_cu_module_get_function(int64_t hmod, const uint8_t *name, uint64_t name_length, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuModuleGetFunction(hmod, name, name_length, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuModuleLoadData:imageLength:outs:outsLength: */
+static int64_t native_cuda_cu_module_load_data(const uint8_t *image, uint64_t image_length, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuModuleLoadData(image, image_length, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuModuleUnload: */
+static int64_t native_cuda_cu_module_unload(int64_t hmod)
+{
+    return samaltak_cuda_cuModuleUnload(hmod);
 }
 
 /* FFIPrimitives>>nativeCudaCuOptCreateProblem:numVariables:objectiveSense:objectiveOffset:pack:packLength:outs:outsLength: */
@@ -2620,6 +2738,12 @@ static int64_t native_cuda_cu_opt_set_parameter(int64_t settings, const uint8_t 
 static int64_t native_cuda_cu_opt_solve(int64_t problem, int64_t settings, uint8_t *outs, uint64_t outs_length)
 {
     return samaltak_cuda_cuOptSolve(problem, settings, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuStreamWriteValue64:addr:value:flags: */
+static int64_t native_cuda_cu_stream_write_value64(int64_t stream, uint64_t addr, uint64_t value, uint32_t flags)
+{
+    return samaltak_cuda_cuStreamWriteValue64(stream, addr, value, flags);
 }
 
 /* FFIPrimitives>>nativeCudaCublasAvailable */
@@ -2760,6 +2884,12 @@ static int64_t native_cuda_cuda_free(uint64_t dev_ptr)
     return samaltak_cuda_cudaFree(dev_ptr);
 }
 
+/* FFIPrimitives>>nativeCudaCudaFreeHost: */
+static int64_t native_cuda_cuda_free_host(uint64_t ptr)
+{
+    return samaltak_cuda_cudaFreeHost(ptr);
+}
+
 /* FFIPrimitives>>nativeCudaCudaGetDevice:outsLength: */
 static int64_t native_cuda_cuda_get_device(uint8_t *outs, uint64_t outs_length)
 {
@@ -2782,6 +2912,12 @@ static int64_t native_cuda_cuda_get_last_error(void)
 static int64_t native_cuda_cuda_malloc(uint64_t size, uint8_t *outs, uint64_t outs_length)
 {
     return samaltak_cuda_cudaMalloc(size, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCudaMallocHost:outs:outsLength: */
+static int64_t native_cuda_cuda_malloc_host(uint64_t size, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cudaMallocHost(size, outs, outs_length);
 }
 
 /* FFIPrimitives>>nativeCudaCudaMemGetInfo:outsLength: */

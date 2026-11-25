@@ -233,6 +233,22 @@ nativeCudaCudaPeekAtLastError
 	<returns: 'int64_t'>
 	^cudaBackend callCudaPeekAtLastError
 !
+nativeCudaCudaMallocHost: size outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 833 symbol: 'cuda_cudaMallocHost' arguments: #(4 9) result: 3>
+	<var: #size type: 'uint64_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCudaMallocHost: size outs: outs outsLength: outsLength
+!
+nativeCudaCudaFreeHost: ptr
+	<function>
+	<approvedFFI: 834 symbol: 'cuda_cudaFreeHost' arguments: #(4) result: 3>
+	<var: #ptr type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCudaFreeHost: ptr
+!
 nativeCudaDriverAvailable
 	<function>
 	<approvedFFI: 845 symbol: 'cuda_driver_available' arguments: #() result: 3>
@@ -309,6 +325,71 @@ nativeCudaCuDeviceGetAttribute: attrib dev: dev outs: outs outsLength: outsLengt
 	<var: #outsLength type: 'uint64_t'>
 	<returns: 'int64_t'>
 	^cudaBackend callCuDeviceGetAttribute: attrib dev: dev outs: outs outsLength: outsLength
+!
+nativeCudaCuModuleLoadData: image imageLength: imageLength outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 854 symbol: 'cuda_cuModuleLoadData' arguments: #(8 9) result: 3>
+	<var: #image type: 'const uint8_t *'>
+	<var: #imageLength type: 'uint64_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCuModuleLoadData: image imageLength: imageLength outs: outs outsLength: outsLength
+!
+nativeCudaCuModuleUnload: hmod
+	<function>
+	<approvedFFI: 855 symbol: 'cuda_cuModuleUnload' arguments: #(3) result: 3>
+	<var: #hmod type: 'int64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCuModuleUnload: hmod
+!
+nativeCudaCuModuleGetFunction: hmod name: name nameLength: nameLength outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 856 symbol: 'cuda_cuModuleGetFunction' arguments: #(3 8 9) result: 3>
+	<var: #hmod type: 'int64_t'>
+	<var: #name type: 'const uint8_t *'>
+	<var: #nameLength type: 'uint64_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCuModuleGetFunction: hmod name: name nameLength: nameLength outs: outs outsLength: outsLength
+!
+nativeCudaCuFuncGetAttribute: attrib hfunc: hfunc outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 857 symbol: 'cuda_cuFuncGetAttribute' arguments: #(1 3 9) result: 3>
+	<var: #attrib type: 'int32_t'>
+	<var: #hfunc type: 'int64_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCuFuncGetAttribute: attrib hfunc: hfunc outs: outs outsLength: outsLength
+!
+nativeCudaCuLaunchKernel: f gridDimX: gridDimX gridDimY: gridDimY gridDimZ: gridDimZ blockDimX: blockDimX blockDimY: blockDimY blockDimZ: blockDimZ sharedMemBytes: sharedMemBytes hStream: hStream extra: extra extraLength: extraLength
+	<function>
+	<approvedFFI: 858 symbol: 'cuda_cuLaunchKernel' arguments: #(3 2 2 2 2 2 2 2 3 8) result: 3>
+	<var: #f type: 'int64_t'>
+	<var: #gridDimX type: 'uint32_t'>
+	<var: #gridDimY type: 'uint32_t'>
+	<var: #gridDimZ type: 'uint32_t'>
+	<var: #blockDimX type: 'uint32_t'>
+	<var: #blockDimY type: 'uint32_t'>
+	<var: #blockDimZ type: 'uint32_t'>
+	<var: #sharedMemBytes type: 'uint32_t'>
+	<var: #hStream type: 'int64_t'>
+	<var: #extra type: 'const uint8_t *'>
+	<var: #extraLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCuLaunchKernel: f gridDimX: gridDimX gridDimY: gridDimY gridDimZ: gridDimZ blockDimX: blockDimX blockDimY: blockDimY blockDimZ: blockDimZ sharedMemBytes: sharedMemBytes hStream: hStream extra: extra extraLength: extraLength
+!
+nativeCudaCuStreamWriteValue64: stream addr: addr value: value flags: flags
+	<function>
+	<approvedFFI: 859 symbol: 'cuda_cuStreamWriteValue64' arguments: #(3 4 4 2) result: 3>
+	<var: #stream type: 'int64_t'>
+	<var: #addr type: 'uint64_t'>
+	<var: #value type: 'uint64_t'>
+	<var: #flags type: 'uint32_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCuStreamWriteValue64: stream addr: addr value: value flags: flags
 !
 nativeCudaCublasAvailable
 	<function>

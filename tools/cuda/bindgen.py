@@ -42,7 +42,7 @@ class Lib:
     def __init__(self, name, cls, key, header, includes):
         self.name, self.cls, self.key, self.header, self.includes = name, cls, key, header, includes
         self.sonames, self.status, self.text, self.handles, self.nullable = [], None, None, [], set()
-        self.pointers, self.constants, self.fns = "out", [], []
+        self.pointers, self.constants, self.fns, self.aliases = "out", [], [], {}
 
 def parse_spec(path):
     libs = []
@@ -63,6 +63,7 @@ def parse_spec(path):
         elif w[0] == "handle":
             lib.handles.append(w[1])
             if "null" in w[2:]: lib.nullable.add(w[1])
+            if "alias" in w[2:]: lib.aliases[w[1]] = w[w.index("alias") + 1]
         elif w[0] == "pointers": lib.pointers = w[1]
         elif w[0] == "constants": lib.constants += w[1:]
         elif w[0] in ("fn", "retired"):
@@ -271,6 +272,7 @@ class Param:
 class Fn:
     def __init__(self, lib, hdr, spec, key, handle_ids):
         self.lib, self.spec, self.key, self.name = lib, spec, key, spec["name"]
+        self.handle_ids = handle_ids
         self.symbol = hdr.resolve(spec["c"])
         if self.symbol not in hdr.protos: die("%s: no prototype for %s" % (lib.name, self.symbol))
         ret, params = hdr.protos[self.symbol]
@@ -313,15 +315,18 @@ class Fn:
             "scalar": t.depth == 0, "value": t.depth == 1 and t.kind in ("int", "enum", "float", "double"),
             "handle": t.depth == 0 and p.handle is not None, "handleout": t.depth == 1 and p.handle is not None,
             "free": p.handle is not None and t.depth <= 1, "out": t.depth == 1 and t.kind in ("int", "enum", "float", "double"),
-            "dev": t.depth == 1, "devfree": t.depth == 1, "devalloc": t.depth == 2, "in": t.depth == 1,
+            "dev": t.depth == 1 or (t.depth == 0 and t.name == "CUdeviceptr"), "devfree": t.depth == 1,
+            "null": t.depth >= 1, "params": t.depth == 2, "devalloc": t.depth == 2, "in": t.depth == 1,
             "outarray": t.depth == 1 and not t.const, "cstr": t.depth == 1 and t.kind == "int" and t.bits == 8,
             "const": t.depth == 0,
         }
         if r not in ok: die("%s: unknown role %s" % (self.name, r))
         if not ok[r]: die("%s: role %s does not fit %s %s" % (self.name, r, t.text, p.c))
+        if r == "free" and p.expr and p.expr not in handle_ids: die("%s: no handle type %s" % (self.name, p.expr))
+        if r == "params" and self.pack: die("%s: params cannot be packed" % self.name)
         if r == "const":
             p.value = hdr.constant(p.expr) if re.match(r"^[A-Za-z_]\w*$", p.expr) else int(p.expr, 0)
-        p.sliced = r in ("in", "outarray", "cstr")
+        p.sliced = r in ("in", "outarray", "cstr", "params")
         p.packed = p.sliced and self.pack
         if p.handle: p.handle_id = handle_ids[p.handle]
 
@@ -393,6 +398,8 @@ class Fn:
                 call.append("(%s)%s" % (abi_c(p.t.kind, p.t.bits, p.t.signed, 0), a))
             elif r == "const":
                 call.append("(%s)%d" % (abi_c(p.t.kind, p.t.bits, p.t.signed, 0), p.value))
+            elif r == "null":
+                call.append("NULL")
             elif r == "value":
                 w("    %s v_%s = (%s)%s;" % (ec, n, ec, a)); call.append("&v_" + n)
             elif r in ("handle", "free"):
@@ -400,6 +407,7 @@ class Fn:
                 w("    if (!cudalib_handle_get(%d, %s, %d, &h_%s, &t_%s)) return SAMALTAK_CUDA_REJECT_HANDLE;"
                   % (p.handle_id, a, 1 if p.handle in NULLABLE else 0, n, n))
                 call.append("&h_" + n if p.t.depth == 1 else "h_" + n)
+                if r == "free" and p.expr: post.append(("always", "    cudalib_handle_drop_tagged(%d, %s);" % (self.handle_ids[p.expr], a)))
                 if r == "free": post.append(("always", "    cudalib_handle_drop(%s);" % a))
             elif r == "handleout":
                 w("    void *o_%s = NULL;" % n); call.append("&o_" + n)
@@ -426,7 +434,14 @@ class Fn:
                 ext = "(int64_t)(%s)" % self.expr(p.expr) if p.expr else "0"
                 w("    int64_t n_%s = %s;" % (n, ext))
                 w("    if (n_%s < 0 || !cudalib_device_ok(%s, (uint64_t)n_%s * sizeof(%s))) return SAMALTAK_CUDA_REJECT_DEVICE;" % (n, a, n, ec))
-                call.append("(void *)(uintptr_t)" + a)
+                call.append("(void *)(uintptr_t)" + a if p.t.depth else "(uint64_t)" + a)
+            elif r == "params":
+                # cuLaunchKernel's extra: the parameter area as one buffer (CU_LAUNCH_PARAM_BUFFER_POINTER 1,
+                # CU_LAUNCH_PARAM_BUFFER_SIZE 2, CU_LAUNCH_PARAM_END 0); none when it is empty
+                w("    const uint8_t *s_%s = %s; uint64_t l_%s = %s_len;" % (n, a, n, a))
+                w("    size_t z_%s = (size_t)l_%s;" % (n, n))
+                w("    void *x_%s[] = { (void *)1, (void *)s_%s, (void *)2, &z_%s, (void *)0 };" % (n, n, n))
+                call.append("l_%s ? x_%s : NULL" % (n, n))
             elif p.sliced:
                 if p.packed:
                     w("    %suint8_t *s_%s; uint64_t l_%s;" % ("" if r == "outarray" else "const ", n, n))
@@ -587,9 +602,16 @@ def gen(libs):
     global ALL_HANDLES
     for lib in libs:
         for h in lib.handles:
+            if h in lib.aliases: continue
             if h not in ALL_HANDLES: ALL_HANDLES.append(h)
             if h in lib.nullable: NULLABLE.add(h)
     handle_ids = {h: i + 1 for i, h in enumerate(ALL_HANDLES)}
+    # handle T alias U: T is the same handle type as U (CUstream and cudaStream_t), its ids good for both
+    for lib in libs:
+        for h, target in lib.aliases.items():
+            if target not in handle_ids: die("%s: handle %s aliases %s, which no library declares before" % (lib.name, h, target))
+            handle_ids[h] = handle_ids[target]
+            if h in lib.nullable: NULLABLE.add(h)
     c_lines, h_lines, uefi, exports = [], [], [], []
     names_table = []
     exports.append((800, "cuda_session", [], []))

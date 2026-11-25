@@ -38,6 +38,7 @@ int64_t cudalib_missing(int lib);
 int64_t cudalib_handle_new(int type, void *p, int64_t tag);
 int cudalib_handle_get(int type, int64_t id, int nullable, void **p, int64_t *tag);
 void cudalib_handle_drop(int64_t id);
+void cudalib_handle_drop_tagged(int type, int64_t tag);
 
 int cudalib_device_room(void);
 void cudalib_device_add(uint64_t base, uint64_t size);
@@ -54,6 +55,10 @@ int64_t cudalib_text(const char *s, uint8_t *out, uint64_t len);
 void cudalib_put_i64(uint8_t *outs, int k, int64_t v);
 void cudalib_put_u64(uint8_t *outs, int k, uint64_t v);
 void cudalib_put_f64(uint8_t *outs, int k, double v);
+
+/* An image cuModuleLoadData may read: a CUDA ELF (cubin) whose headers, sections and segments lie within len bytes,
+   or PTX (printable text, NUL-terminated within them). */
+int cudalib_module_image_ok(const uint8_t *p, uint64_t len);
 
 /* A CSR matrix of rows rows: offsets from 0, never decreasing, column indices in [0, cols). */
 int cudalib_csr_ok(const int32_t *offsets, int64_t rows, const int32_t *columns, int64_t cols);

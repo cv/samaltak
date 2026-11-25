@@ -10,15 +10,17 @@
 #   text F G           status name and description: functions of the status (const char * result or out-parameter)
 #   text macros M...   or names from these macros
 #   text enum E        or from the constants of enum E
-#   handle T [null]    an opaque handle type (kept in the VM's handle table; null: 0 means NULL)
+#   handle T [null] [alias U]  an opaque handle type (kept in the VM's handle table; null: 0 means NULL; alias: the
+#                      same type as U, declared before: CUstream is cudaStream_t)
 #   pointers out|dev   what an unannotated T * means: an out-parameter, or a device pointer
 #   constants P...     enum constants and integer macros (a trailing * matches a prefix) the class answers
 #   fn F [as N] [ok C...] [pack] [param=role...]
 #
 # Roles: value (a const T * passed by value), out, dev[:EXTENT] (a device pointer in a live allocation, EXTENT elements
-# from it), devalloc:BYTES, devfree, in:COUNT / outarray:COUNT (a host ByteArray of at least COUNT elements),
-# cstr (a String, copied and NUL-terminated), const:VALUE, handleout[:TAG] (a new handle remembering the integer TAG),
-# free (the handle is forgotten after the call). require=EXPR: a condition the arguments must meet (checked last). Expressions are C over the other parameters, with TAG(h) (the tag of
+# from it; also a CUdeviceptr), devalloc:BYTES, devfree, in:COUNT / outarray:COUNT (a host ByteArray of at least COUNT
+# elements), cstr (a String, copied and NUL-terminated), const:VALUE, null (a pointer passed as NULL), params
+# (cuLaunchKernel's extra: a ByteArray, the kernel's parameter area), handleout[:TAG] (a new handle remembering the
+# integer TAG), free[:T] (the handle is forgotten after the call, and with T the handles of type T whose TAG it is). require=EXPR: a condition the arguments must meet (checked last). Expressions are C over the other parameters, with TAG(h) (the tag of
 # handle h), P(a) (host array a, checked before) and MAT(ld,rows,cols) (the extent of a column-major matrix).
 
 lib cudart CudaRuntimeAPI key 805 header cuda_runtime_api.h
@@ -55,6 +57,8 @@ fn cudaEventSynchronize
 fn cudaEventElapsedTime
 fn cudaGetLastError
 fn cudaPeekAtLastError
+fn cudaMallocHost ptr=devalloc:size
+fn cudaFreeHost ptr=devfree
 
 lib driver CudaDriverAPI key 845 header cuda.h
 soname libcuda.so.1 libcuda.so
@@ -69,6 +73,16 @@ fn cuDeviceGet
 fn cuDeviceGetName name=outarray:len
 fn cuDeviceTotalMem
 fn cuDeviceGetAttribute
+handle CUmodule
+handle CUfunction
+handle CUstream null alias cudaStream_t
+constants CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES CU_FUNC_ATTRIBUTE_NUM_REGS
+fn cuModuleLoadData image=in:l_image require=cudalib_module_image_ok(P(image),l_image)
+fn cuModuleUnload hmod=free:CUfunction
+fn cuModuleGetFunction hfunc=handleout:hmod
+fn cuFuncGetAttribute
+fn cuLaunchKernel kernelParams=null extra=params
+fn cuStreamWriteValue64_v2 as cuStreamWriteValue64 addr=dev:1
 
 lib cublas CublasAPI key 870 header cublas_v2.h
 soname libcublas.so.13 libcublas.so.12 libcublas.so

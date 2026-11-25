@@ -88,6 +88,15 @@ void cudalib_handle_drop(int64_t id) {
     liveHandles--;
 }
 
+/* The handles of a type that remember tag: a module's functions when it is unloaded. */
+void cudalib_handle_drop_tagged(int type, int64_t tag) {
+    for (int s = 0; s < SAMALTAK_CUDA_HANDLES; s++) {
+        if (handles[s].type != type || handles[s].tag != tag) continue;
+        memset(&handles[s], 0, sizeof handles[s]);
+        liveHandles--;
+    }
+}
+
 /* Device allocations, unordered (a call checks at most a few pointers). */
 static struct { uint64_t base, size; } allocations[SAMALTAK_CUDA_ALLOCATIONS];
 static int allocationCount;
@@ -164,6 +173,39 @@ int64_t cudalib_text(const char *s, uint8_t *out, uint64_t len) {
 void cudalib_put_i64(uint8_t *outs, int k, int64_t v) { memcpy(outs + 8 * k, &v, 8); }
 void cudalib_put_u64(uint8_t *outs, int k, uint64_t v) { memcpy(outs + 8 * k, &v, 8); }
 void cudalib_put_f64(uint8_t *outs, int k, double v) { memcpy(outs + 8 * k, &v, 8); }
+
+static uint64_t le(const uint8_t *p, int n) {
+    uint64_t v = 0;
+    for (int i = n - 1; i >= 0; i--) v = v << 8 | p[i];
+    return v;
+}
+
+static int within(uint64_t off, uint64_t n, uint64_t len) { return off <= len && n <= len - off; }
+
+int cudalib_module_image_ok(const uint8_t *p, uint64_t len) {
+    if (len >= 64 && p[0] == 0x7f && p[1] == 'E' && p[2] == 'L' && p[3] == 'F') {
+        if (p[4] != 2 || p[5] != 1 || le(p + 0x12, 2) != 190) return 0; /* ELF64, little-endian, EM_CUDA */
+        uint64_t phoff = le(p + 0x20, 8), shoff = le(p + 0x28, 8);
+        uint64_t phsize = le(p + 0x36, 2), phnum = le(p + 0x38, 2), shsize = le(p + 0x3a, 2), shnum = le(p + 0x3c, 2);
+        if (phnum && (phsize < 56 || !within(phoff, phnum * phsize, len))) return 0;
+        if (shnum && (shsize < 64 || !within(shoff, shnum * shsize, len))) return 0;
+        if (le(p + 0x3e, 2) >= (shnum ? shnum : 1)) return 0;
+        for (uint64_t i = 0; i < shnum; i++) {
+            const uint8_t *h = p + shoff + i * shsize;
+            if (le(h + 4, 4) != 8 && !within(le(h + 24, 8), le(h + 32, 8), len)) return 0; /* not SHT_NOBITS */
+        }
+        for (uint64_t i = 0; i < phnum; i++) {
+            const uint8_t *h = p + phoff + i * phsize;
+            if (!within(le(h + 8, 8), le(h + 32, 8), len)) return 0;
+        }
+        return 1;
+    }
+    for (uint64_t i = 0; i < len; i++) {
+        if (p[i] == 0) return i > 0;
+        if ((p[i] < 32 && p[i] != '\t' && p[i] != '\n' && p[i] != '\r') || p[i] > 126) return 0;
+    }
+    return 0;
+}
 
 int cudalib_csr_ok(const int32_t *offsets, int64_t rows, const int32_t *columns, int64_t cols) {
     if (rows < 0 || offsets[0] != 0) return 0;

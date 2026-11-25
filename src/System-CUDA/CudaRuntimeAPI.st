@@ -266,4 +266,23 @@ cudaPeekAtLastError
 		tryInvoke0.
 	self check: ffiResult in: 'cudaPeekAtLastError' allowing: #().
 	^ffiResult
+!
+cudaMallocHost: size
+	"cudaError_t cudaMallocHost(void **ptr, size_t size)"
+	<ffiSite>
+	| ffiResult ffiOuts |
+	ffiOuts := ByteArray new: 8.
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cudaMallocHost' (u64 writableBytesWithLength) i64))
+		tryInvoke2: size with: (self slice: ffiOuts).
+	self check: ffiResult in: 'cudaMallocHost' allowing: #().
+	^self outs: ffiOuts at: 1 kind: #uint
+!
+cudaFreeHost: ptr
+	"cudaError_t cudaFreeHost(void *ptr)"
+	<ffiSite>
+	| ffiResult |
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cudaFreeHost' (u64) i64))
+		tryInvoke1: ptr.
+	self check: ffiResult in: 'cudaFreeHost' allowing: #().
+	^ffiResult
 ! !

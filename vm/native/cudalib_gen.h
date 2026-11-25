@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #define SAMALTAK_CUDA_LIBS 5
-#define SAMALTAK_CUDA_HANDLE_TYPES 7
+#define SAMALTAK_CUDA_HANDLE_TYPES 9
 
 int64_t samaltak_cuda_session(void);
 int64_t samaltak_cuda_live(int64_t kind);
@@ -37,6 +37,8 @@ int64_t samaltak_cuda_cudaEventSynchronize(int64_t a_event);
 int64_t samaltak_cuda_cudaEventElapsedTime(int64_t a_start, int64_t a_end, uint8_t *outs, uint64_t outs_len);
 int64_t samaltak_cuda_cudaGetLastError(void);
 int64_t samaltak_cuda_cudaPeekAtLastError(void);
+int64_t samaltak_cuda_cudaMallocHost(uint64_t a_size, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cudaFreeHost(uint64_t a_ptr);
 int64_t samaltak_cuda_driver_available(void);
 int64_t samaltak_cuda_driver_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t outLength);
 int64_t samaltak_cuda_cuInit(uint32_t a_Flags);
@@ -46,6 +48,12 @@ int64_t samaltak_cuda_cuDeviceGet(int32_t a_ordinal, uint8_t *outs, uint64_t out
 int64_t samaltak_cuda_cuDeviceGetName(uint8_t *a_name, uint64_t a_name_len, int32_t a_len, int32_t a_dev);
 int64_t samaltak_cuda_cuDeviceTotalMem(int32_t a_dev, uint8_t *outs, uint64_t outs_len);
 int64_t samaltak_cuda_cuDeviceGetAttribute(int32_t a_attrib, int32_t a_dev, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cuModuleLoadData(const uint8_t *a_image, uint64_t a_image_len, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cuModuleUnload(int64_t a_hmod);
+int64_t samaltak_cuda_cuModuleGetFunction(int64_t a_hmod, const uint8_t *a_name, uint64_t a_name_len, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cuFuncGetAttribute(int32_t a_attrib, int64_t a_hfunc, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cuLaunchKernel(int64_t a_f, uint32_t a_gridDimX, uint32_t a_gridDimY, uint32_t a_gridDimZ, uint32_t a_blockDimX, uint32_t a_blockDimY, uint32_t a_blockDimZ, uint32_t a_sharedMemBytes, int64_t a_hStream, const uint8_t *a_extra, uint64_t a_extra_len);
+int64_t samaltak_cuda_cuStreamWriteValue64(int64_t a_stream, uint64_t a_addr, uint64_t a_value, uint32_t a_flags);
 int64_t samaltak_cuda_cublas_available(void);
 int64_t samaltak_cuda_cublas_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t outLength);
 int64_t samaltak_cuda_cublasCreate(uint8_t *outs, uint64_t outs_len);

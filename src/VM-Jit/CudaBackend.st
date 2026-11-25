@@ -131,6 +131,14 @@ callCudaPeekAtLastError
 	<c: 'int64_t samaltak_cuda_cudaPeekAtLastError(void)'>
 	^-1
 !
+callCudaMallocHost: size outs: outs outsLength: outsLength
+	<c: 'int64_t samaltak_cuda_cudaMallocHost(uint64_t size, uint8_t *outs, uint64_t outsLength)'>
+	^-1
+!
+callCudaFreeHost: ptr
+	<c: 'int64_t samaltak_cuda_cudaFreeHost(uint64_t ptr)'>
+	^-1
+!
 callDriverAvailable
 	<c: 'int64_t samaltak_cuda_driver_available(void)'>
 	^-1
@@ -165,6 +173,30 @@ callCuDeviceTotalMem: dev outs: outs outsLength: outsLength
 !
 callCuDeviceGetAttribute: attrib dev: dev outs: outs outsLength: outsLength
 	<c: 'int64_t samaltak_cuda_cuDeviceGetAttribute(int32_t attrib, int32_t dev, uint8_t *outs, uint64_t outsLength)'>
+	^-1
+!
+callCuModuleLoadData: image imageLength: imageLength outs: outs outsLength: outsLength
+	<c: 'int64_t samaltak_cuda_cuModuleLoadData(const uint8_t *image, uint64_t imageLength, uint8_t *outs, uint64_t outsLength)'>
+	^-1
+!
+callCuModuleUnload: hmod
+	<c: 'int64_t samaltak_cuda_cuModuleUnload(int64_t hmod)'>
+	^-1
+!
+callCuModuleGetFunction: hmod name: name nameLength: nameLength outs: outs outsLength: outsLength
+	<c: 'int64_t samaltak_cuda_cuModuleGetFunction(int64_t hmod, const uint8_t *name, uint64_t nameLength, uint8_t *outs, uint64_t outsLength)'>
+	^-1
+!
+callCuFuncGetAttribute: attrib hfunc: hfunc outs: outs outsLength: outsLength
+	<c: 'int64_t samaltak_cuda_cuFuncGetAttribute(int32_t attrib, int64_t hfunc, uint8_t *outs, uint64_t outsLength)'>
+	^-1
+!
+callCuLaunchKernel: f gridDimX: gridDimX gridDimY: gridDimY gridDimZ: gridDimZ blockDimX: blockDimX blockDimY: blockDimY blockDimZ: blockDimZ sharedMemBytes: sharedMemBytes hStream: hStream extra: extra extraLength: extraLength
+	<c: 'int64_t samaltak_cuda_cuLaunchKernel(int64_t f, uint32_t gridDimX, uint32_t gridDimY, uint32_t gridDimZ, uint32_t blockDimX, uint32_t blockDimY, uint32_t blockDimZ, uint32_t sharedMemBytes, int64_t hStream, const uint8_t *extra, uint64_t extraLength)'>
+	^-1
+!
+callCuStreamWriteValue64: stream addr: addr value: value flags: flags
+	<c: 'int64_t samaltak_cuda_cuStreamWriteValue64(int64_t stream, uint64_t addr, uint64_t value, uint32_t flags)'>
 	^-1
 !
 callCublasAvailable
