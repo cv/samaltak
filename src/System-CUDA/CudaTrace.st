@@ -1,5 +1,5 @@
 Object subclass: #CudaTrace
-	instanceVariableNames: 'entries limit calls since lock'
+	instanceVariableNames: 'entries limit calls since lock busy'
 	classVariableNames: 'Default Tracing Quiet'
 	package: 'System-CUDA'!
 
@@ -31,12 +31,12 @@ reset
 !
 operation: aString detail: aBlock during: workBlock
 	"Run workBlock; while tracing, record it as aString with aBlock's description of it (evaluated only then) and its times, the device's too."
-	Tracing == true ifFalse: [^workBlock value].
+	(Tracing == true and: [Quiet ~~ true]) ifFalse: [^workBlock value].
 	^self default operation: aString detail: aBlock value device: true during: workBlock
 !
 hostOperation: aString detail: aBlock during: workBlock
 	"The same for work that is done when it returns (a copy, a solve): its host time is its time."
-	Tracing == true ifFalse: [^workBlock value].
+	(Tracing == true and: [Quiet ~~ true]) ifFalse: [^workBlock value].
 	^self default operation: aString detail: aBlock value device: false during: workBlock
 !
 call: functionName
@@ -44,7 +44,7 @@ call: functionName
 	(Tracing == true and: [Quiet ~~ true]) ifTrue: [self default count: functionName]
 !
 quietly: aBlock
-	"Run aBlock without counting its calls: my own events."
+	"Run aBlock untraced: my own events, a monitor's sampling, printing an array's values for a tool."
 	| was |
 	was := Quiet.
 	Quiet := true.
@@ -57,6 +57,7 @@ initialize
 	limit := 200.
 	calls := Dictionary new.
 	since := Time millisecondClockValue.
+	busy := Dictionary new.
 	lock := Semaphore forMutualExclusion
 ! !
 
@@ -78,7 +79,7 @@ operation: aString detail: detailString device: aBoolean during: workBlock
 add: anEntry
 	lock critical: [
 		entries addLast: anEntry.
-		[entries size > limit] whileTrue: [self class quietly: [entries removeFirst release]]]
+		[entries size > limit] whileTrue: [self class quietly: [| old | old := entries removeFirst. self resolve: old. old release]]]
 !
 count: functionName
 	lock critical: [| c |
@@ -95,12 +96,36 @@ clear
 		since := Time millisecondClockValue]
 ! !
 
+!CudaTrace methodsFor: 'device time'!
+resolve: anEntry
+	"Read anEntry's device time if done; add it to the second it started in."
+	| was second |
+	was := anEntry isPending.
+	anEntry resolve.
+	(was and: [anEntry deviceMilliseconds notNil]) ifTrue: [
+		second := anEntry startMicros // 1000000.
+		busy at: second put: (busy at: second ifAbsent: [0]) + anEntry deviceMilliseconds.
+		busy size > 900 ifTrue: [(busy keys select: [:k | k < (second - 600)]) do: [:k | busy removeKey: k]]]
+!
+deviceMillisecondsInSecond: anInteger
+	"The device's milliseconds of the traced work that started in the second anInteger (Time microsecondClockValue // 1000000)."
+	self entries.
+	^busy at: anInteger ifAbsent: [0]
+!
+busyPercentOver: seconds
+	"The device's share of each of the last seconds (oldest first) taken by traced work, in percent."
+	| now |
+	self entries.
+	now := Time microsecondClockValue // 1000000.
+	^(now - seconds + 1 to: now) collect: [:s | ((busy at: s ifAbsent: [0]) / 10.0) min: 100]
+! !
+
 !CudaTrace methodsFor: 'accessing'!
 entries
 	"The recorded operations, oldest first (their device times read where done)."
 	| copy |
 	lock critical: [copy := entries asArray].
-	self class quietly: [copy do: [:e | e resolve]].
+	self class quietly: [copy do: [:e | self resolve: e]].
 	^copy
 !
 recent: n
