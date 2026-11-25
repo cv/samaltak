@@ -1,5 +1,5 @@
 Object subclass: #StackRing
-	instanceVariableNames: 'data dataSize head tail count first lastTime depth processes processUses frameKeys framePcs frameHash frameMask frameCount lostFrames frameMarks frameFree frameScan frameReclaimAt frameEpoch slotProcesses slotBuffers slotIds lastFlags decodeKeys decodeStacks decodedFrames decodeEpoch epoch stackMemo'
+	instanceVariableNames: 'data dataSize head tail count first lastTime depth processes processUses frameKeys framePcs frameHash frameMask frameCount lostFrames frameMarks frameFree frameScan frameReclaimAt frameEpoch slotProcesses slotBuffers slotIds lastFlags decodeKeys decodeStacks decodedFrames decodeEpoch epoch stackMemo stackOwner lastProcess lastSlot lastProcSlot'
 	classVariableNames: ''
 	package: 'System-Profiling'!
 
@@ -31,7 +31,7 @@ setBytes: totalBytes depth: maxDepth
 	frameMask := slots - 1.
 	slotProcesses := Array new: 16.
 	slotBuffers := (1 to: 16) collect: [:i | Array new: maxDepth * 2 + 1].
-	slotIds := (1 to: 16) collect: [:i | Array new: maxDepth].
+	slotIds := (1 to: 16) collect: [:i | ByteArray new: maxDepth * 4].
 	fixed := self tableBytes + 16.
 	dataSize := totalBytes - fixed max: 1024.
 	dataSize := dataSize // 8 * 8.
@@ -53,6 +53,7 @@ reset
 	processUses atAllPut: -1.
 	slotProcesses atAllPut: nil.
 	slotBuffers do: [:each | each atAllPut: nil].
+	stackOwner := lastProcess := nil.
 	decodeKeys := decodeStacks := decodedFrames := stackMemo := nil.
 	epoch := (epoch ifNil: [0]) + 1
 ! !
@@ -118,19 +119,28 @@ record: aProcess flags: flagBits class: aClassOrNil size: byteCount
 	^self record: aProcess flags: flagBits class: aClassOrNil size: byteCount from: nil at: 0 count: 0 time: Time microsecondClockValue
 !
 record: aProcess flags: flagBits class: aClassOrNil size: byteCount from: anArrayOrNil at: start count: stackSize time: t
-	"Record a sample taken at t (microsecond clock): with anArrayOrNil nil aProcess's stack now (aProcess not the active process), else the count frames from start in anArrayOrNil (method, block startpc pairs, outermost first, as the VM recorded them: Profiler>>drainBuffer), flagBits including the VM's (2 truncated, 8 just activated). Answer the serial. Never allocates."
+	^self record: aProcess flags: flagBits class: aClassOrNil size: byteCount from: anArrayOrNil at: start count: stackSize shared: 0 time: t
+!
+record: aProcess flags: flagBits class: aClassOrNil size: byteCount from: anArrayOrNil at: start count: stackSize shared: sharedCount time: t
+	"Record a sample taken at t (microsecond clock): with anArrayOrNil nil aProcess's stack now (aProcess not the active process), else the count frames from start in anArrayOrNil (method, block startpc pairs, outermost first, as the VM recorded them: Profiler>>drainBuffer), flagBits including the VM's (2 truncated, 8 just activated); the first sharedCount of them are the first ones of the stack recorded last if that was one of aProcess given so (stackOwner), so they are not compared. Answer the serial. Never allocates."
 	| buffer ids n k r slot o len extra procSlot prev lim truncated |
 	n := 0.
 	k := 0.
 	lastFlags := 0.
 	aProcess isNil ifFalse: [
-		slot := aProcess identityHash \\ 16 + 1.
+		"the process recorded last (most often) has its slots looked up once"
+		aProcess == lastProcess ifFalse: [
+			lastProcess := aProcess.
+			lastSlot := aProcess identityHash \\ 16 + 1.
+			lastProcSlot := 0].
+		slot := lastSlot.
 		buffer := slotBuffers at: slot.
 		(slotProcesses at: slot) == aProcess ifFalse: [
 			slotProcesses at: slot put: aProcess.
 			buffer at: 1 put: nil].
 		anArrayOrNil isNil
 			ifTrue: [
+				stackOwner := nil.
 				r := aProcess profilerStackInto: buffer maxDepth: depth.
 				k := r bitAnd: 255.
 				n := (r bitShift: -8) bitAnd: 255.
@@ -144,8 +154,12 @@ record: aProcess flags: flagBits class: aClassOrNil size: byteCount from: anArra
 				prev := buffer at: 1.
 				(prev isInteger and: [((prev bitShift: -16) bitAnd: 1) = truncated]) ifTrue: [
 					lim := (prev bitAnd: 16rFFFF) min: n.
-					[k < lim and: [(buffer at: k * 2 + 2) == (anArrayOrNil at: start + (k * 2)) and: [
-						(buffer at: k * 2 + 3) = (anArrayOrNil at: start + (k * 2) + 1)]]] whileTrue: [k := k + 1]].
+					stackOwner == aProcess
+						ifTrue: [k := sharedCount min: lim]
+						ifFalse: [
+							[k < lim and: [(buffer at: k * 2 + 2) == (anArrayOrNil at: start + (k * 2)) and: [
+								(buffer at: k * 2 + 3) = (anArrayOrNil at: start + (k * 2) + 1)]]] whileTrue: [k := k + 1]]].
+				stackOwner := aProcess.
 				k + 1 to: n do: [:j |
 					buffer at: j * 2 put: (anArrayOrNil at: start + (j * 2) - 2).
 					buffer at: j * 2 + 1 put: (anArrayOrNil at: start + (j * 2) - 1)].
@@ -155,20 +169,23 @@ record: aProcess flags: flagBits class: aClassOrNil size: byteCount from: anArra
 			id := self frameIdOf: (buffer at: j * 2) pc: ((buffer at: j * 2 + 1) min: 16rFFFE).
 			"A frame that got no id is looked up again with the next sample of the process."
 			id = 0 ifTrue: [buffer at: 1 put: nil].
-			ids at: j put: id]].
+			ids uint32At: j * 4 - 3 put: id]].
 	extra := aClassOrNil isNil ifTrue: [0] ifFalse: [8].
 	len := 8 + extra + (4 * n).
-	self makeRoom: len.
+	"room at head without dropping records, else makeRoom:"
+	(count > first and: [head + len <= dataSize and: [tail < head or: [tail >= (head + len)]]]) ifFalse: [self makeRoom: len].
 	o := head.
-	procSlot := aProcess isNil ifTrue: [0] ifFalse: [self slotOfProcess: aProcess].
-	data at: o + 1 put: ((flagBits bitOr: lastFlags) bitOr: (extra = 0 ifTrue: [0] ifFalse: [16])).
-	data at: o + 2 put: n.
-	data uint16At: o + 3 put: procSlot.
+	procSlot := 0.
+	aProcess isNil ifFalse: [
+		(lastProcSlot ~= 0 and: [(processes at: lastProcSlot) == aProcess])
+			ifTrue: [processUses at: (procSlot := lastProcSlot) put: count]
+			ifFalse: [lastProcSlot := procSlot := self slotOfProcess: aProcess]].
+	data uint32At: o + 1 put: ((((flagBits bitOr: lastFlags) bitOr: (extra = 0 ifTrue: [0] ifFalse: [16])) bitOr: (n bitShift: 8)) bitOr: (procSlot bitShift: 16)).
 	data uint32At: o + 5 put: (t bitAnd: 16rFFFFFFFF).
 	extra = 0 ifFalse: [
 		data uint32At: o + 9 put: (self frameIdOf: aClassOrNil pc: 16rFFFF).
 		data uint32At: o + 13 put: (byteCount min: 16rFFFFFFFF)].
-	1 to: n do: [:j | data uint32At: o + 9 + extra + (j - 1 * 4) put: (ids at: j)].
+	n > 0 ifTrue: [data replaceFrom: o + 9 + extra to: o + 8 + extra + (4 * n) with: ids startingAt: 1].
 	head := o + len.
 	lastTime := t.
 	count := count + 1.
@@ -228,8 +245,8 @@ reclaimFrames
 	1 to: frameMarks size do: [:i | frameMarks at: i put: 0].
 	1 to: slotIds size do: [:s | | ids |
 		ids := slotIds at: s.
-		1 to: ids size do: [:j |
-			((id := ids at: j) isNil or: [id = 0]) ifFalse: [frameMarks at: id put: 1]]].
+		1 to: ids size // 4 do: [:j |
+			(id := ids uint32At: j * 4 - 3) = 0 ifFalse: [frameMarks at: id put: 1]]].
 	o := tail.
 	first to: count - 1 do: [:k |
 		(o >= dataSize or: [(data at: o + 1) = 255]) ifTrue: [o := 0].

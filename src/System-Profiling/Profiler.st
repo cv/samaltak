@@ -1,9 +1,9 @@
 Object subclass: #Profiler
-	instanceVariableNames: 'ring ringBytes frames frameCount marks markCount statsTimes statsValues statsCount running cpuIndex interval allocInterval maxDepth frameCapacity contextSamples startTime idle frameTable lock cpuCache allocCache samplerMicros cpuSampleCount bufferIndex spareBuffer'
+	instanceVariableNames: 'ring ringBytes frames frameCount marks markCount statsTimes statsValues statsCount running cpuIndex interval allocInterval maxDepth frameCapacity contextSamples startTime idle frameTable lock cpuCache allocCache samplerMicros cpuSampleCount bufferIndex spareBuffer stack stackShared'
 	classVariableNames: 'BufferSlots CpuInPlace Default'
 	package: 'System-Profiling'!
 
-Profiler comment: 'I am the always-on sampling profiler. Sampling is timer-interrupt-driven: the VM signals the timer process''s Semaphore (Delay timingSemaphore; the timer process is ''timer interrupt watcher'', priority 80) every interval µs (default 1000) and after every allocInterval bytes allocated (default 256 KB), and the timer process calls me after each wakeup (Delay sampleHook:). samplerTickTake and allocationSampleTake tell what is due: for a CPU tick I record the stack of the process the timer interrupted (Processor preemptedProcess), for an allocation sample the allocating process''s stack plus the class and size of the sampled object (Context samples are only counted). The VM records allocation samples itself, where the sampled process runs, into a buffer (an Array of BufferSlots, two of them, swapped), so that no process switch and no flush of its frames into Contexts is made per sample: the timer process moves them into the ring (drainBuffer) at its next wakeup, when the buffer is three quarters full, and for queries (flushSamples). CPU samples are recorded so too (the timer process then comes every 64 of them); with recordCpuSamplesInPlace: false each wakes the timer process, whose switch flushes the sampled frames into Contexts. Samples go into a StackRing: variable-length records with the stack inline (4-byte frame ids, at most maxDepth frames) in a preallocated buffer, exactly 1 MiB with its tables; recording never allocates, the oldest records are dropped. How many seconds the ring holds depends on the stacks (about 15 s at 1000 samples/s for the walkthrough''s mix). Samples of the idle process are kept but flagged.
+Profiler comment: 'I am the always-on sampling profiler. Sampling is timer-interrupt-driven: the VM signals the timer process''s Semaphore (Delay timingSemaphore; the timer process is ''timer interrupt watcher'', priority 80) every interval µs (default 1000) and after every allocInterval bytes allocated (default 256 KB), and the timer process calls me after each wakeup (Delay sampleHook:). samplerTickTake and allocationSampleTake tell what is due: for a CPU tick I record the stack of the process the timer interrupted (Processor preemptedProcess), for an allocation sample the allocating process''s stack plus the class and size of the sampled object (Context samples are only counted). The VM records allocation samples itself, where the sampled process runs, into a buffer (an Array of BufferSlots, two of them, swapped), so that no process switch and no flush of its frames into Contexts is made per sample; a record leaves out the bottom frames it has in common with the one before, so most are a few slots, and its frames go into the ring without being compared or looked up again: the timer process moves them into the ring (drainBuffer) at its next wakeup, when the buffer is three quarters full, and for queries (flushSamples). CPU samples are recorded so too (the timer process then comes every 64 of them); with recordCpuSamplesInPlace: false each wakes the timer process, whose switch flushes the sampled frames into Contexts. Samples go into a StackRing: variable-length records with the stack inline (4-byte frame ids, at most maxDepth frames) in a preallocated buffer, exactly 1 MiB with its tables; recording never allocates, the oldest records are dropped. How many seconds the ring holds depends on the stacks (about 15 s at 1000 samples/s for the walkthrough''s mix). Samples of the idle process are kept but flagged.
 
 The compositor reports each presented frame with Profiler recordFrame: aFrameRecord (kept in a ring of frameCapacity); Profiler mark: ''label'' drops a ProfileMark. Every 64 CPU samples I checkpoint the VM statistics for the GC and memory summaries.
 
@@ -102,12 +102,14 @@ stop
 startBuffer
 	"The VM records samples into a buffer of mine (see my comment); a VM that cannot has them taken one by one."
 	| buffer |
-	BufferSlots isNil ifTrue: [BufferSlots := 8192].
+	BufferSlots isNil ifTrue: [BufferSlots := 16384].
 	buffer := Array new: BufferSlots.
 	buffer at: 1 put: 1.
 	spareBuffer := Array new: BufferSlots.
+	stack := Array new: maxDepth * 2.
+	stackShared := false.
 	bufferIndex := Smalltalk vm registerExternalSemaphore: buffer.
-	(Smalltalk vm samplerBufferIndex: bufferIndex depth: maxDepth cpu: CpuInPlace ~= false) == false ifTrue: [
+	(Smalltalk vm samplerBufferIndex: bufferIndex depth: maxDepth cpu: CpuInPlace ~= false share: true) == false ifTrue: [
 		Smalltalk vm unregisterExternalSemaphore: bufferIndex.
 		bufferIndex := spareBuffer := nil]
 !
@@ -143,8 +145,8 @@ takeSamples
 	samplerMicros := samplerMicros + (Time microsecondClockValue - t0)
 !
 drainBuffer
-	"Move the samples the VM recorded (Scheduler>>recordSample: has the format) into the ring. The VM goes on in the spare buffer meanwhile: it records only at safepoints, so the swap is one store."
-	| table buffer fill i n flags p f |
+	"Move the samples the VM recorded (Scheduler>>recordSample:at: has the format) into the ring. The VM goes on in the spare buffer meanwhile: it records only at safepoints, so the swap is one store. A record leaves out the k bottom frames that the one before it (perhaps in the other buffer) has too: stack keeps the last record's frames, and when the ring got that record (stackShared) it is told that the first k are unchanged, so it neither compares nor looks them up again."
+	| table buffer fill i n k m flags p f shared |
 	table := Smalltalk vm externalObjects.
 	buffer := table at: bufferIndex.
 	spareBuffer at: 1 put: 1.
@@ -154,7 +156,12 @@ drainBuffer
 	i := 2.
 	[i <= fill] whileTrue: [
 		n := (buffer at: i) bitAnd: 255.
-		flags := (buffer at: i) bitShift: -8.
+		flags := ((buffer at: i) bitShift: -8) bitAnd: 255.
+		k := ((buffer at: i) bitShift: -16) bitAnd: 255.
+		m := n - k.
+		m > 0 ifTrue: [stack replaceFrom: k * 2 + 1 to: n * 2 with: buffer startingAt: i + 5].
+		shared := stackShared ifTrue: [k] ifFalse: [0].
+		stackShared := false.
 		p := buffer at: i + 1.
 		(flags bitAnd: 16) = 0
 			ifTrue: [
@@ -163,13 +170,16 @@ drainBuffer
 					ifFalse: [
 						f := flags bitAnd: 10.
 						p == idle ifTrue: [f := f bitOr: 1].
-						ring record: p flags: f class: nil size: 0 from: buffer at: i + 5 count: n time: (buffer at: i + 2)].
+						ring record: p flags: f class: nil size: 0 from: stack at: 1 count: n shared: shared time: (buffer at: i + 2).
+						stackShared := true].
 				(cpuSampleCount := cpuSampleCount + 1) \\ 64 = 0 ifTrue: [self checkpointStatistics]]
 			ifFalse: [
 				(buffer at: i + 3) == Context
 					ifTrue: [contextSamples := contextSamples + 1]
-					ifFalse: [ring record: p flags: (flags bitAnd: 10) class: (buffer at: i + 3) size: (buffer at: i + 4) from: buffer at: i + 5 count: n time: (buffer at: i + 2)]].
-		i := i + 5 + (2 * n)].
+					ifFalse: [
+						ring record: p flags: (flags bitAnd: 10) class: (buffer at: i + 3) size: (buffer at: i + 4) from: stack at: 1 count: n shared: shared time: (buffer at: i + 2).
+						stackShared := true]].
+		i := i + 5 + (2 * m)].
 	buffer at: 1 put: 1
 !
 flushSamples

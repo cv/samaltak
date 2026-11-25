@@ -1910,8 +1910,6 @@ int64_t opt_runtime_profile_acts_of(frame *f, oop *meths, int64_t *pcs, int64_t 
     int64_t v;
     int32_t *rec;
     int32_t nacts;
-    int64_t local[256];
-    int64_t *offs;
     int64_t p;
     int32_t j;
     int64_t ps;
@@ -1941,17 +1939,15 @@ int64_t opt_runtime_profile_acts_of(frame *f, oop *meths, int64_t *pcs, int64_t 
     }
     rec = h->meta + h->sp_table[k];
     nacts = rec[4];
-    memset(&local, 0, sizeof local);
-    offs = local;
     p = 5;
     for (j = 0; j <= nacts - 1; j++) {
-        offs[j] = p;
         p = p + 5 + rec[p + 4];
     }
     ps = p + 1;
-    for (j_2 = nacts - 1; j_2 >= 0; j_2--) {
+    p = 5;
+    for (j_2 = 0; j_2 <= nacts - 1; j_2++) {
+        n = start + nacts - 1 - j_2;
         if (n < max) {
-            p = offs[j_2];
             i = rec[p];
             meths[n] = ((oop *)(h->code_start + h->pool_offset))[i];
             loc = rec[p + 1];
@@ -1978,10 +1974,11 @@ int64_t opt_runtime_profile_acts_of(frame *f, oop *meths, int64_t *pcs, int64_t 
                 spc = ((int64_t)o_2) >> 1;
             }
             pcs[n] = spc;
-            n = n + 1;
         }
+        p = p + 5 + rec[p + 4];
     }
-    return n;
+    n = start + nacts;
+    return n < max ? n : max;
 }
 
 /* OptRuntime>>release */

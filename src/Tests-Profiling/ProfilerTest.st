@@ -90,6 +90,10 @@ smallRing
 !
 stackOf: aSample includes: aSelector
 	^aSample stack anySatisfy: [:f | f method selector == aSelector and: [f methodClass == ProfilerTest]]
+!
+allocDown: d size: n
+	"d activations of me, then an Array of n."
+	^d <= 1 ifTrue: [Array new: n] ifFalse: [self allocDown: d - 1 size: n]
 ! !
 
 !ProfilerTest methodsFor: 'tests'!
@@ -130,7 +134,7 @@ testAlwaysOn
 	self assert: ((profile samplesFor: Processor activeProcess) size * 100 / profile samples size) >= 80
 !
 testAllocationSamplesTakeNoProcessSwitch
-	"The VM records allocation samples where the allocating process runs (Scheduler>>recordSample:, Profiler>>drainBuffer): it is neither switched away from nor are its frames flushed into Contexts at each (it was twice a sample); the timer process moves them into the ring when it comes for a CPU sample or a query."
+	"The VM records allocation samples where the allocating process runs (Scheduler>>recordSample:at:, Profiler>>drainBuffer): it is neither switched away from nor are its frames flushed into Contexts at each (it was twice a sample); the timer process moves them into the ring when it comes for a CPU sample or a query."
 	| t0 before d profile allocs keep |
 	before := Smalltalk vm statistics.
 	t0 := Time microsecondClockValue.
@@ -142,6 +146,23 @@ testAllocationSamplesTakeNoProcessSwitch
 	self assert: allocs size >= 200.
 	self assert: (allocs allSatisfy: [:s | s stack notEmpty and: [s allocatedClass == Array]]).
 	self assert: d processSwitches < (allocs size // 2) description: [d processSwitches printString, ' switches for ', allocs size printString, ' allocation samples and ', profile samples size printString, ' CPU samples']
+!
+testInPlaceStacksAreWhole
+	"A record the VM makes in place leaves out the bottom frames that the one before it has too (Scheduler>>recordSample:at:); the stacks Profiler>>drainBuffer rebuilds from them are whole: an allocation sample of an Array made d activations of allocDown:size: deep has d of them, as its size tells, and this method below them."
+	| t0 profile samples keep d |
+	t0 := Time microsecondClockValue.
+	[1 to: 20000 do: [:i |
+		d := i * 7 \\ 9 + 1.
+		keep := self allocDown: d size: 1000 + (10 * d)].
+	 profile := Profiler from: t0 to: Time microsecondClockValue.
+	 samples := (profile allocationsFor: Processor activeProcess) select: [:s |
+		s allocatedClass == Array and: [s allocationSize between: 16 + (8 * 1010) and: 16 + (8 * 1090)]].
+	 samples size < 200 and: [profile stop - t0 < 5000000]] whileTrue.
+	self assert: samples size >= 200.
+	samples do: [:s |
+		d := (s allocationSize - 16) // 8 - 1000 // 10.
+		self assert: (s stack count: [:f | f method selector == #allocDown:size:]) = d description: [s printString, ': ', d printString, ' deep, stack ', (s stack collect: [:f | f label]) printString].
+		s isTruncated ifFalse: [self assert: (self stackOf: s includes: #testInPlaceStacksAreWhole)]]
 !
 testCpuSamplesInPlace
 	"CPU samples recorded in place (the default) take no switch either."

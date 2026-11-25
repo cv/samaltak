@@ -472,7 +472,7 @@ void prim_sampler_buffer(void)
     }
     o_6 = prim_base[1];
     o_7 = prim_base[2];
-    sampler_buffer(((int64_t)o_6) >> 1, ((int64_t)o_7) >> 1, (prim_nargs > 2) && (prim_base[3] == true_oop));
+    sampler_buffer(((int64_t)o_6) >> 1, ((int64_t)o_7) >> 1, (prim_nargs > 2) && (prim_base[3] == true_oop), (prim_nargs > 3) && (prim_base[4] == true_oop));
     v = prim_base[0];
     prim_result = v;
     prim_status = PS_OK;

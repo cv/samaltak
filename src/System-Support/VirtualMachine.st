@@ -255,6 +255,11 @@ samplerBufferIndex: index depth: maxDepth cpu: aBoolean
 	<primitive: 'samplerBuffer'>
 	^false
 !
+samplerBufferIndex: index depth: maxDepth cpu: aBoolean share: shareBoolean
+	"As samplerBufferIndex:depth:cpu:, and with shareBoolean each record leaves out the bottom frames that the previous record has too (Scheduler>>recordSample:at: has the format; a VM that predates it records them all, k 0). Answer false if the VM cannot."
+	<primitive: 'samplerBuffer'>
+	^false
+!
 allocationSampleInfo
 	"Answer {class. size} of the last sampled allocation."
 	<primitive: 'allocationSampleInfo'>
