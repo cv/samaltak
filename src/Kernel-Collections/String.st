@@ -717,7 +717,13 @@ new: size withAll: aCharacter
 	^result
 !
 with: aCharacter
-	^(self withAll: (Array with: aCharacter))
+	"Character>>asString: no Array to make first (a JSON parser's every character)."
+	| result |
+	result := ((self == String or: [self == ByteString])
+		ifTrue: [(aCharacter isCharacter and: [aCharacter value > 255]) ifTrue: [WideString] ifFalse: [ByteString]]
+		ifFalse: [self]) basicNew: 1.
+	result at: 1 put: aCharacter.
+	^result
 !
 with: first with: second
 	^self withAll: (Array with: first with: second)
