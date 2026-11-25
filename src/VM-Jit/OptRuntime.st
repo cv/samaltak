@@ -1093,6 +1093,8 @@ materialize: f
 	| h k mode top ctx n s first sunk c count full |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	k := f pc - h bcSize asInt32.
+	"pushed but not entered yet (its pc is not one of the code's: resume:): the interpreter's frame as it was pushed"
+	k < 0 ifTrue: [^interpreter flushFrame: f].
 	top := f = (interpreter frames + (interpreter nframes - 1)).
 	mode := 0.
 	(top and: [f sp = (h slots + 1) asInt32 and: [((self recordOf: h index: k) at: 0) = SP_CALL]]) ifTrue: [mode := 2].
@@ -1173,6 +1175,8 @@ resume: f
 	| h k off |
 	h := self cCoerce: f code to: 'JitMethod *'.
 	k := f pc - h bcSize asInt32.
+	"not in its code (a bytecode pc): the interpreter's frame, its position the ip (it may have run it since the pc was set, a block activated for the interpreter)"
+	k < 0 ifTrue: [f pc: (f ip - (interpreter methodBcs: f method)) asInt32].
 	off := (self isAlive: h) ifTrue: [runtime mapOffsetOf: h pc: f pc] ifFalse: [-1].
 	(off < 0 and: [k < 0]) ifTrue: [
 		"not entered yet: the lower tier runs it"
