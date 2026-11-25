@@ -52,7 +52,8 @@ import) shift
 known) [ $# -eq 3 ] && [ -s "$L" ] || exit 0
   lines <"$3" | grep -v -E "$GENERIC" | while IFS= read -r l; do
     awk -F '\t' -v s="$2" -v l="$l" '$3 == s && $5 == "" && $4 == "passed" { p[$2] = 1 } $3 == s && $5 == l && ($4 == "failed" || $4 == "flake") { f++; t[$2] = 1 }
-      END { for (k in t) { n++; if (k in p) b++ } if (f) printf "flakes: known: %s (failed %d times before, in %d trees, %d of which also passed)\n", l, f, n, b + 0 }' "$L"
+      $5 == l && $4 == "passed" { noise = 1 }
+      END { for (k in t) { n++; if (k in p) b++ } if (f && !noise) printf "flakes: known: %s (failed %d times before, in %d trees, %d of which also passed)\n", l, f, n, b + 0 }' "$L"
   done ;;
 report|[0-9]*) n=${2:-${1:-15}}; case $n in *[!0-9]*) n=15 ;; esac
   [ -s "$L" ] || { echo "flakes: no gates recorded in $L"; exit 0; }

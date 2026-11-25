@@ -21,9 +21,21 @@ XPID=$!
 S=nvworld-$$
 trap '$CTL --session $S close >/dev/null 2>&1 || true; kill $XPID 2>/dev/null || true' EXIT
 sleep 1
+# open on the recording clock, at most 3 minutes, twice: now and then a VM started with --work-clock stops serving
+# its control port before its first command (its listening socket is not polled: the clock stands still, and nothing
+# else can wake it), and the open would wait for its answer for ever
+open_world() {
+	for attempt in 1 2; do
+		DISPLAY=$D SAMALTAK_GPU=$gpu SAMALTAK_SCREEN=$screen timeout -k 10 180 $CTL --session $S open --image "$OUT/samaltak.image" --window-size 1920x1080 --work-clock >/dev/null && return 0
+		# a flake (tests/lib/rerun.sh): the gate lists it, the ledger records it
+		echo "flake: world_test: the World on $run did not answer its first command within 3 minutes (attempt $attempt)"
+		$CTL --session $S close >/dev/null 2>&1 || true
+	done
+	return 1
+}
 for run in nv software nv-kms software-kms; do
 	gpu=${run%-kms}; sfx=${run#$gpu}; screen=; [ -n "$sfx" ] && screen=memory:1920x1080
-	DISPLAY=$D SAMALTAK_GPU=$gpu SAMALTAK_SCREEN=$screen $CTL --session $S open --image "$OUT/samaltak.image" --window-size 1920x1080 --work-clock >/dev/null
+	open_world
 	$CTL --session $S wait idle 20000 >/dev/null || true
 	$CTL --session $S wait 4000 >/dev/null
 	n=0
