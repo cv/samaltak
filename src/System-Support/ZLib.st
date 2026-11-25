@@ -51,19 +51,6 @@ decompress: bytes
 inflate: bytes
 	^self new inflate: bytes from: 1
 !
-adler32Of: bytes
-	"The VM's primitive (DeflateMatcher), else adler32InSmalltalkOf:."
-	^(self primAdler32Of: bytes) ifNil: [self adler32InSmalltalkOf: bytes]
-!
-primAdler32Of: bytes
-	<primitive: 'zlibAdler32'>
-	^nil
-!
-primCount: litLens distances: distances count: count into: counts
-	"ZLib>>countTokens:distances:count:literals:distances: in the VM: counts (286 literal/length then 30 distance uint32) += the tokens' codes; answers their extra bits; nil if it cannot."
-	<primitive: 'zlibTokenCounts'>
-	^nil
-!
 primWriteTokens: litLens distances: distances count: count table: table into: output size: size bits: bits count: bitCount
 	"ZLib>>writeTokens:distances:count:literals:distances: in the VM: answers the output's new size times 8 plus the bits pending, which are in the byte after it; nil if it cannot (an older VM, a token out of range)."
 	<primitive: 'zlibWriteTokens'>
@@ -90,8 +77,8 @@ historyLimit
 	"The most bytes a stream keeps of its earlier pieces and the next together before it drops all but the window (deflate:final:): 1 MB, in a buffer the pieces are copied into, so that the window moves (and the hash chains are rebased) only once a megabyte."
 	^1048576
 !
-adler32InSmalltalkOf: bytes
-	"Sums are reduced modulo 65521 every 5552 bytes."
+adler32Of: bytes
+	"The Adler-32 of bytes (RFC 1950): the sums reduced modulo 65521 every 5552 bytes. In optimized code the loop keeps them untagged (docs/jit.md): within 1.1x of the VM's C, whose primitive (zlibAdler32, 209) is retired."
 	| a b i n stop |
 	a := 1.
 	b := 0.
@@ -303,17 +290,13 @@ hashAt: p
 !
 writeBlock: litLens distances: distances count: count from: start to: stop final: final
 	"Write count tokens (input bytes start to stop) as the shortest of a dynamic, fixed or stored block."
-	| litFreq distFreq extraBits litLengths distLengths header dynamicBits fixedBits storedBits counts |
-	counts := ByteArray new: 1264.
-	extraBits := self class primCount: litLens distances: distances count: count into: counts.
-	extraBits isNil
-		ifTrue: [
-			litFreq := Array new: 286 withAll: 0.
-			distFreq := Array new: 30 withAll: 0.
-			extraBits := self countTokens: litLens distances: distances count: count literals: litFreq distances: distFreq]
-		ifFalse: [
-			litFreq := (0 to: 285) collect: [:i | counts uint32At: i * 4 + 1].
-			distFreq := (0 to: 29) collect: [:i | counts uint32At: i * 4 + 1145]].
+	| litFreq distFreq extraBits litLengths distLengths header dynamicBits fixedBits storedBits |
+	"counted in 32-bit words, whose elements optimized code keeps untagged"
+	litFreq := Bitmap new: 286.
+	distFreq := Bitmap new: 30.
+	extraBits := self countTokens: litLens distances: distances count: count literals: litFreq distances: distFreq.
+	litFreq := litFreq asArray.
+	distFreq := distFreq asArray.
 	litFreq at: 257 put: 1.
 	litLengths := self class lengthsFor: litFreq limit: 15.
 	distLengths := self class lengthsFor: distFreq limit: 15.
@@ -333,7 +316,7 @@ writeBlock: litLens distances: distances count: count from: start to: stop final
 			self writeTokens: litLens distances: distances count: count literals: litLengths distances: distLengths]
 !
 countTokens: litLens distances: distances count: count literals: litFreq distances: distFreq
-	"litFreq and distFreq += the codes of count tokens; answer the extra bits they need. The fallback of the VM's zlibTokenCounts."
+	"litFreq and distFreq += the codes of count tokens; answer the extra bits they need. Into Bitmaps (writeBlock:...), whose counts optimized code keeps untagged: ZLib compress stays within 3 % of what it took with the VM's zlibTokenCounts (211, retired)."
 	| extraBits |
 	extraBits := 0.
 	1 to: count do: [:i | | v c d |

@@ -3,7 +3,7 @@ VMModule subclass: #DeflateCoder
 	classVariableNames: ''
 	package: 'VM-Core'!
 
-DeflateCoder comment: 'The Huffman coding of a deflate block''s tokens for the zlibWriteTokens and zlibTokenCounts primitives (ObjectPrimitives), bit for bit what ZLib>>writeTokensInSmalltalk:distances:count:table: writes: each token (ZLib>>matchesFrom:head:prev:literals:distances:: a literal byte, or 256 + a match''s length with its distance, uint16 each) as its literal/length code, its length''s extra bits, its distance''s code and extra bits, then the end-of-block code, least significant bit first into bytes. The codes come from a table of 286 literal/length then 30 distance entries, each a uint32 of the (bit-reversed) code and its length << 16; the length and distance codes and extra bits are computed (RFC 1951 3.2.5). Tokens out of range and codes longer than 15 bits end the coding with a failure, so at most 6 bytes are written a token.'!
+DeflateCoder comment: 'The Huffman coding of a deflate block''s tokens for the zlibWriteTokens primitive (ObjectPrimitives; zlibTokenCounts, 211, is retired), bit for bit what ZLib>>writeTokensInSmalltalk:distances:count:table: writes: each token (ZLib>>matchesFrom:head:prev:literals:distances:: a literal byte, or 256 + a match''s length with its distance, uint16 each) as its literal/length code, its length''s extra bits, its distance''s code and extra bits, then the end-of-block code, least significant bit first into bytes. The codes come from a table of 286 literal/length then 30 distance entries, each a uint32 of the (bit-reversed) code and its length << 16; the length and distance codes and extra bits are computed (RFC 1951 3.2.5). Tokens out of range and codes longer than 15 bits end the coding with a failure, so at most 6 bytes are written a token.'!
 
 !DeflateCoder methodsFor: 'codes'!
 lengthCodeOf: len
@@ -94,30 +94,4 @@ write: lits distances: dists count: count table: table into: out at: start bits:
 		i := i + 1].
 	out at: p put: (acc bitAnd: 255) asUInt8.
 	^p * 8 + n
-!
-count: lits distances: dists count: count into: freqs
-	"freqs (286 literal/length then 30 distance uint32 counters) += the codes of count tokens; answer the extra bits they need, -1 for an invalid token (freqs partly counted)."
-	<function>
-	<var: #lits type: 'uint16_t *'>
-	<var: #dists type: 'uint16_t *'>
-	<var: #count type: 'int64_t'>
-	<var: #freqs type: 'uint32_t *'>
-	<returns: 'int64_t'>
-	| extra v c d |
-	extra := 0.
-	0 to: count - 1 do: [:i |
-		v := (lits at: i) asInt64.
-		v < 256
-			ifTrue: [freqs at: v put: (freqs at: v) + 1]
-			ifFalse: [
-				(v < 259 or: [v > 514]) ifTrue: [^-1].
-				c := self lengthCodeOf: v - 256.
-				freqs at: 257 + c put: (freqs at: 257 + c) + 1.
-				extra := extra + (self lengthExtraOf: c).
-				d := (dists at: i) asInt64.
-				(d < 1 or: [d > 32768]) ifTrue: [^-1].
-				c := self distanceCodeOf: d - 1.
-				freqs at: 286 + c put: (freqs at: 286 + c) + 1.
-				extra := extra + (self distanceExtraOf: c)]].
-	^extra
 ! !

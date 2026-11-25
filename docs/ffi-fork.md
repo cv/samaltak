@@ -12,6 +12,12 @@ PixelPack 213, ZRLE 214, PixelDiff 215, the byte-range compares 119/122, the dev
 
 - The fork's numbered primitives keep their numbers: none collides with upstream's (its new ones are 250–265; the
   retired numbers stay reserved, and the fork's 207–215 sit after the reserved guest display 200–206).
+- Retired since, their numbers reserved (not reused): 209 `zlibAdler32`, 211 `zlibTokenCounts` and 215
+  `pixelBlocksDiff`. The opt tier keeps their loops' SmallIntegers untagged ([jit.md](jit.md)), and their Smalltalk
+  (`ZLib class>>adler32Of:`, `ZLib>>countTokens:...` into Bitmaps, `RfbDiffSource>>compare:with:into:`) met the
+  review's bars against them (`Fallbacks.st`, [benchmarks.md](benchmarks.md)): Adler-32 of 5.18 MB 1.07× the C
+  (≤ 1.5×), ZLib compress of the filtered screenshot +2.4 % with both deflate ones gone (≤ +5 %), a 1440×900
+  `RfbDiffSource` frame 0.48 ms (≤ 0.6 ms; the primitive 0.45).
   `tests/vm/ffi_cutover.py check` passes with them in the table.
 - The one fork change that the FFI cannot carry is uploading a texture from an address outside the heap
   (`HostFramePresenter`, `NvComputeGPU`'s back buffer): the image passes no raw pointers through the FFI, so it is
@@ -52,7 +58,7 @@ No. An FFI-bound C function is still C in the VM: binding a kernel through the F
 whether it is native, so it is neither a way to retire a primitive nor a reason to keep one. The review's split
 stands: keep what needs hardware instructions or SIMD (crypto and CRC, ByteSearch and the string kernels, the
 byte-range compares, PixelPack, PNG, rawBytesReplace, PixelRows), and retire the scalar loops (Adler-32, the token
-counts, PixelDiff, then ZRLE and the matcher) only when the opt tier's loop work makes their Smalltalk fast enough,
+counts and PixelDiff, retired; then ZRLE and the matcher) only when the opt tier's loop work makes their Smalltalk fast enough,
 each behind its benchmark. The optimized site removes the send and primitive dispatch (a few ns), which matters for
 small calls; the fork's kernels run on kilobytes to megabytes, where it is noise.
 

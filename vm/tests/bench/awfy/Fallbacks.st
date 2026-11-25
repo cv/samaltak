@@ -1,4 +1,4 @@
-"The VM's scalar performance primitives against their Smalltalk fallbacks (docs/benchmarks.md, Fallbacks): Fb<Name> runs the fallback, Fb<Name>Prim the primitive, on a real 1440x900 screenshot (prototypes/screenshots/proto-4-morphic.png, 5.18 MB of RGBA). A primitive retired leaves its Fb<Name>Prim failing (it no longer exists)."!
+"The VM's scalar performance primitives against their Smalltalk fallbacks (docs/benchmarks.md, Primitives and their fallbacks): Fb<Name> runs the fallback, Fb<Name>Prim the primitive, on a real 1440x900 screenshot (prototypes/screenshots/proto-4-morphic.png, 5.18 MB of RGBA). A retired primitive's Fb<Name> runs what is left (Smalltalk; the primitive in an older tree) and has no Fb<Name>Prim: FbAdler (zlibAdler32), FbPixelDiff (pixelBlocksDiff)."!
 
 Benchmark subclass: #FbScreen
 	instanceVariableNames: 'rgba width height'
@@ -10,11 +10,6 @@ FbScreen subclass: #FbAdler
 	classVariableNames: ''
 	package: 'AWFY'!
 
-FbScreen subclass: #FbAdlerPrim
-	instanceVariableNames: ''
-	classVariableNames: ''
-	package: 'AWFY'!
-
 FbScreen subclass: #FbCompress
 	instanceVariableNames: 'filtered'
 	classVariableNames: ''
@@ -22,11 +17,6 @@ FbScreen subclass: #FbCompress
 
 FbScreen subclass: #FbPixelDiff
 	instanceVariableNames: 'source frames changed'
-	classVariableNames: ''
-	package: 'AWFY'!
-
-FbPixelDiff subclass: #FbPixelDiffPrim
-	instanceVariableNames: ''
 	classVariableNames: ''
 	package: 'AWFY'!
 
@@ -94,21 +84,11 @@ initialize
 benchmark
 	"Adler-32 of the 5.18 MB, 10 times."
 	| r |
-	10 timesRepeat: [r := ZLib adler32InSmalltalkOf: rgba].
+	10 timesRepeat: [r := ZLib adler32Of: rgba].
 	^r
 !
 verifyResult: result
 	^result = (ZLib adler32Of: rgba)
-! !
-
-!FbAdlerPrim methodsFor: 'benchmarking'!
-benchmark
-	| r |
-	10 timesRepeat: [r := ZLib primAdler32Of: rgba].
-	^r
-!
-verifyResult: result
-	^result = (ZLib adler32InSmalltalkOf: rgba)
 ! !
 
 !FbCompress methodsFor: 'benchmarking'!
@@ -144,7 +124,7 @@ initialize
 	changed := OrderedCollection new
 !
 compare: bytes
-	source compareInSmalltalk: (0 @ 0 extent: width @ height) with: bytes into: changed
+	source compare: (0 @ 0 extent: width @ height) with: bytes into: changed
 !
 benchmark
 	"20 frames, every other one changed in three places."
@@ -155,11 +135,6 @@ benchmark
 verifyResult: result
 	"the blocks of the three changes, in 10 of the frames"
 	^result > 0 and: [result \\ 10 = 0]
-! !
-
-!FbPixelDiffPrim methodsFor: 'benchmarking'!
-compare: bytes
-	source compare: (0 @ 0 extent: width @ height) with: bytes into: changed
 ! !
 
 !FbMismatch methodsFor: 'benchmarking'!

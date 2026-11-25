@@ -85,7 +85,7 @@ testMatchesPrimitiveRefusesBadArguments
 	self assert: (ZLib primMatches: #[1 2 3] from: 5 head: head prev: prev literals: lits distances: dists chain: 16 size: 3) isNil
 !
 testTokenPrimitivesMatchSmalltalk
-	"The VM's token coding (zlibWriteTokens) and counting (zlibTokenCounts) are ZLib's Smalltalk's, bit for bit: blocks of literals, short and long matches at every distance code, after 0 to 7 pending bits, with fixed and with skewed dynamic codes."
+	"The VM's token coding (zlibWriteTokens) is ZLib's Smalltalk's, bit for bit, and ZLib's counting RFC 1951's (assertCountsOf:...): blocks of literals, short and long matches at every distance code, after 0 to 7 pending bits, with fixed and with skewed dynamic codes."
 	| random data z head prev lits dists r count dynamic |
 	random := Random seed: 17.
 	data := ((1 to: 120000) collect: [:i | i \\ 3000 < 1500 ifTrue: [(random nextInt: 256) - 1] ifFalse: [i \\ 3000 < 2200 ifTrue: [i \\ 5] ifFalse: [i \\ 251]]]) asByteArray.
@@ -108,32 +108,32 @@ testTokenPrimitivesMatchSmalltalk
 		self assertCodingOf: lits distances: dists count: 1000 + pending literals: dynamic distances: ((1 to: 30) collect: [:i | i \\ 4 + 5]) pending: pending]
 !
 testTokenPrimitivesRefuseBadArguments
-	| lits dists table counts |
+	| lits dists table |
 	lits := ByteArray new: 131070.
 	dists := ByteArray new: 131070.
 	table := ByteArray new: 1264.
-	counts := ByteArray new: 1264.
 	self assert: (ZLib primWriteTokens: lits distances: dists count: 10 table: table into: (ByteArray new: 68) size: 0 bits: 0 count: 0) notNil.
 	self assert: (ZLib primWriteTokens: lits distances: dists count: 10 table: table into: (ByteArray new: 67) size: 0 bits: 0 count: 0) isNil.
 	self assert: (ZLib primWriteTokens: lits distances: dists count: 10 table: table into: (ByteArray new: 100) size: 0 bits: 4 count: 2) isNil.
 	table uint32At: 5 put: 16r100000.
-	self assert: (ZLib primWriteTokens: lits distances: dists count: 10 table: table into: (ByteArray new: 100) size: 0 bits: 0 count: 0) isNil.
-	self assert: (ZLib primCount: lits distances: dists count: 10 into: counts) equals: 0.
-	self assert: (counts uint32At: 1) equals: 10.
-	lits uint16At: 3 put: 257.
-	self assert: (ZLib primCount: lits distances: dists count: 10 into: counts) isNil.
-	lits uint16At: 3 put: 300.
-	self assert: (ZLib primCount: lits distances: dists count: 10 into: counts) isNil.
-	dists uint16At: 3 put: 44.
-	self assert: (ZLib primCount: lits distances: dists count: 10 into: counts) equals: 3 + 4
+	self assert: (ZLib primWriteTokens: lits distances: dists count: 10 table: table into: (ByteArray new: 100) size: 0 bits: 0 count: 0) isNil
 !
-testAdler32Primitive
-	"The VM's Adler-32 is the Smalltalk one's, across its 5552-byte reductions."
+testAdler32
+	"ZLib's Adler-32 is RFC 1950's (its sums reduced at every byte here), across its 5552-byte reductions, and its example's."
+	| reference |
+	reference := [:data | | a b |
+		a := 1.
+		b := 0.
+		data do: [:x |
+			a := a + x \\ 65521.
+			b := b + a \\ 65521].
+		(b bitShift: 16) + a].
+	self assert: (ZLib adler32Of: 'Wikipedia' asByteArray) equals: 16r11E60398.
 	#(0 1 3 4 5 5551 5552 5553 11104 100001) do: [:n | | data |
 		data := self randomBytes: n seed: n.
-		self assert: (ZLib primAdler32Of: data) equals: (ZLib adler32InSmalltalkOf: data).
+		self assert: (ZLib adler32Of: data) equals: (reference value: data).
 		data := ByteArray new: n withAll: 255.
-		self assert: (ZLib primAdler32Of: data) equals: (ZLib adler32InSmalltalkOf: data)]
+		self assert: (ZLib adler32Of: data) equals: (reference value: data)]
 !
 testCorruptStreamsAreRefused
 	| z |
@@ -146,14 +146,32 @@ testCorruptStreamsAreRefused
 
 !ZLibTest methodsFor: 'support'!
 assertCountsOf: lits distances: dists count: count
-	| counts litFreq distFreq extra |
-	counts := ByteArray new: 1264.
-	litFreq := Array new: 286 withAll: 0.
-	distFreq := Array new: 30 withAll: 0.
+	"countTokens: counts the codes RFC 1951 (3.2.5) gives the tokens, and their extra bits: its codes computed here."
+	| litFreq distFreq extra lit dist bits |
+	litFreq := Bitmap new: 286.
+	distFreq := Bitmap new: 30.
 	extra := ZLib new countTokens: lits distances: dists count: count literals: litFreq distances: distFreq.
-	self assert: (ZLib primCount: lits distances: dists count: count into: counts) equals: extra.
-	self assert: ((0 to: 285) collect: [:i | counts uint32At: i * 4 + 1]) equals: litFreq.
-	self assert: ((0 to: 29) collect: [:i | counts uint32At: i * 4 + 1145]) equals: distFreq
+	lit := Array new: 286 withAll: 0.
+	dist := Array new: 30 withAll: 0.
+	bits := 0.
+	1 to: count do: [:i | | v len c dd |
+		v := lits uint16At: 2 * i - 1.
+		v < 256
+			ifTrue: [lit at: v + 1 put: (lit at: v + 1) + 1]
+			ifFalse: [
+				len := v - 256.
+				c := len = 258
+					ifTrue: [28]
+					ifFalse: [len - 3 < 8 ifTrue: [len - 3] ifFalse: [| e | e := (len - 3) highBit - 3. 4 * (e + 1) + ((len - 3 bitShift: e negated) bitAnd: 3)]].
+				lit at: 258 + c put: (lit at: 258 + c) + 1.
+				bits := bits + ((c < 8 or: [c = 28]) ifTrue: [0] ifFalse: [(c bitShift: -2) - 1]).
+				dd := (dists uint16At: 2 * i - 1) - 1.
+				c := dd < 4 ifTrue: [dd] ifFalse: [| k | k := dd highBit - 1. 2 * k + ((dd bitShift: 1 - k) bitAnd: 1)].
+				dist at: c + 1 put: (dist at: c + 1) + 1.
+				bits := bits + (c < 4 ifTrue: [0] ifFalse: [(c bitShift: -1) - 1])]].
+	self assert: extra equals: bits.
+	self assert: litFreq asArray equals: lit.
+	self assert: distFreq asArray equals: dist
 !
 assertCodingOf: lits distances: dists count: count literals: litLengths distances: distLengths pending: pending
 	"writeTokens: (the primitive) and writeTokensInSmalltalk: give the same bytes and pending bits after pending bits 1, 0, 1, ..."

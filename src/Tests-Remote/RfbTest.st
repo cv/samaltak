@@ -704,13 +704,13 @@ diffSource: ext copy: bytes
 		instVarNamed: 'copy' put: bytes;
 		yourself
 !
-testChangedBlocksPrimitiveIsTheSmalltalk
-	"The pixelBlocksDiff primitive finds the blocks and makes the copy that the Smalltalk does: rectangles anywhere, of any size, with a few bytes changed or many."
+testChangedBlocksAreThePixelsThatDiffer
+	"compare:with:into: finds the 16x16 blocks (on the screen's grid, clipped to the rectangle) with a pixel that differs, and no others, and leaves the rectangle's pixels in the copy: rectangles anywhere, of any size, with a few bytes changed or many."
 	| random ext base |
 	random := Random seed: 8642.
 	ext := 203 @ 117.
 	base := ((1 to: ext x * ext y * 4) collect: [:i | random nextInt: 3]) asByteArray.
-	1 to: 200 do: [:t | | x y w h rect bytes a b ca cb marks |
+	1 to: 200 do: [:t | | x y w h rect bytes d changed expected differs covered |
 		x := (random nextInt: ext x) - 1.
 		y := (random nextInt: ext y) - 1.
 		w := random nextInt: ext x - x.
@@ -721,32 +721,21 @@ testChangedBlocksPrimitiveIsTheSmalltalk
 		(#(0 1 5 50 5000) at: t \\ 5 + 1) timesRepeat: [| i |
 			i := random nextInt: bytes size.
 			bytes at: i put: 255 - (bytes at: i)].
-		a := self diffSource: ext copy: base copy.
-		b := self diffSource: ext copy: base copy.
-		marks := ByteArray new: w + 31 // 16 * (h + 31 // 16).
-		self assert: (a primBlocks: bytes width: w height: h into: base copy stride: ext x * 4 left: x top: y block: 16 marks: marks) notNil.
-		ca := OrderedCollection new.
-		cb := OrderedCollection new.
-		a compare: rect with: bytes into: ca.
-		b compareInSmalltalk: rect with: bytes into: cb.
-		self assert: ca asArray equals: cb asArray.
-		self assert: (a instVarNamed: 'copy') equals: (b instVarNamed: 'copy')]
-!
-testChangedBlocksPrimitiveRefuses
-	"Rectangles outside the copy, marks too few, the same object twice."
-	| d copy px marks ok |
-	d := self diffSource: 32 @ 32 copy: nil.
-	copy := ByteArray new: 32 * 32 * 4.
-	px := ByteArray new: 16 * 16 * 4.
-	marks := ByteArray new: 4.
-	ok := [:pixels :c :left :top :m | d primBlocks: pixels width: 16 height: 16 into: c stride: 128 left: left top: top block: 16 marks: m].
-	self assert: (ok valueWithArguments: {px. copy. 16. 16. marks}) equals: 0.
-	self assert: (ok valueWithArguments: {px. copy. 8. 8. marks}) equals: 0.
-	self assert: (ok valueWithArguments: {px. copy. 8. 8. ByteArray new: 3}) isNil.
-	self assert: (ok valueWithArguments: {px. copy. 17. 0. marks}) isNil.
-	self assert: (ok valueWithArguments: {px. copy. 0. 17. marks}) isNil.
-	self assert: (ok valueWithArguments: {ByteArray new: 1023. copy. 0. 0. marks}) isNil.
-	self assert: (ok valueWithArguments: {px. px. 0. 0. marks}) isNil.
-	self assert: (ok valueWithArguments: {px. copy. 0. 0. copy}) isNil.
-	self assert: (ok valueWithArguments: {px. copy. -1. 0. marks}) isNil
+		d := self diffSource: ext copy: base copy.
+		changed := OrderedCollection new.
+		d compare: rect with: bytes into: changed.
+		expected := base copy.
+		0 to: h - 1 do: [:j | expected replaceFrom: (y + j) * ext x + x * 4 + 1 to: (y + j) * ext x + x + w * 4 with: bytes startingAt: j * w * 4 + 1].
+		self assert: (d instVarNamed: 'copy') equals: expected.
+		differs := Set new.
+		0 to: h - 1 do: [:j | 0 to: w - 1 do: [:i | | p q |
+			p := j * w + i * 4.
+			q := (y + j) * ext x + x + i * 4.
+			(bytes copyFrom: p + 1 to: p + 4) = (base copyFrom: q + 1 to: q + 4) ifFalse: [differs add: (x + i) // 16 @ ((y + j) // 16)]]].
+		covered := Set new.
+		changed do: [:c |
+			self assert: (rect containsRect: c).
+			c left // 16 to: c right - 1 // 16 do: [:bx | c top // 16 to: c bottom - 1 // 16 do: [:by | covered add: bx @ by]]].
+		self assert: covered size equals: differs size.
+		self assert: (covered includesAll: differs)]
 ! !

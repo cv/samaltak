@@ -192,8 +192,8 @@ paragraph, of which few pixels change, and the Process Browser redrew its list e
 RfbDiffSource (System-Remote), between the frame tap and the connections, keeps one copy of the screen for all viewers
 (BGRA8 whatever their pixel formats, 8 MB at 1920x1080, made when the first viewer comes and dropped when the last goes).
 When a connection's writer is about to send, it reads what was damaged since anyone last did (once for all viewers),
-compares it with the copy in 16x16 blocks (the `pixelBlocksDiff` primitive, below: 16 bytes at a time, skipping
-blocks of a 16-row band already known to differ), copies it in and gives every connection the blocks that differ, joined
+compares it with the copy in 16x16 blocks (`RfbDiffSource>>compare:with:into:`, a row at a time with
+`indexOfMismatchAt:with:at:size:`, 16 bytes at a time, skipping blocks of a 16-row band already known to differ), copies it in and gives every connection the blocks that differ, joined
 into runs (each connection's RfbDamage merges them further where a rectangle's header costs more than the unchanged pixels
 between). Pixels are sent from the copy, so a viewer always has the copy less the damage it has yet to take: right for
 several viewers and for a slow one whose damage merges meanwhile. A move moves the copy too (CopyRect stays right), and a
@@ -270,9 +270,10 @@ ByteSearch's NEON or SSE2 mismatch search), the palette in a small open-addresse
 PixelPacker, and each tile coded by RfbZrleEncoder's cost rule (raw, solid, packed palette, plain RLE, palette RLE). Its
 bytes are the Smalltalk's (which stays where the primitive cannot run): checked on random tiles of every kind, on the
 repository's screenshots and on the UEFI World's own screen, in 4-byte pixels with 3-byte CPIXELs from either end, with
-4-byte CPIXELs, and in 16- and 8-bit formats. The `pixelBlocksDiff` primitive (PixelDiff) compares a damaged rectangle
-with RfbDiffSource's copy in 16x16 blocks, marks the blocks that differ and copies it in, also in one call; the runs of
-marked blocks are joined in Smalltalk as before. On the UEFI World's screen (1920x1080, by the image's clock) the
+4-byte CPIXELs, and in 16- and 8-bit formats. The `pixelBlocksDiff` primitive (PixelDiff, 215) compared a damaged rectangle
+with RfbDiffSource's copy in 16x16 blocks in one call; it is retired (its number reserved) since the optimizing JIT
+keeps the Smalltalk's loop integers untagged: 0.48 ms a 1440x900 frame against the primitive's 0.46 (`FbPixelDiff`,
+docs/benchmarks.md). On the UEFI World's screen (1920x1080, by the image's clock) the
 tiles take 2-3 ms instead of 19-36 (by format), comparing the whole screen 1.7 ms instead of 8.3; a full-screen update
 takes 19 ms instead of 36 and a key 15 ms to its pixels instead of 22 (medians of 5 runs of each, interleaved, on
 6e54bb6 and with the primitives). Over a minute of typing, scrolling, dragging and streaming, the Profiler finds the

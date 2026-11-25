@@ -2,43 +2,6 @@
 /* DeflateMatcher (VM-Core) */
 #include "samaltak.h"
 
-/* DeflateMatcher>>adler32:size: */
-uint32_t adler32(uint8_t *p, int64_t n)
-{
-    int64_t a;
-    int64_t b;
-    int64_t i;
-    int64_t stop;
-    a = 1U;
-    b = 0U;
-    i = 0;
-    while (i < n) {
-        stop = i + 5552;
-        if (stop > n) {
-            stop = n;
-        }
-        while (i + 4 <= stop) {
-            a = a + p[i];
-            b = b + a;
-            a = a + p[i + 1];
-            b = b + a;
-            a = a + p[i + 2];
-            b = b + a;
-            a = a + p[i + 3];
-            b = b + a;
-            i = i + 4;
-        }
-        while (i < stop) {
-            a = a + p[i];
-            b = b + a;
-            i = i + 1;
-        }
-        a = a % 65521;
-        b = b % 65521;
-    }
-    return (uint32_t)((((uint64_t)b) << 16) | ((uint64_t)a));
-}
-
 /* DeflateMatcher>>matches:size:from:head:prev:literals:distances:max:chain: */
 int64_t matches(uint8_t *input, int64_t n, int64_t start, uint32_t *head, uint32_t *prev, uint16_t *lits, uint16_t *dists, int64_t max_tokens, int64_t max_chain)
 {

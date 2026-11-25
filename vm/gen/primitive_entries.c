@@ -133,13 +133,10 @@ primitive_entry vm_primitive_table[] = {
     {199, 2, "onDoMarker", prim_on_do_marker},
     {207, 3, "pngFilter", prim_png_filter},
     {208, 3, "zlibMatches", prim_zlib_matches},
-    {209, 3, "zlibAdler32", prim_zlib_adler32},
     {210, 3, "zlibWriteTokens", prim_zlib_write_tokens},
-    {211, 3, "zlibTokenCounts", prim_zlib_token_counts},
     {212, 3, "rawBytesReplace", prim_raw_bytes_replace},
     {213, 3, "pixelsPack", prim_pixels_pack},
     {214, 3, "zrleTiles", prim_zrle_tiles},
-    {215, 3, "pixelBlocksDiff", prim_pixel_blocks_diff},
     {250, 2, "ffiBind", prim_ffi_bind},
     {251, 2, "ffiInvoke", prim_ffi_invoke},
 #ifndef SAMALTAK_NO_PLATFORM

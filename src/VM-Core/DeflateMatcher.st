@@ -3,7 +3,7 @@ VMModule subclass: #DeflateMatcher
 	classVariableNames: ''
 	package: 'VM-Core'!
 
-DeflateMatcher comment: 'ZLib''s hot loops for the zlibMatches and zlibAdler32 primitives (ObjectPrimitives), token for token and bit for bit what ZLib''s Smalltalk does (ZLib>>matchesFrom:, ZLib class>>adler32Of:). matches: is the LZ77 of a deflate block: positions are 1-based, the hash chains head (by the hash of three bytes) and prev (by position modulo 32768) uint32 each, 0 for none; greedy, at most chain candidates a position, nearer than 32768; the bytes a match covers are hashed if it is at most 16 long. A token is a literal (its byte) or 256 + a match''s length with its distance, uint16 each. Matches are measured 16 bytes at a time (ByteSearch>>mismatchOf:with:from:size:). Nothing is read outside the input: a candidate is a position before the current one, whatever the chains hold.'!
+DeflateMatcher comment: 'ZLib''s LZ77 for the zlibMatches primitive (ObjectPrimitives), token for token what ZLib''s Smalltalk does (ZLib>>matchesFrom:; zlibAdler32, 209, is retired: ZLib class>>adler32Of: is Smalltalk only). matches: is the LZ77 of a deflate block: positions are 1-based, the hash chains head (by the hash of three bytes) and prev (by position modulo 32768) uint32 each, 0 for none; greedy, at most chain candidates a position, nearer than 32768; the bytes a match covers are hashed if it is at most 16 long. A token is a literal (its byte) or 256 + a match''s length with its distance, uint16 each. Matches are measured 16 bytes at a time (ByteSearch>>mismatchOf:with:from:size:). Nothing is read outside the input: a candidate is a position before the current one, whatever the chains hold.'!
 
 !DeflateMatcher class methodsFor: 'declaring'!
 declarations
@@ -69,35 +69,4 @@ matches: input size: n from: start head: head prev: prev literals: lits distance
 				pos := pos + 1].
 		count := count + 1].
 	^(pos << 16) + count
-!
-adler32: p size: n
-	"The Adler-32 of the n bytes at p: the sums reduced modulo 65521 every 5552 bytes, which they cannot overflow before."
-	<function>
-	<var: #p type: 'uint8_t *'>
-	<var: #n type: 'int64_t'>
-	<returns: 'uint32_t'>
-	| a b i stop |
-	a := 1 asUInt32.
-	b := 0 asUInt32.
-	i := 0.
-	[i < n] whileTrue: [
-		stop := i + 5552.
-		stop > n ifTrue: [stop := n].
-		[i + 4 <= stop] whileTrue: [
-			a := a + (p at: i).
-			b := b + a.
-			a := a + (p at: i + 1).
-			b := b + a.
-			a := a + (p at: i + 2).
-			b := b + a.
-			a := a + (p at: i + 3).
-			b := b + a.
-			i := i + 4].
-		[i < stop] whileTrue: [
-			a := a + (p at: i).
-			b := b + a.
-			i := i + 1].
-		a := a rem: 65521.
-		b := b rem: 65521].
-	^((b asUInt64 << 16) bitOr: a asUInt64) asUInt32
 ! !
