@@ -1,9 +1,9 @@
 Object subclass: #SamaltakIcon
 	instanceVariableNames: ''
-	classVariableNames: ''
+	classVariableNames: 'Svg Forms'
 	package: 'Graphics-Canvas'!
 
-SamaltakIcon comment: 'I am Samaltak''s icon, icons/samaltak.svg: an object sends a message, the receiver answers. Stage 2 rasterizes it into the image (side pixels square) as the icon HostWindow gives every window it opens (the Dock''s on macOS, the window manager''s elsewhere); bin/samaltak install names the file in the launcher''s .desktop entries.'!
+SamaltakIcon comment: 'I am Samaltak''s icon, icons/samaltak.svg: an object sends a message, the receiver answers. Stage 2 rasterizes it into the image (side pixels square) as the icon HostWindow gives every window it opens (the Dock''s on macOS, the window manager''s elsewhere), and keeps it for the top bar (formSide:); bin/samaltak install names the file in the launcher''s .desktop entries.'!
 
 !SamaltakIcon class methodsFor: 'accessing'!
 side
@@ -17,8 +17,16 @@ path
 ! !
 
 !SamaltakIcon class methodsFor: 'rasterizing'!
+svg
+	^Svg ifNil: [Svg := SVGImage fromFile: self path]
+!
 form
-	^(SVGImage fromFile: self path) formWidth: self side height: self side color: Color white
+	^self formSide: self side
+!
+formSide: pixels
+	"Me, pixels square, rasterized once."
+	Forms isNil ifTrue: [Forms := Dictionary new].
+	^Forms at: pixels ifAbsent: [Forms at: pixels put: (self svg formWidth: pixels height: pixels color: Color white)]
 !
 straightPixelsOf: aForm
 	"aForm's pixels as RGBA bytes with straight alpha (a Form's are premultiplied), as window icons take them."

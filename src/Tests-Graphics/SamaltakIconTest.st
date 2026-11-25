@@ -12,6 +12,11 @@ testInTheImage
 	self assert: HostWindow iconWidth equals: side.
 	self assert: HostWindow icon size equals: side * side * 4
 !
+testFormSide
+	"The top bar's size, rasterized once."
+	self assert: (SamaltakIcon formSide: 40) width equals: 40.
+	self assert: (SamaltakIcon formSide: 40) == (SamaltakIcon formSide: 40)
+!
 testPixels
 	"The corner is outside the body; the receiver (the circle at 704@384 of the 1024 drawing, on the 824 grid) is white; the body between is opaque blue."
 	| bytes side at |

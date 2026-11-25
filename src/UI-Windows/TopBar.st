@@ -3,7 +3,7 @@ Object subclass: #TopBar
 	classVariableNames: ''
 	package: 'UI-Windows'!
 
-TopBar comment: 'I am the menu bar at the top of the World (Blue Book: white, a 1-point rule): the brand, the image name, the VM''s banner (Smalltalk vm banner), the hint "Click the desktop for the World menu", at the right the ? button (World helpHandler) and the REMOTE tag once a remote session acted on the image (it flashes at each command), the SLOW tag while animations run slowed down (Animation timeScale), and the compositor''s statistics — a sparkline of the last 64 frame times (ms between presented frames, the 16.7 ms budget as a hairline: a stutter shows as a spike), the mean frame time of the last 32 frames, the frames presented in the last second and the number of Processes. The Compositor feeds me FrameRecords-worth of numbers (noteFrame:end:) and draws me every frame.'!
+TopBar comment: 'I am the menu bar at the top of the World (Blue Book: white, a 1-point rule): the brand (SamaltakIcon), the image name, the hint "Click the desktop for the World menu", at the right the ? button (World helpHandler) and the REMOTE tag once a remote session acted on the image (it flashes at each command), the SLOW tag while animations run slowed down (Animation timeScale), and the compositor''s statistics — a sparkline of the last 64 frame times (ms between presented frames, the 16.7 ms budget as a hairline: a stutter shows as a spike), the mean frame time of the last 32 frames, the frames presented in the last second and the number of Processes. The Compositor feeds me FrameRecords-worth of numbers (noteFrame:end:) and draws me every frame.'!
 
 !TopBar methodsFor: 'initialization'!
 setWorld: aWorld
@@ -89,12 +89,12 @@ updateAt: nowMicros
 
 !TopBar methodsFor: 'drawing'!
 drawOn: c
-	"The brand and, at the right, ? and the tags always; the rest while it fits, in the order of importance: the process count, the image name, fps, ms, the sparkline, its label, the banner, the hint (the first to go when the World is narrow)."
-	| x font mono monoBold label banner hint keep pieces avail |
+	"The brand and, at the right, ? and the tags always; the rest while it fits, in the order of importance: the process count, the image name, fps, ms, the sparkline, its label, the hint (the first to go when the World is narrow)."
+	| x font mono monoBold label hint keep pieces avail |
 	world showsTopBar ifFalse: [^self].
 	c fillRect: (0 @ 0 extent: world extent x @ 26) color: Color paper.
 	c fillRect: (0 @ 26 extent: world extent x @ 1) color: Color ink.
-	c image: (UIIcons orbScale: c scale) in: (14 @ 5 extent: 16 @ 16).
+	c image: (SamaltakIcon formSide: (20 * c scale) ceiling) in: (12 @ 3 extent: 20 @ 20).
 	font := self font: #brand.
 	c drawString: 'Samaltak' at: 37 @ (26 - font lineHeight / 2) rounded font: font color: Color ink.
 	c drawString: 'Samaltak' at: 37.5 @ (26 - font lineHeight / 2) rounded font: font color: Color ink.
@@ -103,7 +103,6 @@ drawOn: c
 	mono := self font: #mono.
 	monoBold := self font: #monoBold.
 	label := Font header.
-	banner := Smalltalk vm banner.
 	hint := 'Click the desktop for the World menu'.
 	avail := world extent x - 12 - self fixedRightWidth - x.
 	pieces := OrderedCollection new.
@@ -114,16 +113,15 @@ drawOn: c
 		add: #ms -> (7 + (monoBold widthOf: msText));
 		add: #spark -> (7 + 64);
 		add: #label -> (7 + (label widthOf: 'compositor')).
-	banner isNil ifFalse: [pieces add: #banner -> (15 + (font widthOf: banner) + 14)].
 	pieces add: #hint -> (((self font: #italic) widthOf: hint) + 14).
 	keep := IdentitySet new.
 	pieces do: [:p |
-		p value > avail ifTrue: [^self drawOn: c keeping: keep from: x font: font banner: banner hint: hint].
+		p value > avail ifTrue: [^self drawOn: c keeping: keep from: x font: font hint: hint].
 		avail := avail - p value.
 		keep add: p key].
-	self drawOn: c keeping: keep from: x font: font banner: banner hint: hint
+	self drawOn: c keeping: keep from: x font: font hint: hint
 !
-drawOn: c keeping: keep from: left font: font banner: banner hint: hint
+drawOn: c keeping: keep from: left font: font hint: hint
 	| mono monoBold label x hintLeft right y |
 	mono := self font: #mono.
 	monoBold := self font: #monoBold.
@@ -135,10 +133,6 @@ drawOn: c keeping: keep from: left font: font banner: banner hint: hint
 		x := x + 15.
 		c drawString: world imageName at: x @ (26 - font lineHeight / 2) rounded font: font color: Color ink.
 		hintLeft := x + (font widthOf: world imageName) + 14].
-	(keep includes: #banner) ifTrue: [
-		c fillRect: (hintLeft @ 7 extent: 1 @ 13) color: Color ink.
-		c drawString: banner at: (hintLeft + 15) @ (26 - font lineHeight / 2) rounded font: font color: Color ink.
-		hintLeft := hintLeft + 15 + (font widthOf: banner) + 14].
 	"right to left"
 	y := (26 - mono lineHeight / 2) rounded.
 	right := world extent x - 12.
@@ -256,7 +250,7 @@ remoteRole
 	^#topbar
 !
 remoteLabel
-	^Smalltalk vm banner ifNil: [world imageName] ifNotNil: [:b | world imageName, ' | ', b]
+	^world imageName
 !
 remoteName
 	^'top'
