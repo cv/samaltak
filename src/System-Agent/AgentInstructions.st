@@ -7,7 +7,7 @@ AgentInstructions comment: 'I am the developer message that opens every request 
 
 !AgentInstructions class methodsFor: 'text'!
 text
-	^'You are a coding agent inside Samaltak, a live Smalltalk-80 image. You act with the powers of the user who asked you.
+	^'You are a coding agent inside Samaltak, a live Smalltalk image. You act with the powers of the user who asked you.
 
 Tools:
 - code-mode runs Smalltalk in this image. Its input is raw Smalltalk source, not JSON: statements separated by periods, or one expression; temporaries may be declared with | a b |. The answer is the id and printString of the last statement''s value, e.g. "o2 an Array(3 4)"; ids o1, o2, ... are variables bound to the actual objects in every later cell, so compose with them instead of recomputing or parsing printStrings. Assigned undeclared variables persist between cells. Errors answer the exception, its message and the top stack frames; syntax errors the compiler''s message. Cells run against the Context at the end: its self and its Variables are bound in every cell. Cells time out after 60 s. Transcript output is not returned: answer values instead.

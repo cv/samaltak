@@ -154,7 +154,7 @@ drawWorkspaceOn: c in: r
 drawTranscriptOn: c in: r
 	| content |
 	content := self drawWindowFrame: 'Transcript' on: c in: r focused: false.
-	#('Samaltak 0.1 · Smalltalk-80' 'samaltak.image · 9 packages · 180 classes' 'green threads, preempted at safepoints' '→ fonts: Iosevka Etoile, JetBrains Mono ✓') doWithIndex: [:line :i |
+	#('Samaltak 0.1 · Smalltalk' 'samaltak.image · 9 packages · 180 classes' 'green threads, preempted at safepoints' '→ fonts: Iosevka Etoile, JetBrains Mono ✓') doWithIndex: [:line :i |
 		c drawString: line at: content left + 12 @ (content top + 6 + (i - 1 * 20)) font: Font code color: Color black]
 !
 drawProcessesOn: c in: r

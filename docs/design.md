@@ -11,7 +11,7 @@ Working decisions. Open questions marked **?**.
 
 ## Language
 
-- Smalltalk-80 semantics and syntax.
+- Smalltalk semantics and syntax.
 - Source of truth: text files in git; images built from source by ImageBuilder.
 - Immutable literals; per-object immutability bit.
 - **?** Modules/namespaces vs. single global namespace.

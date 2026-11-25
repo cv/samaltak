@@ -3,7 +3,7 @@ Object subclass: #Parser
 	classVariableNames: ''
 	package: 'Compiler'!
 
-Parser comment: 'I parse Smalltalk-80 source into a tree of ParseNodes. Errors are signaled as SyntaxError with the source position.
+Parser comment: 'I parse Smalltalk source into a tree of ParseNodes. Errors are signaled as SyntaxError with the source position.
 
 	Parser new parseMethod: ''foo ^1''
 	Parser new parseExpression: ''| a | a := 3. a + 4'''!
