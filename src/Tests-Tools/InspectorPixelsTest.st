@@ -7,8 +7,9 @@ InspectorPixelsTest comment: 'I test the Inspector''s pixel view on Forms and gl
 
 !InspectorPixelsTest methodsFor: 'support'!
 rgbAt: aPoint
+	"The screen's pixel once the World settled (nothing left to present): a loaded machine can take longer than settle's 3 s, and a pixel read before the frame that draws it is the paper's."
 	| v |
-	self settle.
+	self assert: (world waitUntilSettled: 15000) description: 'the World did not settle'.
 	v := (world compositor sync: [:c | c screenshotScale: 1]) pixelValueAt: aPoint rounded.
 	^Array with: (v bitAnd: 255) with: ((v bitShift: -8) bitAnd: 255) with: ((v bitShift: -16) bitAnd: 255)
 !
@@ -49,22 +50,26 @@ testFormPixels
 	self assert: (view remoteState includes: 'value=255,255,255,255')
 !
 testGlyphPixels
-	| glyph w inspector view ink blank zoom |
+	| glyph w inspector view ink blank zoom coverage rgb |
 	glyph := Font code glyphFor: $g.
 	w := self open: [Inspector openOn: glyph near: nil].
 	inspector := w content.
 	view := inspector pixelView.
 	self assert: (view remoteState includes: 'size=', glyph width printString, 'x', glyph height printString).
 	self assert: view zoom >= 10.
-	ink := (0 to: glyph height - 1) inject: nil into: [:found :y |
-		found ifNil: [(0 to: glyph width - 1) inject: nil into: [:f :x | f ifNil: [(glyph coverageAt: x @ y) = 255 ifTrue: [x @ y]]]]].
+	"The most covered pixel: 255 in a glyph rasterized for a 2x display, less at 1x (13 px: no stem is a whole pixel wide)."
+	ink := 0 @ 0.
+	0 to: glyph height - 1 do: [:y | 0 to: glyph width - 1 do: [:x |
+		(glyph coverageAt: x @ y) > (glyph coverageAt: ink) ifTrue: [ink := x @ y]]].
+	coverage := glyph coverageAt: ink.
 	blank := 0 @ 0.
-	self assert: ink notNil.
+	self assert: coverage >= 192 description: 'no solid pixel in the glyph: ', coverage printString.
 	self assert: (glyph coverageAt: blank) equals: 0.
 	self hover: view pixel: ink.
-	self assert: (view remoteState includes: 'value=255').
-	self assert: ((self statusOf: inspector) includesSubstring: 'coverage 255').
-	self assert: (self rgbAt: (view screenPointOfPixel: ink)) equals: #(0 0 0).
+	self assert: (view remoteState includes: 'value=', coverage printString).
+	self assert: ((self statusOf: inspector) includesSubstring: 'coverage ', coverage printString).
+	rgb := self rgbAt: (view screenPointOfPixel: ink).
+	self assert: (rgb allSatisfy: [:v | (v - (255 - coverage)) abs <= 2]) description: 'ink pixel ', rgb printString, ' for coverage ', coverage printString.
 	self assert: (self rgbAt: (view screenPointOfPixel: blank)) equals: #(255 255 255).
 	self hover: view pixel: blank.
 	self assert: (view remoteState includes: 'value=0').
