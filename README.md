@@ -4,6 +4,16 @@ A Smalltalk-80 system with green threads and a GPU-composited UI (SDL3 + SDL_GPU
 
 ![Walkthrough](docs/media/walkthrough.mp4)
 
+![The desktop: System Browser, Process Browser, Transcript, Workspace, Inspector and Mandelbrot](docs/media/screenshots/desktop.png)
+
+| Debugger at a breakpoint | Profiler |
+|---|---|
+| ![Debugger stopped at a breakpoint in Integer>>gcd:, evaluating a + b in the frame](docs/media/screenshots/debugger.png) | ![Profiler flame graph of a forked factorial computation](docs/media/screenshots/profiler.png) |
+
+Smalltalk-80, booted on the VM run as Smalltalk (VM Simulator):
+
+![The VM Simulator running the Smalltalk-80 guest: Workspace, Transcript and bouncing ball](docs/media/screenshots/st80-simulator.png)
+
 ## Build and run
 
 macOS on Apple Silicon (Homebrew `sdl3` and `openssl@3`), or Linux on arm64 or x86-64 (`sdl3`, `shaderc` and OpenSSL 3, e.g. `libssl-dev`; e.g. Asahi Linux, Vulkan). The JIT emits arm64 or x86-64 (docs/jit.md).
