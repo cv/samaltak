@@ -60,19 +60,24 @@ leftover
 !HTTPTestRequest class methodsFor: 'reading'!
 readFrom: aSocket pending: bytes
 	"The next request on aSocket (bytes: what was read past the previous one), or nil when the connection ends."
-	| all chunk n headEnd head length |
+	| all chunk n headEnd head length out |
 	all := bytes.
-	chunk := ByteArray new: 4096.
+	chunk := ByteArray new: 65536.
 	[(headEnd := all indexOfSubCollection: #[13 10 13 10]) = 0] whileTrue: [
 		n := aSocket receiveInto: chunk.
 		n = 0 ifTrue: [^nil].
 		all := all, (chunk copyFrom: 1 to: n)].
 	head := (all copyFrom: 1 to: headEnd - 1) asString.
 	length := ((head lines detect: [:l | l asLowercase beginsWith: 'content-length:'] ifNone: ['x:0']) copyAfter: $:) trimBoth asInteger.
-	[all size < (headEnd + 3 + length)] whileTrue: [
-		n := aSocket receiveInto: chunk.
-		n = 0 ifTrue: [^nil].
-		all := all, (chunk copyFrom: 1 to: n)].
+	all size < (headEnd + 3 + length) ifTrue: [
+		"a large body: collect it in a stream, not by concatenation"
+		out := WriteStream on: (ByteArray new: headEnd + 3 + length).
+		out nextPutAll: all.
+		[out position < (headEnd + 3 + length)] whileTrue: [
+			n := aSocket receiveInto: chunk.
+			n = 0 ifTrue: [^nil].
+			out nextPutAll: (chunk copyFrom: 1 to: n)].
+		all := out contents].
 	^self new
 		setHead: head
 		body: (all copyFrom: headEnd + 4 to: headEnd + 3 + length)

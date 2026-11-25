@@ -40,6 +40,7 @@ valueOf: aCharacter
 
 !Base64 class methodsFor: 'encoding'!
 encode: bytes
+	"The Base64 String of bytes, a collection of integers 0-255 such as a ByteArray: standard alphabet (+ and /), padded with = to a multiple of 4 characters, no line breaks."
 	| out alphabet bits count |
 	alphabet := 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'.
 	out := WriteStream on: (String new: (bytes size + 2 // 3 * 4)).
