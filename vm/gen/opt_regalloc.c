@@ -91,15 +91,22 @@ static bool assign_slots(void)
     int32_t op_4;
     int64_t j;
     int32_t n_3;
+    int32_t v_2;
+    bool r_is_raw;
+    int32_t r;
     int32_t n_4;
     int32_t n_5;
-    int32_t n_6;
+    bool r_is_raw_2;
+    int32_t r_2;
     bool r_crosses_call;
     opt_node *nd_6;
     bool r_is_safepoint_4;
     int32_t op_5;
     int32_t i_2;
-    int32_t n_7;
+    int32_t n_6;
+    int32_t v_3;
+    bool r_is_raw_3;
+    int32_t r_3;
     ra_slot_top = ra_slot_base;
     ra_slot_free_count = 0;
     ra_raw_top = 0;
@@ -165,19 +172,22 @@ exit_crosses_safepoint_2:;
     r_is_safepoint_3 = (op_4 == O_SEND) || ((op_4 == O_CALL) || ((op_4 == O_CHECKINT) || (op_4 == O_MKARRAY)));
     r_is_safepoint_3; }) && (nd_5->lend > nd_5->pos);
 exit_crosses_safepoint_3:;
-    r_crosses_safepoint_3; })) && (nd->slot < 0)) {
+    r_crosses_safepoint_3; })) && ((nd->slot < 0) && ((int32_t)nd->op != O_ELEMENTS))) {
             j = 0;
             while (j < ra_active_count) {
                 n_3 = ra_active[j];
                 if ((opt_nodes + n_3)->lend < nd->lstart) {
-                    n_4 = ra_active[j];
-                    if ((int32_t)(opt_nodes + n_4)->rep == R_DBL) {
-                        n_5 = ra_active[j];
-                        ra_raw_free[ra_raw_free_count] = (int32_t)(opt_nodes + n_5)->slot;
+                    v_2 = ra_active[j];
+                    if (({
+    r = (int32_t)(opt_nodes + v_2)->rep;
+    r_is_raw = (r == R_DBL) || (r == R_INT);
+    r_is_raw; })) {
+                        n_4 = ra_active[j];
+                        ra_raw_free[ra_raw_free_count] = (int32_t)(opt_nodes + n_4)->slot;
                         ra_raw_free_count = ra_raw_free_count + 1;
                     } else {
-                        n_6 = ra_active[j];
-                        ra_slot_free[ra_slot_free_count] = (int32_t)(opt_nodes + n_6)->slot;
+                        n_5 = ra_active[j];
+                        ra_slot_free[ra_slot_free_count] = (int32_t)(opt_nodes + n_5)->slot;
                         ra_slot_free_count = ra_slot_free_count + 1;
                     }
                     ra_active_count = ra_active_count - 1;
@@ -186,7 +196,10 @@ exit_crosses_safepoint_3:;
                     j = j + 1;
                 }
             }
-            if ((int32_t)nd->rep == R_DBL) {
+            if (({
+    r_2 = (int32_t)(opt_nodes + v)->rep;
+    r_is_raw_2 = (r_2 == R_DBL) || (r_2 == R_INT);
+    r_is_raw_2; })) {
                 if (ra_raw_free_count > 0) {
                     ra_raw_free_count = ra_raw_free_count - 1;
                     nd->slot = (int16_t)ra_raw_free[ra_raw_free_count];
@@ -233,9 +246,13 @@ exit_crosses_call:;
         return false;
     }
     for (i_2 = 0; i_2 <= ra_sort_count - 1; i_2++) {
-        n_7 = ra_sorted[i_2];
-        nd = opt_nodes + n_7;
-        if (((int32_t)nd->rep == R_DBL) && (nd->slot >= 0)) {
+        n_6 = ra_sorted[i_2];
+        nd = opt_nodes + n_6;
+        v_3 = ra_sorted[i_2];
+        if (({
+    r_3 = (int32_t)(opt_nodes + v_3)->rep;
+    r_is_raw_3 = (r_3 == R_DBL) || (r_3 == R_INT);
+    r_is_raw_3; }) && (nd->slot >= 0)) {
             nd->slot = (int16_t)(nd->slot + ra_raw_base);
         }
     }
@@ -1538,7 +1555,7 @@ static bool linear_scan(void)
     int32_t far;
     int32_t best;
     int32_t k_4;
-    int32_t n_6;
+    int32_t v_5;
     int32_t x;
     bool r_is;
     int64_t cx;
@@ -1546,12 +1563,12 @@ static bool linear_scan(void)
     int64_t lx;
     int64_t ly;
     bool r_is_shared;
-    int32_t n_7;
+    int32_t n_6;
     int32_t r_2;
     int32_t j_2;
+    int32_t n_7;
     int32_t n_8;
     int32_t n_9;
-    int32_t n_10;
     for (i = 0; i <= ra_max_pos; i++) {
         ra_bucket[i] = -1;
     }
@@ -1795,8 +1812,8 @@ exit_reg_at:;
                 far = nd->lend;
                 best = v;
                 for (k_4 = 0; k_4 <= ra_active_count - 1; k_4++) {
-                    n_6 = ra_active[k_4];
-                    if (((opt_nodes + n_6)->rep == nd->rep) && ({
+                    v_5 = ra_active[k_4];
+                    if (((int32_t)(opt_nodes + v_5)->rep == R_DBL == ((int32_t)(opt_nodes + v)->rep == R_DBL)) && ({
     x = ra_active[k_4];
     ({
     cx = (int64_t)ra_cost[x];
@@ -1810,12 +1827,12 @@ exit_reg_at:;
     r_is = (cx * ly == cy * lx) && ((opt_nodes + x)->lend > (opt_nodes + best)->lend);
 exit_is:;
     r_is; }) && (!({
-    n_7 = ra_active[k_4];
-    r_2 = (int32_t)(opt_nodes + n_7)->reg;
+    n_6 = ra_active[k_4];
+    r_2 = (int32_t)(opt_nodes + n_6)->reg;
     for (j_2 = 0; j_2 <= ra_active_count - 1; j_2++) {
         if ((j_2 != k_4) && ({
-    n_8 = ra_active[j_2];
-    (int32_t)(opt_nodes + n_8)->reg == r_2; })) {
+    n_7 = ra_active[j_2];
+    (int32_t)(opt_nodes + n_7)->reg == r_2; })) {
             r_is_shared = true;
             goto exit_is_shared;
         }
@@ -1828,10 +1845,10 @@ exit_is_shared:;
                     }
                 }
                 if (victim >= 0) {
+                    n_8 = ra_active[victim];
+                    nd->reg = (opt_nodes + n_8)->reg;
                     n_9 = ra_active[victim];
-                    nd->reg = (opt_nodes + n_9)->reg;
-                    n_10 = ra_active[victim];
-                    (opt_nodes + n_10)->reg = -1;
+                    (opt_nodes + n_9)->reg = -1;
                     ra_active[victim] = v;
                 } else {
                     nd->reg = -1;
@@ -1893,15 +1910,15 @@ static bool linear_scan(void)
     int32_t far;
     int32_t k_4;
     int32_t n_6;
-    int32_t n_7;
+    int32_t v_5;
     bool r_is_shared;
-    int32_t n_8;
+    int32_t n_7;
     int32_t r_2;
     int32_t j_2;
+    int32_t n_8;
     int32_t n_9;
     int32_t n_10;
     int32_t n_11;
-    int32_t n_12;
     for (i = 0; i <= ra_max_pos; i++) {
         ra_bucket[i] = -1;
     }
@@ -2089,14 +2106,14 @@ exit_reg_at:;
                 for (k_4 = 0; k_4 <= ra_active_count - 1; k_4++) {
                     n_6 = ra_active[k_4];
                     if (((opt_nodes + n_6)->lend > far) && ({
+    v_5 = ra_active[k_4];
+    ((int32_t)(opt_nodes + v_5)->rep == R_DBL == ((int32_t)(opt_nodes + v)->rep == R_DBL)) && (!({
     n_7 = ra_active[k_4];
-    ((opt_nodes + n_7)->rep == nd->rep) && (!({
-    n_8 = ra_active[k_4];
-    r_2 = (int32_t)(opt_nodes + n_8)->reg;
+    r_2 = (int32_t)(opt_nodes + n_7)->reg;
     for (j_2 = 0; j_2 <= ra_active_count - 1; j_2++) {
         if ((j_2 != k_4) && ({
-    n_9 = ra_active[j_2];
-    (int32_t)(opt_nodes + n_9)->reg == r_2; })) {
+    n_8 = ra_active[j_2];
+    (int32_t)(opt_nodes + n_8)->reg == r_2; })) {
             r_is_shared = true;
             goto exit_is_shared;
         }
@@ -2104,16 +2121,16 @@ exit_reg_at:;
     r_is_shared = false;
 exit_is_shared:;
     r_is_shared; })); })) {
-                        n_10 = ra_active[k_4];
-                        far = (opt_nodes + n_10)->lend;
+                        n_9 = ra_active[k_4];
+                        far = (opt_nodes + n_9)->lend;
                         victim = k_4;
                     }
                 }
                 if (victim >= 0) {
+                    n_10 = ra_active[victim];
+                    nd->reg = (opt_nodes + n_10)->reg;
                     n_11 = ra_active[victim];
-                    nd->reg = (opt_nodes + n_11)->reg;
-                    n_12 = ra_active[victim];
-                    (opt_nodes + n_12)->reg = -1;
+                    (opt_nodes + n_11)->reg = -1;
                     ra_active[victim] = v;
                 } else {
                     nd->reg = -1;

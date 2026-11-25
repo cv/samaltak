@@ -1411,6 +1411,11 @@ value: loc h: h frame: f regs: regs
 	kind = LOC_REG ifTrue: [v := regs at: payload].
 	kind = LOC_CONST ifTrue: [v := self poolAt: payload of: h].
 	kind = LOC_SMI ifTrue: [v := self intOop: payload].
+	"an untagged SmallInteger (OptPasses>>untagIntegers): in a register, or in a raw slot"
+	kind = LOC_INT ifTrue: [
+		v := (payload bitAnd: 1) = 0
+			ifTrue: [self intOop: (regs at: payload >> 1) asInt64]
+			ifFalse: [self intOop: (f fp at: payload >> 1) asInt64]].
 	kind = LOC_DREG ifTrue: [^self double: (regs at: 32 + payload) at: loc].
 	kind = LOC_RAW ifTrue: [^self double: (f fp at: payload) at: loc].
 	(kind = LOC_SUNK and: [rtSunkUseCount < OPT_MAX_DEOPT_VALS]) ifTrue: [

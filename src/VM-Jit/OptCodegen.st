@@ -1,5 +1,5 @@
 OptModule subclass: #OptCodegen
-	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgRawBase cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgFlagsLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgRespecLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgSunkFields cgSunkFieldCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced ffi'
+	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgRawBase cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgFlagsLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgRespecLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgSunkFields cgSunkFieldCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced ffi cgIndex cgBase'
 	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_HELD CG_MAX_SITES CG_MAX_SP OUT_ARRAY OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_NOTMADE OUT_UNBOX OUT_BOX OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW OUT_BOUND_FILL OUT_RESPEC'
 	package: 'VM-Jit'!
 
@@ -23,7 +23,7 @@ declarations
 		(cgSunk 'int32_t[64]') (cgSunkCount int32_t) (cgSunkFields 'int32_t[1024]') (cgSunkFieldCount int32_t) (cgDoubles bool) (cgChainActs 'int32_t[512]') (cgChainCount int32_t)
 		(cgSiteBl 'uint32_t[CG_MAX_SITES]') (cgSiteLit 'int32_t[CG_MAX_SITES]') (cgSiteInfo 'uint32_t[CG_MAX_SITES]') (cgSiteIndex 'int32_t[CG_MAX_SITES]') (cgSiteSel 'int32_t[CG_MAX_SITES]') (cgSiteCount int32_t)
 		(cgRetOff 'uint32_t[CG_MAX_RETS]') (cgRetIndex 'int32_t[CG_MAX_RETS]') (cgRetArgc 'int32_t[CG_MAX_RETS]') (cgRetCount int32_t)
-		(cgOrder 'int32_t[OPT_MAX_BLOCKS]') (cgPlaced 'uint8_t[OPT_MAX_BLOCKS]') (ffi FFIPrimitives))
+		(cgOrder 'int32_t[OPT_MAX_BLOCKS]') (cgPlaced 'uint8_t[OPT_MAX_BLOCKS]') (ffi FFIPrimitives) (cgIndex int32_t) (cgBase int32_t))
 !
 initialize
 	CG_MAX_OUT := 4096.
@@ -399,6 +399,10 @@ src: v into: scratch
 	"A register holding v, which the caller only reads: its own, x23-x25 for nil, true and false, or scratch loaded from its slot or with the constant."
 	| nd |
 	nd := ir node: v.
+	(nd op asInt32 = O_CONST and: [nd rep asInt32 = R_INT]) ifTrue: [
+		"an untagged SmallInteger's value"
+		asm mov: scratch imm: nd aux.
+		^scratch].
 	nd op asInt32 = O_CONST ifTrue: [
 		nd aux asUInt64 = memory nilOop ifTrue: [^X23].
 		nd aux asUInt64 = memory trueOop ifTrue: [^X24].
@@ -788,6 +792,24 @@ emitNode: n block: b next: nextBlock
 		asm b: s if: COND_NE.
 		^self def: n from: x].
 	op = O_CAST ifTrue: [^self def: n from: (self src: nd a into: self scratchB)].
+	op = O_TAG ifTrue: [
+		x := self src: nd a into: self scratchA.
+		r := self dst: n.
+		asm comment: 'tagged again'.
+		asm lsl: r with: x imm: 1.
+		asm orr: r with: r imm: 1.
+		^self def: n from: r].
+	op = O_ELEMENTS ifTrue: [
+		nd reg < 0 ifTrue: [^self].
+		asm comment: 'the elements'' address (made again after safepoints)'.
+		asm add: nd reg asInt32 with: (self src: nd a into: self scratchA) imm: nd aux.
+		^self].
+	op = O_UNTAG ifTrue: [
+		x := self src: nd a into: self scratchA.
+		r := self dst: n.
+		asm comment: 'untagged'.
+		asm asr: r with: x imm: 1.
+		^self def: n from: r].
 	op = O_GUARDINT ifTrue: [
 		s := self deoptLabelFor: n.
 		x := self src: nd a into: self scratchB.
@@ -857,7 +879,7 @@ emitNode: n block: b next: nextBlock
 		op = O_IOR ifTrue: [asm orr: r with: x with: y].
 		op = O_IXOR ifTrue: [
 			asm eor: r with: x with: y.
-			asm orr: r with: r imm: 1].
+			nd rep asInt32 = R_INT ifFalse: [asm orr: r with: r imm: 1]].
 		^self def: n from: r].
 	op = O_CHECKINT ifTrue: [^self emitCheckInterrupt: n].
 	op = O_MKARRAY ifTrue: [^self emitMakeArray: n].
@@ -918,7 +940,8 @@ emitCompare: n
 		asm and: X16 with: x with: y.
 		asm and: X16 with: X16 imm: 1.
 		^asm cmp: X16 imm: 1].
-	((ir node: nd b) op asInt32 = O_CONST and: [(self isInt: (ir node: nd b) aux asUInt64) and: [(ir node: nd b) aux between: -4095 and: 4095]])
+	"a constant: tagged, or untagged (R_INT) where the comparison compares untagged values"
+	((ir node: nd b) op asInt32 = O_CONST and: [((ir node: nd b) rep asInt32 = R_INT or: [self isInt: (ir node: nd b) aux asUInt64]) and: [(ir node: nd b) aux between: -4095 and: 4095]])
 		ifTrue: [
 			(ir node: nd b) aux >= 0
 				ifTrue: [asm cmp: x imm: (ir node: nd b) aux]
@@ -1093,13 +1116,24 @@ emitSizeOf: x kind: ek fixed: fixed
 	asm sub: X16 with: X16 with: X17
 !
 emitIndexCheck: n
-	"X17 := the 0-based element index of n's index operand (a SmallInteger) in its object (1-based where no bounds are checked), deoptimizing if it is out of bounds; answer the object's register."
+	"cgIndex := the register holding n's index (operand b, a SmallInteger, tagged or not) as the access addresses its element: where no bounds are checked the 1-based index (an untagged one in its own register), or for isScaledIndex: the object plus the index times the element size (X17); else the 0-based index (X17), deoptimizing if it is out of bounds. Answer the object's register."
 	| nd x i s |
 	nd := ir node: n.
+	cgBase := (self elementsOf: n) asInt32.
 	(nd flags bitAnd: NF_NOBOUNDS) ~= 0 ifTrue: [
 		x := self src: nd a into: self scratchA.
 		asm comment: 'within bounds: checked once before the loop'.
+		(ir node: nd b) rep asInt32 = R_INT ifTrue: [
+			i := self src: nd b into: X17.
+			cgIndex := i asInt32.
+			cgBase >= 0 ifTrue: [^x].
+			(self isScaledIndex: n) ifTrue: [
+				"arm64, 8- or 4-byte elements: X17 := the object plus the untagged index times an element, the element at scaledOffsetOf: from there"
+				asm add: X17 with: x with: i shift: SHIFT_LSL amount: ((self elementBytes: nd aux asInt32) = 8 ifTrue: [3] ifFalse: [2]).
+				cgIndex := X17].
+			^x].
 		i := self src: nd b into: self scratchB.
+		cgIndex := X17.
 		(self isScaledIndex: n)
 			ifTrue: [
 				"arm64, 8- or 4-byte elements: X17 := the object plus the tagged index (2i + 1) times half an element, the element at scaledOffsetOf: from there"
@@ -1107,7 +1141,9 @@ emitIndexCheck: n
 			ifFalse: [
 				"the 1-based index, the element's address one displacement less an element (indexDisplacementOf:)"
 				asm asr: X17 with: i imm: 1].
+		cgBase := -1.
 		^x].
+	cgBase := -1.
 	s := self deoptLabelFor: n.
 	x := self src: nd a into: self scratchA.
 	asm comment: 'bounds check'.
@@ -1116,25 +1152,37 @@ emitIndexCheck: n
 		asm comment: 'fewer bytes than it reads'.
 		asm tbnz: X16 bit: 63 to: s].
 	i := self src: nd b into: self scratchB.
-	asm asr: X17 with: i imm: 1.
-	asm sub: X17 with: X17 imm: 1.
+	(ir node: nd b) rep asInt32 = R_INT
+		ifTrue: [asm sub: X17 with: i imm: 1]
+		ifFalse: [
+			asm asr: X17 with: i imm: 1.
+			asm sub: X17 with: X17 imm: 1].
 	asm cmp: X17 with: X16.
 	asm b: s if: COND_HS.
+	cgIndex := X17.
 	^x
 !
 indexDisplacementOf: n
-	"The element's address is the object's plus X17 times the element size plus this (emitIndexCheck: leaves a 1-based index where no bounds are checked)."
+	"The element's address is the object's plus cgIndex times the element size plus this (emitIndexCheck: leaves a 1-based index where no bounds are checked)."
 	| nd size |
 	nd := ir node: n.
 	size := self elementBytes: nd aux asInt32.
 	^16 + (8 * nd aux2) - ((nd flags bitAnd: NF_NOBOUNDS) ~= 0 ifTrue: [size] ifFalse: [0])
 !
 emitByteStoreX64: n object: x label: s
-	"x86: emitIndexStore: of a byte or a Character below 256 at the object x, the index in X17: the value into X16 and stored with one addressing mode."
+	"x86: emitIndexStore: of a byte or a Character below 256 at the object x, the index in cgIndex: the value (untagged, or into X16) stored with one addressing mode."
 	| nd v ek |
 	nd := ir node: n.
 	ek := nd aux asInt32.
 	v := self src: nd c into: self scratchB.
+	(ek = E_BYTE and: [(ir node: nd c) rep asInt32 = R_INT]) ifTrue: [
+		(nd flags bitAnd: NF_INRANGE) = 0
+			ifTrue: [
+				asm comment: 'an untagged byte: 0 to 255?'.
+				asm cmp: v imm: 255.
+				asm b: s if: COND_HI]
+			ifFalse: [asm comment: 'an untagged byte: unchecked'].
+		^asm strb: (v bitOr: REG_W) base: x index: cgIndex offset: (self indexDisplacementOf: n)].
 	(nd flags bitAnd: NF_INRANGE) = 0 ifTrue: [
 		ek = E_BYTE
 			ifTrue: [
@@ -1149,48 +1197,54 @@ emitByteStoreX64: n object: x label: s
 	(nd flags bitAnd: NF_INRANGE) = 0 ifTrue: [
 		asm cmp: X16 imm: 255.
 		asm b: s if: COND_HI].
-	asm strb: W16 base: x index: X17 offset: (self indexDisplacementOf: n)
+	asm strb: W16 base: x index: cgIndex offset: (self indexDisplacementOf: n)
 !
 emitIndexLoad: n
-	"A pointer, or the element into X16 (bytes, 32-bit words, or 2 or 4 bytes at a byte offset: unaligned loads, which arm64 and x86-64 do in normal memory; big-endian ones reversed with rev, bswap on x86) and tagged: a SmallInteger, a Character for a string."
-	| nd x r ek disp |
+	"A pointer, or the element (bytes, 32-bit words, or 2 or 4 bytes at a byte offset: unaligned loads, which arm64 and x86-64 do in normal memory; big-endian ones reversed with rev, bswap on x86): untagged (R_INT) into its register, else into X16 and tagged: a SmallInteger, a Character for a string."
+	| nd x r ek disp t wt b |
 	nd := ir node: n.
 	ek := nd aux asInt32.
 	x := self emitIndexCheck: n.
+	t := nd rep asInt32 = R_INT ifTrue: [self dst: n] ifFalse: [X16].
+	wt := t bitOr: REG_W.
 	asm isX64
 		ifTrue: [
 			"one addressing mode: the object, the index, the header and fixed fields as the displacement"
 			disp := self indexDisplacementOf: n.
 			ek = E_PTR ifTrue: [
 				r := self dst: n.
-				asm ldr: r base: x index: X17 shift: 3 offset: disp.
+				asm ldr: r base: x index: cgIndex shift: 3 offset: disp.
 				^self def: n from: r].
-			(ek = E_U16 or: [ek = E_U16BE or: [ek = E_I16BE]]) ifTrue: [asm ldrh: W16 base: x index: X17 offset: disp].
-			ek = E_I16 ifTrue: [asm ldrsh: X16 base: x index: X17 offset: disp].
-			(ek = E_W32 or: [ek = E_U32 or: [ek = E_U32BE]]) ifTrue: [asm ldr: W16 base: x index: X17 shift: (ek = E_W32 ifTrue: [2] ifFalse: [0]) offset: disp].
-			(ek = E_BYTE or: [ek = E_CHAR]) ifTrue: [asm ldrb: W16 base: x index: X17 offset: disp]]
+			(ek = E_U16 or: [ek = E_U16BE or: [ek = E_I16BE]]) ifTrue: [asm ldrh: wt base: x index: cgIndex offset: disp].
+			ek = E_I16 ifTrue: [asm ldrsh: t base: x index: cgIndex offset: disp].
+			(ek = E_W32 or: [ek = E_U32 or: [ek = E_U32BE]]) ifTrue: [asm ldr: wt base: x index: cgIndex shift: (ek = E_W32 ifTrue: [2] ifFalse: [0]) offset: disp].
+			(ek = E_BYTE or: [ek = E_CHAR]) ifTrue: [asm ldrb: wt base: x index: cgIndex offset: disp]]
 		ifFalse: [
 			(self isScaledIndex: n) ifTrue: [
 				ek = E_PTR ifTrue: [
 					r := self dst: n.
 					asm ldr: r base: X17 offset: (self scaledOffsetOf: n).
 					^self def: n from: r].
-				asm ldr: W16 base: X17 offset: (self scaledOffsetOf: n)].
-			(self isScaledIndex: n) ifFalse: [asm add: X16 with: x imm: (self indexDisplacementOf: n)].
+				asm ldr: wt base: X17 offset: (self scaledOffsetOf: n)].
+			b := cgBase.
+			b < 0 ifTrue: [
+				b := X16.
+				(self isScaledIndex: n) ifFalse: [asm add: X16 with: x imm: (self indexDisplacementOf: n)]].
 			ek = E_PTR ifTrue: [
 				r := self dst: n.
-				asm ldr: r base: X16 index: X17 extend: EXT_LSL shift: 3.
+				asm ldr: r base: b index: cgIndex extend: EXT_LSL shift: 3.
 				^self def: n from: r].
-			(ek = E_U16 or: [ek = E_U16BE or: [ek = E_I16BE]]) ifTrue: [asm ldrh: W16 base: X16 index: X17].
-			ek = E_I16 ifTrue: [asm ldrsh: X16 base: X16 index: X17].
-			(ek = E_W32 and: [(self isScaledIndex: n) not]) ifTrue: [asm ldr: W16 base: X16 index: X17 extend: EXT_LSL shift: 2].
-			(ek = E_U32 or: [ek = E_U32BE]) ifTrue: [asm ldr: W16 base: X16 index: X17].
-			(ek = E_BYTE or: [ek = E_CHAR]) ifTrue: [asm ldrb: W16 base: X16 index: X17]].
+			(ek = E_U16 or: [ek = E_U16BE or: [ek = E_I16BE]]) ifTrue: [asm ldrh: wt base: b index: cgIndex].
+			ek = E_I16 ifTrue: [asm ldrsh: t base: b index: cgIndex].
+			(ek = E_W32 and: [(self isScaledIndex: n) not]) ifTrue: [asm ldr: wt base: b index: cgIndex extend: EXT_LSL shift: 2].
+			(ek = E_U32 or: [ek = E_U32BE]) ifTrue: [asm ldr: wt base: b index: cgIndex].
+			(ek = E_BYTE or: [ek = E_CHAR]) ifTrue: [asm ldrb: wt base: b index: cgIndex]].
 	(ek = E_U16BE or: [ek = E_I16BE or: [ek = E_U32BE]]) ifTrue: [
 		asm comment: 'big-endian: the bytes reversed'.
-		asm rev: W16 with: W16.
-		ek = E_U16BE ifTrue: [asm lsr: W16 with: W16 imm: 16].
-		ek = E_I16BE ifTrue: [asm sbfx: X16 with: X16 lsb: 16 width: 16]].
+		asm rev: wt with: wt.
+		ek = E_U16BE ifTrue: [asm lsr: wt with: wt imm: 16].
+		ek = E_I16BE ifTrue: [asm sbfx: t with: t lsb: 16 width: 16]].
+	nd rep asInt32 = R_INT ifTrue: [^self def: n from: t].
 	(self isFusedLoad: n) ifTrue: [^asm comment: 'untagged: the sum after it adds it shifted'].
 	r := self dst: n.
 	ek = E_CHAR
@@ -1203,49 +1257,71 @@ emitIndexLoad: n
 	self def: n from: r
 !
 emitWordStore: n object: x label: s
-	"emitIndexStore: of a SmallInteger 0 to 2^32 - 1 as 32 bits (into 32-bit words, or uint32At:put: at a byte offset, unaligned) at the object x, the index in X17."
-	| nd v |
+	"emitIndexStore: of a SmallInteger 0 to 2^32 - 1 (tagged or not) as 32 bits (into 32-bit words, or uint32At:put: at a byte offset, unaligned) at the object x, the index in cgIndex."
+	| nd v w |
 	nd := ir node: n.
 	v := self src: nd c into: self scratchB.
-	(nd flags bitAnd: NF_INRANGE) ~= 0
-		ifTrue: [asm comment: 'a SmallInteger 0 to 2^32 - 1: unchecked']
+	(ir node: nd c) rep asInt32 = R_INT
+		ifTrue: [
+			(nd flags bitAnd: NF_INRANGE) ~= 0
+				ifTrue: [asm comment: 'an untagged 0 to 2^32 - 1: unchecked']
+				ifFalse: [
+					asm comment: 'an untagged 0 to 2^32 - 1?'.
+					asm lsr: X16 with: v imm: 32.
+					asm cbnz: X16 to: s].
+			w := v bitOr: REG_W]
 		ifFalse: [
-			asm comment: 'a SmallInteger 0 to 2^32 - 1?'.
-			asm tst: v imm: 1.
-			asm b: s if: COND_EQ.
-			asm lsr: X16 with: v imm: 33.
-			asm cbnz: X16 to: s].
-	asm lsr: X16 with: v imm: 1.
-	asm isX64 ifTrue: [^asm str: W16 base: x index: X17 shift: (nd aux = E_W32 ifTrue: [2] ifFalse: [0]) offset: (self indexDisplacementOf: n)].
-	(self isScaledIndex: n) ifTrue: [^asm str: W16 base: X17 offset: (self scaledOffsetOf: n)].
-	asm add: X17 with: x with: X17 shift: SHIFT_LSL amount: (nd aux = E_W32 ifTrue: [2] ifFalse: [0]).
-	asm str: W16 base: X17 offset: (self indexDisplacementOf: n)
+			(nd flags bitAnd: NF_INRANGE) ~= 0
+				ifTrue: [asm comment: 'a SmallInteger 0 to 2^32 - 1: unchecked']
+				ifFalse: [
+					asm comment: 'a SmallInteger 0 to 2^32 - 1?'.
+					asm tst: v imm: 1.
+					asm b: s if: COND_EQ.
+					asm lsr: X16 with: v imm: 33.
+					asm cbnz: X16 to: s].
+			asm lsr: X16 with: v imm: 1.
+			w := W16].
+	asm isX64 ifTrue: [^asm str: w base: x index: cgIndex shift: (nd aux = E_W32 ifTrue: [2] ifFalse: [0]) offset: (self indexDisplacementOf: n)].
+	(self isScaledIndex: n) ifTrue: [^asm str: w base: X17 offset: (self scaledOffsetOf: n)].
+	cgBase >= 0 ifTrue: [^asm str: w base: cgBase index: cgIndex extend: EXT_LSL shift: (nd aux = E_W32 ifTrue: [2] ifFalse: [0])].
+	asm add: X17 with: x with: cgIndex shift: SHIFT_LSL amount: (nd aux = E_W32 ifTrue: [2] ifFalse: [0]).
+	asm str: w base: X17 offset: (self indexDisplacementOf: n)
 !
 isScaledIndex: n
-	"Indexed access n checks no bounds and its elements are 8 or 4 bytes (arm64): emitIndexCheck: leaves the object plus the tagged index times half an element in X17, the element at scaledOffsetOf: from there."
+	"Indexed access n checks no bounds and its elements are 8 or 4 bytes (arm64): emitIndexCheck: leaves the object plus the index times the element size (half of it for a tagged index) in X17, the element at scaledOffsetOf: from there."
 	| nd |
 	nd := ir node: n.
-	^asm isX64 not and: [(nd flags bitAnd: NF_NOBOUNDS) ~= 0 and: [(nd aux = E_PTR or: [nd aux = E_W32]) and: [nd aux2 < 24]]]
+	^asm isX64 not and: [(nd flags bitAnd: NF_NOBOUNDS) ~= 0 and: [(nd aux = E_PTR or: [nd aux = E_W32]) and: [nd aux2 < 24 and: [(self elementsOf: n) < 0]]]]
+!
+elementsOf: n
+	"The register of the elements' address that indexed access n adds its untagged index to (OptPasses>>deriveElements), -1 if none."
+	| nd e |
+	nd := ir node: n.
+	(asm isX64 not and: [nd nargs asInt32 = 1]) ifFalse: [^-1].
+	e := ir node: (ir operand: nd args).
+	(e op asInt32 = O_ELEMENTS and: [e reg >= 0 and: [(ir node: nd b) rep asInt32 = R_INT and: [(nd flags bitAnd: NF_NOBOUNDS) ~= 0]]]) ifFalse: [^-1].
+	^e reg asInt32
 !
 scaledOffsetOf: n
-	"isScaledIndex: n's element's offset from X17: its header and fixed fields less one and a half elements (the tagged index 2i + 1 times half an element is i elements and a half)."
+	"isScaledIndex: n's element's offset from X17: its header and fixed fields less an element for an untagged 1-based index i, less one and a half for a tagged one (2i + 1 times half an element is i elements and a half)."
 	| nd size |
 	nd := ir node: n.
 	size := self elementBytes: nd aux asInt32.
+	(ir node: nd b) rep asInt32 = R_INT ifTrue: [^16 + (8 * nd aux2) - size].
 	^16 + (8 * nd aux2) - (3 * size quo: 2)
 !
 isFusedLoad: v
-	"v is an indexed load of a SmallInteger element (not a pointer, not a Character) that only the unchecked sum or difference right after it reads (arm64): it leaves the element untagged in X16, which that adds or subtracts shifted (emitAddSub:)."
+	"v is an indexed load of a tagged SmallInteger element (not a pointer, not a Character) that only the unchecked tagged sum or difference right after it reads (arm64): it leaves the element untagged in X16, which that adds or subtracts shifted (emitAddSub:)."
 	| nd md |
 	nd := ir node: v.
-	(asm isX64 not and: [nd op asInt32 = O_INDEXLOAD and: [nd aux ~= E_PTR and: [nd aux ~= E_CHAR and: [nd uses = 1 and: [nd slot < 0 and: [nd next >= 0]]]]]]) ifFalse: [^false].
+	(asm isX64 not and: [nd op asInt32 = O_INDEXLOAD and: [nd rep asInt32 = R_OOP and: [nd aux ~= E_PTR and: [nd aux ~= E_CHAR and: [nd uses = 1 and: [nd slot < 0 and: [nd next >= 0]]]]]]]) ifFalse: [^false].
 	md := ir node: nd next.
-	((md op asInt32 = O_IADD or: [md op asInt32 = O_ISUB]) and: [(md flags bitAnd: NF_INRANGE) ~= 0 and: [md a ~= md b]]) ifFalse: [^false].
+	((md op asInt32 = O_IADD or: [md op asInt32 = O_ISUB]) and: [md rep asInt32 = R_OOP and: [(md flags bitAnd: NF_INRANGE) ~= 0 and: [md a ~= md b]]]) ifFalse: [^false].
 	md b = v ifTrue: [^true].
 	^md op asInt32 = O_IADD and: [md a = v]
 !
 emitIndexStore: n
-	"The value: a SmallInteger 0-255 into bytes, a Character below 256 into a string, any oop into pointers (with the store barrier); an immutable object deoptimizes."
+	"The value: a SmallInteger 0-255 into bytes (tagged or not), a Character below 256 into a string, any oop into pointers (with the store barrier); an immutable object deoptimizes."
 	| nd x v ek s done check slow |
 	nd := ir node: n.
 	ek := nd aux asInt32.
@@ -1258,9 +1334,24 @@ emitIndexStore: n
 	(ek = E_W32 or: [ek = E_U32]) ifTrue: [^self emitWordStore: n object: x label: s].
 	(asm isX64 and: [ek ~= E_PTR]) ifTrue: [^self emitByteStoreX64: n object: x label: s].
 	(asm isX64 or: [self isScaledIndex: n]) ifFalse: [
-		asm add: X16 with: x imm: (self indexDisplacementOf: n).
-		asm add: X16 with: X16 with: X17 shift: SHIFT_LSL amount: (ek = E_PTR ifTrue: [3] ifFalse: [0])].
+		cgBase >= 0
+			ifTrue: [
+				(ek = E_BYTE and: [(ir node: nd c) rep asInt32 = R_INT]) ifFalse: [
+					asm add: X16 with: cgBase with: cgIndex shift: SHIFT_LSL amount: (ek = E_PTR ifTrue: [3] ifFalse: [0])]]
+			ifFalse: [
+				asm add: X16 with: x imm: (self indexDisplacementOf: n).
+				(ek = E_BYTE and: [(ir node: nd c) rep asInt32 = R_INT]) ifFalse: [
+					asm add: X16 with: X16 with: cgIndex shift: SHIFT_LSL amount: (ek = E_PTR ifTrue: [3] ifFalse: [0])]]].
 	v := self src: nd c into: self scratchB.
+	(ek = E_BYTE and: [(ir node: nd c) rep asInt32 = R_INT]) ifTrue: [
+		(nd flags bitAnd: NF_INRANGE) = 0
+			ifTrue: [
+				asm comment: 'an untagged byte: 0 to 255?'.
+				asm cmp: v imm: 255.
+				asm b: s if: COND_HI]
+			ifFalse: [asm comment: 'an untagged byte: unchecked'].
+		asm strb: (v bitOr: REG_W) base: (cgBase >= 0 ifTrue: [cgBase] ifFalse: [X16]) index: cgIndex.
+		^self].
 	ek ~= E_PTR ifTrue: [
 		(nd flags bitAnd: NF_INRANGE) ~= 0 ifTrue: [
 			asm comment: 'a byte or a Character below 256: unchecked'.
@@ -1282,7 +1373,7 @@ emitIndexStore: n
 		asm strb: W17 base: X16 offset: 0.
 		^self].
 	asm isX64
-		ifTrue: [asm str: v base: x index: X17 shift: 3 offset: (self indexDisplacementOf: n)]
+		ifTrue: [asm str: v base: x index: cgIndex shift: 3 offset: (self indexDisplacementOf: n)]
 		ifFalse: [
 			(self isScaledIndex: n)
 				ifTrue: [asm str: v base: X17 offset: (self scaledOffsetOf: n)]
@@ -1365,9 +1456,51 @@ oopSlotOf: cls
 oopTableOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #oopTable) to: 'int64_t'
 !
+emitUntaggedAddSub: n
+	"An untagged (R_INT) sum or difference, of untagged operands: one instruction (its range rules out overflow)."
+	| nd x b r isAdd c |
+	nd := ir node: n.
+	isAdd := nd op asInt32 = O_IADD.
+	r := self dst: n.
+	x := self src: nd a into: self scratchA.
+	b := ir node: nd b.
+	(b op asInt32 = O_CONST and: [b aux between: -4095 and: 4095])
+		ifTrue: [
+			c := b aux.
+			(isAdd = (c >= 0))
+				ifTrue: [asm add: r with: x imm: (c < 0 ifTrue: [c negated] ifFalse: [c])]
+				ifFalse: [asm sub: r with: x imm: (c < 0 ifTrue: [c negated] ifFalse: [c])]]
+		ifFalse: [
+			isAdd
+				ifTrue: [asm add: r with: x with: (self src: nd b into: self scratchB)]
+				ifFalse: [asm sub: r with: x with: (self src: nd b into: self scratchB)]].
+	self def: n from: r
+!
+emitUntaggedDivShift: n
+	"An untagged (R_INT) shift by a constant (OptPasses>>isUntagCandidate: ruled out overflow), or floored division or modulo by a power of two: one instruction."
+	| nd op x r k d |
+	nd := ir node: n.
+	op := nd op asInt32.
+	x := self src: nd a into: self scratchA.
+	r := self dst: n.
+	op = O_ISHIFT ifTrue: [
+		k := self intVal: (ir node: nd b) aux asUInt64.
+		k < 0
+			ifTrue: [asm asr: r with: x imm: (k negated min: 63)]
+			ifFalse: [asm lsl: r with: x imm: k].
+		^self def: n from: r].
+	d := self constantDivisorOf: n.
+	k := 0.
+	[(1 asInt64 << k) < d] whileTrue: [k := k + 1].
+	op = O_IDIV
+		ifTrue: [asm asr: r with: x imm: k]
+		ifFalse: [asm and: r with: x imm: d - 1].
+	self def: n from: r
+!
 emitAddSub: n
 	| nd x y c isAdd s checked r |
 	nd := ir node: n.
+	nd rep asInt32 = R_INT ifTrue: [^self emitUntaggedAddSub: n].
 	"no overflow check where the operands' ranges rule it out: the result straight into its register (the operands read first)"
 	checked := (nd flags bitAnd: NF_INRANGE) = 0.
 	r := X16.
@@ -1410,6 +1543,7 @@ emitDivShift: n
 	"SmallInteger modulo and division (floored, aux 1 truncated: rem: quo:, aux 2 exact: /, a remainder deoptimizes; a zero divisor deoptimizes; \\ by a divisor that turns out a positive power of two: a mask) and bitShift: (a result that does not fit deoptimizes)."
 	| nd s op neg done d k r general b |
 	nd := ir node: n.
+	nd rep asInt32 = R_INT ifTrue: [^self emitUntaggedDivShift: n].
 	op := nd op asInt32.
 	b := ir node: nd b.
 	(op = O_ISHIFT and: [b op asInt32 = O_CONST and: [(self isInt: b aux asUInt64) and: [(self intVal: b aux asUInt64) < 0]]]) ifTrue: [
@@ -2521,11 +2655,17 @@ saveAcross: n
 		((nd flags bitAnd: NF_LAZY) ~= 0 and: [nd reg >= 0 and: [nd slot >= 0]]) ifTrue: [self store: nd reg asInt32 slot: nd slot asInt32]]
 !
 reloadAcross: n
+	"Values live after safepoint n in their registers again, from their home slots; then objects' elements' addresses made again (a collection may have moved the objects)."
 	| v nd |
 	(ir node: n) live to: (ir node: n) live + (ir node: n) nlive - 1 do: [:i |
 		v := regalloc safeLiveAt: i.
 		nd := ir node: v.
-		(nd reg >= 0 and: [nd slot >= 0]) ifTrue: [self load: nd reg asInt32 slot: nd slot asInt32]]
+		(nd reg >= 0 and: [nd slot >= 0]) ifTrue: [self load: nd reg asInt32 slot: nd slot asInt32]].
+	(ir node: n) live to: (ir node: n) live + (ir node: n) nlive - 1 do: [:i |
+		v := regalloc safeLiveAt: i.
+		nd := ir node: v.
+		(nd op asInt32 = O_ELEMENTS and: [nd reg >= 0 and: [v ~= n]]) ifTrue: [
+			asm add: nd reg asInt32 with: (self src: nd a into: self scratchA) imm: nd aux]]
 !
 reloadDoublesAcross: n
 	"The doubles live after call n are in their d registers again, from their raw slots (stored where they are defined): its fast path called C, which keeps no d register."
@@ -3021,6 +3161,15 @@ locOf: v inSlots: inSlots
 	nd rep asInt32 = R_DBL ifTrue: [
 		(inSlots not and: [nd reg >= 0]) ifTrue: [^((nd reg asInt64 - D0) << 3) bitOr: LOC_DREG].
 		nd slot >= 0 ifTrue: [^(nd slot asInt64 << 3) bitOr: LOC_RAW].
+		asm fail: ASM_ERR_OPERAND.
+		^0].
+	nd rep asInt32 = R_INT ifTrue: [
+		"an untagged SmallInteger: a constant, its register (not at a safepoint), its raw slot; deoptimization tags it"
+		nd op asInt32 = O_CONST ifTrue: [
+			(nd aux between: -16r8000000 and: 16r7FFFFFF) ifTrue: [^(nd aux << 3) bitOr: LOC_SMI].
+			^((self poolIndexOf: (self intOop: nd aux)) asInt64 << 3) bitOr: LOC_CONST].
+		(inSlots not and: [nd reg >= 0]) ifTrue: [^(nd reg asInt64 << 4) bitOr: LOC_INT].
+		nd slot >= 0 ifTrue: [^(((nd slot asInt64 << 1) bitOr: 1) << 3) bitOr: LOC_INT].
 		asm fail: ASM_ERR_OPERAND.
 		^0].
 	(nd op asInt32 = O_CLOSURE or: [nd op asInt32 = O_VOBJ]) ifTrue: [^((self sunkIndexOf: v) asInt64 << 3) bitOr: LOC_SUNK].

@@ -353,7 +353,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define JIT_FLAG_HOIST 1048576
 #define JIT_FLAG_IC 16
 #define JIT_FLAG_INLINE 16384
-#define JIT_FLAG_LAST 67108864
+#define JIT_FLAG_LAST 134217728
 #define JIT_FLAG_LIVE 2097152
 #define JIT_FLAG_MEGA 64
 #define JIT_FLAG_NOTES 8
@@ -363,6 +363,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define JIT_FLAG_REGS 128
 #define JIT_FLAG_RESPEC 33554432
 #define JIT_FLAG_UNBOX 32768
+#define JIT_FLAG_UNTAG 134217728
 #define JIT_MAX_COUNT 65535
 #define JIT_MAX_MAP 32768
 #define JIT_MAX_YOUNG 4096
@@ -541,6 +542,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define O_CLOSURE 25
 #define O_CONST 1
 #define O_DEOPT 53
+#define O_ELEMENTS 58
 #define O_EQ 7
 #define O_FARITH 30
 #define O_FCMP 31
@@ -565,7 +567,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define O_ISHIFT 36
 #define O_ISUB 10
 #define O_IXOR 37
-#define O_LAST 55
+#define O_LAST 58
 #define O_LOADFIELD 4
 #define O_LOADSLOT 40
 #define O_MKARRAY 43
@@ -584,7 +586,9 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define O_STORESLOT 41
 #define O_STRCMP 54
 #define O_STRHASH 49
+#define O_TAG 56
 #define O_UNBOXF 28
+#define O_UNTAG 57
 #define O_VOBJ 55
 #define PF_BLEND_ALPHA 1
 #define PF_BLEND_NONE 0

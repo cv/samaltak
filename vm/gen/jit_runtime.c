@@ -936,7 +936,7 @@ uint64_t jit_runtime_context_field(frame *f)
 void defaults(void)
 {
     jit_mode = JIT_OPT;
-    jit_flags = 133431287U;
+    jit_flags = 267649015U;
 }
 
 #if defined(__x86_64__)
@@ -1930,6 +1930,9 @@ char *flag_name(uint32_t bit)
     if (bit == JIT_FLAG_ESCAPE) {
         return "escape";
     }
+    if (bit == JIT_FLAG_UNTAG) {
+        return "untag";
+    }
     return "deopt";
 }
 
@@ -2558,6 +2561,10 @@ bool parse_flags(char *s)
     }
     if ((strlen("escape") == (uint64_t)n) && (memcmp(name, "escape", (uint64_t)n) == 0)) {
         r_flag_named = JIT_FLAG_ESCAPE;
+        goto exit_flag_named;
+    }
+    if ((strlen("untag") == (uint64_t)n) && (memcmp(name, "untag", (uint64_t)n) == 0)) {
+        r_flag_named = JIT_FLAG_UNTAG;
         goto exit_flag_named;
     }
     r_flag_named = 0;

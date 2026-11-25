@@ -3,7 +3,7 @@ OptModule subclass: #OptRegalloc
 	classVariableNames: 'RA_ARENA RA_MAX_ACTIVE RA_MAX_SAFE RA_MAX_SAFELIST RA_MAX_SLOTS RA_NREGS'
 	package: 'VM-Jit'!
 
-OptRegalloc comment: 'Register allocation for the optimizing tier (Poletto and Sarkar''s linear scan over one live interval per value). Blocks in OptPasses'' order get positions (two per node; a block''s phis at its start); block-level liveness (iterative, bit sets) gives each value the interval from its first to its last live position (a phi''s covers the ends of its predecessors, where the moves into it are; a frame state''s values at a safepoint stay live after it). Values get one of the 18 allocatable registers (x0-x13, x18, x26-x28; x18 only where code may use it, Linux and UEFI: Arm64Assembler>>hasX18; x14-x17 are the code generator''s scratch, x23-x25 hold nil, true and false for baseline code) for their whole interval, or a frame slot if none is free (the interval ending last is spilled). Values live across a safepoint (a send, an interrupt check: everything there may run Smalltalk and move objects) also get a home slot: their registers are stored there before it and reloaded after. Doubles get d16-d31 and raw slots of their own (IEEE bits, which the collector does not read), after the others and the frame''s valid slots. Constants get neither: the code generator materializes them where they are used.'!
+OptRegalloc comment: 'Register allocation for the optimizing tier (Poletto and Sarkar''s linear scan over one live interval per value). Blocks in OptPasses'' order get positions (two per node; a block''s phis at its start); block-level liveness (iterative, bit sets) gives each value the interval from its first to its last live position (a phi''s covers the ends of its predecessors, where the moves into it are; a frame state''s values at a safepoint stay live after it). Values get one of the 18 allocatable registers (x0-x13, x18, x26-x28; x18 only where code may use it, Linux and UEFI: Arm64Assembler>>hasX18; x14-x17 are the code generator''s scratch, x23-x25 hold nil, true and false for baseline code) for their whole interval, or a frame slot if none is free (the interval ending last is spilled). Values live across a safepoint (a send, an interrupt check: everything there may run Smalltalk and move objects) also get a home slot: their registers are stored there before it and reloaded after. Doubles get d16-d31 and raw slots of their own (IEEE bits, which the collector does not read), after the others and the frame''s valid slots; untagged SmallIntegers (R_INT) general registers and raw slots. Constants get neither: the code generator materializes them where they are used.'!
 
 !OptRegalloc class methodsFor: 'declaring'!
 declarations
@@ -45,6 +45,16 @@ isValue: n
 	n < 0 ifTrue: [^false].
 	nd := ir node: n.
 	^nd block >= 0 and: [nd rep asInt32 ~= R_NONE and: [nd op asInt32 ~= O_CONST and: [nd op asInt32 ~= O_CLOSURE and: [nd op asInt32 ~= O_HOMESLOT and: [(nd flags bitAnd: NF_DEAD) = 0]]]]]
+!
+isRaw: v
+	"v's home slot is a raw one, which the collector does not read: a double's IEEE bits, an untagged SmallInteger's value (R_INT)."
+	| r |
+	r := (ir node: v) rep asInt32.
+	^r = R_DBL or: [r = R_INT]
+!
+is: v likeRegisterOf: w
+	"v and w take registers of one kind: d registers for doubles, general registers for the others (tagged or not)."
+	^((ir node: v) rep asInt32 = R_DBL) = ((ir node: w) rep asInt32 = R_DBL)
 !
 isSafepoint: n
 	| op |
@@ -409,12 +419,12 @@ linearScan
 						"x86, few registers: the one that costs least per position it is live kept in its slot (cost:plus:), at a tie the one ending last; maybe this one"
 						best := v.
 						0 to: raActiveCount - 1 do: [:k |
-							((ir node: (raActive at: k)) rep = nd rep and: [(self is: (raActive at: k) cheaperThan: best) and: [(self isShared: k) not]]) ifTrue: [
+							((self is: (raActive at: k) likeRegisterOf: v) and: [(self is: (raActive at: k) cheaperThan: best) and: [(self isShared: k) not]]) ifTrue: [
 								best := raActive at: k.
 								victim := k]]]
 					ifFalse: [
 						0 to: raActiveCount - 1 do: [:k |
-							((ir node: (raActive at: k)) lend > far and: [(ir node: (raActive at: k)) rep = nd rep and: [(self isShared: k) not]]) ifTrue: [
+							((ir node: (raActive at: k)) lend > far and: [(self is: (raActive at: k) likeRegisterOf: v) and: [(self isShared: k) not]]) ifTrue: [
 								far := (ir node: (raActive at: k)) lend.
 								victim := k]]].
 				victim >= 0
@@ -573,12 +583,13 @@ assignSlots
 		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd op asInt32 = O_PARAM and: [nd aux >= 0]]) ifTrue: [nd slot: nd aux asInt16].
 		"a guard's result is its input: in the same slot, if the input is in one"
 		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd slot < 0 and: [self isGuard: nd]]) ifTrue: [self shareSlotOf: v].
-		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd slot < 0]) ifTrue: [
+		"an object's elements' address: no slot (made again after safepoints, OptCodegen>>reloadAcross:)"
+		((nd reg < 0 or: [self crossesSafepoint: v]) and: [nd slot < 0 and: [nd op asInt32 ~= O_ELEMENTS]]) ifTrue: [
 			j := 0.
 			[j < raActiveCount] whileTrue: [
 				(ir node: (raActive at: j)) lend < nd lstart
 					ifTrue: [
-						(ir node: (raActive at: j)) rep asInt32 = R_DBL
+						(self isRaw: (raActive at: j))
 							ifTrue: [
 								raRawFree at: raRawFreeCount put: (ir node: (raActive at: j)) slot asInt32.
 								raRawFreeCount := raRawFreeCount + 1]
@@ -588,7 +599,7 @@ assignSlots
 						raActiveCount := raActiveCount - 1.
 						raActive at: j put: (raActive at: raActiveCount)]
 					ifFalse: [j := j + 1]].
-			nd rep asInt32 = R_DBL
+			(self isRaw: v)
 				ifTrue: [
 					raRawFreeCount > 0
 						ifTrue: [
@@ -617,7 +628,7 @@ assignSlots
 	raRawBase + raRawTop > RA_MAX_SLOTS ifTrue: [^false].
 	0 to: raSortCount - 1 do: [:i |
 		nd := ir node: (raSorted at: i).
-		(nd rep asInt32 = R_DBL and: [nd slot >= 0]) ifTrue: [nd slot: (nd slot + raRawBase) asInt16]].
+		((self isRaw: (raSorted at: i)) and: [nd slot >= 0]) ifTrue: [nd slot: (nd slot + raRawBase) asInt16]].
 	^true
 ! !
 

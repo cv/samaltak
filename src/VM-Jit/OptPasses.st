@@ -1,5 +1,5 @@
 OptModule subclass: #OptPasses
-	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter psMemEnd psMemMark psMemKill psCounted psAffine psTPhi psTLo psTHi psTCount psRLo psRHi psILo psIHi psCHi psCStep psCHead psCLimit psCCond psLoopK psLoopConst psLoopCap psEscOf psEscNode psEscGone psEscCount psEscPos psEscEnd psEscCur psEscClone psEscStamp psEscVersion psEscVobj psEscPhi psEscPhiField psEscPhiCount psEscNil psEscEntry psEscEstStates psEscEstOps psEscReplaced psEscFields psEscCls psEscKind psEscFeeds psEscMergeIn psEscUseStates psEscUseOps psEscUseNodes'
+	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter psMemEnd psMemMark psMemKill psCounted psAffine psTPhi psTLo psTHi psTCount psRLo psRHi psILo psIHi psCHi psCStep psCHead psCLimit psCCond psLoopK psLoopConst psLoopCap psEscOf psEscNode psEscGone psEscCount psEscPos psEscEnd psEscCur psEscClone psEscStamp psEscVersion psEscVobj psEscPhi psEscPhiField psEscPhiCount psEscNil psEscEntry psEscEstStates psEscEstOps psEscReplaced psEscFields psEscCls psEscKind psEscFeeds psEscMergeIn psEscUseStates psEscUseOps psEscUseNodes psUntag psConv psTagOf'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -17,7 +17,8 @@ declarations
 		(psCHi int64_t) (psCStep int64_t) (psCHead bool) (psCLimit int32_t) (psCCond int32_t) (psLoopK 'int64_t[OPT_MAX_BLOCKS]') (psLoopConst 'int32_t[OPT_MAX_BLOCKS]') (psLoopCap 'uint8_t[OPT_MAX_BLOCKS]') (psEscOf 'int32_t[OPT_MAX_NODES]') (psEscNode 'int32_t[64]') (psEscGone 'uint8_t[64]') (psEscCount int32_t) (psEscPos 'int32_t[OPT_MAX_NODES]') (psEscEnd 'int32_t[32768]') (psEscCur 'int32_t[16]')
 		(psEscClone 'int32_t[OPT_MAX_STATES]') (psEscStamp 'int32_t[OPT_MAX_STATES]') (psEscVersion int32_t) (psEscVobj int32_t) (psEscPhi 'int32_t[16384]') (psEscPhiField 'int32_t[16384]') (psEscPhiCount int32_t)
 		(psEscNil int32_t) (psEscEntry int32_t) (psEscEstStates 'int64_t[64]') (psEscEstOps 'int64_t[64]') (psEscReplaced int32_t)
-		(psEscFields 'int32_t[64]') (psEscCls 'uint64_t[64]') (psEscKind 'uint8_t[64]') (psEscFeeds 'int32_t[64]') (psEscMergeIn 'int32_t[16384]') (psEscUseStates int64_t) (psEscUseOps int64_t) (psEscUseNodes int64_t))
+		(psEscFields 'int32_t[64]') (psEscCls 'uint64_t[64]') (psEscKind 'uint8_t[64]') (psEscFeeds 'int32_t[64]') (psEscMergeIn 'int32_t[16384]') (psEscUseStates int64_t) (psEscUseOps int64_t) (psEscUseNodes int64_t)
+		(psUntag 'uint8_t[OPT_MAX_NODES]') (psConv 'int32_t[OPT_MAX_NODES]') (psTagOf 'int32_t[OPT_MAX_NODES]'))
 ! !
 
 !OptPasses methodsFor: 'accessing'!
@@ -94,7 +95,9 @@ cleanup: entry
 	self countUses.
 	self removeDead.
 	self countUses.
-	self equalityCompares
+	self equalityCompares.
+	"SmallIntegers that stay ones in loops: untagged"
+	(runtime flag: runtime untagFlag) ifTrue: [self untagIntegers]
 !
 equalityCompares
 	"A compareWith: of bytes (O_STRCMP) that only = 0 or ~= 0 uses (String>>=): whether the bytes are equal is all it answers (NF_EQONLY)."
@@ -2746,4 +2749,351 @@ vobj: v enteredFrom: k of: h
 		(w >= 0 and: [(ir node: w) op asInt32 = O_PHI and: [(ir node: w) block = h]]) ifTrue: [w := ir operand: (ir node: w) args + k].
 		ir operand: args + i put: w].
 	^n
+! !
+
+!OptPasses methodsFor: 'untagging'!
+deriveElements
+	"arm64: an indexed access in a loop that checks no bounds, of an object from before the loop at an untagged index, addresses its element from a register with the object's elements' address (O_ELEMENTS, made where the loop is entered, once per object and kind of element; the access's argument): one load or store, base plus index (x86 addresses the element with one operand anyway)."
+	<function>
+	| nd op h p x d k |
+	0 to: ir nodeCount - 1 do: [:n |
+		nd := ir node: n.
+		op := nd op asInt32.
+		((op = O_INDEXLOAD or: [op = O_INDEXSTORE]) and: [nd block >= 0 and: [(nd flags bitAnd: NF_NOBOUNDS) ~= 0 and: [nd nargs asInt32 = 0 and: [nd b >= 0 and: [(ir node: nd b) rep asInt32 = R_INT]]]]]) ifTrue: [
+			h := self loopOf: n.
+			x := ir node: nd a.
+			(h >= 0 and: [x block >= 0 and: [(self block: x block isIn: h) not]]) ifTrue: [
+				p := self entryOf: h.
+				d := 16 + (8 * nd aux2) - (self elementBytes: nd aux asInt32).
+				(p >= 0 and: [d <= 4095]) ifTrue: [
+					k := self elementsOf: nd a displacement: d in: p.
+					ir full ifTrue: [^self].
+					nd args: (ir allocOperands: 1).
+					ir full ifTrue: [^self].
+					ir operand: nd args put: k.
+					nd nargs: 1]]]]
+!
+entryOf: h
+	"The one block outside loop h that jumps into it, -1 if not one."
+	| e p found |
+	found := -1.
+	e := (ir block: h) preds.
+	[e >= 0] whileTrue: [
+		p := (ir edge: e) from.
+		(self block: p isIn: h) ifFalse: [
+			found >= 0 ifTrue: [^-1].
+			found := p].
+		e := (ir edge: e) next].
+	^found
+!
+elementsOf: v displacement: d in: p
+	"The O_ELEMENTS of object v and displacement d at the end of block p (made if needed)."
+	<function>
+	| n nd |
+	n := (ir block: p) first.
+	[n >= 0] whileTrue: [
+		nd := ir node: n.
+		(nd op asInt32 = O_ELEMENTS and: [nd a = v and: [nd aux = d]]) ifTrue: [^n].
+		n := nd next].
+	ir origin: (ir node: v) bcact pc: (ir node: v) bcpc.
+	n := ir newNode: O_ELEMENTS rep: R_INT.
+	ir full ifTrue: [^0].
+	nd := ir node: n.
+	nd a: v.
+	nd aux: d.
+	nd flags: NF_PURE.
+	ir insert: n before: (ir block: p) last.
+	^n
+!
+untagIntegers
+	"In loops, SmallIntegers that provably stay ones (the counted loops' phis, sums and differences their ranges keep in range, elements loaded from bytes and words, bitAnd: and the like, shifts and divisions by constants that cannot overflow) are kept untagged (R_INT): what reads them in the loop reads them so (the arithmetic, compares, the indices and the values stored of indexed accesses); where they leave the loop or reach something else they are tagged again (O_TAG), what enters the loop untagged (O_UNTAG) once, where it is defined or the loop is entered. A value goes back to tagged if the loop would tag it every turn (dropTaggedUses, to a fixed point). Frame states name the untagged values themselves: deoptimization tags them (LOC_INT); their home slots are raw ones."
+	<function>
+	| any |
+	ir full ifTrue: [^self].
+	self findLoops.
+	any := false.
+	0 to: ir nodeCount - 1 do: [:n |
+		psConv at: n put: -1.
+		psTagOf at: n put: -1.
+		(self isUntagCandidate: n)
+			ifTrue: [
+				psUntag at: n put: 1.
+				any := true]
+			ifFalse: [psUntag at: n put: 0]].
+	any ifFalse: [^self].
+	[self dropTaggedUses] whileTrue.
+	self retypeUntagged.
+	ir full ifTrue: [^self].
+	asm isX64 ifFalse: [self deriveElements].
+	ir full ifTrue: [^self].
+	self countUses.
+	self removeDead.
+	self countUses
+!
+isUntagCandidate: n
+	"n is in a loop and may be kept untagged: a phi of SmallIntegers, an unchecked sum or difference, an element of bytes or words (no pointer, no Character), bitAnd: bitOr: bitXor:, a shift by a constant that cannot overflow, a floored division or modulo by a power of two."
+	| nd op k x |
+	nd := ir node: n.
+	(nd block >= 0 and: [nd fwd < 0 and: [(nd flags bitAnd: NF_DEAD) = 0 and: [nd rep asInt32 = R_OOP and: [(ir block: nd block) loop >= 0]]]]) ifFalse: [^false].
+	op := nd op asInt32.
+	op = O_INDEXLOAD ifTrue: [^nd aux ~= E_PTR and: [nd aux ~= E_CHAR]].
+	nd tkind asInt32 = T_SMI ifFalse: [^false].
+	op = O_PHI ifTrue: [^true].
+	(op = O_IADD or: [op = O_ISUB]) ifTrue: [^(nd flags bitAnd: NF_INRANGE) ~= 0].
+	(op = O_IAND or: [op = O_IOR or: [op = O_IXOR]]) ifTrue: [^true].
+	op = O_ISHIFT ifTrue: [
+		k := self constantIntOf: nd b.
+		(k = 0 or: [k > 62 or: [k < -62]]) ifTrue: [^false].
+		k < 0 ifTrue: [^true].
+		x := ir node: nd a.
+		^x lo >= (VM_INT_MIN >> k) and: [x hi <= (VM_INT_MAX >> k)]].
+	(op = O_IDIV or: [op = O_IMOD]) ifTrue: [
+		k := self constantIntOf: nd b.
+		^nd aux = 0 and: [k > 1 and: [(k bitAnd: k - 1) = 0 and: [k < 16r40000000]]]].
+	^false
+!
+constantIntOf: v
+	"The value of v if it is a SmallInteger constant, else 0."
+	<returns: 'int64_t'>
+	| vd |
+	v < 0 ifTrue: [^0].
+	vd := ir node: v.
+	(vd op asInt32 = O_CONST and: [vd rep asInt32 = R_OOP and: [self isInt: vd aux asUInt64]]) ifFalse: [^0].
+	^self intVal: vd aux asUInt64
+!
+isUntagged: v
+	^v >= 0 and: [(psUntag at: v) ~= 0]
+!
+loopOf: n
+	"The innermost loop's head of n's block, -1 if none."
+	| b |
+	b := (ir node: n) block.
+	b < 0 ifTrue: [^-1].
+	^(ir block: b) loop
+!
+isCheapInt: v for: n
+	"v can be read untagged at n at no cost in n's loop: it is untagged, a SmallInteger constant, or a SmallInteger from outside n's innermost loop (untagged once, where it is defined)."
+	| vd h |
+	(self isUntagged: v) ifTrue: [^true].
+	vd := ir node: v.
+	vd rep asInt32 = R_INT ifTrue: [^true].
+	vd op asInt32 = O_CONST ifTrue: [^vd rep asInt32 = R_OOP and: [self isInt: vd aux asUInt64]].
+	(vd tkind asInt32 = T_SMI and: [vd block >= 0]) ifFalse: [^false].
+	h := self loopOf: n.
+	h < 0 ifTrue: [^false].
+	^(self block: vd block isIn: h) not
+!
+isCheapInt: v from: p into: phi
+	"v can be phi's operand untagged at no cost in its loop: it is untagged, a SmallInteger constant, or a SmallInteger that comes in from p outside it (untagged where the loop is entered)."
+	| vd |
+	(self isUntagged: v) ifTrue: [^true].
+	vd := ir node: v.
+	vd op asInt32 = O_CONST ifTrue: [^vd rep asInt32 = R_OOP and: [self isInt: vd aux asUInt64]].
+	vd tkind asInt32 = T_SMI ifFalse: [^false].
+	^(self block: p isIn: (self loopOf: phi)) not
+!
+isUntaggedCompare: n
+	"Comparison n compares untagged values: one of them is, the other can be at no cost."
+	| nd |
+	nd := ir node: n.
+	((self isUntagged: nd a) or: [self isUntagged: nd b]) ifFalse: [^false].
+	^(self isCheapInt: nd a for: n) and: [self isCheapInt: nd b for: n]
+!
+untagUseOf: n at: p
+	"How n reads its operand at position p (0 a, 1 b, 2 c, 3 on its arguments): 0 tagged, 1 either way (an index, a byte or word stored), 2 as n is (arithmetic), 3 as the comparison is (isUntaggedCompare:)."
+	| nd op |
+	nd := ir node: n.
+	op := nd op asInt32.
+	(op = O_INDEXLOAD and: [p = 1]) ifTrue: [^1].
+	op = O_INDEXSTORE ifTrue: [
+		p = 1 ifTrue: [^1].
+		(p = 2 and: [nd aux = E_BYTE or: [nd aux = E_W32 or: [nd aux = E_U32]]]) ifTrue: [^1].
+		^0].
+	((op = O_IADD or: [op = O_ISUB or: [op = O_IAND or: [op = O_IOR or: [op = O_IXOR]]]]) and: [p < 2]) ifTrue: [^2].
+	(op = O_ISHIFT or: [op = O_IDIV or: [op = O_IMOD]]) ifTrue: [
+		p = 0 ifTrue: [^2].
+		(p = 1 and: [self isUntagged: n]) ifTrue: [^1].
+		^0].
+	((op = O_ICMP or: [op = O_EQ or: [op = O_NE]]) and: [p < 2]) ifTrue: [^3].
+	op = O_TAG ifTrue: [^1].
+	^0
+!
+operandOf: n at: p
+	| nd |
+	nd := ir node: n.
+	p = 0 ifTrue: [^nd a].
+	p = 1 ifTrue: [^nd b].
+	p = 2 ifTrue: [^nd op asInt32 = O_SEND ifTrue: [-1] ifFalse: [nd c]].
+	^ir operand: nd args + (p - 3)
+!
+operandOf: n at: p put: v
+	| nd |
+	nd := ir node: n.
+	p = 0 ifTrue: [^nd a: v].
+	p = 1 ifTrue: [^nd b: v].
+	p = 2 ifTrue: [^nd c: v].
+	ir operand: nd args + (p - 3) put: v
+!
+drop: v taggedIn: b
+	"An untagged v read tagged in block b: if b is in v's loop it would be tagged every turn, so it is tagged after all. Answer whether it changed."
+	(self isUntagged: v) ifFalse: [^false].
+	(self block: b isIn: (self loopOf: v)) ifFalse: [^false].
+	psUntag at: v put: 0.
+	^true
+!
+dropTaggedUses
+	"One round of untagIntegers' fixed point: answer whether a value went back to tagged."
+	<function>
+	| changed n nd e k v p kind |
+	changed := false.
+	0 to: psOrderCount - 1 do: [:i |
+		n := (ir block: (psOrder at: i)) first.
+		[n >= 0] whileTrue: [
+			nd := ir node: n.
+			nd op asInt32 = O_PHI
+				ifTrue: [
+					e := (ir block: nd block) preds.
+					k := 0.
+					[e >= 0 and: [k < nd nargs asInt32]] whileTrue: [
+						v := ir operand: nd args + k.
+						p := (ir edge: e) from.
+						(self isUntagged: n)
+							ifTrue: [
+								(self isCheapInt: v from: p into: n) ifFalse: [
+									psUntag at: n put: 0.
+									changed := true]]
+							ifFalse: [(self drop: v taggedIn: p) ifTrue: [changed := true]].
+						k := k + 1.
+						e := (ir edge: e) next]]
+				ifFalse: [
+					0 to: nd nargs asInt32 + 2 do: [:q |
+						v := self operandOf: n at: q.
+						v >= 0 ifTrue: [
+							kind := self untagUseOf: n at: q.
+							kind = 2 ifTrue: [
+								(self isUntagged: n)
+									ifTrue: [
+										(self isCheapInt: v for: n) ifFalse: [
+											psUntag at: n put: 0.
+											changed := true]]
+									ifFalse: [kind := 0]].
+							(kind = 3 and: [(self isUntaggedCompare: n) not]) ifTrue: [kind := 0].
+							(kind = 0 and: [self drop: v taggedIn: nd block]) ifTrue: [changed := true]]]].
+			n := nd next]].
+	^changed
+!
+retypeUntagged
+	"The values untagIntegers keeps untagged become R_INT; every operand then gets the representation its reader wants: a constant one of that representation, an O_TAG's or O_UNTAG's own operand (the pair folds), else a conversion: an untagged value tagged before its reader (once per block), a tagged one untagged after its definition (once), a phi's operand converted at the end of the edge's block."
+	<function>
+	| n nd b e k v want cmp |
+	0 to: ir nodeCount - 1 do: [:i | (self isUntagged: i) ifTrue: [(ir node: i) rep: R_INT asUInt8]].
+	0 to: psOrderCount - 1 do: [:i |
+		b := psOrder at: i.
+		n := (ir block: b) first.
+		[n >= 0] whileTrue: [
+			nd := ir node: n.
+			nd op asInt32 = O_PHI
+				ifTrue: [
+					e := (ir block: b) preds.
+					k := 0.
+					[e >= 0 and: [k < nd nargs asInt32]] whileTrue: [
+						v := ir operand: nd args + k.
+						ir operand: nd args + k put: (self operand: v as: nd rep asInt32 before: -1 endOf: (ir edge: e) from).
+						k := k + 1.
+						e := (ir edge: e) next]]
+				ifFalse: [
+					"a comparison's mode, decided before its operands change"
+					cmp := ((nd op asInt32 = O_ICMP or: [nd op asInt32 = O_EQ or: [nd op asInt32 = O_NE]]) and: [self isUntaggedCompare: n]) ifTrue: [R_INT] ifFalse: [R_OOP].
+					0 to: nd nargs asInt32 + 2 do: [:q |
+						v := self operandOf: n at: q.
+						v >= 0 ifTrue: [
+							want := self untagUseOf: n at: q.
+							want = 0 ifTrue: [want := R_OOP] ifFalse: [
+								want = 1 ifTrue: [want := -1] ifFalse: [
+									want = 2 ifTrue: [want := nd rep asInt32] ifFalse: [
+										want := cmp]]].
+							nd op asInt32 = O_TAG ifTrue: [want := R_INT].
+							nd op asInt32 = O_UNTAG ifTrue: [want := R_OOP].
+							self operandOf: n at: q put: (self operand: v as: want before: n endOf: -1)]]].
+			n := nd next]]
+!
+operand: v as: rep before: n endOf: p
+	"v as representation rep (-1: either) for a reader n, or for a phi's operand on the edge from block p."
+	<function>
+	| vd t m |
+	vd := ir node: v.
+	(rep < 0 or: [vd rep asInt32 = rep]) ifTrue: [^v].
+	"only between tagged and untagged (doubles stay what they are)"
+	(rep = R_OOP and: [vd rep asInt32 ~= R_INT]) ifTrue: [^v].
+	(rep = R_INT and: [vd rep asInt32 ~= R_OOP]) ifTrue: [^v].
+	vd op asInt32 = O_CONST ifTrue: [
+		rep = R_INT ifTrue: [^self intConstOf: v].
+		^v].
+	(rep = R_OOP and: [vd op asInt32 = O_UNTAG]) ifTrue: [^vd a].
+	(rep = R_INT and: [vd op asInt32 = O_TAG]) ifTrue: [^vd a].
+	p >= 0 ifTrue: [
+		t := self conversionOf: v op: (rep = R_INT ifTrue: [O_UNTAG] ifFalse: [O_TAG]).
+		ir full ifTrue: [^v].
+		ir insert: t before: (ir block: p) last.
+		^t].
+	rep = R_INT ifTrue: [
+		t := psConv at: v.
+		t >= 0 ifTrue: [^t].
+		t := self conversionOf: v op: O_UNTAG.
+		ir full ifTrue: [^v].
+		"after its definition (and the phis or parameters after it)"
+		m := v.
+		[(ir node: m) next >= 0 and: [(ir node: (ir node: m) next) op asInt32 = O_PHI or: [(ir node: (ir node: m) next) op asInt32 = O_PARAM]]] whileTrue: [m := (ir node: m) next].
+		ir insert: t before: (ir node: m) next.
+		psConv at: v put: t.
+		^t].
+	t := psTagOf at: v.
+	(t >= 0 and: [(ir node: t) block = (ir node: n) block]) ifTrue: [^t].
+	t := self conversionOf: v op: O_TAG.
+	ir full ifTrue: [^v].
+	ir insert: t before: n.
+	psTagOf at: v put: t.
+	^t
+!
+conversionOf: v op: op
+	"A new O_TAG or O_UNTAG of v (in no block yet)."
+	<function>
+	| t td vd |
+	vd := ir node: v.
+	ir origin: vd bcact pc: vd bcpc.
+	t := ir newNode: op rep: (op = O_TAG ifTrue: [R_OOP] ifFalse: [R_INT]).
+	ir full ifTrue: [^v].
+	td := ir node: t.
+	td a: v.
+	td tkind: T_SMI.
+	td flags: NF_PURE.
+	td lo: vd lo.
+	td hi: vd hi.
+	psUntag at: t put: 0.
+	psConv at: t put: -1.
+	psTagOf at: t put: -1.
+	^t
+!
+intConstOf: c
+	"The untagged constant (R_INT, aux its value) of SmallInteger constant c."
+	<function>
+	| t td cd |
+	t := psConv at: c.
+	t >= 0 ifTrue: [^t].
+	cd := ir node: c.
+	ir origin: cd bcact pc: cd bcpc.
+	t := ir newNode: O_CONST rep: R_INT.
+	ir full ifTrue: [^c].
+	td := ir node: t.
+	td aux: (self intVal: cd aux asUInt64).
+	td tkind: T_SMI.
+	td flags: cd flags.
+	td lo: td aux.
+	td hi: td aux.
+	cd block >= 0 ifTrue: [ir insert: t before: c].
+	psUntag at: t put: 0.
+	psConv at: t put: -1.
+	psConv at: c put: t.
+	psTagOf at: t put: -1.
+	^t
 ! !

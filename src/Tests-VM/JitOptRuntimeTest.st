@@ -1047,7 +1047,7 @@ testLoopsCallingClosuresMoveToTheirVariants
 	self stressed ifFalse: [self assert: d optOsrEntries > 0]
 !
 testCountedLoopsCheckNoOverflow
-	"A loop's counter, and sums the loop adds bytes to, check no overflow: their ranges follow from the counter's start and limit (a byte added to such a sum is added shifted, untagged), and where those are not known, from guards where the loop is entered: the start and limit at most the largest SmallInteger less twice the step, the limit less the start at most 2^24 turns for a sum of sums. At the largest SmallIntegers, and for more turns, those guards fail: the lower tier runs the loop (its sums LargeIntegers past them), and the code compiled next checks; a sum from a value not known checks every time."
+	"A loop's counter, and sums the loop adds bytes to, check no overflow: their ranges follow from the counter's start and limit (such a sum and the bytes added to it are kept untagged), and where those are not known, from guards where the loop is entered: the start and limit at most the largest SmallInteger less twice the step, the limit less the start at most 2^24 turns for a sum of sums. At the largest SmallIntegers, and for more turns, those guards fail: the lower tier runs the loop (its sums LargeIntegers past them), and the code compiled next checks; a sum from a value not known checks every time."
 	| o b max sum adler early big |
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
 	self define: 'sumOf: b | s | s := 0. 1 to: b size do: [:i | s := s + (b at: i)]. ^s'.
@@ -1074,8 +1074,8 @@ testCountedLoopsCheckNoOverflow
 		self assert: (o early: b from: 3 to: 20) equals: (early value: 3).
 		self assert: (o from: 0 add: b) equals: sum].
 	self stressed ifFalse: [
-		"arm64: the byte added shifted"
-		self isX64 ifFalse: [self assert: ((self listingOf: #sumOf:) includesSubstring: 'untagged: the sum after it adds it shifted')].
+		"the sum and the byte untagged (OptPasses>>untagIntegers): tagged again where the loop is done"
+		self assert: ((self listingOf: #sumOf:) includesSubstring: 'tagged again').
 		#(#count:from: #adler:from:to: #early:from:to:) do: [:each |
 			self assert: ((self listingOf: each) includesSubstring: 'once before the loop (its sums check no overflow)')]].
 	big := 1 bitShift: 40.

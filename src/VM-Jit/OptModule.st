@@ -1,11 +1,11 @@
 JitCompiler subclass: #OptModule
 	instanceVariableNames: 'memory interpreter gc libc feedback'
-	classVariableNames: 'BF_DEOPT BF_LIVE BF_LOOP BF_SEALED SI_PERFORMED LOC_CONST LOC_DREG LOC_INT LOC_RAW LOC_REG LOC_SLOT LOC_SMI LOC_SUNK NF_ALLOC NF_BLOCKCALL NF_REPLACE NF_W32 NF_PTRS NF_DEAD NF_EQONLY NF_GUARD NF_HOISTED NF_LAZY NF_INRANGE NF_MUTABLE NF_NOBOUNDS NF_PURE O_BRANCH O_CALL O_CAST O_CHECKINT O_CLASSIS O_CLASSOF O_CLOSURE O_CONST O_OUTERLOAD O_OUTERSTORE O_UNBOXF O_BOXF O_FARITH O_FCMP O_BOTHINT O_FSQRT O_IMOD O_IDIV O_ISHIFT O_IXOR O_NOTINTS O_HOMESLOT O_LOADSLOT O_STORESLOT O_CHARCONV O_MKARRAY O_DEOPT O_EQ O_GOTO O_GUARDCLASS O_GUARDCLOSURE O_GUARDEQ O_GUARDINT O_GUARDLE O_GUARDMUTABLE E_BYTE E_CHAR E_PTR E_W32 E_U16 E_I16 E_U32 E_U16BE E_I16BE E_U32BE O_IADD O_IAND O_ICMP O_INDEXLOAD O_INDEXSTORE O_SIZE O_IMUL O_IOR O_ISUB O_LOADFIELD O_NE O_NOP O_OUTERSLOT O_PARAM O_PHI O_RETURN O_SEND O_STOREFIELD O_STRCMP O_STRHASH O_VOBJ O_LAST OPT_ANA_MAX OPT_DEF_SIZE OPT_MAX_ACTS OPT_MAX_BLOCKS OPT_MAX_EDGES OPT_MAX_NODES OPT_MAX_OPERANDS OPT_MAX_STATES OPT_PCB_MAX R_DBL R_INT R_NONE R_OOP SP_ALLOC SP_CALL SP_ENTRY SP_GUARD SP_LOOP T_ANY T_BOOL T_CHAR T_FLOAT T_NIL T_OBJ T_SMI NF_BOUNDFFI OPT_RESPEC_TURNS'
+	classVariableNames: 'BF_DEOPT BF_LIVE BF_LOOP BF_SEALED SI_PERFORMED LOC_CONST LOC_DREG LOC_INT LOC_RAW LOC_REG LOC_SLOT LOC_SMI LOC_SUNK NF_ALLOC NF_BLOCKCALL NF_REPLACE NF_W32 NF_PTRS NF_DEAD NF_EQONLY NF_GUARD NF_HOISTED NF_LAZY NF_INRANGE NF_MUTABLE NF_NOBOUNDS NF_PURE O_BRANCH O_CALL O_CAST O_CHECKINT O_CLASSIS O_CLASSOF O_CLOSURE O_CONST O_OUTERLOAD O_OUTERSTORE O_UNBOXF O_BOXF O_FARITH O_FCMP O_BOTHINT O_FSQRT O_IMOD O_IDIV O_ISHIFT O_IXOR O_NOTINTS O_HOMESLOT O_LOADSLOT O_STORESLOT O_CHARCONV O_MKARRAY O_DEOPT O_EQ O_GOTO O_GUARDCLASS O_GUARDCLOSURE O_GUARDEQ O_GUARDINT O_GUARDLE O_GUARDMUTABLE E_BYTE E_CHAR E_PTR E_W32 E_U16 E_I16 E_U32 E_U16BE E_I16BE E_U32BE O_IADD O_IAND O_ICMP O_INDEXLOAD O_INDEXSTORE O_SIZE O_IMUL O_IOR O_ISUB O_LOADFIELD O_NE O_NOP O_OUTERSLOT O_PARAM O_PHI O_RETURN O_SEND O_STOREFIELD O_STRCMP O_STRHASH O_VOBJ O_TAG O_UNTAG O_ELEMENTS O_LAST OPT_ANA_MAX OPT_DEF_SIZE OPT_MAX_ACTS OPT_MAX_BLOCKS OPT_MAX_EDGES OPT_MAX_NODES OPT_MAX_OPERANDS OPT_MAX_STATES OPT_PCB_MAX R_DBL R_INT R_NONE R_OOP SP_ALLOC SP_CALL SP_ENTRY SP_GUARD SP_LOOP T_ANY T_BOOL T_CHAR T_FLOAT T_NIL T_OBJ T_SMI NF_BOUNDFFI OPT_RESPEC_TURNS'
 	package: 'VM-Jit'!
 
 OptModule comment: 'I am the abstract class of the optimizing tier''s modules (docs/jit.md, Optimizing tier): I connect them to the VM and to each other, and hold their shared constants (the IR''s opcodes, representations, types, flags; the deoptimization metadata''s location kinds) and the object model''s helpers they need (as VMCoreModule does for the VM''s core).
 
-The IR (OptIR): a control flow graph of blocks of SSA nodes. A node has an opcode (O_*), the representation of its result (R_OOP a tagged object pointer, R_INT an untagged 64-bit integer, R_DBL a raw double, R_NONE none), a static type (T_* and, for T_OBJ, an exact class), operands (a, b, c; variadic ones in the operand array), a frame state if it may deoptimize or is a safepoint, and its register allocation. Frame states (OptState) describe, for deoptimization, every inlined activation (OptAct) from the outermost: its method, pc, receiver, closure and slots.'!
+The IR (OptIR): a control flow graph of blocks of SSA nodes. A node has an opcode (O_*), the representation of its result (R_OOP a tagged object pointer, R_INT an untagged SmallInteger''s value, in a general register and a raw slot (OptPasses>>untagIntegers), R_DBL a raw double, R_NONE none), a static type (T_* and, for T_OBJ, an exact class), operands (a, b, c; variadic ones in the operand array), a frame state if it may deoptimize or is a safepoint, and its register allocation. Frame states (OptState) describe, for deoptimization, every inlined activation (OptAct) from the outermost: its method, pc, receiver, closure and slots.'!
 
 !OptModule class methodsFor: 'declaring'!
 declarations
@@ -93,7 +93,12 @@ initialize
 	O_STRCMP := 54.
 	"an object escape analysis did not allocate, as frame states name it (in no block): its class tcls, the allocation it stands for aux, its fields' values the operands args (OptPasses>>scalarReplace:)"
 	O_VOBJ := 55.
-	O_LAST := 55.
+	"a SmallInteger tagged again from its untagged value a (R_INT), and untagged from a (OptPasses>>untagIntegers)"
+	O_TAG := 56.
+	O_UNTAG := 57.
+	"arm64: the address of object a's elements less one (aux: its header and fixed fields less an element), which accesses at an untagged 1-based index in a loop add to it; a raw pointer: in a register or nowhere, never in a slot or a frame state, made again after every safepoint (OptPasses>>deriveElements)"
+	O_ELEMENTS := 58.
+	O_LAST := 58.
 	"indexed element kinds"
 	E_PTR := 0.
 	E_BYTE := 1.
@@ -162,6 +167,7 @@ initialize
 	LOC_REG := 1.
 	LOC_CONST := 2.
 	LOC_SMI := 3.
+	"an untagged SmallInteger (R_INT): payload bit 0 clear, in register payload >> 1; set, in raw slot payload >> 1"
 	LOC_INT := 4.
 	"a double in a d register (0-31; the register dump's 32 + it)"
 	LOC_DREG := 5.

@@ -662,11 +662,14 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
     int32_t kind;
     int64_t payload;
     oop v;
+    int64_t v_2;
+    int64_t v_3;
+    uint64_t v_4;
     uint64_t b;
-    oop v_2;
+    oop v_5;
     uint32_t e;
     oop b_2;
-    oop v_3;
+    oop v_6;
     uint32_t e_2;
     int32_t j_3;
     int32_t i_2;
@@ -674,56 +677,65 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
     int32_t r_value;
     int32_t kind_2;
     int64_t payload_2;
-    oop v_4;
+    oop v_7;
+    int64_t v_8;
+    int64_t v_9;
+    uint64_t v_10;
     uint64_t b_3;
     int32_t r_double_;
-    oop v_5;
+    oop v_11;
     uint32_t e_3;
     oop b_4;
     int32_t r_double__2;
-    oop v_6;
+    oop v_12;
     uint32_t e_4;
-    int32_t v_7;
-    oop v_8;
+    int32_t v_13;
+    oop v_14;
     int32_t loc_3;
     int32_t r_value_2;
     int32_t kind_3;
     int64_t payload_3;
-    oop v_9;
+    oop v_15;
+    int64_t v_16;
+    int64_t v_17;
+    uint64_t v_18;
     uint64_t b_5;
     int32_t r_double__3;
-    oop v_10;
+    oop v_19;
     uint32_t e_5;
     oop b_6;
     int32_t r_double__4;
-    oop v_11;
+    oop v_20;
     uint32_t e_6;
     int32_t d;
     int32_t i_3;
     int32_t loc_4;
     int32_t kind_4;
     int64_t payload_4;
-    oop v_12;
+    oop v_21;
+    int64_t v_22;
+    int64_t v_23;
+    uint64_t v_24;
     uint64_t b_7;
-    oop v_13;
+    oop v_25;
     uint32_t e_7;
     oop b_8;
-    oop v_14;
+    oop v_26;
     uint32_t e_8;
     int32_t j_4;
     int32_t j_5;
     int32_t t;
     oop *base;
-    oop v_15;
+    oop v_27;
     oop m;
     uint64_t o;
     uint8_t *bcs;
     uint8_t op;
-    oop v_16;
+    oop v_28;
     int32_t i_4;
-    oop v_17;
+    oop v_29;
     int32_t i_5;
-    oop v_18;
+    oop v_30;
     rec = h->meta + h->sp_table[k];
     send_pc = rec[1];
     argc = rec[2] & 255;
@@ -760,44 +772,55 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
                 if (kind == LOC_SMI) {
                     v = (uint64_t)((payload << 1) | 1);
                 }
+                if (kind == LOC_INT) {
+                    v = ({
+    if ((payload & 1) == 0) {
+        v_2 = (int64_t)regs[payload >> 1];
+        v_4 = (uint64_t)((v_2 << 1) | 1);
+    } else {
+        v_3 = (int64_t)f->fp[payload >> 1];
+        v_4 = (uint64_t)((v_3 << 1) | 1);
+    }
+    v_4; });
+                }
                 if (kind == LOC_DREG) {
                     b = regs[32 + payload];
-                    v_2 = nil_oop;
+                    v_5 = nil_oop;
                     e = (uint32_t)((b >> 52) & 0x7FF);
                     if ((b << 1) == 0) {
-                        v_2 = (b >> 63 << 3) | 4;
+                        v_5 = (b >> 63 << 3) | 4;
                     } else if ((e > 896) && (e < 1151)) {
-                        v_2 = ((((b << 1) | (b >> 63)) - 8070450532247928832LL) << 3) | 4;
+                        v_5 = ((((b << 1) | (b >> 63)) - 8070450532247928832LL) << 3) | 4;
                     }
-                    if ((v_2 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+                    if ((v_5 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
                         rt_float_val[rt_float_count] = rt_deopt_count;
                         rt_float_loc[rt_float_count] = loc;
                         rt_float_bits[rt_float_count] = b;
                         rt_float_count = rt_float_count + 1;
                     }
                     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                        rt_deopt_vals[rt_deopt_count] = v_2;
+                        rt_deopt_vals[rt_deopt_count] = v_5;
                         rt_deopt_count = rt_deopt_count + 1;
                     }
                     goto exit_value;
                 }
                 if (kind == LOC_RAW) {
                     b_2 = f->fp[payload];
-                    v_3 = nil_oop;
+                    v_6 = nil_oop;
                     e_2 = (uint32_t)((b_2 >> 52) & 0x7FF);
                     if ((uint64_t)(b_2 << 1) == 0) {
-                        v_3 = (b_2 >> 63 << 3) | 4;
+                        v_6 = (b_2 >> 63 << 3) | 4;
                     } else if ((e_2 > 896) && (e_2 < 1151)) {
-                        v_3 = (((((uint64_t)(b_2 << 1)) | (b_2 >> 63)) - 8070450532247928832LL) << 3) | 4;
+                        v_6 = (((((uint64_t)(b_2 << 1)) | (b_2 >> 63)) - 8070450532247928832LL) << 3) | 4;
                     }
-                    if ((v_3 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+                    if ((v_6 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
                         rt_float_val[rt_float_count] = rt_deopt_count;
                         rt_float_loc[rt_float_count] = loc;
                         rt_float_bits[rt_float_count] = b_2;
                         rt_float_count = rt_float_count + 1;
                     }
                     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                        rt_deopt_vals[rt_deopt_count] = v_3;
+                        rt_deopt_vals[rt_deopt_count] = v_6;
                         rt_deopt_count = rt_deopt_count + 1;
                     }
                     goto exit_value;
@@ -821,43 +844,54 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
         rt_act_method[j_3] = ((oop *)(h->code_start + h->pool_offset))[i_2];
         rt_act_closure[j_3] = ({
     if (rec[p + 1] < 0) {
-        v_7 = -1;
+        v_13 = -1;
     } else {
         loc_2 = rec[p + 1];
-        v_7 = ({
+        v_13 = ({
     kind_2 = loc_2 & 7;
     payload_2 = ((int64_t)loc_2) >> 3;
-    v_4 = nil_oop;
+    v_7 = nil_oop;
     if (kind_2 == LOC_SLOT) {
-        v_4 = f->fp[payload_2];
+        v_7 = f->fp[payload_2];
     }
     if (kind_2 == LOC_REG) {
-        v_4 = regs[payload_2];
+        v_7 = regs[payload_2];
     }
     if (kind_2 == LOC_CONST) {
-        v_4 = ((oop *)(h->code_start + h->pool_offset))[payload_2];
+        v_7 = ((oop *)(h->code_start + h->pool_offset))[payload_2];
     }
     if (kind_2 == LOC_SMI) {
-        v_4 = (uint64_t)((payload_2 << 1) | 1);
+        v_7 = (uint64_t)((payload_2 << 1) | 1);
+    }
+    if (kind_2 == LOC_INT) {
+        v_7 = ({
+    if ((payload_2 & 1) == 0) {
+        v_8 = (int64_t)regs[payload_2 >> 1];
+        v_10 = (uint64_t)((v_8 << 1) | 1);
+    } else {
+        v_9 = (int64_t)f->fp[payload_2 >> 1];
+        v_10 = (uint64_t)((v_9 << 1) | 1);
+    }
+    v_10; });
     }
     if (kind_2 == LOC_DREG) {
         b_3 = regs[32 + payload_2];
         r_value = ({
-    v_5 = nil_oop;
+    v_11 = nil_oop;
     e_3 = (uint32_t)((b_3 >> 52) & 0x7FF);
     if ((b_3 << 1) == 0) {
-        v_5 = (b_3 >> 63 << 3) | 4;
+        v_11 = (b_3 >> 63 << 3) | 4;
     } else if ((e_3 > 896) && (e_3 < 1151)) {
-        v_5 = ((((b_3 << 1) | (b_3 >> 63)) - 8070450532247928832LL) << 3) | 4;
+        v_11 = ((((b_3 << 1) | (b_3 >> 63)) - 8070450532247928832LL) << 3) | 4;
     }
-    if ((v_5 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+    if ((v_11 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
         rt_float_val[rt_float_count] = rt_deopt_count;
         rt_float_loc[rt_float_count] = loc_2;
         rt_float_bits[rt_float_count] = b_3;
         rt_float_count = rt_float_count + 1;
     }
     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v_5;
+        rt_deopt_vals[rt_deopt_count] = v_11;
         rt_deopt_count = rt_deopt_count + 1;
     }
     r_double_ = rt_deopt_count - 1;
@@ -867,21 +901,21 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
     if (kind_2 == LOC_RAW) {
         b_4 = f->fp[payload_2];
         r_value = ({
-    v_6 = nil_oop;
+    v_12 = nil_oop;
     e_4 = (uint32_t)((b_4 >> 52) & 0x7FF);
     if ((uint64_t)(b_4 << 1) == 0) {
-        v_6 = (b_4 >> 63 << 3) | 4;
+        v_12 = (b_4 >> 63 << 3) | 4;
     } else if ((e_4 > 896) && (e_4 < 1151)) {
-        v_6 = (((((uint64_t)(b_4 << 1)) | (b_4 >> 63)) - 8070450532247928832LL) << 3) | 4;
+        v_12 = (((((uint64_t)(b_4 << 1)) | (b_4 >> 63)) - 8070450532247928832LL) << 3) | 4;
     }
-    if ((v_6 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+    if ((v_12 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
         rt_float_val[rt_float_count] = rt_deopt_count;
         rt_float_loc[rt_float_count] = loc_2;
         rt_float_bits[rt_float_count] = b_4;
         rt_float_count = rt_float_count + 1;
     }
     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v_6;
+        rt_deopt_vals[rt_deopt_count] = v_12;
         rt_deopt_count = rt_deopt_count + 1;
     }
     r_double__2 = rt_deopt_count - 1;
@@ -894,18 +928,18 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
         rt_sunk_use_count = rt_sunk_use_count + 1;
     }
     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v_4;
+        rt_deopt_vals[rt_deopt_count] = v_7;
         rt_deopt_count = rt_deopt_count + 1;
     }
     r_value = rt_deopt_count - 1;
 exit_value_2:;
     r_value; });
     }
-    v_7; });
+    v_13; });
         if (rec[p + 1] == -2) {
-            v_8 = f->closure;
+            v_14 = f->closure;
             if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                rt_deopt_vals[rt_deopt_count] = v_8;
+                rt_deopt_vals[rt_deopt_count] = v_14;
                 rt_deopt_count = rt_deopt_count + 1;
             }
             rt_act_closure[j_3] = rt_deopt_count - 1;
@@ -914,37 +948,48 @@ exit_value_2:;
         rt_act_rcv[j_3] = ({
     kind_3 = loc_3 & 7;
     payload_3 = ((int64_t)loc_3) >> 3;
-    v_9 = nil_oop;
+    v_15 = nil_oop;
     if (kind_3 == LOC_SLOT) {
-        v_9 = f->fp[payload_3];
+        v_15 = f->fp[payload_3];
     }
     if (kind_3 == LOC_REG) {
-        v_9 = regs[payload_3];
+        v_15 = regs[payload_3];
     }
     if (kind_3 == LOC_CONST) {
-        v_9 = ((oop *)(h->code_start + h->pool_offset))[payload_3];
+        v_15 = ((oop *)(h->code_start + h->pool_offset))[payload_3];
     }
     if (kind_3 == LOC_SMI) {
-        v_9 = (uint64_t)((payload_3 << 1) | 1);
+        v_15 = (uint64_t)((payload_3 << 1) | 1);
+    }
+    if (kind_3 == LOC_INT) {
+        v_15 = ({
+    if ((payload_3 & 1) == 0) {
+        v_16 = (int64_t)regs[payload_3 >> 1];
+        v_18 = (uint64_t)((v_16 << 1) | 1);
+    } else {
+        v_17 = (int64_t)f->fp[payload_3 >> 1];
+        v_18 = (uint64_t)((v_17 << 1) | 1);
+    }
+    v_18; });
     }
     if (kind_3 == LOC_DREG) {
         b_5 = regs[32 + payload_3];
         r_value_2 = ({
-    v_10 = nil_oop;
+    v_19 = nil_oop;
     e_5 = (uint32_t)((b_5 >> 52) & 0x7FF);
     if ((b_5 << 1) == 0) {
-        v_10 = (b_5 >> 63 << 3) | 4;
+        v_19 = (b_5 >> 63 << 3) | 4;
     } else if ((e_5 > 896) && (e_5 < 1151)) {
-        v_10 = ((((b_5 << 1) | (b_5 >> 63)) - 8070450532247928832LL) << 3) | 4;
+        v_19 = ((((b_5 << 1) | (b_5 >> 63)) - 8070450532247928832LL) << 3) | 4;
     }
-    if ((v_10 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+    if ((v_19 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
         rt_float_val[rt_float_count] = rt_deopt_count;
         rt_float_loc[rt_float_count] = loc_3;
         rt_float_bits[rt_float_count] = b_5;
         rt_float_count = rt_float_count + 1;
     }
     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v_10;
+        rt_deopt_vals[rt_deopt_count] = v_19;
         rt_deopt_count = rt_deopt_count + 1;
     }
     r_double__3 = rt_deopt_count - 1;
@@ -954,21 +999,21 @@ exit_value_2:;
     if (kind_3 == LOC_RAW) {
         b_6 = f->fp[payload_3];
         r_value_2 = ({
-    v_11 = nil_oop;
+    v_20 = nil_oop;
     e_6 = (uint32_t)((b_6 >> 52) & 0x7FF);
     if ((uint64_t)(b_6 << 1) == 0) {
-        v_11 = (b_6 >> 63 << 3) | 4;
+        v_20 = (b_6 >> 63 << 3) | 4;
     } else if ((e_6 > 896) && (e_6 < 1151)) {
-        v_11 = (((((uint64_t)(b_6 << 1)) | (b_6 >> 63)) - 8070450532247928832LL) << 3) | 4;
+        v_20 = (((((uint64_t)(b_6 << 1)) | (b_6 >> 63)) - 8070450532247928832LL) << 3) | 4;
     }
-    if ((v_11 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+    if ((v_20 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
         rt_float_val[rt_float_count] = rt_deopt_count;
         rt_float_loc[rt_float_count] = loc_3;
         rt_float_bits[rt_float_count] = b_6;
         rt_float_count = rt_float_count + 1;
     }
     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v_11;
+        rt_deopt_vals[rt_deopt_count] = v_20;
         rt_deopt_count = rt_deopt_count + 1;
     }
     r_double__4 = rt_deopt_count - 1;
@@ -981,7 +1026,7 @@ exit_value_2:;
         rt_sunk_use_count = rt_sunk_use_count + 1;
     }
     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v_9;
+        rt_deopt_vals[rt_deopt_count] = v_15;
         rt_deopt_count = rt_deopt_count + 1;
     }
     r_value_2 = rt_deopt_count - 1;
@@ -995,57 +1040,68 @@ exit_value_3:;
             loc_4 = rec[p + 5 + i_3];
             kind_4 = loc_4 & 7;
             payload_4 = ((int64_t)loc_4) >> 3;
-            v_12 = nil_oop;
+            v_21 = nil_oop;
             if (kind_4 == LOC_SLOT) {
-                v_12 = f->fp[payload_4];
+                v_21 = f->fp[payload_4];
             }
             if (kind_4 == LOC_REG) {
-                v_12 = regs[payload_4];
+                v_21 = regs[payload_4];
             }
             if (kind_4 == LOC_CONST) {
-                v_12 = ((oop *)(h->code_start + h->pool_offset))[payload_4];
+                v_21 = ((oop *)(h->code_start + h->pool_offset))[payload_4];
             }
             if (kind_4 == LOC_SMI) {
-                v_12 = (uint64_t)((payload_4 << 1) | 1);
+                v_21 = (uint64_t)((payload_4 << 1) | 1);
+            }
+            if (kind_4 == LOC_INT) {
+                v_21 = ({
+    if ((payload_4 & 1) == 0) {
+        v_22 = (int64_t)regs[payload_4 >> 1];
+        v_24 = (uint64_t)((v_22 << 1) | 1);
+    } else {
+        v_23 = (int64_t)f->fp[payload_4 >> 1];
+        v_24 = (uint64_t)((v_23 << 1) | 1);
+    }
+    v_24; });
             }
             if (kind_4 == LOC_DREG) {
                 b_7 = regs[32 + payload_4];
-                v_13 = nil_oop;
+                v_25 = nil_oop;
                 e_7 = (uint32_t)((b_7 >> 52) & 0x7FF);
                 if ((b_7 << 1) == 0) {
-                    v_13 = (b_7 >> 63 << 3) | 4;
+                    v_25 = (b_7 >> 63 << 3) | 4;
                 } else if ((e_7 > 896) && (e_7 < 1151)) {
-                    v_13 = ((((b_7 << 1) | (b_7 >> 63)) - 8070450532247928832LL) << 3) | 4;
+                    v_25 = ((((b_7 << 1) | (b_7 >> 63)) - 8070450532247928832LL) << 3) | 4;
                 }
-                if ((v_13 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+                if ((v_25 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
                     rt_float_val[rt_float_count] = rt_deopt_count;
                     rt_float_loc[rt_float_count] = loc_4;
                     rt_float_bits[rt_float_count] = b_7;
                     rt_float_count = rt_float_count + 1;
                 }
                 if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                    rt_deopt_vals[rt_deopt_count] = v_13;
+                    rt_deopt_vals[rt_deopt_count] = v_25;
                     rt_deopt_count = rt_deopt_count + 1;
                 }
                 goto exit_value_4;
             }
             if (kind_4 == LOC_RAW) {
                 b_8 = f->fp[payload_4];
-                v_14 = nil_oop;
+                v_26 = nil_oop;
                 e_8 = (uint32_t)((b_8 >> 52) & 0x7FF);
                 if ((uint64_t)(b_8 << 1) == 0) {
-                    v_14 = (b_8 >> 63 << 3) | 4;
+                    v_26 = (b_8 >> 63 << 3) | 4;
                 } else if ((e_8 > 896) && (e_8 < 1151)) {
-                    v_14 = (((((uint64_t)(b_8 << 1)) | (b_8 >> 63)) - 8070450532247928832LL) << 3) | 4;
+                    v_26 = (((((uint64_t)(b_8 << 1)) | (b_8 >> 63)) - 8070450532247928832LL) << 3) | 4;
                 }
-                if ((v_14 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+                if ((v_26 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
                     rt_float_val[rt_float_count] = rt_deopt_count;
                     rt_float_loc[rt_float_count] = loc_4;
                     rt_float_bits[rt_float_count] = b_8;
                     rt_float_count = rt_float_count + 1;
                 }
                 if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                    rt_deopt_vals[rt_deopt_count] = v_14;
+                    rt_deopt_vals[rt_deopt_count] = v_26;
                     rt_deopt_count = rt_deopt_count + 1;
                 }
                 goto exit_value_4;
@@ -1056,7 +1112,7 @@ exit_value_3:;
                 rt_sunk_use_count = rt_sunk_use_count + 1;
             }
             if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                rt_deopt_vals[rt_deopt_count] = v_12;
+                rt_deopt_vals[rt_deopt_count] = v_21;
                 rt_deopt_count = rt_deopt_count + 1;
             }
         exit_value_4:;
@@ -1084,9 +1140,9 @@ exit_value_3:;
     }
     base = f->fp + (int64_t)h->slots;
     if (mode == 2) {
-        v_15 = base[0];
+        v_27 = base[0];
         if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-            rt_deopt_vals[rt_deopt_count] = v_15;
+            rt_deopt_vals[rt_deopt_count] = v_27;
             rt_deopt_count = rt_deopt_count + 1;
         }
         rt_act_depth[nacts - 1] = rt_act_depth[nacts - 1] + 1;
@@ -1097,24 +1153,24 @@ exit_value_3:;
         bcs = (uint8_t *)(o + 16);
         op = bcs[send_pc];
         if (!(((op >= 0x97) && (op < 0xA0)) || ((op >= 0xF0) && (op < 0xFC)))) {
-            v_16 = base[0];
+            v_28 = base[0];
             if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                rt_deopt_vals[rt_deopt_count] = v_16;
+                rt_deopt_vals[rt_deopt_count] = v_28;
                 rt_deopt_count = rt_deopt_count + 1;
             }
             if ((rec[2] & SI_PERFORMED) != 0) {
                 i_4 = rec[3];
-                v_17 = ((oop *)(h->code_start + h->pool_offset))[i_4];
+                v_29 = ((oop *)(h->code_start + h->pool_offset))[i_4];
                 if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                    rt_deopt_vals[rt_deopt_count] = v_17;
+                    rt_deopt_vals[rt_deopt_count] = v_29;
                     rt_deopt_count = rt_deopt_count + 1;
                 }
                 rt_act_depth[nacts - 1] = rt_act_depth[nacts - 1] + 1;
             }
             for (i_5 = 1; i_5 <= argc; i_5++) {
-                v_18 = base[i_5];
+                v_30 = base[i_5];
                 if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                    rt_deopt_vals[rt_deopt_count] = v_18;
+                    rt_deopt_vals[rt_deopt_count] = v_30;
                     rt_deopt_count = rt_deopt_count + 1;
                 }
             }
@@ -1373,13 +1429,16 @@ uint64_t deopt_guard(frame *f, int64_t k)
     int32_t kind;
     int64_t payload;
     oop v;
+    int64_t v_2;
+    int64_t v_3;
+    uint64_t v_4;
     uint64_t b;
     int32_t r_double_;
-    oop v_2;
+    oop v_5;
     uint32_t e;
     oop b_2;
     int32_t r_double__2;
-    oop v_3;
+    oop v_6;
     uint32_t e_2;
     int32_t k_2;
     int64_t r_signature_at;
@@ -1419,13 +1478,13 @@ uint64_t deopt_guard(frame *f, int64_t k)
     uint8_t op;
     int r_pushes_of;
     uint8_t op_2;
-    oop v_4;
+    oop v_7;
     int64_t r_flags_of;
     int64_t fl;
-    oop v_5;
+    oop v_8;
     int64_t r_flags_of_2;
     int32_t i_5;
-    oop v_6;
+    oop v_9;
     int64_t r_flags_of_3;
     bool fresh;
     oop m;
@@ -1499,24 +1558,35 @@ uint64_t deopt_guard(frame *f, int64_t k)
     if (kind == LOC_SMI) {
         v = (uint64_t)((payload << 1) | 1);
     }
+    if (kind == LOC_INT) {
+        v = ({
+    if ((payload & 1) == 0) {
+        v_2 = (int64_t)regs[payload >> 1];
+        v_4 = (uint64_t)((v_2 << 1) | 1);
+    } else {
+        v_3 = (int64_t)f->fp[payload >> 1];
+        v_4 = (uint64_t)((v_3 << 1) | 1);
+    }
+    v_4; });
+    }
     if (kind == LOC_DREG) {
         b = regs[32 + payload];
         r_value = ({
-    v_2 = nil_oop;
+    v_5 = nil_oop;
     e = (uint32_t)((b >> 52) & 0x7FF);
     if ((b << 1) == 0) {
-        v_2 = (b >> 63 << 3) | 4;
+        v_5 = (b >> 63 << 3) | 4;
     } else if ((e > 896) && (e < 1151)) {
-        v_2 = ((((b << 1) | (b >> 63)) - 8070450532247928832LL) << 3) | 4;
+        v_5 = ((((b << 1) | (b >> 63)) - 8070450532247928832LL) << 3) | 4;
     }
-    if ((v_2 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+    if ((v_5 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
         rt_float_val[rt_float_count] = rt_deopt_count;
         rt_float_loc[rt_float_count] = loc;
         rt_float_bits[rt_float_count] = b;
         rt_float_count = rt_float_count + 1;
     }
     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v_2;
+        rt_deopt_vals[rt_deopt_count] = v_5;
         rt_deopt_count = rt_deopt_count + 1;
     }
     r_double_ = rt_deopt_count - 1;
@@ -1526,21 +1596,21 @@ uint64_t deopt_guard(frame *f, int64_t k)
     if (kind == LOC_RAW) {
         b_2 = f->fp[payload];
         r_value = ({
-    v_3 = nil_oop;
+    v_6 = nil_oop;
     e_2 = (uint32_t)((b_2 >> 52) & 0x7FF);
     if ((uint64_t)(b_2 << 1) == 0) {
-        v_3 = (b_2 >> 63 << 3) | 4;
+        v_6 = (b_2 >> 63 << 3) | 4;
     } else if ((e_2 > 896) && (e_2 < 1151)) {
-        v_3 = (((((uint64_t)(b_2 << 1)) | (b_2 >> 63)) - 8070450532247928832LL) << 3) | 4;
+        v_6 = (((((uint64_t)(b_2 << 1)) | (b_2 >> 63)) - 8070450532247928832LL) << 3) | 4;
     }
-    if ((v_3 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+    if ((v_6 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
         rt_float_val[rt_float_count] = rt_deopt_count;
         rt_float_loc[rt_float_count] = loc;
         rt_float_bits[rt_float_count] = b_2;
         rt_float_count = rt_float_count + 1;
     }
     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v_3;
+        rt_deopt_vals[rt_deopt_count] = v_6;
         rt_deopt_count = rt_deopt_count + 1;
     }
     r_double__2 = rt_deopt_count - 1;
@@ -1650,13 +1720,13 @@ exit_signature_at_2:;
     op_2 = p[0];
     r_pushes_of = ((op_2 >= 0x97) && (op_2 <= 0x9F)) || ((op_2 >= 0xF0) && (op_2 < 0xFC)) ? 2 : 0;
     r_pushes_of; }) > 0) {
-        v_4 = g->fp[p[1]];
+        v_7 = g->fp[p[1]];
         fl = ({
-    if (((v_4 & 7) == 4) || (((v_4 & 7) == 0) && (*(uint64_t *)(v_4 + 8) == cls_boxedfloat))) {
+    if (((v_7 & 7) == 4) || (((v_7 & 7) == 0) && (*(uint64_t *)(v_7 + 8) == cls_boxedfloat))) {
         r_flags_of = FB_FLOAT;
         goto exit_flags_of;
     }
-    if (!((v_4 & 1) != 0)) {
+    if (!((v_7 & 1) != 0)) {
         r_flags_of = FB_NONINT;
         goto exit_flags_of;
     }
@@ -1664,13 +1734,13 @@ exit_signature_at_2:;
 exit_flags_of:;
     r_flags_of; });
         if ((op == 0x97) || ((op >= 0x9A) && (op < 0xA0))) {
-            v_5 = g->fp[p[2]];
+            v_8 = g->fp[p[2]];
             fl = fl | ({
-    if (((v_5 & 7) == 4) || (((v_5 & 7) == 0) && (*(uint64_t *)(v_5 + 8) == cls_boxedfloat))) {
+    if (((v_8 & 7) == 4) || (((v_8 & 7) == 0) && (*(uint64_t *)(v_8 + 8) == cls_boxedfloat))) {
         r_flags_of_2 = FB_FLOAT;
         goto exit_flags_of_2;
     }
-    if (!((v_5 & 1) != 0)) {
+    if (!((v_8 & 1) != 0)) {
         r_flags_of_2 = FB_NONINT;
         goto exit_flags_of_2;
     }
@@ -1684,13 +1754,13 @@ exit_flags_of_2:;
     fl = 0;
     for (i_5 = g->sp - 2; i_5 <= g->sp - 1; i_5++) {
         if (i_5 >= 0) {
-            v_6 = g->fp[i_5];
+            v_9 = g->fp[i_5];
             fl = fl | ({
-    if (((v_6 & 7) == 4) || (((v_6 & 7) == 0) && (*(uint64_t *)(v_6 + 8) == cls_boxedfloat))) {
+    if (((v_9 & 7) == 4) || (((v_9 & 7) == 0) && (*(uint64_t *)(v_9 + 8) == cls_boxedfloat))) {
         r_flags_of_3 = FB_FLOAT;
         goto exit_flags_of_3;
     }
-    if (!((v_6 & 1) != 0)) {
+    if (!((v_9 & 1) != 0)) {
         r_flags_of_3 = FB_NONINT;
         goto exit_flags_of_3;
     }
