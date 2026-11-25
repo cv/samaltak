@@ -32,6 +32,9 @@ const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
   record start <out.mp4> [--size WxH] [--fps n] [--raw]   record the screen with ffmpeg (raw RGBA through a FIFO; --raw: <out> gets the RGBA frames, no ffmpeg)
   record stop
   state
+  github-config [--repo owner/name] [--base main] [--prefix agent/] [--api-url url] [--token-command cmd | --token-env NAME | --from-gh] [--clear]
+               the repository and token the image's SourceFiler commits through (docs/github.md); the token comes from cmd's stdout
+               (/bin/sh), $NAME, gh auth token, else $SAMALTAK_GITHUB_TOKEN or $GITHUB_TOKEN, and is never printed; no options: show it
   close
 session: --session, $SAMALTAK_SESSION, default "samaltak"
 input commands wait until the image settles (at most 2 s); --settle ms changes that (0: return at once)
@@ -44,8 +47,8 @@ const pos = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--session') session = argv[++i];
-  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at)$/.test(a)) flags[a.slice(2)] = argv[++i];
-  else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi)$/.test(a)) flags[a.slice(2)] = true;
+  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at|repo|base|prefix|api-url|token-command|token-env)$/.test(a)) flags[a.slice(2)] = argv[++i];
+  else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi|from-gh|clear)$/.test(a)) flags[a.slice(2)] = true;
   else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
   else pos.push(a);
 }
@@ -297,6 +300,57 @@ async function record() {
   console.log(`recording ${w}x${h} at ${r.fps} fps to ${out} (samaltak-ctl record stop)`);
 }
 
+// github-config: the GitHub repository and token the image's SourceFiler commits through (GitHubAccount, docs/github.md).
+// The token is read here on the host, from a program's stdout (--token-command, under /bin/sh), an environment variable
+// (--token-env NAME, else SAMALTAK_GITHUB_TOKEN, else GITHUB_TOKEN) or gh auth token (--from-gh), and travels only in the
+// request's JSON over the control connection: never in an argv, never printed. The image answers with hasToken.
+function originRepository() {
+  let url;
+  try { url = require('child_process').execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8' }).trim(); }
+  catch (_) { die('github-config: no origin remote here; name the repository with --repo owner/name'); }
+  const m = url.match(/github\.com[:/]+([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/);
+  if (!m) die(`github-config: origin (${url}) is not a GitHub repository; name one with --repo owner/name`);
+  return `${m[1]}/${m[2]}`;
+}
+
+function githubToken() {
+  const sources = ['token-command', 'token-env', 'from-gh'].filter(f => flags[f] !== undefined);
+  if (sources.length > 1) die('github-config: one of --token-command, --token-env and --from-gh');
+  let program, argv, what;
+  if (flags['token-command'] !== undefined) [program, argv, what] = ['/bin/sh', ['-c', flags['token-command']], 'the token command'];
+  else if (flags['from-gh']) [program, argv, what] = ['gh', ['auth', 'token'], 'gh auth token'];
+  else {
+    const names = flags['token-env'] !== undefined ? [flags['token-env']] : ['SAMALTAK_GITHUB_TOKEN', 'GITHUB_TOKEN'];
+    for (const name of names) { const t = (process.env[name] || '').trim(); if (t) return t; }
+    if (flags['token-env'] !== undefined) die(`github-config: $${flags['token-env']} is not set`);
+    return null;
+  }
+  let out;
+  try { out = require('child_process').execFileSync(program, argv, { stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8', maxBuffer: 1 << 20 }); }
+  catch (e) { die(`github-config: ${what} failed (exit ${e.status ?? e.signal ?? e.code ?? '?'})`); }
+  const token = out.trim();
+  if (!token) die(`github-config: ${what} printed nothing`);
+  if (/\s/.test(token)) die(`github-config: ${what} printed more than one word`);
+  return token;
+}
+
+async function githubConfig() {
+  if (flags.clear) return print(await call({ cmd: 'github-config', clear: true }));
+  const tokenFlag = ['token-command', 'token-env', 'from-gh'].some(f => flags[f] !== undefined);
+  if (!tokenFlag && !flags.repo && !flags.base && !flags.prefix && !flags['api-url']) return print(await call({ cmd: 'github-config' }));
+  if (!readSession()) die(`no Samaltak in session ${session} (run: samaltak-ctl open)`);
+  const req = { cmd: 'github-config', repository: flags.repo || originRepository() };
+  if (flags.base) req.baseBranch = flags.base;
+  if (flags.prefix) req.branchPrefix = flags.prefix;
+  if (flags['api-url']) req.apiUrl = flags['api-url'];
+  const token = githubToken();
+  if (token) req.token = token;
+  else process.stderr.write('samaltak-ctl: note: no token sent (--token-command, --token-env, --from-gh, $SAMALTAK_GITHUB_TOKEN or $GITHUB_TOKEN)\n');
+  if (flags['from-gh'])
+    process.stderr.write(`samaltak-ctl: note: gh's token reaches every repository your gh login can; prefer a fine-grained token for ${req.repository} only (contents and pull requests: write) with --token-command (docs/github.md)\n`);
+  return print(await call(req));
+}
+
 async function main() {
   switch (cmd) {
     case 'open': return open();
@@ -377,6 +431,7 @@ async function main() {
       return print(file);
     }
     case 'record': return record();
+    case 'github-config': return githubConfig();
     case undefined: console.log(USAGE); process.exit(1); break;
     default: die(`unknown command ${JSON.stringify(cmd)}\n${USAGE}`);
   }
