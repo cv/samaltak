@@ -59,6 +59,7 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - [FFI](docs/ffi.md) — native call descriptors and launcher grants
 - `docs/apps.md` — applications as Linux windows, run from source (AppWorld, Application, OmarchyTheme, apps/, the desk)
 - `docs/agent.md` — the coding agent inside the image (⌘J)
+- `docs/github.md` — source changes as GitHub branches, commits and pull requests through the REST API (SourceFiler's GitHub store)
 - `st80/README.md` — the Smalltalk-80 guest on the VM Simulator
 - `docs/uefi.md` — the headless VM as a UEFI application (bare metal, QEMU)
 - `prototypes/` — the HTML prototypes the UI started from

@@ -1,13 +1,21 @@
 Object subclass: #SourceFiler
-	instanceVariableNames: 'sourceDirectory enabled'
+	instanceVariableNames: 'sourceDirectory enabled useGitHub gitHubStore'
 	classVariableNames: 'Default'
 	package: 'Compiler'!
 
-SourceFiler comment: 'I write what the browser (or the agent) accepts back into the image''s sources (src/<package>/<Class>.st, or <Class>.extension.st for a method in a ''*Package'' category; a package filed in from a directory, as an application is, in that directory), changing only that method, comment or definition chunk (ChunkFile), so unchanged methods stay byte-for-byte the same and git shows exactly the edit.
+SourceFiler comment: 'I write what the browser (or the agent) accepts back into the image''s sources (src/<package>/<Class>.st, or <Class>.extension.st for a method in a ''*Package'' category; a package filed in from a directory, as an application is, in that directory), changing only that method, comment or definition chunk (ChunkFile), so unchanged methods stay byte-for-byte the same and a diff shows exactly the edit. Each write reads the file from my store, edits its chunks and gives it back; a file left without chunks is removed.
 
-The source directory is --source-dir <dir>, else the first of <image dir>/../../src, <image dir>/../src, <image dir>/src, <current dir>/src that holds packages.txt. --no-source-write turns me off; so does a directory I cannot write (the browser then only changes the image).
+My store is the local source directory (a SourceDirectoryStore): --source-dir <dir>, else the first of <image dir>/../../src, <image dir>/../src, <image dir>/src, <current dir>/src that holds packages.txt. Or it is GitHub (a GitHubSourceStore: GitHubAccount default''s repository, read at the base branch''s head and edited in memory until committed) when that account is configured and there is no writable source directory (UEFI: its volumes are read-only), or always after useGitHub: true (false: never). --no-source-write turns me off; so does having no store (the browser then only changes the image).
 
-	SourceFiler default writeMethod: (Integer >> #gcd:)'!
+	SourceFiler default writeMethod: (Integer >> #gcd:).   "the path written, nil if nothing changed or I am off"
+	SourceFiler default removeMethod: #gcd: class: Integer category: ''arithmetic''.
+	SourceFiler default writeDefinition: aString of: aClass; writeCommentOf: aClass; removeClass: aClass.
+	SourceFiler default pendingChanges.   "GitHub: the paths changed and not yet committed"
+	SourceFiler default commit: ''Kernel: gcd: handles 0''.   "GitHub: a GitHubPullRequest (number, url, branch, commitSha)"
+	SourceFiler default commit: ''...'' pullRequest: false.   "the commit on its branch only"
+	SourceFiler default discardChanges
+
+commit: makes the branch <branchPrefix><yyyymmdd-hhmmss>-<slug> at a new commit whose parent is the base commit the change set started from, and opens a pull request into the base branch, titled by the message''s first line, its body the rest and the methods, definitions and comments written; it ends the change set. A failed commit keeps it and signals GitHubError. Nothing ever updates the base branch or a ref outside branchPrefix. A change set survives a snapshot and restart (the token does not).'!
 
 !SourceFiler methodsFor: 'accessing'!
 sourceDirectory
@@ -19,26 +27,62 @@ sourceDirectory: aPathOrNil
 enabled: aBoolean
 	enabled := aBoolean
 !
+useGitHub: aBooleanOrNil
+	"true: always the GitHub store; false: never; nil: when GitHub is configured and there is no writable source directory."
+	useGitHub := aBooleanOrNil
+!
+gitHubStore
+	^gitHubStore ifNil: [gitHubStore := (Smalltalk at: #GitHubSourceStore) new]
+!
+gitHubStore: aGitHubSourceStore
+	"Use aGitHubSourceStore (on an account other than GitHubAccount default: tests) when I use GitHub."
+	gitHubStore := aGitHubSourceStore
+!
 isEnabled
 	enabled == false ifTrue: [^false].
 	(Smalltalk vm arguments includes: '--no-source-write') ifTrue: [^false].
+	^self store notNil
+!
+usesGitHub
+	"GitHubSourceStore is in Tools: an application's runtime image has none."
+	useGitHub == false ifTrue: [^false].
+	(Smalltalk at: #GitHubSourceStore ifAbsent: [nil]) isNil ifTrue: [^false].
+	useGitHub == true ifTrue: [^true].
+	(gitHubStore notNil and: [gitHubStore isStarted]) ifTrue: [^true].
+	^self gitHubStore account isConfigured and: [self hasWritableSourceDirectory not]
+!
+hasStartedGitHubStore
+	^gitHubStore notNil and: [gitHubStore isStarted]
+!
+hasWritableSourceDirectory
+	"A source directory to write sources into."
 	^sourceDirectory notNil
 !
+store
+	"Where I read and write sources (see my comment), nil if nowhere."
+	self usesGitHub ifTrue: [^self gitHubStore].
+	^sourceDirectory isNil ifTrue: [nil] ifFalse: [SourceDirectoryStore on: sourceDirectory]
+!
+root
+	"The store's source directory (the one holding packages.txt)."
+	^self store ifNil: [sourceDirectory] ifNotNil: [:store | store root]
+!
 packageDirectory: aPackageName
-	"src/<package>, or the directory the package was filed in from (an application's)."
-	^(Compiler packageDirectoryOf: aPackageName) ifNil: [sourceDirectory, '/', aPackageName]
+	"src/<package> in my store; with a local directory, the directory the package was filed in from (an application's) if it was."
+	self usesGitHub ifFalse: [(Compiler packageDirectoryOf: aPackageName) ifNotNil: [:directory | ^directory]].
+	^self root, '/', aPackageName
 !
 pathForClass: aClass
 	^(self packageDirectory: aClass theNonMetaClass packageName), '/', aClass theNonMetaClass name, '.st'
 !
 pathForMethod: aCompiledMethod
 	"The file a method lives in: its class's file, or the extension file of the package its *category names."
-	| cat cls |
-	cat := aCompiledMethod category ifNil: [''].
-	cls := aCompiledMethod methodClass theNonMetaClass.
-	(cat beginsWith: '*') ifTrue: [
-		^(self packageDirectory: (self packageOfExtensionCategory: cat)), '/', cls name, '.extension.st'].
-	^self pathForClass: cls
+	^self pathFor: aCompiledMethod methodClass category: aCompiledMethod category
+!
+pathFor: aBehavior category: aCategoryOrNil
+	(aCategoryOrNil notNil and: [aCategoryOrNil beginsWith: '*']) ifTrue: [
+		^(self packageDirectory: (self packageOfExtensionCategory: aCategoryOrNil)), '/', aBehavior theNonMetaClass name, '.extension.st'].
+	^self pathForClass: aBehavior
 !
 packageOfExtensionCategory: aString
 	"'*System-Profiling' names the package System-Profiling (a longer name like '*System-Profiling-private' names the longest package it starts with)."
@@ -49,77 +93,111 @@ packageOfExtensionCategory: aString
 		((name = p name or: [name beginsWith: p name, '-']) and: [best isNil or: [p name size > best size]])
 			ifTrue: [best := p name]].
 	^best ifNil: [name]
+!
+labelOf: aBehavior
+	^aBehavior theNonMetaClass name, (aBehavior isMeta ifTrue: [' class'] ifFalse: [''])
 ! !
 
 !SourceFiler methodsFor: 'files'!
-chunkFileAt: aPath
-	^ChunkFile on: ((File exists: aPath) ifTrue: [File readText: aPath] ifFalse: [''])
-!
-save: aChunkFile to: aPath
-	| dir |
-	dir := File directoryOf: aPath.
-	(File isDirectory: dir) ifFalse: [Directory create: dir].
-	File writeText: aChunkFile text to: aPath
+edit: aPath note: aString with: aBlock
+	"Edit aPath's chunks: aBlock gets its ChunkFile (empty if there is no file) and answers whether it changed it. Give the file back to the store (remove it when no chunk is left), note aString as the change, and answer aPath; nil if nothing changed."
+	| store file |
+	store := self store.
+	file := ChunkFile on: ((store textAt: aPath) ifNil: ['']).
+	(aBlock value: file) ifFalse: [^nil].
+	file chunkCount = 0
+		ifTrue: [store removeFileAt: aPath]
+		ifFalse: [store at: aPath putText: file text].
+	store noteChange: aString.
+	^aPath
 ! !
 
 !SourceFiler methodsFor: 'writing'!
 writeMethod: aCompiledMethod
 	"Write the method's source into its file. Answer the path if the file changed, nil if it was already up to date or I am off."
-	| path file cls |
-	self isEnabled ifFalse: [^nil].
-	path := self pathForMethod: aCompiledMethod.
-	cls := aCompiledMethod methodClass.
-	file := self chunkFileAt: path.
-	(file putMethod: aCompiledMethod source
+	^self writeSource: aCompiledMethod source
 		selector: aCompiledMethod selector
-		className: cls theNonMetaClass name
-		meta: cls isMeta
-		category: (aCompiledMethod category ifNil: ['as yet unclassified'])) ifFalse: [^nil].
-	self save: file to: path.
-	^path
+		class: aCompiledMethod methodClass
+		category: (aCompiledMethod category ifNil: ['as yet unclassified'])
+!
+writeSource: aString selector: aSelector class: aBehavior category: aCategory
+	"Write aString as the method aSelector of aBehavior in aCategory into its file (as writeMethod:)."
+	self isEnabled ifFalse: [^nil].
+	^self edit: (self pathFor: aBehavior category: aCategory) note: (self labelOf: aBehavior), '>>', aSelector with: [:file |
+		file putMethod: aString
+			selector: aSelector
+			className: aBehavior theNonMetaClass name
+			meta: aBehavior isMeta
+			category: aCategory]
 !
 removeMethod: aSelector class: aBehavior category: aCategory
-	"Remove a method from the file it lived in (when the browser moves it to another file)."
-	| path file entry |
+	"Remove a method from the file it lived in (when the browser moves it to another file, or it is removed)."
 	self isEnabled ifFalse: [^nil].
-	path := (aCategory notNil and: [aCategory beginsWith: '*'])
-		ifTrue: [(self packageDirectory: (self packageOfExtensionCategory: aCategory)), '/', aBehavior theNonMetaClass name, '.extension.st']
-		ifFalse: [self pathForClass: aBehavior].
-	(File exists: path) ifFalse: [^nil].
-	file := self chunkFileAt: path.
-	entry := file methodEntryFor: aSelector className: aBehavior theNonMetaClass name meta: aBehavior isMeta.
-	entry isNil ifTrue: [^nil].
-	file removeMethodEntry: entry.
-	self save: file to: path.
-	^path
+	^self edit: (self pathFor: aBehavior category: aCategory) note: (self labelOf: aBehavior), '>>', aSelector, ' (removed)' with: [:file |
+		| entry |
+		entry := file methodEntryFor: aSelector className: aBehavior theNonMetaClass name meta: aBehavior isMeta.
+		entry notNil ifTrue: [file removeMethodEntry: entry].
+		entry notNil]
 !
 writeDefinition: aString of: aClass
-	| path file |
 	self isEnabled ifFalse: [^nil].
-	path := self pathForClass: aClass.
-	file := self chunkFileAt: path.
-	(file putDefinition: aString className: aClass name) ifFalse: [^nil].
-	self save: file to: path.
-	^path
+	^self edit: (self pathForClass: aClass) note: aClass name, ' (definition)' with: [:file |
+		file putDefinition: aString className: aClass name]
 !
 writeCommentOf: aClass
-	| path file |
+	self isEnabled ifFalse: [^nil].
+	^self edit: (self pathForClass: aClass) note: aClass name, ' (comment)' with: [:file |
+		file putComment: (aClass comment ifNil: ['']) className: aClass name]
+!
+removeClass: aClass
+	"Remove the class's file (its extension files stay). Answer the path, nil if there was none or I am off."
+	| path store |
 	self isEnabled ifFalse: [^nil].
 	path := self pathForClass: aClass.
-	file := self chunkFileAt: path.
-	(file putComment: (aClass comment ifNil: ['']) className: aClass name) ifFalse: [^nil].
-	self save: file to: path.
+	store := self store.
+	(store textAt: path) isNil ifTrue: [^nil].
+	store removeFileAt: path.
+	store noteChange: aClass name, ' (removed)'.
 	^path
 !
 definitionInFileOf: aClass
 	"The class definition chunk as written in its file, or nil."
-	| path file k |
-	sourceDirectory isNil ifTrue: [^nil].
-	path := self pathForClass: aClass.
-	(File exists: path) ifFalse: [^nil].
-	file := self chunkFileAt: path.
+	| text file k |
+	self store isNil ifTrue: [^nil].
+	text := self store textAt: (self pathForClass: aClass).
+	text isNil ifTrue: [^nil].
+	file := ChunkFile on: text.
 	k := file definitionChunkFor: aClass name.
 	^k isNil ifTrue: [nil] ifFalse: [file chunkBody: k]
+! !
+
+!SourceFiler methodsFor: 'changes'!
+pendingChanges
+	"The paths changed and not committed (GitHub; a local directory has none: git keeps them)."
+	^self store ifNil: [#()] ifNotNil: [:store | store pendingChanges]
+!
+discardChanges
+	"Forget the changes not committed (GitHub)."
+	^self existingStore discardChanges
+!
+commit: aString
+	"Commit the changes on a new branch and open a pull request (GitHub); answer a GitHubPullRequest (see my comment)."
+	^self commit: aString pullRequest: true
+!
+commit: aString pullRequest: aBoolean
+	^self existingStore commit: aString pullRequest: aBoolean
+!
+existingStore
+	^self store ifNil: [self error: 'No source store: no source directory and no GitHub account']
+! !
+
+!SourceFiler methodsFor: 'printing'!
+printOn: aStream
+	aStream nextPutAll: 'a SourceFiler ('.
+	self store
+		ifNil: [aStream nextPutAll: 'off']
+		ifNotNil: [:store | store printOn: aStream].
+	aStream nextPut: $)
 ! !
 
 !SourceFiler class methodsFor: 'instance creation'!
@@ -147,8 +225,10 @@ findSourceDirectory
 
 !SourceFiler class methodsFor: 'class initialization'!
 startUp: resuming
-	"The image may have moved: look for the sources again."
-	Default := nil
+	"The image may have moved: look for the sources again. A GitHub change set not yet committed is kept."
+	(Default notNil and: [Default hasStartedGitHubStore])
+		ifTrue: [Default sourceDirectory: self findSourceDirectory]
+		ifFalse: [Default := nil]
 !
 initialize
 	Smalltalk addToStartUpList: self
