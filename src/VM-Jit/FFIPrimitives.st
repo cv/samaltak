@@ -329,7 +329,7 @@ prepareEntry: descriptor into: arity result: resultOut untryable: untryable stat
 	count := self byteCount: tagOop.
 	count > FFI_SLOT_LIMIT ifTrue: [^0].
 	n := count asInt32.
-	((self intVal: resultOop) < 1 or: [(self intVal: resultOop) > 15]) ifTrue: [^0].
+	((self intVal: resultOop) < 1 or: [(self intVal: resultOop) > 16]) ifTrue: [^0].
 	result := (self intVal: resultOop) asInt32.
 	(result = 5 or: [(result >= 8 and: [result <= 10]) or: [result = 13 or: [result = 14]]]) ifTrue: [^0].
 	library := self local: 'uint8_t[128]'.
@@ -341,12 +341,12 @@ prepareEntry: descriptor into: arity result: resultOut untryable: untryable stat
 	libc memcpy: tags from: (self bytesOf: tagOop) size: count.
 	slots := n.
 	0 to: n - 1 do: [:i |
-		((tags at: i) >= 8) ifTrue: [slots := slots + 1]].
+		((tags at: i) >= 8 and: [(tags at: i) <= 14]) ifTrue: [slots := slots + 1]].
 	slots > FFI_SLOT_LIMIT ifTrue: [^0].
 	staticOnly ifTrue: [
 		"The static table contains only core wrappers, never a platform exec, of at most six packed nibbles."
 		(libc strcmp: (self cCoerce: library to: 'const char *') with: 'vm:core') ~= 0 ifTrue: [^0].
-		n > 6 ifTrue: [^0].
+		(n > 6 or: [result > 15]) ifTrue: [^0].
 		signature := 0 asUInt32.
 		0 to: n - 1 do: [:i |
 			tag := tags at: i.
@@ -404,7 +404,7 @@ bindOrInvoke: invoke
 	slots := n.
 	0 to: n - 1 do: [:i |
 		tag := tags at: i.
-		(tag = 9 or: [tag = 10]) ifTrue: [^self fail].
+		(tag = 9 or: [tag = 10 or: [tag = 16]]) ifTrue: [^self fail].
 		tag = 8 ifTrue: [slots := slots + 1]].
 	slots > 6 ifTrue: [^self fail].
 	resultOop := self arg: first + 3.
@@ -479,13 +479,14 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 	<var: #target type: 'uint64_t *'>
 	<var: #prepared type: 'bool'>
 	<returns: 'int32_t'>
-	| name lib sig signature hasPointer hasVettedArgument t id |
+	| name lib sig signature wide hasPointer hasVettedArgument t id |
 	name := self cCoerce: symbol to: 'const char *'.
 	lib := self cCoerce: library to: 'const char *'.
 	"The fixed libm, libc and platform rows compare packed nibbles; approved exports the tags as a NUL-terminated string."
 	sig := 0 asUInt32.
 	signature := self local: 'uint8_t[FFI_SIGNATURE_BYTES]'.
 	hasPointer := false.
+	wide := false.
 	result = 15 ifTrue: [(n = 1 and: [(tags at: 0) = 14]) ifFalse: [^0]].
 	hasVettedArgument := result = 11.
 	hasVettedArgument ifTrue: [
@@ -497,16 +498,17 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 			ifTrue: [
 				(prepared and: [(libc strcmp: lib with: 'vm:core') = 0 and: [n = 1 and: [
 					(t = 13 and: [result = 7]) or: [t = 14 and: [result = 15]]]]]) ifFalse: [^0]]
-			ifFalse: [(t < 1 or: [t > 6 and: [t < 8 or: [t > 10]]]) ifTrue: [^0]].
+			ifFalse: [(t < 1 or: [t > 6 and: [t < 8 or: [t > 10 and: [t ~= 16]]]]) ifTrue: [^0]].
 		(t = 9 or: [t = 10]) ifTrue: [
 			prepared ifFalse: [^0].
 			hasVettedArgument := true].
 		t = 5 ifTrue: [hasPointer := true].
+		t = 16 ifTrue: [wide := true].
 		signature at: i put: t.
 		sig := ((sig asUInt64 << 4) bitOr: t asUInt64) asUInt32].
 	sig := ((sig asUInt64 << 4) bitOr: result asUInt64) asUInt32.
-	"Nibbles hold six argument tags; no fixed row is longer."
-	n > 6 ifTrue: [sig := 0 asUInt32].
+	"Nibbles hold six argument tags up to 15; no fixed row is longer or uses f32."
+	(n > 6 or: [wide or: [result = 16]]) ifTrue: [sig := 0 asUInt32].
 	signature at: n put: result asUInt8.
 	signature at: n + 1 put: 0.
 	(libc strcmp: lib with: 'libm') = 0 ifTrue: [

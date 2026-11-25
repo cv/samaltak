@@ -168,7 +168,7 @@ static void bind_or_invoke(bool invoke)
     slots = n;
     for (i_3 = 0; i_3 <= n - 1; i_3++) {
         tag = tags[i_3];
-        if ((tag == 9) || (tag == 10)) {
+        if ((tag == 9) || ((tag == 10) || (tag == 16))) {
             prim_status = PS_FAIL;
             prim_error_code = -1;
             return;
@@ -1822,7 +1822,7 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_ou
         return 0;
     }
     n = (int32_t)count;
-    if (((((int64_t)result_oop) >> 1) < 1) || ((((int64_t)result_oop) >> 1) > 15)) {
+    if (((((int64_t)result_oop) >> 1) < 1) || ((((int64_t)result_oop) >> 1) > 16)) {
         return 0;
     }
     result = (int32_t)(((int64_t)result_oop) >> 1);
@@ -1843,7 +1843,7 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_ou
     memcpy(tags, (uint8_t *)(tag_oop + 16), count);
     slots = n;
     for (i = 0; i <= n - 1; i++) {
-        if (tags[i] >= 8) {
+        if ((tags[i] >= 8) && (tags[i] <= 14)) {
             slots = slots + 1;
         }
     }
@@ -1854,7 +1854,7 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_ou
         if (strcmp((const char *)library, "vm:core") != 0) {
             return 0;
         }
-        if (n > 6) {
+        if ((n > 6) || (result > 15)) {
             return 0;
         }
         signature = 0U;
@@ -2044,6 +2044,7 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
     uint8_t local[18];
     uint8_t *signature;
     bool has_pointer;
+    bool wide;
     bool has_vetted_argument;
     int32_t i;
     uint8_t t;
@@ -2057,6 +2058,7 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
     memset(&local, 0, sizeof local);
     signature = local;
     has_pointer = false;
+    wide = false;
     if (result == 15) {
         if (!((n == 1) && (tags[0] == 14))) {
             return 0;
@@ -2074,7 +2076,7 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
             if (!(prepared && ((strcmp(lib, "vm:core") == 0) && ((n == 1) && (((t == 13) && (result == 7)) || ((t == 14) && (result == 15))))))) {
                 return 0;
             }
-        } else if ((t < 1) || ((t > 6) && ((t < 8) || (t > 10)))) {
+        } else if ((t < 1) || ((t > 6) && ((t < 8) || ((t > 10) && (t != 16))))) {
             return 0;
         }
         if ((t == 9) || (t == 10)) {
@@ -2086,11 +2088,14 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
         if (t == 5) {
             has_pointer = true;
         }
+        if (t == 16) {
+            wide = true;
+        }
         signature[i] = t;
         sig = (uint32_t)((((uint64_t)sig) << 4) | ((uint64_t)t));
     }
     sig = (uint32_t)((((uint64_t)sig) << 4) | ((uint64_t)result));
-    if (n > 6) {
+    if ((n > 6) || (wide || (result == 16))) {
         sig = 0U;
     }
     signature[n] = (uint8_t)result;

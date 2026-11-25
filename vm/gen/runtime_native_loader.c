@@ -306,6 +306,10 @@ static int32_t parse_signature(char *text, runtime_native_grant *row)
         r_scalar_tag = 6;
         goto exit_scalar_tag;
     }
+    if (strcmp(text, "f32") == 0) {
+        r_scalar_tag = 16;
+        goto exit_scalar_tag;
+    }
     if (strcmp(text, "void") == 0) {
         r_scalar_tag = 7;
         goto exit_scalar_tag;
@@ -359,6 +363,10 @@ exit_result_tag:;
         r_scalar_tag_2 = 6;
         goto exit_scalar_tag_2;
     }
+    if (strcmp(start, "f32") == 0) {
+        r_scalar_tag_2 = 16;
+        goto exit_scalar_tag_2;
+    }
     if (strcmp(start, "void") == 0) {
         r_scalar_tag_2 = 7;
         goto exit_scalar_tag_2;
@@ -392,6 +400,10 @@ exit_notification_tag:;
     }
     if (strcmp(start, "f64") == 0) {
         r_scalar_tag_3 = 6;
+        goto exit_scalar_tag_3;
+    }
+    if (strcmp(start, "f32") == 0) {
+        r_scalar_tag_3 = 16;
         goto exit_scalar_tag_3;
     }
     if (strcmp(start, "void") == 0) {

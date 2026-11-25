@@ -19,7 +19,8 @@ wrappedArgumentHelper: tag
 		[6] -> [self cCoerce: (self functionPointer: #ffiUnboxF64:into:) to: 'uint64_t'].
 		[8] -> [self cCoerce: (self functionPointer: #ffiBorrowSlice:into:length:) to: 'uint64_t'].
 		[9] -> [self cCoerce: (self functionPointer: #ffiBorrowWritableSlice:into:length:) to: 'uint64_t'].
-		[10] -> [self cCoerce: (self functionPointer: #ffiBorrowInteger:into:signedCount:) to: 'uint64_t']}
+		[10] -> [self cCoerce: (self functionPointer: #ffiBorrowInteger:into:signedCount:) to: 'uint64_t'].
+		[16] -> [self cCoerce: (self functionPointer: #ffiUnboxF32:into:) to: 'uint64_t']}
 		otherwise: [0 asUInt64]
 !
 wrappedResultHelper: tag
@@ -30,13 +31,14 @@ wrappedResultHelper: tag
 	(libc getenv: 'SAMALTAK_FFI_BOX_FULL_GC') notNull ifTrue: [
 		tag = 3 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxI64WithGC:) to: 'uint64_t'].
 		tag = 4 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxU64WithGC:) to: 'uint64_t'].
-		tag = 6 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxF64WithGC:) to: 'uint64_t'].
+		(tag = 6 or: [tag = 16]) ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxF64WithGC:) to: 'uint64_t'].
 		tag = 11 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxOwnedIntegerWithGC:) to: 'uint64_t'].
 		tag = 12 ifTrue: [^self cCoerce: (self functionPointer: #ffiBoxNonNegativeI64WithGC:) to: 'uint64_t']].
 	^tag caseOf: {
 		[3] -> [self cCoerce: (self functionPointer: #ffiBoxI64:) to: 'uint64_t'].
 		[4] -> [self cCoerce: (self functionPointer: #ffiBoxU64:) to: 'uint64_t'].
 		[6] -> [self cCoerce: (self functionPointer: #ffiBoxF64:) to: 'uint64_t'].
+		[16] -> [self cCoerce: (self functionPointer: #ffiBoxF64:) to: 'uint64_t'].
 		[7] -> [self cCoerce: (self functionPointer: #ffiBoxVoid) to: 'uint64_t'].
 		[11] -> [self cCoerce: (self functionPointer: #ffiBoxOwnedInteger:) to: 'uint64_t'].
 		[12] -> [self cCoerce: (self functionPointer: #ffiBoxNonNegativeI64:) to: 'uint64_t']}
@@ -88,6 +90,18 @@ ffiUnboxF64: o into: out
 	<var: #out type: 'double *'>
 	<returns: 'bool'>
 	^memory tryFloatVal: o into: out
+!
+ffiUnboxF32: o into: out
+	"A Float, rounded to the nearest float."
+	<function>
+	<var: #o type: 'oop'>
+	<var: #out type: 'float *'>
+	<returns: 'bool'>
+	| wide |
+	wide := self local: 'double'.
+	(memory tryFloatVal: o into: wide) ifFalse: [^false].
+	out value: (self cCoerce: wide value to: 'float').
+	^true
 !
 ffiBorrowSlice: slice into: out length: length
 	<function>

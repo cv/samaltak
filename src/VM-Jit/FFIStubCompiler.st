@@ -89,7 +89,7 @@ entryFor: target argumentTags: types count: n returnTag: result operation: opera
 	<returns: 'uint64_t'>
 	| key keyHigh slot tag lanes buf p size entry text prepare finish |
 	(target = 0 or: [n < 0 or: [n > FFI_WRAPPED_LANES]]) ifTrue: [^0].
-	((result >= 1 and: [result <= 7 and: [result ~= 5]]) or: [result = 11 or: [result = 12 or: [result = 15]]]) ifFalse: [^0].
+	((result >= 1 and: [result <= 7 and: [result ~= 5]]) or: [result = 11 or: [result = 12 or: [result = 15 or: [result = 16]]]]) ifFalse: [^0].
 	(n > 0 and: [types isNull]) ifTrue: [^0].
 	self canPublishCode ifFalse: [^0].
 	text := n = 1 and: [operation = 0 and: [
@@ -107,7 +107,7 @@ entryFor: target argumentTags: types count: n returnTag: result operation: opera
 	lanes := n.
 	0 to: n - 1 do: [:i |
 		tag := types at: i.
-		(tag = 0 or: [tag = 7 or: [(tag > 10 and: [text not]) or: [tag = 5 and: [operation = 0]]]]) ifTrue: [^0].
+		(tag = 0 or: [tag = 7 or: [(tag > 10 and: [tag ~= 16 and: [text not]]) or: [tag = 5 and: [operation = 0]]]]) ifTrue: [^0].
 		(text or: [self wrappedTwoLanes: tag]) ifTrue: [lanes := lanes + 1].
 		i < 11
 			ifTrue: [key := key bitOr: tag asUInt64 << (5 * (i + 1))]
@@ -168,11 +168,11 @@ wrappedTwoLanes: tag
 	^tag >= 8 and: [tag <= 10]
 !
 wrappedFloatLane: tag
-	^tag = 6
+	^tag = 6 or: [tag = 16]
 !
 wrappedNarrowLane: tag
 	"A 4-byte argument: Apple's arm64 ABI gives it a 4-byte stack slot."
-	^tag <= 2
+	^tag <= 2 or: [tag = 16]
 !
 layoutLanes: types count: n gp: gpMax fp: fpMax packed: packed into: laneStack totals: totals
 	"Give each native lane (in argument order; a two-lane tag's pointer, then its length)
@@ -225,9 +225,9 @@ wrappedInlineWideResult: tag
 	^tag = 3 or: [tag = 4 or: [tag = 12]]
 !
 wrappedTailResult: tag
-	"The result already occupies the boxer's ABI lane (f64) or needs no lane (void).
+	"The result already occupies the boxer's ABI lane (f64, f32 once widened) or needs no lane (void).
 	 Restoring the wrapper frame cannot clobber a live lane; the boxer can return directly."
-	^tag = 6 or: [tag = 7]
+	^tag = 6 or: [tag = 7 or: [tag = 16]]
 ! !
 
 !FFIStubCompiler methodsFor: 'x64 SysV'!
@@ -562,8 +562,8 @@ encodeWrappedX64: start target: target types: types count: n result: result oper
 			p := done].
 		p := self x64WrappedSpillGP: (gp < 6 ifTrue: [gp] ifFalse: [6]) fp: (fp < 8 ifTrue: [fp] ifFalse: [8]) base: homes restore: false at: p.
 		p := self emitX64: 16rC78948 asUInt64 count: 3 at: p. "mov rdi,rax"
-		"lea rsi,[rsp+out]: a stack double goes straight to its slot"
-		p := self x64Lea: 6 offset: ((tag = 6 and: [off >= 0]) ifTrue: [off] ifFalse: [outs]) at: p.
+		"lea rsi,[rsp+out]: a stack float or double goes straight to its slot"
+		p := self x64Lea: 6 offset: (((self wrappedFloatLane: tag) and: [off >= 0]) ifTrue: [off] ifFalse: [outs]) at: p.
 		(tag = 5 or: [self wrappedTwoLanes: tag]) ifTrue: [
 			p := self x64Lea: 2 offset: outs + 8 at: p]. "lea rdx,[rsp+out+8]"
 		p := self x64WrappedCall: helper at: p.
@@ -572,8 +572,11 @@ encodeWrappedX64: start target: target types: types count: n result: result oper
 		failSites at: failed put: (p - start) asUInt32.
 		failed := failed + 1.
 		p := self x64WrappedSpillGP: (gp < 6 ifTrue: [gp] ifFalse: [6]) fp: (fp < 8 ifTrue: [fp] ifFalse: [8]) base: homes restore: true at: p.
-		tag = 6 ifTrue: [
-			off < 0 ifTrue: [p := self x64WrappedXMM: fp offset: outs restore: true at: p].
+		(self wrappedFloatLane: tag) ifTrue: [
+			off < 0 ifTrue: [
+				p := tag = 16
+					ifTrue: [self x64Rsp: 16r100FF3 asUInt64 count: 3 reg: fp offset: outs at: p] "movss xmmN,[rsp+out]"
+					ifFalse: [self x64WrappedXMM: fp offset: outs restore: true at: p]].
 			fp := fp + 1.
 			lane := lane + 1
 		] ifFalse: [
@@ -614,6 +617,7 @@ encodeWrappedX64: start target: target types: types count: n result: result oper
 		"Exact two-magnitude signature: the hidden fifth GP argument is r8."
 		p := self x64Lea: 8 offset: integerOut at: p].
 	p := self x64WrappedCall: target at: p.
+	result = 16 ifTrue: [p := self emitX64: 16rC05A0FF3 asUInt64 count: 4 at: p]. "cvtss2sd xmm0,xmm0 (boxed as a double)"
 	wideResultSlow := self local: 'uint8_t *'.
 	wideResultSlow value: self null.
 	tail := self wrappedTailResult: result.

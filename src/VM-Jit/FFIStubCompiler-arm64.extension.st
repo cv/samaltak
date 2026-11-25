@@ -131,8 +131,8 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 			ok := j. "b ready"
 			j := j + 1.
 			self arm64WrappedBranch: 16r36000000 from: slow to: j mask: 16r3FFF into: buf].
-		"add x1,sp,#out: a stack double goes straight to its slot"
-		buf at: j put: 16r910003E1 + (((tag = 6 and: [off >= 0]) ifTrue: [off] ifFalse: [scratch]) * 1024).
+		"add x1,sp,#out: a stack float or double goes straight to its slot"
+		buf at: j put: 16r910003E1 + ((((self wrappedFloatLane: tag) and: [off >= 0]) ifTrue: [off] ifFalse: [scratch]) * 1024).
 		j := j + 1.
 		(tag = 5 or: [self wrappedTwoLanes: tag]) ifTrue: [
 			buf at: j put: 16r910003E2 + ((scratch + 8) * 1024). "add x2,sp,#scratch+8 (slice length out slot)"
@@ -142,10 +142,12 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 		rejectSites at: failCount put: j.
 		failCount := failCount + 1.
 		j := j + 1.
-		tag = 6
+		(self wrappedFloatLane: tag)
 			ifTrue: [
 				off < 0 ifTrue: [
-					buf at: j put: 16rFD4003E8 + fp + ((scratch quo: 8) * 1024). "ldr d8+fp,[sp,#scratch]"
+					buf at: j put: (tag = 16
+						ifTrue: [16rBD4003E8 + ((scratch quo: 4) * 1024)]
+						ifFalse: [16rFD4003E8 + ((scratch quo: 8) * 1024)]) + fp. "ldr s8+fp/d8+fp,[sp,#scratch]"
 					j := j + 1].
 				fp := fp + 1.
 				lane := lane + 1]
@@ -198,6 +200,9 @@ encodeWrappedArm64: buf target: target types: types count: n result: result oper
 		buf at: j put: 16r910003E4 + (integerOut * 1024). "add x4,sp,#integerOut"
 		j := j + 1].
 	j := self arm64WrappedCall: target at: j into: buf.
+	result = 16 ifTrue: [
+		buf at: j put: 16r1E22C000. "fcvt d0,s0 (boxed as a double)"
+		j := j + 1].
 	result = 11 ifTrue: [
 		buf at: j put: 16r910003E0 + (integerOut * 1024). "add x0,sp,#integerOut"
 		j := j + 1].
