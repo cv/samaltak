@@ -245,7 +245,7 @@ framesValid: valid
 materializeAll
 	"Flush every frame into a Context (bottom up, so senders exist first; a married frame fills its own); afterwards activeCtx is the top one. The caller has externalized the top frame."
 	<function>
-	| n ctx f s byHeap |
+	| f byHeap |
 	nframes ~= 0 ifTrue: [
 		statFlushes := statFlushes + 1.
 		frameEpoch := frameEpoch + 1].
@@ -254,22 +254,7 @@ materializeAll
 		f := frames + i.
 		(jit isOptFrame: f)
 			ifTrue: [jit materializeOpt: f]
-			ifFalse: [
-				ctx := f ctx.
-				ctx = memory nilOop ifTrue: [
-					n := (self frameSize: f) + CTX_SLACK.
-					n < f sp ifTrue: [n := f sp].
-					ctx := memory allocContext: n asUInt32].
-				s := self slotsOf: ctx.
-				s at: CTX_SENDER put: activeCtx.
-				s at: CTX_PC put: (self intOop: f ip - (self methodBcs: f method)).
-				s at: CTX_STACKP put: (self intOop: f sp).
-				s at: CTX_METHOD put: f method.
-				s at: CTX_CLOSURE put: f closure.
-				s at: CTX_RECEIVER put: (f fp at: -1).
-				libc memcpy: s + CTX_FIXED from: f fp size: f sp asUInt64 * 8.
-				gc rememberIfOld: ctx.
-				activeCtx := ctx]].
+			ifFalse: [self flushFrame: f]].
 	nframes := 0.
 	cstackUsed := 0.
 	self refreshPrimBase.
@@ -280,6 +265,26 @@ materializeAll
 		stackCheckDue := true.
 		stackCheckHash := self hashOf: scheduler activeProcess.
 		scheduler requestInterruptCheck]
+!
+flushFrame: f
+	"materializeAll meets f, a frame as the interpreter has it (ip, sp, its slots): its Context (its married one, else a new one) gets its state, its sender activeCtx, and becomes activeCtx."
+	<function>
+	| n ctx s |
+	ctx := f ctx.
+	ctx = memory nilOop ifTrue: [
+		n := (self frameSize: f) + CTX_SLACK.
+		n < f sp ifTrue: [n := f sp].
+		ctx := memory allocContext: n asUInt32].
+	s := self slotsOf: ctx.
+	s at: CTX_SENDER put: activeCtx.
+	s at: CTX_PC put: (self intOop: f ip - (self methodBcs: f method)).
+	s at: CTX_STACKP put: (self intOop: f sp).
+	s at: CTX_METHOD put: f method.
+	s at: CTX_CLOSURE put: f closure.
+	s at: CTX_RECEIVER put: (f fp at: -1).
+	libc memcpy: s + CTX_FIXED from: f fp size: f sp asUInt64 * 8.
+	gc rememberIfOld: ctx.
+	activeCtx := ctx
 !
 marry: f
 	"Frame f's Context, created if it has none: method, closure and receiver set, sender f's index (the mark of a married Context), stackp 0; pc, temps and stack stay in the frame. The caller has externalized."
@@ -857,6 +862,8 @@ pushFrame: m argc: n code: c ecode: ecode
 	g ctx: memory nilOop.
 	g code: c.
 	g fp: nfp.
+	"no machine code position yet (JitBaselineRuntime>>canonicalizeBelow: stops at a frame whose pc and sp are already right: a stale pc must not look right)"
+	g pc: 0.
 	g ip: (self methodBcs: m).
 	g lits: (self slotsOf: (self loadRef: m at: CM_LITERALS)).
 	g sp: (n + ntemps) asInt32.
@@ -881,6 +888,7 @@ pushFrameEntry: e argc: n
 	g ctx: memory nilOop.
 	g code: e code.
 	g fp: nfp.
+	g pc: 0.
 	g ip: e bcs.
 	g lits: e lits.
 	g sp: n + ntemps.
@@ -2034,6 +2042,7 @@ enterFrame
 	fr closure: memory nilOop.
 	fr ctx: memory nilOop.
 	fr code: newCode.
+	fr pc: 0.
 	fp := newFp.
 	fr fp: newFp.
 	ip := newBcs.

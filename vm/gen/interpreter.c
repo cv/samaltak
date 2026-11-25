@@ -508,6 +508,42 @@ static cache_entry *fill_cache(oop a_class, oop a_selector)
     return e;
 }
 
+/* Interpreter>>flushFrame: */
+void flush_frame(frame *f)
+{
+    oop ctx;
+    int64_t n;
+    oop *s;
+    oop m;
+    uint64_t o;
+    int64_t v;
+    int32_t v_2;
+    ctx = f->ctx;
+    if (ctx == nil_oop) {
+        n = frame_size(f) + CTX_SLACK;
+        if (n < f->sp) {
+            n = f->sp;
+        }
+        ctx = alloc_context((uint32_t)n);
+    }
+    s = (oop *)(ctx + 16);
+    s[CTX_SENDER] = active_ctx;
+    m = f->method;
+    o = *(uint64_t *)(m + 16 + 24);
+    v = f->ip - (uint8_t *)(o + 16);
+    s[CTX_PC] = (uint64_t)((v << 1) | 1);
+    v_2 = f->sp;
+    s[CTX_STACKP] = (uint64_t)((((int64_t)v_2) << 1) | 1);
+    s[CTX_METHOD] = f->method;
+    s[CTX_CLOSURE] = f->closure;
+    s[CTX_RECEIVER] = f->fp[-1];
+    memcpy(s + CTX_FIXED, f->fp, (uint64_t)f->sp * 8);
+    if (((ctx & 7) == 0) && ((!((uint64_t)(ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)ctx) & H_REMEMBERED) == 0))) {
+        remember(ctx);
+    }
+    active_ctx = ctx;
+}
+
 /* Interpreter>>flushIfMarried: */
 void flush_if_married(oop o)
 {
@@ -11585,6 +11621,7 @@ enter_frame:;
     fr->closure = nil_oop;
     fr->ctx = nil_oop;
     fr->code = new_code;
+    fr->pc = 0;
     fp = new_fp;
     fr->fp = new_fp;
     ip = new_bcs;
@@ -12440,16 +12477,9 @@ void materialize_all(void)
     int32_t i;
     frame *f;
     uint64_t c;
-    oop ctx;
-    int64_t n;
-    oop *s;
-    oop m;
-    uint64_t o;
-    int64_t v;
-    int32_t v_2;
-    uint64_t n_2;
+    uint64_t n;
     int64_t by_heap;
-    uint64_t o_2;
+    uint64_t o;
     if (nframes != 0) {
         stat_flushes = stat_flushes + 1;
         frame_epoch = frame_epoch + 1;
@@ -12461,43 +12491,20 @@ void materialize_all(void)
         if ((c > JIT_MAX_COUNT) && (((jit_method *)f->code)->mode == JIT_OPT)) {
             materialize_opt(f);
         } else {
-            ctx = f->ctx;
-            if (ctx == nil_oop) {
-                n = frame_size(f) + CTX_SLACK;
-                if (n < f->sp) {
-                    n = f->sp;
-                }
-                ctx = alloc_context((uint32_t)n);
-            }
-            s = (oop *)(ctx + 16);
-            s[CTX_SENDER] = active_ctx;
-            m = f->method;
-            o = *(uint64_t *)(m + 16 + 24);
-            v = f->ip - (uint8_t *)(o + 16);
-            s[CTX_PC] = (uint64_t)((v << 1) | 1);
-            v_2 = f->sp;
-            s[CTX_STACKP] = (uint64_t)((((int64_t)v_2) << 1) | 1);
-            s[CTX_METHOD] = f->method;
-            s[CTX_CLOSURE] = f->closure;
-            s[CTX_RECEIVER] = f->fp[-1];
-            memcpy(s + CTX_FIXED, f->fp, (uint64_t)f->sp * 8);
-            if (((ctx & 7) == 0) && ((!((uint64_t)(ctx - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)ctx) & H_REMEMBERED) == 0))) {
-                remember(ctx);
-            }
-            active_ctx = ctx;
+            flush_frame(f);
         }
     }
     nframes = 0;
     cstack_used = 0;
     refresh_prim_base();
-    n_2 = gc_epoch + 1;
-    gc_epoch = n_2;
+    n = gc_epoch + 1;
+    gc_epoch = n;
     if ((stat_materialized >= stack_check_at) && (stack_limit > 0)) {
         by_heap = (int64_t)(max_heap_bytes / 4 / 80);
         stack_check_at = stat_materialized + (uint64_t)(stack_limit < by_heap ? stack_limit : by_heap) / 8 + 1;
         stack_check_due = true;
-        o_2 = active_process();
-        stack_check_hash = (uint32_t)(((*(uint64_t *)o_2) >> H_HASH_SHIFT) & H_HASH_MASK);
+        o = active_process();
+        stack_check_hash = (uint32_t)(((*(uint64_t *)o) >> H_HASH_SHIFT) & H_HASH_MASK);
         request_interrupt_check();
     }
 }
@@ -12651,6 +12658,7 @@ frame *push_frame(oop m, int32_t n, uint64_t c, int32_t ecode)
     g->ctx = nil_oop;
     g->code = c;
     g->fp = nfp;
+    g->pc = 0;
     o_3 = *(uint64_t *)(m + 16 + 24);
     g->ip = (uint8_t *)(o_3 + 16);
     o_4 = *(uint64_t *)(m + 16 + 16);
@@ -12688,6 +12696,7 @@ frame *push_frame_entry(cache_entry *e, int32_t n)
     g->ctx = nil_oop;
     g->code = e->code;
     g->fp = nfp;
+    g->pc = 0;
     g->ip = e->bcs;
     g->lits = e->lits;
     g->sp = n + ntemps;
