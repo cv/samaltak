@@ -305,6 +305,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define FFI_PLATFORM_EXEC 1542
 #define FFI_SIGNATURE_BYTES 18
 #define FFI_SLOT_LIMIT 16
+#define FFI_STATIC_CACHE 8
 #define FFI_STUB_BYTES 256
 #define FFI_STUB_KEY_WORDS 8192
 #define FFI_STUB_LIMIT 1024

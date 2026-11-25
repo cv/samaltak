@@ -1,6 +1,6 @@
 VMPrimitiveModule subclass: #FFIPrimitives
-	instanceVariableNames: 'ffiStubs runtimeNative bigint cryptoBackend nvrtcBackend cudaBackend mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingUntryable bindingArities bindingResultTags bindingSerial bindingSerials boundSites boundSiteCount boundSiteTrace boundTraceCounts ownedRows ownedReserved ownedSession ownedSerial'
-	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_PLATFORM_EXEC FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED FFI_BOUND_SITE_LIMIT FFI_OWNED_LIMIT FFI_OWNED_BYTE_LIMIT FFI_SLOT_LIMIT FFI_SIGNATURE_BYTES'
+	instanceVariableNames: 'ffiStubs runtimeNative bigint cryptoBackend nvrtcBackend cudaBackend mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingUntryable bindingArities bindingResultTags bindingSerial bindingSerials boundSites boundSiteCount boundSiteTrace boundTraceCounts staticOwners staticEntries staticArities staticNext staticRegistered ownedRows ownedReserved ownedSession ownedSerial'
+	classVariableNames: 'FFI_STATIC_CACHE FFI_MEMCMP FFI_PLATFORM_BASE FFI_PLATFORM_EXEC FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED FFI_BOUND_SITE_LIMIT FFI_OWNED_LIMIT FFI_OWNED_BYTE_LIMIT FFI_SLOT_LIMIT FFI_SIGNATURE_BYTES'
 	package: 'VM-Jit'!
 
 FFIPrimitives comment: 'Prepare resolves an approved symbol and exact signature to a process-local wrapper. A bound send uses a session-tagged index checked against a VM-managed weak receiver reference. Saved images rebind from the symbolic descriptor. Native code must not reenter the VM or retain borrowed memory.'!
@@ -16,6 +16,8 @@ declarations
 		(bindingSerial uint64_t) (bindingSerials 'uint64_t[FFI_BINDING_LIMIT]')
 		(boundSites 'FFIBoundSite[FFI_BOUND_SITE_LIMIT]') (boundSiteCount int32_t)
 		(boundSiteTrace bool) (boundTraceCounts 'uint64_t[3]')
+		(staticOwners 'oop[FFI_STATIC_CACHE]') (staticEntries 'uint64_t[FFI_STATIC_CACHE]') (staticArities 'uint8_t[FFI_STATIC_CACHE]')
+		(staticNext int32_t) (staticRegistered bool)
 		(ownedRows 'FFIOwnedRow[FFI_OWNED_LIMIT]') (ownedReserved uint32_t)
 		(ownedSession uint64_t) (ownedSerial uint64_t)
 		(mathNames 'const char *[10]' #('sin' 'cos' 'log' 'exp' 'atan' 'sqrt' 'fabs' 'trunc' 'ldexp' 'ilogb'))
@@ -27,6 +29,8 @@ declarations
 !
 initialize
 	FFI_MEMCMP := 11.
+	"Bindings whose static wrapper (no published code: UEFI) was found recently, weakly held."
+	FFI_STATIC_CACHE := 8.
 	FFI_PLATFORM_BASE := 32.
 	FFI_PLATFORM_EXEC := 1542. "Approved platform ID: 1024 + 518."
 	FFI_DYNAMIC := 65536.
@@ -193,8 +197,28 @@ invocationEntry: owner into: arity
 	| entry result |
 	entry := self boundEntry: owner into: arity.
 	(entry ~= 0 or: [ffiStubs canPublishCode]) ifTrue: [^entry].
+	"A binding authorized again recently, while it lives and nothing moved: its wrapper again (no token in the image)."
+	0 to: FFI_STATIC_CACHE - 1 do: [:i |
+		(staticOwners at: i) = owner ifTrue: [
+			arity value: (staticArities at: i) asInt32.
+			^staticEntries at: i]].
 	result := self local: 'int32_t'.
-	^self prepareEntry: (self loadRef: owner at: 0) into: arity result: result untryable: self null staticOnly: true
+	entry := self prepareEntry: (self loadRef: owner at: 0) into: arity result: result untryable: self null staticOnly: true.
+	entry ~= 0 ifTrue: [self rememberStatic: owner entry: entry arity: arity value].
+	^entry
+!
+rememberStatic: owner entry: entry arity: n
+	<function>
+	<var: #owner type: 'oop'>
+	<var: #entry type: 'uint64_t'>
+	<var: #n type: 'int32_t'>
+	staticRegistered ifFalse: [
+		gc registerWeakOwners: (self functionPointer: #updateBindingOwners:) invalidate: (self functionPointer: #invalidateBindings).
+		staticRegistered := true].
+	staticOwners at: staticNext put: owner.
+	staticEntries at: staticNext put: entry.
+	staticArities at: staticNext put: n asUInt8.
+	staticNext := staticNext + 1 = FFI_STATIC_CACHE ifTrue: [0] ifFalse: [staticNext + 1]
 !
 canTryBoundOwner: owner
 	"Probe only: a prepared exec can replace the VM. Check the live owner before
@@ -296,12 +320,16 @@ updateBindingOwners: isDead
 	<var: #isDead type: 'bool (*)(oop *)'>
 	0 to: bindingCount - 1 do: [:i |
 		((bindingOwners at: i) ~= 0 and: [isDead call: bindingOwners + i]) ifTrue: [
-			bindingOwners at: i put: 0]]
+			bindingOwners at: i put: 0]].
+	0 to: FFI_STATIC_CACHE - 1 do: [:i |
+		((staticOwners at: i) ~= 0 and: [isDead call: staticOwners + i]) ifTrue: [
+			staticOwners at: i put: 0]]
 !
 invalidateBindings
 	"Require a fresh symbolic bind after forwarding or reopening an immutable object."
 	<function>
 	0 to: bindingCount - 1 do: [:i | bindingOwners at: i put: 0].
+	0 to: FFI_STATIC_CACHE - 1 do: [:i | staticOwners at: i put: 0].
 	bindingCount := 0.
 	bindingSession := 0
 !

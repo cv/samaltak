@@ -23,6 +23,11 @@ static uint64_t owned_serial;
 static uint64_t owned_session;
 static const char *platform_names[9] = {"platform_windows_close", "platform_windows_display_scale", "platform_windows_refresh_rate", "platform_windows_show", "platform_windows_set_cursor", "platform_windows_set_text_input_area", "pty_resize", "pty_close", "pty_foreground"};
 static uint32_t platform_signatures[9] = {49U, 54U, 54U, 785U, 49U, 53687089U, 13105U, 49U, 49U};
+static uint8_t static_arities[8];
+static uint64_t static_entries[8];
+static int32_t static_next;
+static oop static_owners[8];
+static bool static_registered;
 
 static int32_t approved(const char *name, const uint8_t *tags, int32_t n, int32_t result, bool is_platform, uint64_t *target);
 static uint64_t ffi_primitives_arity_mix_bytes_length(uint64_t h, const uint8_t *p, uint64_t n);
@@ -252,6 +257,7 @@ static ffi_owned_row *owned_row(uint64_t ticket);
 static int32_t owned_size(uint64_t ticket);
 static int32_t owned_test(uint64_t ticket, int32_t mode);
 static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_out, bool *untryable, bool static_only);
+static void remember_static(oop owner, uint64_t entry, int32_t n);
 static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, const uint8_t *symbol, size_t sym_len, const uint8_t *tags, int32_t n, int32_t result, bool prepared, uint64_t *target);
 static void trace_bound_primitive(void);
 static void update_binding_owners(bool (*is_dead)(oop *));
@@ -2982,8 +2988,12 @@ void fill_bound_site(ffi_bound_site *site, oop owner, oop expected, oop selector
 static void invalidate_bindings(void)
 {
     int32_t i;
+    int i_2;
     for (i = 0; i <= binding_count - 1; i++) {
         binding_owners[i] = 0;
+    }
+    for (i_2 = 0; i_2 <= 7; i_2++) {
+        static_owners[i_2] = 0;
     }
     binding_count = 0;
     binding_session = 0;
@@ -2993,15 +3003,26 @@ static void invalidate_bindings(void)
 static uint64_t invocation_entry(oop owner, int32_t *arity)
 {
     uint64_t entry;
+    int i;
     int32_t local;
     int32_t *result;
     entry = bound_entry(owner, arity);
     if ((entry != 0) || can_publish_code()) {
         return entry;
     }
+    for (i = 0; i <= 7; i++) {
+        if (static_owners[i] == owner) {
+            *arity = (int32_t)static_arities[i];
+            return static_entries[i];
+        }
+    }
     memset(&local, 0, sizeof local);
     result = &local;
-    return prepare_entry(*(uint64_t *)(owner + 16 + 0), arity, result, (bool *)NULL, true);
+    entry = prepare_entry(*(uint64_t *)(owner + 16 + 0), arity, result, (bool *)NULL, true);
+    if (entry != 0) {
+        remember_static(owner, entry, *arity);
+    }
+    return entry;
 }
 
 /* FFIPrimitives>>invokeBoundArray: */
@@ -4969,6 +4990,19 @@ void ffi_primitives_print_bound_site_trace(void)
     }
 }
 
+/* FFIPrimitives>>rememberStatic:entry:arity: */
+static void remember_static(oop owner, uint64_t entry, int32_t n)
+{
+    if (!static_registered) {
+        register_weak_owners(update_binding_owners, invalidate_bindings);
+        static_registered = true;
+    }
+    static_owners[static_next] = owner;
+    static_entries[static_next] = entry;
+    static_arities[static_next] = (uint8_t)n;
+    static_next = static_next + 1 == FFI_STATIC_CACHE ? 0 : static_next + 1;
+}
+
 /* FFIPrimitives>>resetBoundSites */
 void reset_bound_sites(void)
 {
@@ -5125,9 +5159,15 @@ static void trace_bound_primitive(void)
 static void update_binding_owners(bool (*is_dead)(oop *))
 {
     int32_t i;
+    int i_2;
     for (i = 0; i <= binding_count - 1; i++) {
         if ((binding_owners[i] != 0) && is_dead(binding_owners + i)) {
             binding_owners[i] = 0;
+        }
+    }
+    for (i_2 = 0; i_2 <= 7; i_2++) {
+        if ((static_owners[i_2] != 0) && is_dead(static_owners + i_2)) {
+            static_owners[i_2] = 0;
         }
     }
 }
