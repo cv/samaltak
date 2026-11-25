@@ -159,6 +159,15 @@ timestamp: gpuAddress payload: value
 	CudaDriverAPI cuLaunchKernel: self stampFunction gridDimX: 1 gridDimY: 1 gridDimZ: 1
 		blockDimX: 1 blockDimY: 1 blockDimZ: 1 sharedMemBytes: 0 hStream: stream extra: p
 !
+marker: anInteger
+	"A marker for a profiler (nsys: a samaltak_stamp kernel of anInteger blocks of one thread among the launches), written into my fence word's page."
+	| p |
+	p := ByteArray new: 16.
+	CudaLibraryAPI put64: fenceMemory gpuAddress + 64 at: 1 in: p.
+	CudaLibraryAPI put64: anInteger at: 9 in: p.
+	CudaDriverAPI cuLaunchKernel: self stampFunction gridDimX: (anInteger max: 1) gridDimY: 1 gridDimZ: 1
+		blockDimX: 1 blockDimY: 1 blockDimZ: 1 sharedMemBytes: 0 hStream: stream extra: p
+!
 stampFunction
 	^stampFunction ifNil: [| m |
 		m := CudaDriverAPI cuModuleLoadData: self class stampPtx.

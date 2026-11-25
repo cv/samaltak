@@ -31,4 +31,10 @@
   outside the live statistics (top bar, the Process Browser's CPU column); then both again on the appliance's screen
   path (`SAMALTAK_SCREEN=memory:1920x1080`: KmsDisplay, no SDL window), compared with `NV_SUFFIX=-kms`.
 
+- `frames.sh [OUT] [cuda software]` (not part of `make test-nv`): what rendering costs in the nine interactions of
+  docs/graphics-damage.md (`RenderScenarios`, Tests-Tools-Agent: a hidden 1920x1080 World on a private Xvfb, the
+  events injected) on each device; per scenario and presented frame the renderer's CPU (median, 90th percentile, mean
+  and its stages), the compositor's CPU, kernel launches, waits and GPU span. `NV_FRAMES_NSYS=1` profiles the libcuda
+  run with nsys, and `frames_nsys.py [OUT]` reads it: the kernels per frame, their GPU time and their launch calls'.
+
 `make test-nv` also runs `NvComputeGPUTest` (SoftwareGPUTest on an NvComputeGPU) with NvCudaComputeTest and the CUDA libraries' GPU tests. Fails if the GPU differs from the reference without contraction anywhere, or a recorded frame equals neither reference.

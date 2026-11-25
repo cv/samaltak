@@ -1,5 +1,5 @@
 SoftwareGPU subclass: #NvComputeGPU
-	instanceVariableNames: 'gpu compute kernels memories fences lastFence scratch starts batch batchStarts batchSlots batchTarget batchClip batchUsed arena arenaOffset stamps stampCount recent blocks cached gpuDirty l2Stale fragmentUniforms shaderKernels'
+	instanceVariableNames: 'gpu compute kernels memories fences lastFence scratch starts batch batchStarts batchSlots batchTarget batchClip batchUsed arena arenaOffset stamps stampCount recent blocks cached gpuDirty l2Stale fragmentUniforms shaderKernels launchCount spans gpuSpan waitCount'
 	classVariableNames: ''
 	package: 'Graphics-NV'!
 
@@ -23,7 +23,7 @@ setDisplay: aDisplay
 	memories := Dictionary new.
 	fences := Dictionary new.
 	starts := Dictionary new.
-	lastFence := 0.
+	lastFence := launchCount := gpuSpan := waitCount := 0.
 	self resetBatch.
 	gpu := self class openDevice.
 	stampCount := 0.
@@ -50,6 +50,35 @@ gpu
 !
 compute
 	^compute
+!
+launchCount
+	"How many kernels I launched (raster kernels, fragment shaders), since I was made."
+	^launchCount
+!
+waitCount
+	"How often the CPU waited for launches to finish before touching memory (uploads, downloads, presents, frees), since I was made."
+	^waitCount
+!
+measureSpans
+	"From now on give every command buffer that does GPU work an end stamp too, and add its span (first launch to last done, GPU clock) to gpuSpanMicroseconds."
+	spans isNil ifTrue: [spans := OrderedCollection new. gpuSpan := 0]
+!
+gpuSpanMicroseconds
+	"The GPU µs of the command buffers submitted since measureSpans and done so far, from their first launch's stamp to their last's."
+	| e at |
+	spans isNil ifTrue: [^0].
+	[spans notEmpty] whileTrue: [
+		e := spans first.
+		at := e first * 32.
+		(stamps uint64At: at + 16) = (e at: 2)
+			ifTrue: [gpuSpan := gpuSpan + (((stamps uint64At: at + 24) - (stamps uint64At: at + 8) max: 0) // 1000). spans removeFirst]
+			ifFalse: [stampCount - (e at: 2) > 200 ifFalse: [^gpuSpan]. spans removeFirst]].
+	^gpuSpan
+!
+mark: anInteger
+	"A marker in the launch stream for a profiler (nsys): on libcuda a one-thread-a-block kernel of anInteger blocks."
+	self flush.
+	(compute respondsTo: #marker:) ifTrue: [compute marker: anInteger]
 !
 close
 	"Close the GPU; every texture, buffer and back buffer goes with it. Safe to call twice."
@@ -191,9 +220,12 @@ submit: cmd fence: wantFence
 	self flush.
 	slot := starts at: cmd ifAbsent: [nil].
 	f := super submit: cmd fence: wantFence.
-	f isNil ifTrue: [^nil].
+	f isNil ifTrue: [
+		(spans notNil and: [slot notNil]) ifTrue: [spans add: (Array with: slot with: (self stamp: slot * 32 + 16))].
+		^nil].
 	(self at: f) command: lastFence; address: slot; size: nil.
 	slot isNil ifFalse: [(self at: f) width: (self stamp: slot * 32 + 16)].
+	(spans notNil and: [slot notNil]) ifTrue: [spans add: (Array with: slot with: (self at: f) width)].
 	^f
 !
 waitFence: fence
@@ -264,6 +296,7 @@ launchKernel: aKernel grid: grid block: block parameters: bytes using: addresses
 		compute channel flushAndInvalidateL2.
 		l2Stale := false].
 	fence := compute launch: aKernel grid: grid block: block parameters: bytes.
+	launchCount := launchCount + 1.
 	gpuDirty := true.
 	recent at: fence \\ 64 + 1 put: (Array with: fence with: aKernel name with: grid with: bytes).
 	addresses do: [:a | fences at: a put: fence].
@@ -373,8 +406,13 @@ touch: address
 	| f |
 	self flush.
 	f := fences removeKey: address ifAbsent: [nil].
-	f isNil ifFalse: [compute wait: f].
+	f isNil ifFalse: [self wait: f].
 	((cached includes: address) and: [gpuDirty]) ifTrue: [self writeBackL2]
+!
+wait: aFence
+	"Wait until the launch whose fence is aFence has run."
+	waitCount := waitCount + 1.
+	compute wait: aFence
 !
 writeBackL2
 	"Wait until the L2 has written every dirty line back (NvChannel>>flushL2 and a fence)."
