@@ -164,8 +164,11 @@ dropClosing: aWindow
 	self changed
 !
 raise: aWindow
-	(windows notEmpty and: [windows first == aWindow]) ifTrue: [^self].
-	(windows includes: aWindow) ifFalse: [^self].
+	"windows read once: another process may replace it meanwhile (a window closing; under lock)"
+	| ws |
+	ws := windows.
+	(ws notEmpty and: [ws first == aWindow]) ifTrue: [^self].
+	(ws includes: aWindow) ifFalse: [^self].
 	lock critical: [windows := (Array with: aWindow), (windows copyWithout: aWindow)].
 	self changed
 !
