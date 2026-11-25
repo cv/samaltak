@@ -213,57 +213,94 @@ pinned memory is coherent with the CPU. Interop between the RM path and CUDA sta
 
 ## The World with the cu* libraries: the Linux appliance (the Spark)
 
-The goal: one World, the Linux appliance on the Spark (docs/linux-appliance.md), with NVIDIA's CUDA userspace and the
-cu* libraries, so the demos above run on bare metal with nothing of DGX OS but its disk.
+One World, the Linux appliance on the Spark (docs/linux-appliance.md), with NVIDIA's CUDA userspace and the cu*
+libraries, so the demos above run on bare metal with nothing of DGX OS but its disk. Done: the initramfs stays as it
+was (it boots the World in 1-2 s and is what the UKI verifies) and one read-only squashfs, the **CUDA root**, is
+mounted at `/opt/cuda` beside it.
 
-**What goes in.** Today's appliance has everything in an initramfs (Spark variant 97 MB: VM, image, glibc,
-OpenSSL, SDL, `nvidia.ko` and GSP firmware, NVIDIA's Vulkan userspace; UKI 165 MB; the ESP has 291 MB free). The CUDA
-set does not fit there (sizes raw / zstd -3):
+    make linux-appliance-cuda          # OUT/linux-appliance/samaltak-cuda-13.squashfs (needs LINUX_GPU=nvidia's modules once)
+    make linux-appliance-cuda-test     # QEMU, no GPU: mounted, the libraries load, "no device" as CudaErrors, the VM goes on
+    make linux-appliance-cuda-check    # this machine's GPU: the appliance's root + the squashfs by chroot (sudo), the GPU tests
+    make linux-appliance-usb           # the stick carries it as a third partition when it is there
 
-| part | libraries | MB raw | MB zstd |
-| --- | --- | --- | --- |
-| driver userspace (matching `nvidia.ko` 580.178.04) | libcuda, libnvidia-ptxjitcompiler, libnvidia-nvvm | 200 | 53 |
-| CUDA core | libcudart, libcublas, libcublasLt (600 MB alone), libcurand, libnvrtc (+builtins), libnvJitLink | 980 | 630 |
-| the next libraries | libcusolver, libcufft, libcusparse | 580 | 455 |
-| cuOpt | libcuopt_mathopt, RMM, RAFT, rapids_logger, cuDSS, NCCL | 550 | ~410 |
-| **total** | | **~2.3 GB** | **~1.55 GB** |
+**What is in it** (`tools/linux-appliance/cuda.sh`; sizes raw, the squashfs zstd -15 with 1 MiB blocks):
 
-**Root filesystem, not initramfs.** Keep the initramfs as it is (it boots the World in 1-2 s and is what the UKI
-verifies) and add one read-only squashfs (zstd), `samaltak-cuda-13.squashfs`, about 1.5 GB, mounted at `/opt/cuda`
-after the data volume, by the same mechanism: `rcS` already mounts a file system from the kernel command line
-(`samaltak.data=UUID=...:/path`) at `/host` and loop-mounts an image file from it; a `samaltak.cuda=UUID=...:/path`
-does the same for the squashfs (the Spark's kernel has `SQUASHFS`, `SQUASHFS_ZSTD` and `BLK_DEV_LOOP` built in). On
-the Spark the file lives next to the data volume (`/var/lib/samaltak/`, on DGX OS's root, written by `install.sh`);
-on the USB stick it is a third partition labelled `SAMALTAK-CUDA`. `samaltak-run` sets
-`SAMALTAK_CUDA_LIBS=/opt/cuda/lib`; nothing else changes: the VM finds the libraries by dlopen, and without the
-squashfs the World boots as today with `Cuda isAvailable` false. Squashfs is read lazily, so the boot time stays
-the initramfs's; the first cuBLAS call pages in what it touches.
+| part | libraries (from) | MB raw |
+| --- | --- | --- |
+| driver userspace, `nvidia.ko`'s version (580.178.04) | libcuda, libnvidia-ptxjitcompiler, libnvidia-nvvm (the build host's `libnvidia-compute-580`) | 200 |
+| CUDA core | libcudart, libcublas, libcublasLt (600 MB alone), libcurand, libnvrtc + builtins, libnvJitLink (the toolkit, 13.0.3) | 984 |
+| the next libraries | libcusolver, libcufft, libcusparse (the toolkit) | 582 |
+| cuOpt | libcuopt_mathopt, libcuopt_client, RMM, rapids_logger, cuDSS, NCCL, vendored OpenMP/TBB/c-ares (the cuOpt venv's wheels, 26.10) | 550 |
+| **total** | 25 files | **2327 MB raw, 1629 MB squashfs** |
 
-**One CUDA set.** Ship one CUDA 13 set for everything, from NVIDIA's `nvidia-*-cu13` wheels (`nvidia-cuda-runtime`,
-`nvidia-cublas`, `nvidia-curand`, `nvidia-cusolver`, `nvidia-cufft`, `nvidia-cusparse`, `nvidia-cuda-nvrtc`,
-`nvidia-nvjitlink`) plus `libcuopt-cu13` and its dependencies, so cuOpt and the bindings share one libcudart and
-one libcublas (today they can load two of the same soname, and whichever comes first wins). A `build.sh` step:
-`uv pip install --target` into a staging directory, flatten the `lib` directories into `/opt/cuda/lib`, add the
-driver's three libraries from the build host (they must match the kernel module, as the Vulkan userspace already does),
-`mksquashfs -comp zstd`. Driver 580 is CUDA 13.0; the 13.x wheels run on it by minor-version compatibility (cuOpt's
-13.5 set did, here) as long as nothing JIT-compiles PTX newer than the driver (cuBLAS and cuOpt ship sm_121 code).
+zstd -19 saves 2% (1599 MB) for four times the build (36 s instead of 10 s on 8 threads). RAFT is not in it:
+libcuopt_mathopt uses it header-only and never loads libraft.so. The tree is `lib/` (each library under its file
+name, with links for its soname: one directory), `LICENSES/`, `MANIFEST` (the versions, each file's sha256 and where it
+came from: driver package, toolkit or wheel) and a `README`. The build is reproducible: owners, times
+(`SOURCE_DATE_EPOCH`, default 0) and xattrs fixed, so the same inputs give the same bytes (two builds, one sha256),
+and an unchanged MANIFEST keeps the file.
+
+**Versions, checked by the build.** The driver's three libraries must be `nvidia.ko`'s version: the module the
+appliance ships (`linux-modules-nvidia-580-open-<kernel>`, its `modinfo` version) against the build host's
+`libcuda.so.<version>`; libcuda refuses a module of another version. The toolkit's CUDA version must be the driver's
+major and no newer minor (`cuDriverGetVersion` of that libcuda: 13000; the toolkit 13.0.3), and at least the driver its
+`version.json` names. cuOpt's wheel must be the `cu13` one. Everything the libraries need (`NEEDED`, followed
+transitively) comes from the set, in that order (toolkit first, then the wheels: one copy of a soname, so cuOpt and the
+bindings share one libcublas and libcusparse), or is the system's, which the appliance's root has (glibc and its
+compatibility stubs, libstdc++, libgcc_s, zlib, OpenSSL: build.sh now copies libdl, libpthread, librt and libz too).
+The toolkit rather than the 13.5 wheels: it is what the bindings were built and measured against, the driver's own
+CUDA version (NVRTC's PTX is one the driver's JIT takes), and installed here, so the build downloads nothing. cuOpt's
+13.5-built libraries run against it (the GPU tests below; its cuDSS threading layer keeps its own vendored
+libcudart 13.3 under another soname).
+
+**Mounting.** `rcS` mounts it after the data volume, from the first of: `samaltak.cuda=UUID=...:/path` on the kernel
+command line (a file on that file system: install.sh's boot option names
+`/var/lib/samaltak/samaltak-cuda-13.squashfs` on DGX OS's root, already mounted at `/host` for the data volume),
+`samaltak.cuda=DEVICE`, the partition named `SAMALTAK-CUDA` (the stick's: the partition is the squashfs), or
+`samaltak-cuda-13.squashfs` next to the data volume's image file or on the data volume. The console says
+`samaltak-linux: cuda on ... (driver 580.178.04) at 0.29 s`, and warns when the MANIFEST's driver is not
+`/sys/module/nvidia/version`. `samaltak-run` then sets `SAMALTAK_CUDA_LIBS=/opt/cuda/lib` and adds it to
+`LD_LIBRARY_PATH` (for what the libraries load themselves: libcudart's libcuda, NVRTC's builtins, cuOpt's RMM and
+cuDSS); `rcK` unmounts it. Without it the World boots as before, `Cuda isAvailable` false.
+
+**Boot time and size.** Squashfs is read lazily: the mount takes about 10 ms, the World is on the screen as fast as
+without it (QEMU: 1.29-1.43 s with the CUDA root, 1.16 s without, the same run of the machine), and the first use pages
+in what it touches: loading all five bindings' libraries from the squashfs took 0.44 s under QEMU (cuOpt's 290 MB
+library and cuBLASLt most of it). The stick grows by the squashfs (2.9 GB: ESP 224 MB, data 1 GB, CUDA 1.6 GB);
+the NVMe install puts 1.6 GB in `/var/lib/samaltak`, nothing more on the ESP.
+
+**Without a GPU** (`make linux-appliance-cuda-test`, QEMU, the NVMe layout: a disk as install.sh leaves DGX OS's root,
+the boot option's command line): every binding's library loads from `/opt/cuda/lib`; `cudaGetDeviceCount: cudaErrorNoDevice (no CUDA-capable device is detected)`, `cuInit: CUDA_ERROR_NO_DEVICE`; `Cuda summary` answers `no CUDA here:
+cudaGetDeviceCount: cudaErrorNoDevice (...)` (`Cuda unavailableReason`); `cublasCreate` fails with
+`CUBLAS_STATUS_NOT_INITIALIZED`, a CudaMatrix with `cudaMalloc: cudaErrorNoDevice`, cuOpt's solve with
+`CUOPT_VALIDATION_ERROR`, all CudaErrors; NVRTC (13.0) compiles a kernel to a 5 KB cubin in 0.19 s (no GPU needed);
+the VM goes on and the quit powers off. `make linux-appliance-usb-test` checks the stick's partition the same way.
+
+**On this machine's GPU** (`make linux-appliance-cuda-check`): the appliance's root (`OUT/linux-appliance/root`, as
+the initramfs holds it) read-only with the squashfs loop-mounted at `/opt/cuda`, `/proc`, `/sys` and `/dev` bound in,
+in a private mount namespace (sudo; the mounts and the loop device go with it), and the appliance's VM and image run
+in it by `chroot` as the calling user, against the host's `nvidia.ko`. Nothing else of the host is visible, so
+every library comes from the root or the squashfs: the loader (`LD_DEBUG=files`) initialized 32 objects, 17 of them
+from `/opt/cuda/lib` (libcuda, libcudart, cuBLAS/cuBLASLt, cuRAND, cuSPARSE, nvJitLink, cuOpt and its
+dependencies). `CudaGpuTest` 12/12 and `CuOptGpuTest` 4/4 passed; `CudaBenchmark report`: the 4096 SGEMM at
+**18.75 TFLOPS** (7.33 ms a product), 1024 at 15.6 TFLOPS, the same as hosted.
 
 **How the World reaches the demos.** The World is the image: the demos are Smalltalk, run from a Workspace or the
-Inspector, in the appliance as hosted. To make them one click: a "CUDA" entry in the World menu's System submenu
-(when `Cuda isAvailable`) opening a Workspace with `Cuda summary`, the 4096 SGEMM through `CudaBenchmark report`,
-an inspected `CudaMatrix`, and the cuOpt LP; the agent can run them too (they are plain expressions).
-`make test-nv` on the appliance (or `CudaGpuTest`, `CuOptGpuTest` from the World's test runner) checks the set.
+Inspector, in the appliance as hosted (`Cuda summary`, `CudaBenchmark report`, a `CudaMatrix`, the cuOpt LP); the
+agent can run them too. `make test-nv` on the appliance (or `CudaGpuTest`, `CuOptGpuTest` from the World's test
+runner) checks the set. The Spark's first boot with it: docs/linux-appliance.md, section 7.
 
-**What the spike means for it.** The libraries load by dlopen from a directory the VM is told about, the VM needs no
-CUDA at build time, and the bindings run at C's speed: the appliance's part is only packaging (the squashfs and two
-lines of `rcS`/`samaltak-run`). The open questions are size (1.5 GB is a download, not an ESP file; cuBLASLt is 40%
-of it, and the next libraries are optional: a "core" squashfs of 680 MB and a "full" one are both possible) and the
-driver's userspace staying in step with `nvidia.ko` (the same rule as Vulkan's).
+**Licensing.** The squashfs carries the licences (`/opt/cuda/LICENSES`, `README`, from the build host's own copies):
 
-**Licensing.** The CUDA toolkit's EULA (Attachment A) lists the redistributable components: the CUDA runtime,
-cuBLAS and cuBLASLt, cuFFT, cuRAND, cuSOLVER, cuSPARSE, NVRTC and nvJitLink among them; they may be shipped in object
-form as part of an application, unmodified, under its terms (the wheels carry the same licence). libcuda,
-libnvidia-ptxjitcompiler and libnvidia-nvvm are the driver's userspace, under NVIDIA's driver licence, as is the
-Vulkan userspace the appliance already ships: the same question, the same answer. cuOpt is Apache-2.0; of its
-dependencies RMM and RAFT are Apache-2.0, NCCL BSD-3-Clause, and cuDSS is under NVIDIA's own licence (redistributable
-like the toolkit's libraries; check its terms before shipping). Check the exact current wording before a public image.
+| files | terms | in `LICENSES/` |
+| --- | --- | --- |
+| libcudart, libcublas, libcublasLt, libcurand, libnvrtc + builtins, libnvJitLink, libcusolver, libcufft, libcusparse | the CUDA Toolkit EULA, Attachment A (redistributable components: "CUDA Runtime", "CUDA BLAS Library", "CUDA FFT Library", "CUDA Sparse Matrix Library", "CUDA Linear Solver Library", "CUDA Random Number Generation Library", "NVIDIA Runtime Compilation Library", "NVIDIA JIT Linking Library"): in object form with an application, unmodified | `cuda-toolkit/EULA.txt` |
+| libcuda, libnvidia-ptxjitcompiler | Attachment A's "NVIDIA CUDA Driver Libraries", and the NVIDIA Driver License Agreement | `nvidia-driver/copyright` (Debian's copy, with the driver licence) |
+| libnvidia-nvvm | the NVIDIA Driver License Agreement (not in Attachment A: the driver's userspace, like the Vulkan userspace the `nvidia-vulkan` variant ships) | the same |
+| cuOpt (mathopt, client), RMM, rapids_logger | Apache-2.0 | `<wheel>/LICENSE` |
+| cuDSS | NVIDIA's "License Agreement for NVIDIA Math Libraries SDKs" (redistribution of its runtime libraries in an application) | `nvidia_cudss_cu13-0.7.1.6/` |
+| NCCL | BSD-3-Clause | `nvidia_nccl_cu13-2.32.6/` |
+
+Nothing is modified (the files are copied byte for byte: their sha256s in the MANIFEST are the sources'). Check the
+exact current wording of each before a public image; the open question is libnvidia-nvvm, as it is for the Vulkan
+userspace (the driver's licence, not Attachment A).

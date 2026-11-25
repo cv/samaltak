@@ -517,6 +517,17 @@ linux-appliance-usb: linux-appliance
 	OUT=$(OUT) tools/linux-appliance/usb.sh
 linux-appliance-usb-test: linux-appliance-usb
 	OUT=$(OUT) tools/linux-appliance/usb-test.sh
+# The CUDA root (docs/cuda.md): NVIDIA's driver userspace of nvidia.ko's version, the toolkit's cu* libraries and
+# cuOpt in OUT/linux-appliance/samaltak-cuda-13.squashfs (needs the nvidia variant's modules: LINUX_GPU=nvidia once),
+# which rcS mounts at /opt/cuda and linux-appliance-usb puts on the stick. linux-appliance-cuda-test boots it in QEMU
+# (no GPU: the libraries load and say so); linux-appliance-cuda-check runs the appliance's root with it on this
+# machine's GPU (chroot in a mount namespace: sudo).
+linux-appliance-cuda:
+	OUT=$(OUT) tools/linux-appliance/cuda.sh
+linux-appliance-cuda-test: linux-appliance linux-appliance-cuda
+	OUT=$(OUT) tools/linux-appliance/cuda-test.sh
+linux-appliance-cuda-check: linux-appliance linux-appliance-cuda
+	OUT=$(OUT) tools/linux-appliance/cuda-check.sh
 
 
 # The narrated walkthrough on the real system, from a copy of the image named nuuk.image like the prototype's (a visible window; needs ffmpeg, agent-browser for the captions and

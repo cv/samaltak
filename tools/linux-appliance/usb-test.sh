@@ -3,7 +3,9 @@
 # of usb.img from a USB stick on xHCI (removable media: \EFI\BOOT\BOOTAA64.EFI, the UKI, no load options); the data
 # volume is the stick's partition; the World on the screen; the control service with the stick's token; the RFB
 # server; the agent's account configured, kept by a snapshot on the data volume across the VM's restart (its API key
-# not: keys are never saved, agent-config sends one again after each start); then the World's quit powers off.
+# not: keys are never saved, agent-config sends one again after each start); with a SAMALTAK-CUDA partition (make
+# linux-appliance-cuda before linux-appliance-usb), the CUDA root mounted from it and its libraries loaded (no device
+# here: cuda-test.sh checks more); then the World's quit powers off.
 set -eu
 OUT=${OUT:-build}
 W=$OUT/linux-appliance
@@ -45,6 +47,12 @@ connect
 r=$($CTL eval '3 + 4') && [ "$r" = 7 ] || fail "eval 3 + 4: $r"
 r=$($CTL eval "{GPUPlatform display class name. GPUPlatform display screen description. (Directory entries: '/data') asArray}") || fail "eval: $r"
 say "control: 3 + 4 = 7; $r"
+if sfdisk -d "$T/usb.img" 2>/dev/null | grep -q 'name="SAMALTAK-CUDA"'; then
+	tr -d '\r' < "$T/console.log" | grep -q 'cuda on /dev/sd' || fail "the stick's CUDA root is not mounted"
+	r=$($CTL eval "{Cuda summary. (CudaLibraryAPI allSubclasses collect: [:c | c isAvailable]) asArray}") || fail "eval: $r"
+	case $r in *false*) fail "the CUDA root's libraries: $r" ;; esac
+	say "$(tr -d '\r' < "$T/console.log" | grep -o 'samaltak-linux: cuda on [^ ]* ([^)]*) at [0-9.]* s'); $r"
+fi
 b=$(python3 -c "import socket; s = socket.create_connection(('127.0.0.1', $RP), 5); print(s.recv(12).decode().strip())") || fail "RFB server not reachable"
 say "RFB banner: $b"
 

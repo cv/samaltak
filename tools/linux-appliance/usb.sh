@@ -3,14 +3,17 @@
 # unified kernel image (UKI: systemd's EFI stub with the kernel, the initramfs, the command line and an os-release, one
 # EFI application the firmware starts without load options) and a GPT disk image to write to a stick: an ESP with the
 # UKI as \EFI\BOOT\BOOTAA64.EFI (removable media boot) and as \EFI\samaltak-linux\samaltak-linux.efi with install.sh
-# (to install it on the machine's NVMe next to DGX OS), and the data volume (ext4, SAMALTAK-DATA): samaltak.args with
-# control and RFB on every address, a control token and a VNC password of its own (0600, copies kept in OUT).
+# (to install it on the machine's NVMe next to DGX OS), the data volume (ext4, SAMALTAK-DATA): samaltak.args with
+# control and RFB on every address, a control token and a VNC password of its own (0600, copies kept in OUT), and,
+# after make linux-appliance-cuda, the CUDA root: a partition named SAMALTAK-CUDA that is the squashfs (rcS mounts it
+# at /opt/cuda; install.sh copies it, checked against the sha256 on the ESP).
 #
 #   tools/linux-appliance/usb.sh            (make linux-appliance-usb)  ->  OUT/linux-appliance/{samaltak-linux.efi,usb.img}
 #   sudo dd if=build/linux-appliance/usb.img of=/dev/sdX bs=4M conv=fsync    (the stick: check the device with lsblk)
 #
 # Environment: OUT (build), LINUX_CMDLINE (the kernel's command line; default: console=tty0 console=ttyAMA0 quiet
 # loglevel=3), LINUX_USB_DATA_MB (the data volume, 1024), LINUX_USB_ARGS_FILE (samaltak.args instead of the default),
+# LINUX_USB_CUDA (the CUDA root's squashfs: OUT/linux-appliance/samaltak-cuda-13.squashfs when there; none: without),
 # LINUX_USB_TOKEN_FILE and LINUX_USB_VNC_PASSWORD_FILE (the control token and VNC password; default: made here, kept as
 # OUT/linux-appliance/usb-control-token and usb-vnc-password, 0600), LINUX_CACHE (systemd-boot-efi's stub is downloaded
 # there). Needs: objcopy (binutils 2.42: PE for aarch64), mtools, sfdisk, mkfs.ext4 (-d), apt-get download. No root.
@@ -25,6 +28,14 @@ DATA_MB=${LINUX_USB_DATA_MB:-1024}
 PATH=$PATH:/sbin:/usr/sbin
 say() { echo "linux-appliance-usb: $*"; }
 [ -f "$W/vmlinuz" ] && [ -f "$W/initrd.zst" ] || { echo "linux-appliance-usb: no $W/vmlinuz or initrd.zst: make linux-appliance first" >&2; exit 1; }
+# The CUDA root (make linux-appliance-cuda), if there is one: the stick's third partition.
+CUDA=${LINUX_USB_CUDA:-$W/samaltak-cuda-13.squashfs}
+if [ "$CUDA" = none ]; then CUDA=""
+elif [ ! -f "$CUDA" ]; then
+	[ -z "${LINUX_USB_CUDA:-}" ] || { echo "linux-appliance-usb: no $CUDA (LINUX_USB_CUDA)" >&2; exit 1; }
+	say "no $CUDA: a stick without the CUDA root (make linux-appliance-cuda first)"; CUDA=""
+fi
+cuda_mb=0; [ -z "$CUDA" ] || cuda_mb=$(( ($(wc -c < "$CUDA") + 1048575) / 1048576 ))
 rm -rf "$U" && mkdir -p "$U" "$CACHE/debs"
 
 # systemd's EFI stub (systemd-boot-efi, the build host's version): it runs the kernel in its .linux section with the
@@ -72,17 +83,21 @@ mformat -i "$U/esp.part" -F -v SAMALTAK-USB ::
 mmd -i "$U/esp.part" ::/EFI ::/EFI/BOOT ::/EFI/samaltak-linux
 mcopy -i "$U/esp.part" "$W/samaltak-linux.efi" ::/EFI/BOOT/BOOTAA64.EFI
 mcopy -i "$U/esp.part" "$W/samaltak-linux.efi" "$HERE/install.sh" ::/EFI/samaltak-linux/
+if [ -n "$CUDA" ]; then
+	echo "$(sha256sum < "$CUDA" | cut -d' ' -f1)  samaltak-cuda-13.squashfs" > "$U/samaltak-cuda-13.squashfs.sha256"
+	mcopy -i "$U/esp.part" "$U/samaltak-cuda-13.squashfs.sha256" ::/EFI/samaltak-linux/
+fi
 
-# The disk: GPT, the ESP and the data volume at 1 MiB boundaries.
+# The disk: GPT, the ESP, the data volume and the CUDA root at 1 MiB boundaries.
 img=$W/usb.img
-rm -f "$img" && truncate -s $((1 + esp_mb + DATA_MB + 1))M "$img"
-sfdisk -q "$img" <<EOF
-label: gpt
-start=1MiB, size=${esp_mb}MiB, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="SAMALTAK-ESP"
-size=${DATA_MB}MiB, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="SAMALTAK-DATA"
-EOF
+rm -f "$img" && truncate -s $((1 + esp_mb + DATA_MB + cuda_mb + 1))M "$img"
+{ echo "label: gpt"
+  echo "start=1MiB, size=${esp_mb}MiB, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name=\"SAMALTAK-ESP\""
+  echo "size=${DATA_MB}MiB, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name=\"SAMALTAK-DATA\""
+  [ -z "$CUDA" ] || echo "size=${cuda_mb}MiB, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name=\"SAMALTAK-CUDA\""; } | sfdisk -q "$img"
 dd if="$U/esp.part" of="$img" bs=1M seek=1 conv=notrunc status=none
 dd if="$U/data.part" of="$img" bs=1M seek=$((1 + esp_mb)) conv=notrunc status=none
+[ -z "$CUDA" ] || dd if="$CUDA" of="$img" bs=1M seek=$((1 + esp_mb + DATA_MB)) conv=notrunc,sparse status=none
 chmod 600 "$img"
 rm -f "$U/esp.part" "$U/data.part"
-say "$img $(($(wc -c < "$img") / 1048576)) MB (ESP $esp_mb MB, data $DATA_MB MB); write it with: sudo dd if=$img of=/dev/sdX bs=4M conv=fsync"
+say "$img $(($(wc -c < "$img") / 1048576)) MB (ESP $esp_mb MB, data $DATA_MB MB${CUDA:+, CUDA $cuda_mb MB}); write it with: sudo dd if=$img of=/dev/sdX bs=4M conv=fsync"

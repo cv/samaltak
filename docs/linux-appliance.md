@@ -13,11 +13,14 @@ and NvComputeGPU as they are.
     make linux-appliance-test          # end to end in QEMU: World on KMS, control, HTTPS, RFB, input, power off
     make linux-appliance-usb           # the UKI and a USB stick image (OUT/linux-appliance/{samaltak-linux.efi,usb.img})
     make linux-appliance-usb-test      # the stick end to end in QEMU (removable media boot, data on the stick)
+    make linux-appliance-cuda          # the CUDA root: OUT/linux-appliance/samaltak-cuda-13.squashfs (docs/cuda.md)
+    make linux-appliance-cuda-test     # it in QEMU (no GPU); linux-appliance-cuda-check: on this machine's GPU (sudo, chroot)
 
 `tools/linux-appliance/` holds the build (`build.sh`), the QEMU runner (`run.sh`), the end-to-end test (`test.sh`),
-the UKI and stick (`usb.sh`, `usb-test.sh`), the installer for a machine's disk (`install.sh`), a QMP helper for
-screendumps and input (`qmp.py`) and the root's own files (`root/`: inittab, rcS, rcK, `samaltak-run`, the
-uevent helper `samaltak-hotplug`, the DHCP hook). The variables are in each script's header.
+the UKI and stick (`usb.sh`, `usb-test.sh`), the installer for a machine's disk (`install.sh`), the CUDA root and its
+checks (`cuda.sh`, `cuda-test.sh`, `cuda-check.sh`), a QMP helper for screendumps and input (`qmp.py`) and the root's
+own files (`root/`: inittab, rcS, rcK, `samaltak-run`, the uevent helper `samaltak-hotplug`, the DHCP hook). The
+variables are in each script's header.
 
 ## In short
 
@@ -80,6 +83,15 @@ The userspace is copied from the build host (Ubuntu 24.04 arm64 with the VM's bu
 so the appliance's libraries are exactly the ones the VM was built and tested against. An initramfs keeps the boot
 simple and stateless; a squashfs root on the ESP or a partition would make the kernel's unpacking lazy (the 136 MB
 Spark variant unpacks in a few hundred milliseconds) and is the obvious next step if the root grows.
+
+**The CUDA root** (docs/cuda.md): NVIDIA's CUDA userspace and the cu* libraries do not fit an initramfs (2.3 GB), so
+they are one read-only squashfs beside it, `samaltak-cuda-13.squashfs` (1.6 GB, zstd), which `rcS` mounts at
+`/opt/cuda` after the data volume: the file `samaltak.cuda=UUID=...:/path` names (install.sh's boot option: next to
+the data volume on DGX OS's root), the stick's `SAMALTAK-CUDA` partition, or the file next to the data volume.
+`samaltak-run` points `SAMALTAK_CUDA_LIBS` and `LD_LIBRARY_PATH` at `/opt/cuda/lib`. The mount takes about 10 ms
+and squashfs is read lazily, so the World starts as fast as without it; without it, the World has no CUDA
+(`Cuda isAvailable` false) and nothing else changes.
+
 
 ### Init
 
@@ -330,9 +342,16 @@ fully public.
 Make the stick (on this Spark, or any arm64 Ubuntu 24.04 with the VM's build dependencies), after trying the same
 flow on QEMU's variant (`make linux-appliance-usb-test`):
 
-    make linux-appliance-usb OUT=build/spark LINUX_GPU=nvidia     # build/spark/linux-appliance/usb.img, 1.4 GB
-    lsblk                                                          # the stick's device: not the NVMe
+    make linux-appliance OUT=build/spark LINUX_GPU=nvidia         # the kernel, its nvidia modules, the initramfs
+    make linux-appliance-cuda OUT=build/spark                      # the CUDA root (docs/cuda.md), 1.6 GB: optional
+    make linux-appliance-usb OUT=build/spark LINUX_GPU=nvidia     # build/spark/linux-appliance/usb.img: 1.4 GB, 3 GB with CUDA
+    lsblk                                                          # the stick's device (4 GB or more with CUDA): not the NVMe
     sudo dd if=build/spark/linux-appliance/usb.img of=/dev/sdX bs=4M conv=fsync
+
+The CUDA root's driver userspace is the build host's and must be `nvidia.ko`'s version (580.178.04 now): build it on
+the Spark itself, or any host whose `libnvidia-compute-580` matches the kernel's modules package; the build checks.
+Before the stick, `make linux-appliance-cuda-check OUT=build/spark` runs the appliance's root with it on the Spark's
+GPU under DGX OS (chroot in a mount namespace, sudo): the libraries resolve there and cuBLAS runs.
 
 Keep `build/spark/linux-appliance/usb-control-token` and `usb-vnc-password`: the stick's data volume has the same.
 Boot the Spark from the stick once (the firmware's one-time boot menu, or from DGX OS `sudo efibootmgr` lists the
@@ -352,13 +371,17 @@ is to take the stick out and power-cycle.
 | keyboard, mouse | `eval 'GPUPlatform display input counts'`; type into the Workspace, click | the USB keyboard and mouse listed (also when plugged in later) |
 | RFB | a VNC viewer on `<address>:5900`, `usb-vnc-password` | the World |
 | the GPU's tests | `eval '(NvComputeGPUTest suite run) printString'`, `eval '(NvGpuTest suite run) printString'` | all passed |
+| CUDA (the CUDA root) | the console's `samaltak-linux: cuda on /dev/sdX3 (driver 580.178.04)`; `eval 'Cuda summary'`, `eval '(CudaGpuTest run) printString'`, `eval '(CuOptGpuTest run) printString'`, `eval 'CudaBenchmark report'` | `NVIDIA GB10, compute 12.1, 48 SMs ...; CUDA runtime 13.0, driver 13.0; cuBLAS 130101; ...; cuOpt 26.10.1`; all passed; the 4096 SGEMM about 18 TFLOPS (18.75 from the appliance's root on DGX OS's kernel) |
 | agent, GitHub | `samaltak-ctl agent-config --from-pi`, `github-config --from-gh` over the same connection; an Agent window | answers (HTTPS through OpenSSL); keys are never saved: send them again after each start |
 | keeping the World | `eval "Smalltalk snapshot: '/data/samaltak.image'"` | the next start resumes it (accounts without their keys) |
 | power | the World's Quit | the machine powers off |
 
 Then install it next to DGX OS: boot DGX OS with the stick in (its ESP and `SAMALTAK-DATA` mount under
 `/media/$USER/`), `sudo sh /media/$USER/SAMALTAK-USB/EFI/samaltak-linux/install.sh --bootnext --no-old` (the data
-volume is copied from the stick), take the stick out (its `SAMALTAK-DATA` would be preferred), reboot.
+volume is copied from the stick; the CUDA root from the stick's `SAMALTAK-CUDA` partition to
+`/var/lib/samaltak/samaltak-cuda-13.squashfs`, 1.6 GB, checked against the sha256 on the ESP, and the boot option's
+command line gets `samaltak.cuda=UUID=<root>:<that file>`), take the stick out (its `SAMALTAK-DATA` and
+`SAMALTAK-CUDA` would be preferred), reboot. `--no-cuda` leaves the CUDA root out; `--cuda FILE` takes another one.
 
 **Recovery.**
 
@@ -374,13 +397,18 @@ volume is copied from the stick), take the stick out (its `SAMALTAK-DATA` would 
 - A shell instead of the World: `touch samaltak.norun` on the data volume; the console and tty2's shell
   (Ctrl-Alt-F2) stay on the screen, `dmesg`, `lsmod`, `ls /dev/dri /dev/nvidia*`.
 - A snapshot that does not start: delete `samaltak.image` from the data volume (the shipped image starts).
+- CUDA does not start (`Cuda summary` says why: `cudaErrorInsufficientDriver` or a driver mismatch, and the console
+  warns when the CUDA root's driver is not `nvidia.ko`'s version): rebuild the squashfs on a host whose
+  `libnvidia-compute-580` is the module's version (`make linux-appliance-cuda` refuses otherwise) and install it
+  again; the World runs without it as before.
 - Removing it: from DGX OS `sudo efibootmgr -b NNNN -B` (the "Samaltak Linux" option), `sudo rm -r
   /boot/efi/EFI/samaltak-linux /var/lib/samaltak`.
 
 ## 8. What's left
 
 - On the Spark: everything in section 7's checklist (nvidia-drm's mode and SETCRTC as master, the frames on its
-  screen, USB HID through evdev, GSP from the appliance's root), which only the hardware can show.
+  screen, USB HID through evdev, GSP from the appliance's root, CUDA from the CUDA root on the appliance's own
+  nvidia.ko), which only the hardware can show.
 - The KMS screen: page flips between two buffers (no tearing: the World draws into the scanned-out buffer now), a
   hardware cursor plane, VT switching (the World keeps the screen; tty2's shell needs `samaltak.norun`), hotplug of
   displays (the mode is chosen once), several outputs.

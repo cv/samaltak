@@ -51,6 +51,38 @@ fi
 opts=noatime; [ -f "$dev" ] && opts=loop,noatime
 if [ -n "$dev" ] && mount -t ext4 -o $opts "$dev" /data; then t "data on $dev"; else mount -t tmpfs -o mode=0755 data /data; t "data on tmpfs"; fi
 mkdir -p /data/log
+# The CUDA root (docs/cuda.md): a read-only squashfs of NVIDIA's CUDA userspace and the cu* libraries at /opt/cuda,
+# which samaltak-run gives the VM (SAMALTAK_CUDA_LIBS). The command line's samaltak.cuda=UUID=...:/path (a file on that
+# file system, as install.sh sets it: next to the data volume on DGX OS's root), or samaltak.cuda=DEVICE; else the
+# partition named SAMALTAK-CUDA (the USB stick's); else samaltak-cuda-13.squashfs next to the data volume's image file
+# or on the data volume. None: the World starts without CUDA (Cuda isAvailable is false).
+cuda=$(sed -n 's/.*samaltak\.cuda=\([^ ]*\).*/\1/p' /proc/cmdline)
+csq=
+case $cuda in
+*:/*)
+	fs=$(findfs "${cuda%%:*}" 2>/dev/null)
+	if [ -n "$fs" ]; then
+		m=$(awk -v d="$fs" '$1 == d { print $2; exit }' /proc/mounts)
+		[ -n "$m" ] || { m=/run/cuda-host; mkdir -p $m; mount -o ro,noatime "$fs" $m || m=; }
+		[ -n "$m" ] && [ -f "$m${cuda#*:}" ] && csq=$m${cuda#*:}
+	fi ;;
+?*) csq=$(findfs "$cuda" 2>/dev/null || echo "$cuda") ;;
+esac
+[ -n "$csq" ] || for b in /sys/class/block/*; do grep -qx PARTNAME=SAMALTAK-CUDA "$b/uevent" 2>/dev/null && csq=/dev/${b##*/} && break; done
+[ -n "$csq" ] || { [ -f "$dev" ] && [ -f "${dev%/*}/samaltak-cuda-13.squashfs" ] && csq=${dev%/*}/samaltak-cuda-13.squashfs; }
+[ -n "$csq" ] || { [ -f /data/samaltak-cuda-13.squashfs ] && csq=/data/samaltak-cuda-13.squashfs; }
+if [ -n "$csq" ]; then
+	mkdir -p /opt/cuda
+	o=ro; [ -f "$csq" ] && o=ro,loop
+	if mount -t squashfs -o $o "$csq" /opt/cuda; then
+		drv=$(sed -n 's/^driver \([^ ]*\).*/\1/p' /opt/cuda/MANIFEST 2>/dev/null)
+		t "cuda on $csq (driver $drv)"
+		ko=$(cat /sys/module/nvidia/version 2>/dev/null)
+		[ -n "$ko" ] && [ "$ko" != "$drv" ] && echo "samaltak-linux: the CUDA root's driver userspace is $drv, nvidia.ko is $ko: CUDA will not start (make linux-appliance-cuda with the module's version)"
+	else
+		echo "samaltak-linux: cannot mount the CUDA root $csq"
+	fi
+fi
 dmesg > /data/log/dmesg-boot.txt 2>/dev/null
 # Every wired interface, DHCP in the background (udhcpc renews the lease; default.script sets routes and DNS).
 for i in /sys/class/net/*; do

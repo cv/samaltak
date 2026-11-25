@@ -3,6 +3,7 @@
 # volume holds one (a snapshot the World saved), else the one shipped in the root. Arguments: /data/samaltak.args, else
 # /etc/samaltak.args (one per line). Its exit status decides: 0 powers off (the World's Quit), 3 reboots (the VM was
 # asked to), anything else (a crash, a signal) is logged and the VM starts again, after a pause when it keeps dying.
+# With the CUDA root at /opt/cuda (rcS), SAMALTAK_CUDA_LIBS and LD_LIBRARY_PATH name its lib/.
 # Recovery from another machine, on the data volume: samaltak.env (sourced after /etc/samaltak.env: SAMALTAK_GPU=software,
 # SAMALTAK_SCREEN= for SDL's windows), samaltak.norun (the VM is not started: the console and tty2's shell stay on the
 # screen); log/samaltak.log and log/dmesg.txt (the kernel's log at each exit of the VM).
@@ -12,6 +13,9 @@ image=/samaltak/samaltak.image; [ -f /data/samaltak.image ] && image=/data/samal
 args=/etc/samaltak.args; [ -f /data/samaltak.args ] && args=/data/samaltak.args
 set --; while IFS= read -r a || [ -n "$a" ]; do [ -n "$a" ] && set -- "$@" "$a"; done < "$args"
 export HOME=/data SDL_VIDEO_DRIVER=kmsdrm XDG_RUNTIME_DIR=/run LD_LIBRARY_PATH=/usr/local/lib
+# The CUDA root (rcS mounted it): the VM's CUDA bindings load from there (SAMALTAK_CUDA_LIBS), and so does the loader
+# what the libraries load themselves (libcudart's libcuda, cuOpt's RMM and cuDSS, NVRTC's builtins).
+[ -d /opt/cuda/lib ] && export SAMALTAK_CUDA_LIBS=/opt/cuda/lib LD_LIBRARY_PATH=/usr/local/lib:/opt/cuda/lib
 [ -f /etc/samaltak.env ] && . /etc/samaltak.env
 [ -f /data/samaltak.env ] && . /data/samaltak.env
 echo "samaltak-linux: vm start at $(cut -d' ' -f1 /proc/uptime) s: $image" | tee -a /data/log/samaltak.log

@@ -84,7 +84,7 @@ fi
 rm -rf "$R" && mkdir -p "$R"
 cp -a "$HERE/root/." "$R/"
 mkdir -p "$R/bin" "$R/sbin" "$R/usr/bin" "$R/usr/sbin" "$R/proc" "$R/sys" "$R/dev" "$R/run" "$R/tmp" "$R/data" \
-	"$R/samaltak" "$R/usr/local/lib" "$R/etc/ssl/certs" "$R/usr/lib/ssl" "$R$LIB" "$R/var/log"
+	"$R/samaltak" "$R/opt/cuda" "$R/usr/local/lib" "$R/etc/ssl/certs" "$R/usr/lib/ssl" "$R$LIB" "$R/var/log"
 cp /usr/bin/busybox "$R/bin/busybox"
 file -L "$R/bin/busybox" | grep -q 'statically linked' || { echo "linux-appliance: busybox is not static (busybox-static)" >&2; exit 1; }
 for a in $(busybox --list-full); do [ -e "$R/$a" ] || ln -s /bin/busybox "$R/$a"; done
@@ -103,7 +103,9 @@ ln -s /etc/ssl/certs/ca-certificates.crt "$R/usr/lib/ssl/cert.pem"; ln -s /etc/s
 ln -s /etc/ssl/openssl.cnf "$R/usr/lib/ssl/openssl.cnf"
 
 # What SDL and the VM load at run time (dlopen), by GPU: Mesa's EGL/GBM (SDL's KMS/DRM windows) and lavapipe; NVIDIA's.
-dl="$LIB/libudev.so.1"
+# What the CUDA root's libraries need of the system besides the VM's own (cuda.sh checks): glibc's compatibility
+# stubs, zlib (cuOpt's client library).
+dl="$LIB/libudev.so.1 $LIB/libdl.so.2 $LIB/libpthread.so.0 $LIB/librt.so.1 $LIB/libz.so.1"
 { mesa || nvuser; } && dl="$dl $LIB/libdrm.so.2 $LIB/libgbm.so.1 $LIB/libEGL.so.1 $LIB/libGLESv2.so.2 $LIB/libvulkan.so.1"
 data=""
 if mesa; then
