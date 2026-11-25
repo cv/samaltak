@@ -106,6 +106,7 @@ primitive_entry vm_primitive_table[] = {
     {144, 2, "samplerTickTake", prim_sampler_tick_take},
     {145, 2, "stackLimit", prim_stack_limit},
     {146, 2, "timeSlice", prim_time_slice},
+    {147, 2, "samplerBuffer", prim_sampler_buffer},
     {150, 2, "millisecondClock", prim_millisecond_clock},
     {151, 2, "microsecondClock", prim_microsecond_clock},
     {160, 0, "quit", prim_quit},

@@ -1,6 +1,6 @@
 VMCoreModule subclass: #Scheduler
-	instanceVariableNames: 'interruptPending lastPreempted lastPreemptedAtEntry allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs sliceStartTk windowStartTk windowStartNs windowCpuUs reconcileTk ledgerProcs ledgerTk ledgerN cycles statReconciles startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs sliceUs sliceDueUs slicePriority sliceExpired sliceBreaks sliceBreaksAtArm statTimerArms runHint'
-	classVariableNames: 'LEDGER_SIZE RECONCILE_NS TICK_DEADLINE TICK_POLL WORK_CLOCK_FLOOR WORK_CLOCK_POLL_US WORK_CYCLES_PER_US'
+	instanceVariableNames: 'interruptPending lastPreempted lastPreemptedAtEntry allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs sliceStartTk windowStartTk windowStartNs windowCpuUs reconcileTk ledgerProcs ledgerTk ledgerN cycles statReconciles startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs sliceUs sliceDueUs slicePriority sliceExpired sliceBreaks sliceBreaksAtArm statTimerArms runHint sampleBufIndex sampleDepth sampleCpuSince sampleDrainDue sampleCpu'
+	classVariableNames: 'LEDGER_SIZE RECONCILE_NS SAMPLE_DRAIN_TICKS TICK_DEADLINE TICK_POLL WORK_CLOCK_FLOOR WORK_CLOCK_POLL_US WORK_CYCLES_PER_US'
 	package: 'VM-Core'!
 
 Scheduler comment: 'Process scheduler, semaphores and interrupts: the timer, the CPU and allocation samplers, external semaphore signals, time slices.
@@ -50,12 +50,14 @@ declarations
 		(workClockUs int64_t) (workClockCycles int64_t) (workClockRaw int64_t) (workClockHeld bool) (workClockHoldCycles int64_t) (workClockQuerying bool)
 		(frameSema int32_t) (frameFps int64_t) (frameOriginUs int64_t) (frameIndex int64_t) (frameNextUs int64_t)
 		(sliceUs int64_t) (sliceDueUs int64_t) (slicePriority int64_t) (sliceExpired bool) (sliceBreaks uint64_t) (sliceBreaksAtArm uint64_t) (statTimerArms uint64_t)
-		(runHint int64_t 16r7FFFFFFFFFFFFFFF))
+		(runHint int64_t 16r7FFFFFFFFFFFFFFF) (sampleBufIndex int64_t) (sampleDepth int64_t) (sampleCpuSince int64_t) (sampleDrainDue bool) (sampleCpu bool))
 !
 initialize
 	"Charging: the ledger's entries (the size of ledgerProcs and ledgerTk), the longest window between two reads of the thread clock (ns)."
 	LEDGER_SIZE := 16.
 	RECONCILE_NS := 200000.
+	"Samples recorded into the sample buffer: its reader is woken after this many CPU samples at the latest."
+	SAMPLE_DRAIN_TICKS := 64.
 	TICK_DEADLINE := 1.
 	TICK_POLL := 2.
 	"The work clock: its rate (a 3.3 GHz core), how often a running Smalltalk is checked against its deadlines (µs of real time), the lowest priority that runs while it stands still (the control server's)."
@@ -706,11 +708,17 @@ handleInterrupts
 		"keep the phase, so the mean interval is exact even if interrupt checks come late"
 		samplerNextUs := samplerNextUs + samplerIntervalUs.
 		samplerNextUs <= now ifTrue: [samplerNextUs := now + samplerIntervalUs].
-		samplerTickUnread := true.
-		self signalIndex: samplerSema].
+		(sampleCpu and: [self recordSample: false]) ifFalse: [
+			samplerTickUnread := true.
+			self signalIndex: samplerSema]].
 	allocSamplePending ifTrue: [
 		allocSamplePending := false.
-		self signalIndex: allocSampleSema].
+		(self recordSample: true)
+			ifTrue: [allocSampleUnread := false]
+			ifFalse: [self signalIndex: allocSampleSema]].
+	sampleDrainDue ifTrue: [
+		sampleDrainDue := false.
+		self signalIndex: (samplerSema ~= 0 ifTrue: [samplerSema] ifFalse: [allocSampleSema])].
 	preemptToFront := false.
 	(frameSema ~= 0 and: [now >= frameNextUs]) ifTrue: [self workClockFrameDue].
 	(sliceDueUs ~= 0 and: [inIdle not and: [now >= sliceDueUs]]) ifTrue: [
@@ -789,6 +797,74 @@ setSampler: intervalUs semaphore: sema
 	samplerSema := sema.
 	samplerNextUs := self nowUs + intervalUs.
 	self tickUpdate
+!
+samplerBuffer: index depth: depth cpu: cpu
+	"Allocation samples go into the Array at index (1-based) of the external objects, at most depth frames each (recordSample:), and with cpu CPU samples too; 0: none, a sampler tick or an allocation sample signals its semaphore. CPU samples are not recorded in place by default: the switch to the sampling process at each tick flushes the frames, and the optimizing tier relies on that for now to specialize long-running loops again (a frame flushed resumes in the lower tier, whose loop enters optimized code specialized for the closures it calls: DeltaBlue's)."
+	<function>
+	<var: #cpu type: 'bool'>
+	sampleBufIndex := index.
+	sampleCpu := cpu.
+	sampleDepth := depth < 1 ifTrue: [1] ifFalse: [depth > 255 ifTrue: [255] ifFalse: [depth]].
+	sampleCpuSince := 0.
+	sampleDrainDue := false
+!
+sampleBuffer
+	"The Array samples go into (samplerBuffer:depth:), nil if there is none."
+	| ext buf |
+	sampleBufIndex < 1 ifTrue: [^memory nilOop].
+	ext := memory special: SO_EXTERNAL_OBJECTS.
+	((self isPtr: ext) and: [ext ~= memory nilOop and: [sampleBufIndex asUInt32 <= (self numSlots: ext)]]) ifFalse: [^memory nilOop].
+	buf := self loadRef: ext at: sampleBufIndex - 1.
+	((self isPtr: buf) and: [buf ~= memory nilOop and: [(self rawClass: buf) = memory clsArray and: [(self numSlots: buf) > 16]]]) ifFalse: [^memory nilOop].
+	^buf
+!
+recordSample: isAlloc
+	"At an interrupt check (the frames canonical): record a CPU sample (isAlloc false) or the pending allocation sample into the sample buffer, without a process switch: the active Process's stack is walked where it is (Interpreter>>profileStackInto:pcs:max:), frames are not flushed. Idle (no Process runs): no Process, flag 4. Answer false if there is no buffer (the caller signals the sampler's semaphore, as without one).
+	The buffer: slot 0 the next free slot (1 when empty), then records of 5 + 2n slots: n + (flags << 8) (2: truncated, 8: the top frame was just activated, 16: an allocation sample), the Process, the time (µs, nowUs), the allocated class and size (nil and 0 for a CPU sample), then n pairs of a method and its block's startpc (0: the method), outermost first. A record that does not fit is dropped. Its reader (Profiler>>drainBuffer) swaps in an empty buffer; it is woken (sampleDrainDue) when the buffer gets three quarters full and after SAMPLE_DRAIN_TICKS CPU samples."
+	<function>
+	<var: #isAlloc type: 'bool'>
+	| buf cap fill slot0 meths pcs r n flags len proc |
+	buf := self sampleBuffer.
+	buf = memory nilOop ifTrue: [^false].
+	cap := (self numSlots: buf) asInt64.
+	slot0 := self loadRef: buf at: 0.
+	fill := (self isInt: slot0) ifTrue: [self intVal: slot0] ifFalse: [1].
+	(fill < 1 or: [fill > cap]) ifTrue: [fill := 1].
+	meths := self local: 'oop[255]'.
+	pcs := self local: 'int64_t[255]'.
+	n := 0.
+	flags := 0.
+	proc := memory nilOop.
+	inIdle
+		ifTrue: [flags := 4]
+		ifFalse: [
+			proc := self activeProcess.
+			"a Context's allocation is only counted"
+			(isAlloc and: [allocSampleClass = memory clsContext]) ifFalse: [
+				r := interpreter profileStackInto: meths pcs: pcs max: sampleDepth.
+				n := r bitAnd: 16rFFFF.
+				(r >> 16) ~= 0 ifTrue: [flags := 2]].
+			interpreter safepointAtEntry ifTrue: [flags := flags bitOr: 8]].
+	isAlloc ifTrue: [flags := flags bitOr: 16].
+	len := 5 + (2 * n).
+	fill + len > cap ifTrue: [^true].
+	self storeRef: buf at: fill put: (self intOop: (n bitOr: flags << 8)).
+	self storeRef: buf at: fill + 1 put: proc.
+	self storeRef: buf at: fill + 2 put: (self intOop: self nowUs).
+	self storeRef: buf at: fill + 3 put: (isAlloc ifTrue: [allocSampleClass] ifFalse: [memory nilOop]).
+	self storeRef: buf at: fill + 4 put: (self intOop: (isAlloc ifTrue: [allocSampleSize] ifFalse: [0])).
+	0 to: n - 1 do: [:j |
+		self storeRef: buf at: fill + 5 + (2 * j) put: (meths at: n - 1 - j).
+		self storeRef: buf at: fill + 6 + (2 * j) put: (self intOop: (pcs at: n - 1 - j))].
+	"woken once when three quarters are passed"
+	(fill * 4 <= (cap * 3) and: [(fill + len) * 4 > (cap * 3)]) ifTrue: [sampleDrainDue := true].
+	fill := fill + len.
+	self storeRef: buf at: 0 put: (self intOop: fill).
+	isAlloc ifFalse: [
+		sampleCpuSince := sampleCpuSince + 1.
+		sampleCpuSince >= SAMPLE_DRAIN_TICKS ifTrue: [sampleDrainDue := true]].
+	sampleDrainDue ifTrue: [sampleCpuSince := 0].
+	^true
 !
 allocSampleHit: aClass bytes: bytes
 	<function>

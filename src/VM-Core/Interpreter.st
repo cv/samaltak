@@ -440,6 +440,48 @@ moveTop: t to: k
 	gc gcEpoch: gc gcEpoch + 1.
 	frameEpoch := frameEpoch + 1
 !
+profileStackInto: meths pcs: pcs max: max
+	"A profiler sample of the active process where it is, nothing flushed: its activations innermost first (an optimized frame's inlined ones too, JitRuntime>>profileActsOf:into:pcs:at:max:), then the Contexts below, as method and block startpc (0: the method) in meths and pcs, at most max. Answer their count, plus 1 << 16 if there were more. The frames are canonical (an interrupt check)."
+	<function>
+	<var: #meths type: 'oop *'>
+	<var: #pcs type: 'int64_t *'>
+	<var: #max type: 'int64_t'>
+	| n i f c |
+	n := 0.
+	i := nframes asInt64 - 1.
+	[i >= 0 and: [n < max]] whileTrue: [
+		f := frames + i.
+		(jit isOptFrame: f)
+			ifTrue: [n := jit profileActsOf: f into: meths pcs: pcs at: n max: max]
+			ifFalse: [
+				meths at: n put: f method.
+				pcs at: n put: (self startpcOf: f closure).
+				n := n + 1].
+		i := i - 1].
+	c := activeCtx.
+	[n < max and: [(self isPtr: c) and: [c ~= memory nilOop]]] whileTrue: [
+		meths at: n put: (self loadRef: c at: CTX_METHOD).
+		pcs at: n put: (self startpcOf: (self loadRef: c at: CTX_CLOSURE)).
+		n := n + 1.
+		c := self loadRef: c at: CTX_SENDER].
+	(i >= 0 or: [(self isPtr: c) and: [c ~= memory nilOop]]) ifTrue: [^n bitOr: 1 << 16].
+	^n
+!
+startpcOf: closure
+	"A frame's or Context's closure: its block's startpc; 0 for a method's (nil)."
+	^((self isPtr: closure) and: [closure ~= memory nilOop]) ifTrue: [self intVal: (self loadRef: closure at: BC_STARTPC)] ifFalse: [0]
+!
+activeDepth
+	"The active process's activations: frames and Contexts."
+	<function>
+	| depth c |
+	depth := nframes asInt64.
+	c := activeCtx.
+	[(self isPtr: c) and: [c ~= memory nilOop]] whileTrue: [
+		depth := depth + 1.
+		c := self loadRef: c at: CTX_SENDER].
+	^depth
+!
 stackOverflowDepth
 	"The active process's depth (frames + Contexts) if it is too deep: beyond stackLimit, or its Contexts take more than a quarter of the heap limit. Else 0."
 	<function>

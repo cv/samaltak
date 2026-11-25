@@ -1899,6 +1899,91 @@ exit_note_young:;
     return o;
 }
 
+/* OptRuntime>>profileActsOf:into:pcs:at:max: */
+int64_t opt_runtime_profile_acts_of(frame *f, oop *meths, int64_t *pcs, int64_t start, int64_t max)
+{
+    jit_method *h;
+    int32_t k;
+    int64_t n;
+    oop closure;
+    uint64_t o;
+    int64_t v;
+    int32_t *rec;
+    int32_t nacts;
+    int64_t local[256];
+    int64_t *offs;
+    int64_t p;
+    int32_t j;
+    int64_t ps;
+    int32_t j_2;
+    int32_t i;
+    int32_t loc;
+    oop cl;
+    int64_t spc;
+    int32_t kind;
+    int64_t i_2;
+    uint64_t o_2;
+    h = (jit_method *)f->code;
+    k = f->pc - (int32_t)h->bc_size;
+    n = start;
+    if (k < 0) {
+        meths[n] = f->method;
+        closure = f->closure;
+        pcs[n] = ({
+    if (((closure & 7) == 0) && (closure != nil_oop)) {
+        o = *(uint64_t *)(closure + 16 + 8);
+        v = ((int64_t)o) >> 1;
+    } else {
+        v = 0;
+    }
+    v; });
+        return n + 1;
+    }
+    rec = h->meta + h->sp_table[k];
+    nacts = rec[4];
+    memset(&local, 0, sizeof local);
+    offs = local;
+    p = 5;
+    for (j = 0; j <= nacts - 1; j++) {
+        offs[j] = p;
+        p = p + 5 + rec[p + 4];
+    }
+    ps = p + 1;
+    for (j_2 = nacts - 1; j_2 >= 0; j_2--) {
+        if (n < max) {
+            p = offs[j_2];
+            i = rec[p];
+            meths[n] = ((oop *)(h->code_start + h->pool_offset))[i];
+            loc = rec[p + 1];
+            cl = nil_oop;
+            spc = 0;
+            if (loc == -2) {
+                cl = f->closure;
+            }
+            if (loc >= 0) {
+                kind = loc & 7;
+                if (kind == LOC_SUNK) {
+                    spc = rec[ps + 3 * (((int64_t)loc) >> 3) + 1];
+                }
+                if (kind == LOC_SLOT) {
+                    cl = f->fp[((int64_t)loc) >> 3];
+                }
+                if (kind == LOC_CONST) {
+                    i_2 = ((int64_t)loc) >> 3;
+                    cl = ((oop *)(h->code_start + h->pool_offset))[i_2];
+                }
+            }
+            if (((cl & 7) == 0) && ((cl != nil_oop) && (*(uint64_t *)(cl + 8) == cls_block))) {
+                o_2 = *(uint64_t *)(cl + 16 + 8);
+                spc = ((int64_t)o_2) >> 1;
+            }
+            pcs[n] = spc;
+            n = n + 1;
+        }
+    }
+    return n;
+}
+
 /* OptRuntime>>release */
 void opt_runtime_release(void)
 {

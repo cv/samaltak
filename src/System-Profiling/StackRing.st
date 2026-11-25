@@ -115,7 +115,11 @@ record: aProcess flags: flagBits
 !
 record: aProcess flags: flagBits class: aClassOrNil size: byteCount
 	"Record aProcess's stack (aProcess nil: an unknown process, no stack); with aClassOrNil an allocation sample. Answer the serial. Never allocates."
-	| buffer ids n k r slot o len extra t procSlot |
+	^self record: aProcess flags: flagBits class: aClassOrNil size: byteCount from: nil at: 0 count: 0 time: Time microsecondClockValue
+!
+record: aProcess flags: flagBits class: aClassOrNil size: byteCount from: anArrayOrNil at: start count: stackSize time: t
+	"Record a sample taken at t (microsecond clock): with anArrayOrNil nil aProcess's stack now (aProcess not the active process), else the count frames from start in anArrayOrNil (method, block startpc pairs, outermost first, as the VM recorded them: Profiler>>drainBuffer), flagBits including the VM's (2 truncated, 8 just activated). Answer the serial. Never allocates."
+	| buffer ids n k r slot o len extra procSlot prev lim truncated |
 	n := 0.
 	k := 0.
 	lastFlags := 0.
@@ -125,11 +129,27 @@ record: aProcess flags: flagBits class: aClassOrNil size: byteCount
 		(slotProcesses at: slot) == aProcess ifFalse: [
 			slotProcesses at: slot put: aProcess.
 			buffer at: 1 put: nil].
-		r := aProcess profilerStackInto: buffer maxDepth: depth.
-		k := r bitAnd: 255.
-		n := (r bitShift: -8) bitAnd: 255.
-		lastFlags := (r bitShift: -15) bitAnd: 2.
-		(r bitAnd: 16r20000) = 0 ifFalse: [lastFlags := lastFlags bitOr: 8].
+		anArrayOrNil isNil
+			ifTrue: [
+				r := aProcess profilerStackInto: buffer maxDepth: depth.
+				k := r bitAnd: 255.
+				n := (r bitShift: -8) bitAnd: 255.
+				lastFlags := (r bitShift: -15) bitAnd: 2.
+				(r bitAnd: 16r20000) = 0 ifFalse: [lastFlags := lastFlags bitOr: 8]]
+			ifFalse: [
+				"as profilerStackInto:maxDepth: does: the bottom frames that equal the stack recorded last keep their ids"
+				n := stackSize min: depth.
+				lastFlags := flagBits bitAnd: 10.
+				truncated := (lastFlags bitAnd: 2) = 0 ifTrue: [0] ifFalse: [1].
+				prev := buffer at: 1.
+				(prev isInteger and: [((prev bitShift: -16) bitAnd: 1) = truncated]) ifTrue: [
+					lim := (prev bitAnd: 16rFFFF) min: n.
+					[k < lim and: [(buffer at: k * 2 + 2) == (anArrayOrNil at: start + (k * 2)) and: [
+						(buffer at: k * 2 + 3) = (anArrayOrNil at: start + (k * 2) + 1)]]] whileTrue: [k := k + 1]].
+				k + 1 to: n do: [:j |
+					buffer at: j * 2 put: (anArrayOrNil at: start + (j * 2) - 2).
+					buffer at: j * 2 + 1 put: (anArrayOrNil at: start + (j * 2) - 1)].
+				buffer at: 1 put: (n bitOr: (truncated bitShift: 16))].
 		ids := slotIds at: slot.
 		k + 1 to: n do: [:j | | id |
 			id := self frameIdOf: (buffer at: j * 2) pc: ((buffer at: j * 2 + 1) min: 16rFFFE).
@@ -140,7 +160,6 @@ record: aProcess flags: flagBits class: aClassOrNil size: byteCount
 	len := 8 + extra + (4 * n).
 	self makeRoom: len.
 	o := head.
-	t := Time microsecondClockValue.
 	procSlot := aProcess isNil ifTrue: [0] ifFalse: [self slotOfProcess: aProcess].
 	data at: o + 1 put: ((flagBits bitOr: lastFlags) bitOr: (extra = 0 ifTrue: [0] ifFalse: [16])).
 	data at: o + 2 put: n.
