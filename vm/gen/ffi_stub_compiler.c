@@ -432,7 +432,7 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
         }
         buf[j] = 0x910003E1LL + (((tag == 6) || (tag == 16)) && (off >= 0) ? off : scratch) * 1024;
         j = j + 1;
-        if ((tag == 5) || ((tag >= 8) && (tag <= 10))) {
+        if ((tag == 5) || (((tag >= 8) && (tag <= 10)) || ((tag == 17) || (tag == 18)))) {
             buf[j] = 0x910003E2LL + (scratch + 8) * 1024;
             j = j + 1;
         }
@@ -464,7 +464,7 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
             }
             gp = gp + 1;
             lane = lane + 1;
-            if ((tag >= 8) && (tag <= 10)) {
+            if (((tag >= 8) && (tag <= 10)) || ((tag == 17) || (tag == 18))) {
                 off = lane_stack[lane];
                 if (off < 0) {
                     buf[j] = 0xF94003E0LL + (20 + gp) + (scratch + 8) / 8 * 1024;
@@ -719,7 +719,7 @@ static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_
         p = x64_wrapped_spill_gp(gp < 6 ? gp : 6, fp < 8 ? fp : 8, homes, false, p);
         p = emit_x64(13076808ULL, 3, p);
         p = x64_lea(6, ((tag == 6) || (tag == 16)) && (off >= 0) ? off : outs, p);
-        if ((tag == 5) || ((tag >= 8) && (tag <= 10))) {
+        if ((tag == 5) || (((tag >= 8) && (tag <= 10)) || ((tag == 17) || (tag == 18)))) {
             p = x64_lea(2, outs + 8, p);
         }
         p = x64_wrapped_call(helper, p);
@@ -752,7 +752,7 @@ static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_
             }
             gp = gp + 1;
             lane = lane + 1;
-            if ((tag >= 8) && (tag <= 10)) {
+            if (((tag >= 8) && (tag <= 10)) || ((tag == 17) || (tag == 18))) {
                 off = lane_stack[lane];
                 if (off < 0) {
                     p = ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(ffi_stub_compiler_x64_wrapped_gp(gp), outs + 8, true, p);
@@ -927,10 +927,10 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     lanes = n;
     for (i = 0; i <= n - 1; i++) {
         tag = types[i];
-        if ((tag == 0) || ((tag == 7) || (((tag > 10) && ((tag != 16) && (!text))) || ((tag == 5) && (operation == 0))))) {
+        if ((tag == 0) || ((tag == 7) || (((tag > 10) && ((tag != 16) && ((tag != 17) && ((tag != 18) && (!text))))) || ((tag == 5) && (operation == 0))))) {
             return 0;
         }
-        if (text || ((tag >= 8) && (tag <= 10))) {
+        if (text || (((tag >= 8) && (tag <= 10)) || ((tag == 17) || (tag == 18)))) {
             lanes = lanes + 1;
         }
         if (i < 11) {
@@ -1039,10 +1039,10 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     lanes = n;
     for (i = 0; i <= n - 1; i++) {
         tag = types[i];
-        if ((tag == 0) || ((tag == 7) || (((tag > 10) && ((tag != 16) && (!text))) || ((tag == 5) && (operation == 0))))) {
+        if ((tag == 0) || ((tag == 7) || (((tag > 10) && ((tag != 16) && ((tag != 17) && ((tag != 18) && (!text))))) || ((tag == 5) && (operation == 0))))) {
             return 0;
         }
-        if (text || ((tag >= 8) && (tag <= 10))) {
+        if (text || (((tag >= 8) && (tag <= 10)) || ((tag == 17) || (tag == 18)))) {
             lanes = lanes + 1;
         }
         if (i < 11) {
@@ -1119,7 +1119,7 @@ static int32_t layout_lanes(const uint8_t *types, int32_t n, int32_t gp_max, int
     for (i = 0; i <= n - 1; i++) {
         tag = types[i];
         float_ = (tag == 6) || (tag == 16);
-        width = (tag >= 8) && (tag <= 10) ? 2 : 1;
+        width = ((tag >= 8) && (tag <= 10)) || ((tag == 17) || (tag == 18)) ? 2 : 1;
         for (k = 1; k <= width; k++) {
             if (float_ ? fp < fp_max : gp < gp_max) {
                 lane_stack[lane] = -1;
@@ -1157,7 +1157,7 @@ uint64_t publish_code(const uint8_t *bytes, uint32_t size)
 }
 
 /* FFIStubCompiler>>staticCoreEntry:signature: */
-uint64_t ffi_stub_compiler_static_core_entry(const char *name, uint32_t signature)
+uint64_t ffi_stub_compiler_static_core_entry(const char *name, uint64_t signature)
 {
     return ffi_stub_memory_static_core_entry(name, signature);
 }

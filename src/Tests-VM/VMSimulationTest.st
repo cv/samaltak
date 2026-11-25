@@ -29,12 +29,12 @@ testStaticPreparedEntriesAreRestricted
 	sim := VMSimulation modules: (VMModule vmModules select: [:c | c packageName ~= 'VM-Platform']).
 	backend := sim moduleOrLibrary: 'FFIStubMemory'.
 	self deny: backend canMapFFIStubs.
-	entry := backend staticCoreEntry: 'core_stdout_text' signature: 16rD7.
+	entry := backend staticCoreEntry: 'core_stdout_text' signature: 16r0D07.
 	self deny: entry equals: 0.
 	self assert: ((sim memory objectAt: entry) isKindOf: FunctionPointer).
-	self assert: (backend staticCoreEntry: 'core_stdout_text' signature: 16rE7) equals: 0.
-	self assert: (backend staticCoreEntry: 'printf' signature: 16rD7) equals: 0.
-	self assert: (backend staticCoreEntry: 'platform_files_open' signature: 16r831) equals: 0
+	self assert: (backend staticCoreEntry: 'core_stdout_text' signature: 16r0E07) equals: 0.
+	self assert: (backend staticCoreEntry: 'printf' signature: 16r0D07) equals: 0.
+	self assert: (backend staticCoreEntry: 'platform_files_open' signature: 16r080301) equals: 0
 !
 testMiniImageInSimulation
 	| image sim status |

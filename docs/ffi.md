@@ -35,6 +35,8 @@ immutable copy of the names and signature.
 | `byteSlice` | Argument only for `memcmp`; a read-only byte slice |
 | `bytesWithLength` | Argument for a `syncBorrow` grant or registered built-in; a read-only byte slice with its length |
 | `writableBytesWithLength` | Approved built-in argument: mutable byte slice with its length |
+| `rawBytesWithLength` | Approved built-in argument: a whole non-pointer object (bytes, or 32- or 64-bit words as the CPU stores them: a `Bitmap`), not a slice; its address and byte size |
+| `writableRawBytesWithLength` | Approved built-in argument: as `rawBytesWithLength`, of a mutable object the target may write within |
 | `countedText` | Approved built-in argument: UTF-8/surrogateescaped String, or raw bytes from an exact ByteArray; pointer and byte count |
 | `cText` | Approved built-in argument: String as above, but copied and NUL-terminated; embedded NUL rejected |
 | `ownedText` | Approved built-in result: String copied from owned native bytes, or `nil` |
@@ -67,6 +69,14 @@ slices must handle or reject overlap before using a non-overlap operation.
 The image never sees the pointer; it sees writes
 in the original ByteArray, including writes made by a target returning an
 error status. The VM does not roll back those writes or retry the call.
+
+The raw-object types pass an object itself, not a slice Array: no allocation per
+call, and word objects too. They take two native slots, an address and a
+`uint64_t` byte size (logical, not allocation padding), with `const` for the
+read-only one; ranges inside the object are the target's to check. Pointer
+objects, immediates and, for the writable type, read-only objects are rejected
+before entry. The same rules as for writable slices apply: no retention,
+reentry or GC; objects may be the same or overlap.
 
 Only exact, declared built-in signatures can grant writable access.
 `SAMALTAK_NATIVE_GRANTS` does not accept this type, and the legacy

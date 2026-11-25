@@ -3,7 +3,9 @@
 #include "samaltak.h"
 
 static bool ffi_borrow_integer(oop o, uint64_t *out, int64_t *count);
+static bool ffi_borrow_raw_bytes(oop o, uint64_t *out, uint64_t *length);
 static bool ffi_borrow_slice(oop slice, uint64_t *out, uint64_t *length);
+static bool ffi_borrow_writable_raw_bytes(oop o, uint64_t *out, uint64_t *length);
 static bool ffi_borrow_writable_slice(oop slice, uint64_t *out, uint64_t *length);
 static oop ffi_box_f64(double value);
 static oop ffi_box_f64_with_gc(double value);
@@ -56,6 +58,36 @@ static bool ffi_borrow_integer(oop o, uint64_t *out, int64_t *count)
     *out = (uint64_t)p;
     *count = negative ? 0 - n : n;
     return true;
+}
+
+/* FFIWrapperHelpers>>ffiBorrowRawBytes:into:length: */
+static bool ffi_borrow_raw_bytes(oop o, uint64_t *out, uint64_t *length)
+{
+    bool r_checked_raw_bytes;
+    int32_t fmt;
+    size_t size;
+    return ({
+    if ((o == 0) || (!((o & 7) == 0))) {
+        r_checked_raw_bytes = false;
+        goto exit_checked_raw_bytes;
+    }
+    fmt = (int32_t)(((*(uint64_t *)o) >> H_FMT_SHIFT) & H_FMT_MASK);
+    if ((fmt >= F_BYTES) && (fmt < 24)) {
+        size = byte_size(o);
+    } else if ((fmt == F_W32) || (fmt == 11)) {
+        size = word32_size(o) * 4;
+    } else {
+        if (!(fmt == F_W64)) {
+            r_checked_raw_bytes = false;
+            goto exit_checked_raw_bytes;
+        }
+        size = (uint64_t)(uint32_t)*(uint64_t *)o * 8;
+    }
+    *out = (uint64_t)(uint8_t *)(o + 16);
+    *length = (uint64_t)size;
+    r_checked_raw_bytes = true;
+exit_checked_raw_bytes:;
+    r_checked_raw_bytes; });
 }
 
 /* FFIWrapperHelpers>>ffiBorrowSlice:into:length: */
@@ -116,6 +148,40 @@ static bool ffi_borrow_slice(oop slice, uint64_t *out, uint64_t *length)
     r_checked_slice = true;
 exit_checked_slice:;
     r_checked_slice; });
+}
+
+/* FFIWrapperHelpers>>ffiBorrowWritableRawBytes:into:length: */
+static bool ffi_borrow_writable_raw_bytes(oop o, uint64_t *out, uint64_t *length)
+{
+    bool r_checked_raw_bytes;
+    int32_t fmt;
+    size_t size;
+    return ({
+    if ((o == 0) || (!((o & 7) == 0))) {
+        r_checked_raw_bytes = false;
+        goto exit_checked_raw_bytes;
+    }
+    if (((*(uint64_t *)o) & H_IMMUTABLE) != 0) {
+        r_checked_raw_bytes = false;
+        goto exit_checked_raw_bytes;
+    }
+    fmt = (int32_t)(((*(uint64_t *)o) >> H_FMT_SHIFT) & H_FMT_MASK);
+    if ((fmt >= F_BYTES) && (fmt < 24)) {
+        size = byte_size(o);
+    } else if ((fmt == F_W32) || (fmt == 11)) {
+        size = word32_size(o) * 4;
+    } else {
+        if (!(fmt == F_W64)) {
+            r_checked_raw_bytes = false;
+            goto exit_checked_raw_bytes;
+        }
+        size = (uint64_t)(uint32_t)*(uint64_t *)o * 8;
+    }
+    *out = (uint64_t)(uint8_t *)(o + 16);
+    *length = (uint64_t)size;
+    r_checked_raw_bytes = true;
+exit_checked_raw_bytes:;
+    r_checked_raw_bytes; });
 }
 
 /* FFIWrapperHelpers>>ffiBorrowWritableSlice:into:length: */
@@ -751,6 +817,12 @@ uint64_t wrapped_argument_helper(int32_t tag)
         break;
     case 16:
         v = (uint64_t)ffi_unbox_f32;
+        break;
+    case 17:
+        v = (uint64_t)ffi_borrow_raw_bytes;
+        break;
+    case 18:
+        v = (uint64_t)ffi_borrow_writable_raw_bytes;
         break;
     default:
         v = 0ULL;

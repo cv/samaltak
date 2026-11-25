@@ -33,13 +33,13 @@ staticCoreEntry: name signature: signature
 	| symbol row |
 	symbol := sim memory stringAt: name.
 	row := #(
-		('core_float_fraction_part' 16r66 fractionPart:)
-		('core_float_print_string' 16r691 printFloat:)
+		('core_float_fraction_part' 16r0606 fractionPart:)
+		('core_float_print_string' 16r060901 printFloat:)
 		('core_utc_microseconds' 16r3 utcMicroseconds:)
 		('core_thread_cpu_microseconds' 16r3 threadCpuMicroseconds:)
-		('core_stdout_text' 16rD7 stdout:)
-		('core_stderr_text' 16rD7 stderr:)
-		('core_getenv_text' 16rEF getenv:)
+		('core_stdout_text' 16r0D07 stdout:)
+		('core_stderr_text' 16r0D07 stderr:)
+		('core_getenv_text' 16r0E0F getenv:)
 	) detect: [:r | (r at: 1) = symbol and: [(r at: 2) = signature]] ifNone: [^0].
 	^self cCoerce: (self functionPointer: (row at: 3)) to: 'uint64_t'
 ! !

@@ -43,7 +43,7 @@ setFunction: f spec: spec
 	(owner = 'SDLPlatform' and: [self class legacyPlatformNames includes: name]) ifTrue: [self fail: 'name reserved by a legacy FFI export'].
 	tags := spec at: 3.
 	result := spec at: 4.
-	(tags class == Array and: [tags size <= 16 and: [tags allSatisfy: [:tag | #(1 2 3 4 6 8 9 10 13 14 16) includes: tag]]]) ifFalse: [
+	(tags class == Array and: [tags size <= 16 and: [tags allSatisfy: [:tag | #(1 2 3 4 6 8 9 10 13 14 16 17 18) includes: tag]]]) ifFalse: [
 		self fail: 'invalid approved export argument tags'].
 	(#(1 2 3 4 6 7 11 12 15 16) includes: result) ifFalse: [self fail: 'invalid approved export result tag'].
 	(f pragmaAt: #returns:) = (Array with: ((result = 11 or: [result = 15]) ifTrue: ['void'] ifFalse: [self scalarType: result])) ifFalse: [self fail: 'result tag does not match explicit native type'].
@@ -61,9 +61,9 @@ setFunction: f spec: spec
 				tag = 10
 					ifTrue: [types add: #('const uint64_t *'); add: #('int64_t')]
 					ifFalse: [
-						(#(8 9) includes: tag)
+						(#(8 9 17 18) includes: tag)
 							ifTrue: [
-								types add: (tag = 8 ifTrue: [#('const uint8_t *' 'const void *')] ifFalse: [#('uint8_t *' 'void *')]).
+								types add: ((tag = 8 or: [tag = 17]) ifTrue: [#('const uint8_t *' 'const void *')] ifFalse: [#('uint8_t *' 'void *')]).
 								types add: #('uint64_t')]
 							ifFalse: [types add: (Array with: (self scalarType: tag))]]]].
 	result = 11 ifTrue: [

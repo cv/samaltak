@@ -341,21 +341,21 @@ prepareEntry: descriptor into: arity result: resultOut untryable: untryable stat
 	libc memcpy: tags from: (self bytesOf: tagOop) size: count.
 	slots := n.
 	0 to: n - 1 do: [:i |
-		((tags at: i) >= 8 and: [(tags at: i) <= 14]) ifTrue: [slots := slots + 1]].
+		(((tags at: i) >= 8 and: [(tags at: i) <= 14]) or: [(tags at: i) = 17 or: [(tags at: i) = 18]]) ifTrue: [slots := slots + 1]].
 	slots > FFI_SLOT_LIMIT ifTrue: [^0].
 	staticOnly ifTrue: [
-		"The static table contains only core wrappers, never a platform exec, of at most six packed nibbles."
+		"The static table contains only core wrappers, never a platform exec, of at most seven arguments: a byte per tag, the result's last."
 		(libc strcmp: (self cCoerce: library to: 'const char *') with: 'vm:core') ~= 0 ifTrue: [^0].
-		(n > 6 or: [result > 15]) ifTrue: [^0].
-		signature := 0 asUInt32.
+		n > 7 ifTrue: [^0].
+		signature := 0 asUInt64.
 		0 to: n - 1 do: [:i |
 			tag := tags at: i.
-			(tag < 1 or: [tag > 15]) ifTrue: [^0].
-			signature := ((signature asUInt64 << 4) bitOr: tag asUInt64) asUInt32].
+			(tag < 1 or: [tag > 18]) ifTrue: [^0].
+			signature := (signature << 8) bitOr: tag asUInt64].
 		arity value: n.
 		resultOut value: result.
 		^ffiStubs staticCoreEntry: (self cCoerce: symbol to: 'const char *')
-			signature: ((signature asUInt64 << 4) bitOr: result asUInt64) asUInt32].
+			signature: ((signature << 8) bitOr: result asUInt64)].
 	target := self local: 'uint64_t'.
 	id := self resolve: library length: libLen symbol: symbol length: symLen types: tags count: n result: result prepared: true into: target.
 	id = 0 ifTrue: [^0].
@@ -497,12 +497,12 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 			ifTrue: [
 				(prepared and: [(libc strcmp: lib with: 'vm:core') = 0 and: [n = 1 and: [
 					(t = 13 and: [result = 7]) or: [t = 14 and: [result = 15]]]]]) ifFalse: [^0]]
-			ifFalse: [(t < 1 or: [t > 6 and: [t < 8 or: [t > 10 and: [t ~= 16]]]]) ifTrue: [^0]].
-		(t = 9 or: [t = 10]) ifTrue: [
+			ifFalse: [(t < 1 or: [t > 6 and: [t < 8 or: [t > 10 and: [t ~= 16 and: [t ~= 17 and: [t ~= 18]]]]]]) ifTrue: [^0]].
+		(t = 9 or: [t = 10 or: [t = 17 or: [t = 18]]]) ifTrue: [
 			prepared ifFalse: [^0].
 			hasVettedArgument := true].
 		t = 5 ifTrue: [hasPointer := true].
-		t = 16 ifTrue: [wide := true].
+		t >= 16 ifTrue: [wide := true].
 		sig := ((sig asUInt64 << 4) bitOr: t asUInt64) asUInt32].
 	sig := ((sig asUInt64 << 4) bitOr: result asUInt64) asUInt32.
 	"Nibbles hold six argument tags up to 15; no fixed row is longer or uses f32."

@@ -20,7 +20,9 @@ wrappedArgumentHelper: tag
 		[8] -> [self cCoerce: (self functionPointer: #ffiBorrowSlice:into:length:) to: 'uint64_t'].
 		[9] -> [self cCoerce: (self functionPointer: #ffiBorrowWritableSlice:into:length:) to: 'uint64_t'].
 		[10] -> [self cCoerce: (self functionPointer: #ffiBorrowInteger:into:signedCount:) to: 'uint64_t'].
-		[16] -> [self cCoerce: (self functionPointer: #ffiUnboxF32:into:) to: 'uint64_t']}
+		[16] -> [self cCoerce: (self functionPointer: #ffiUnboxF32:into:) to: 'uint64_t'].
+		[17] -> [self cCoerce: (self functionPointer: #ffiBorrowRawBytes:into:length:) to: 'uint64_t'].
+		[18] -> [self cCoerce: (self functionPointer: #ffiBorrowWritableRawBytes:into:length:) to: 'uint64_t']}
 		otherwise: [0 asUInt64]
 !
 wrappedResultHelper: tag
@@ -141,6 +143,41 @@ checkedSlice: slice into: out length: length writable: writable
 	(start asUInt64 > size or: [len asUInt64 > (size - start asUInt64)]) ifTrue: [^false].
 	out value: (self cCoerce: (self bytesOf: bytes) + start to: 'uint64_t').
 	length value: len asUInt64.
+	^true
+!
+ffiBorrowRawBytes: o into: out length: length
+	"rawBytesWithLength: the memory of a whole non-pointer object, bytes or 32- or 64-bit words (as the CPU stores them), and its size in bytes."
+	<function>
+	<var: #o type: 'oop'>
+	<var: #out type: 'uint64_t *'>
+	<var: #length type: 'uint64_t *'>
+	<returns: 'bool'>
+	^self checkedRawBytes: o into: out length: length writable: false
+!
+ffiBorrowWritableRawBytes: o into: out length: length
+	"writableRawBytesWithLength: as rawBytesWithLength, of a mutable object."
+	<function>
+	<var: #o type: 'oop'>
+	<var: #out type: 'uint64_t *'>
+	<var: #length type: 'uint64_t *'>
+	<returns: 'bool'>
+	^self checkedRawBytes: o into: out length: length writable: true
+!
+checkedRawBytes: o into: out length: length writable: writable
+	| fmt size |
+	(o = 0 or: [(self isPtr: o) not]) ifTrue: [^false].
+	(writable and: [self isImmutable: o]) ifTrue: [^false].
+	fmt := self formatOf: o.
+	(fmt >= F_BYTES and: [fmt < (F_BYTES + 8)])
+		ifTrue: [size := memory byteSize: o]
+		ifFalse: [
+			(fmt = F_W32 or: [fmt = (F_W32 + 1)])
+				ifTrue: [size := (memory word32Size: o) * 4]
+				ifFalse: [
+					fmt = F_W64 ifFalse: [^false].
+					size := (self numSlots: o) asUInt64 * 8]].
+	out value: (self cCoerce: (self bytesOf: o) to: 'uint64_t').
+	length value: size asUInt64.
 	^true
 ! !
 

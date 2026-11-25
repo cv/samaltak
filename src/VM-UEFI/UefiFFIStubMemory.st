@@ -31,16 +31,16 @@ publishFFIStub: bytes size: size
 !
 staticCoreEntry: name signature: signature
 	<export>
-	(signature = 16r66 and: [(libc strcmp: name with: 'core_float_fraction_part') = 0]) ifTrue: [
+	(signature = 16r0606 and: [(libc strcmp: name with: 'core_float_fraction_part') = 0]) ifTrue: [
 		^self cCoerce: (self functionPointer: #staticFractionPart:) to: 'uint64_t'].
-	(signature = 16r691 and: [(libc strcmp: name with: 'core_float_print_string') = 0]) ifTrue: [
+	(signature = 16r060901 and: [(libc strcmp: name with: 'core_float_print_string') = 0]) ifTrue: [
 		^self cCoerce: (self functionPointer: #staticFloatPrintString:) to: 'uint64_t'].
 	signature = 3 ifTrue: [
 		(libc strcmp: name with: 'core_utc_microseconds') = 0 ifTrue: [
 			^self cCoerce: (self functionPointer: #staticUtcMicroseconds:) to: 'uint64_t'].
 		(libc strcmp: name with: 'core_thread_cpu_microseconds') = 0 ifTrue: [
 			^self cCoerce: (self functionPointer: #staticThreadCpuMicroseconds:) to: 'uint64_t']].
-	signature = 16rD7 ifTrue: [
+	signature = 16r0D07 ifTrue: [
 		(libc strcmp: name with: 'core_stdout_text') = 0 ifTrue: [
 			^self cCoerce: (self functionPointer: #staticStdout:) to: 'uint64_t'].
 		(libc strcmp: name with: 'core_stderr_text') = 0 ifTrue: [

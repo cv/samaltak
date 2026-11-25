@@ -33,7 +33,7 @@ canPublishCode
 staticCoreEntry: name signature: signature
 	<function>
 	<var: #name type: 'const char *'>
-	<var: #signature type: 'uint32_t'>
+	<var: #signature type: 'uint64_t'>
 	<returns: 'uint64_t'>
 	^memory staticCoreEntry: name signature: signature
 !
@@ -108,7 +108,7 @@ entryFor: target argumentTags: types count: n returnTag: result operation: opera
 	lanes := n.
 	0 to: n - 1 do: [:i |
 		tag := types at: i.
-		(tag = 0 or: [tag = 7 or: [(tag > 10 and: [tag ~= 16 and: [text not]]) or: [tag = 5 and: [operation = 0]]]]) ifTrue: [^0].
+		(tag = 0 or: [tag = 7 or: [(tag > 10 and: [tag ~= 16 and: [tag ~= 17 and: [tag ~= 18 and: [text not]]]]) or: [tag = 5 and: [operation = 0]]]]) ifTrue: [^0].
 		(text or: [self wrappedTwoLanes: tag]) ifTrue: [lanes := lanes + 1].
 		i < 11
 			ifTrue: [key := key bitOr: tag asUInt64 << (5 * (i + 1))]
@@ -168,7 +168,8 @@ rememberStub: entry target: target key: key high: keyHigh at: slot
 
 !FFIStubCompiler methodsFor: 'wrapper helper addresses'!
 wrappedTwoLanes: tag
-	^tag >= 8 and: [tag <= 10]
+	"A slice, a whole raw object or a magnitude: its address, then its length."
+	^(tag >= 8 and: [tag <= 10]) or: [tag = 17 or: [tag = 18]]
 !
 wrappedFloatLane: tag
 	^tag = 6 or: [tag = 16]
@@ -371,9 +372,9 @@ packsStackArguments
 	self subclassResponsibility
 !
 staticCoreEntry: name signature: signature
-	"An exact, precompiled vm:core launcher or 0; never resolves a grant."
+	"An exact, precompiled vm:core launcher or 0; never resolves a grant. signature: a byte per argument tag, then the result tag's."
 	<var: #name type: 'const char *'>
-	<var: #signature type: 'uint32_t'>
+	<var: #signature type: 'uint64_t'>
 	<returns: 'uint64_t'>
 	self subclassResponsibility
 ! !
