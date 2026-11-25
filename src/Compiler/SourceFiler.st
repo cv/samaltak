@@ -1,6 +1,6 @@
 Object subclass: #SourceFiler
 	instanceVariableNames: 'sourceDirectory enabled useGitHub gitHubStore'
-	classVariableNames: 'Default'
+	classVariableNames: 'BaseCommit BaseDirty Default LastUpdate NeedsRestart'
 	package: 'Compiler'!
 
 SourceFiler comment: 'I write what the browser (or the agent) accepts back into the image''s sources (src/<package>/<Class>.st, or <Class>.extension.st for a method in a ''*Package'' category; a package filed in from a directory, as an application is, in that directory), changing only that method, comment or definition chunk (ChunkFile), so unchanged methods stay byte-for-byte the same and a diff shows exactly the edit. Each write reads the file from my store, edits its chunks and gives it back; a file left without chunks is removed.
@@ -15,7 +15,15 @@ My store is the local source directory (a SourceDirectoryStore): --source-dir <d
 	SourceFiler default commit: ''...'' pullRequest: false.   "the commit on its branch only"
 	SourceFiler default discardChanges
 
-commit: makes the branch <branchPrefix><yyyymmdd-hhmmss>-<slug> at a new commit whose parent is the base commit the change set started from, and opens a pull request into the base branch, titled by the message''s first line, its body the rest and the methods, definitions and comments written; it ends the change set. A failed commit keeps it and signals GitHubError. Nothing ever updates the base branch or a ref outside branchPrefix. A change set survives a snapshot and restart (the token does not).'!
+commit: makes the branch <branchPrefix><yyyymmdd-hhmmss>-<slug> at a new commit whose parent is the base commit the change set started from, and opens a pull request into the base branch, titled by the message''s first line, its body the rest and the methods, definitions and comments written; it ends the change set. A failed commit keeps it and signals GitHubError. Nothing ever updates the base branch or a ref outside branchPrefix. A change set survives a snapshot and restart (the token does not).
+
+Updating the running image from GitHub (a SourceUpdate; docs/github.md):
+	SourceFiler baseCommit.   "the commit the image''s sources are at: stage 2 records git rev-parse HEAD (baseDirty: src/ had uncommitted changes)"
+	SourceFiler default previewUpdateFrom: ''main''.   "what updateFrom: would do, nothing installed"
+	SourceFiler default updateFrom: ''main''.   "apply the changes since baseCommit, then baseCommit is main''s head"
+	SourceFiler default updateFrom: ''main'' takeTheirs: true.   "also where the image changed the same method"
+	SourceFiler needsRestart.   "VM sources changed by updates: they take effect after a rebuild and restart"
+The update control command (samaltak-ctl update [--dry-run] [--ref main] [--theirs]) does the same.'!
 
 !SourceFiler methodsFor: 'accessing'!
 sourceDirectory
@@ -191,6 +199,41 @@ existingStore
 	^self store ifNil: [self error: 'No source store: no source directory and no GitHub account']
 ! !
 
+!SourceFiler methodsFor: 'updating'!
+updateFrom: aRef
+	"Apply the source changes between my base commit and aRef's head on GitHub to the running image (SourceUpdate); answer the SourceUpdate (summary)."
+	^self updateFrom: aRef dryRun: false takeTheirs: false
+!
+updateFrom: aRef takeTheirs: aBoolean
+	^self updateFrom: aRef dryRun: false takeTheirs: aBoolean
+!
+previewUpdateFrom: aRef
+	"What updateFrom: would apply, installing nothing."
+	^self updateFrom: aRef dryRun: true takeTheirs: false
+!
+updateFrom: aRef force: aBoolean
+	"updateFrom:, also when image changes depend on VM changes of the same range (SourceUpdate>>vmDependent), which it otherwise refuses."
+	^self updateFrom: aRef dryRun: false takeTheirs: false force: aBoolean
+!
+updateFrom: aRef dryRun: dryRun takeTheirs: takeTheirs
+	^self updateFrom: aRef dryRun: dryRun takeTheirs: takeTheirs force: false
+!
+updateFrom: aRef dryRun: dryRun takeTheirs: takeTheirs force: force
+	| update |
+	update := ((Smalltalk at: #SourceUpdate) account: self gitHubStore account ref: (aRef ifNil: [self gitHubStore account baseBranch]) base: self class baseCommit)
+		filer: self;
+		dryRun: dryRun;
+		takeTheirs: takeTheirs;
+		force: force;
+		previousRestart: self class needsRestart;
+		run.
+	update state == #applied ifTrue: [
+		self class baseCommit: update head.
+		NeedsRestart := (self class needsRestart, (update needsRestart reject: [:p | self class needsRestart includes: p])) asArray].
+	LastUpdate := update.
+	^update
+! !
+
 !SourceFiler methodsFor: 'printing'!
 printOn: aStream
 	aStream nextPutAll: 'a SourceFiler ('.
@@ -223,6 +266,49 @@ findSourceDirectory
 	^candidates detect: [:each | File exists: each, '/packages.txt'] ifNone: [nil]
 ! !
 
+!SourceFiler class methodsFor: 'updating'!
+baseCommit
+	"The sha of the commit the image's sources are at: recorded by stage 2, moved by an update; nil if unknown."
+	^BaseCommit
+!
+baseCommit: aShaOrNil
+	BaseCommit := aShaOrNil
+!
+baseDirty
+	"Whether src/ had uncommitted changes when stage 2 built the image."
+	^BaseDirty == true
+!
+needsRestart
+	"Paths of the VM's sources that updates changed and the running VM does not have."
+	^NeedsRestart ifNil: [#()]
+!
+needsRestart: aCollection
+	NeedsRestart := aCollection asArray
+!
+lastUpdate
+	^LastUpdate
+!
+recordBuildCommit
+	"Stage 2: the commit the sources were built from (--base-commit <sha>, --base-dirty; the Makefile passes git rev-parse HEAD)."
+	| sha |
+	sha := Smalltalk argumentAfter: '--base-commit'.
+	BaseCommit := (sha notNil and: [(Smalltalk at: #SourceUpdate) isSha: sha]) ifTrue: [sha] ifFalse: [nil].
+	BaseDirty := Smalltalk vm arguments includes: '--base-dirty'.
+	NeedsRestart := nil.
+	LastUpdate := nil
+!
+updateCommand: aRemoteRequest
+	"The update control command: {cmd: update, ref?, dryRun?, takeTheirs?, force?} answers the SourceUpdate's asDictionary."
+	| arguments |
+	arguments := aRemoteRequest arguments.
+	^[(self default
+		updateFrom: (arguments at: 'ref' ifAbsent: [nil])
+		dryRun: (arguments at: 'dryRun' ifAbsent: [false]) == true
+		takeTheirs: (arguments at: 'takeTheirs' ifAbsent: [false]) == true
+		force: (arguments at: 'force' ifAbsent: [false]) == true) asDictionary]
+			on: Error do: [:e | (Smalltalk at: #RemoteError) signal: 'update: ', e messageText asString]
+! !
+
 !SourceFiler class methodsFor: 'class initialization'!
 startUp: resuming
 	"The image may have moved: look for the sources again. A GitHub change set not yet committed is kept."
@@ -231,5 +317,6 @@ startUp: resuming
 		ifFalse: [Default := nil]
 !
 initialize
+	"SourceUpdate (Tools) registers the update command and the stage 2 step that records the base commit."
 	Smalltalk addToStartUpList: self
 ! !

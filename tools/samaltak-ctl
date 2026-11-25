@@ -35,6 +35,7 @@ const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
   github-config [--repo owner/name] [--base main] [--prefix agent/] [--api-url url] [--token-command cmd | --token-env NAME | --from-gh] [--clear]
                the repository and token the image's SourceFiler commits through (docs/github.md); the token comes from cmd's stdout
                (/bin/sh), $NAME, gh auth token, else $SAMALTAK_GITHUB_TOKEN or $GITHUB_TOKEN, and is never printed; no options: show it
+  update [--dry-run] [--ref main] [--theirs] [--force] [--json]   apply what changed on GitHub since the image's commit, without a restart (docs/github.md)
   close
 session: --session, $SAMALTAK_SESSION, default "samaltak"
 input commands wait until the image settles (at most 2 s); --settle ms changes that (0: return at once)
@@ -47,8 +48,8 @@ const pos = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--session') session = argv[++i];
-  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at|repo|base|prefix|api-url|token-command|token-env)$/.test(a)) flags[a.slice(2)] = argv[++i];
-  else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi|from-gh|clear)$/.test(a)) flags[a.slice(2)] = true;
+  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at|repo|base|prefix|api-url|token-command|token-env|ref)$/.test(a)) flags[a.slice(2)] = argv[++i];
+  else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi|from-gh|clear|dry-run|theirs|force)$/.test(a)) flags[a.slice(2)] = true;
   else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
   else pos.push(a);
 }
@@ -351,6 +352,23 @@ async function githubConfig() {
   return print(await call(req));
 }
 
+// update: the image applies the source changes between the commit it is at and the branch's head on GitHub
+// (SourceFiler default updateFrom:, docs/github.md), through the account github-config set.
+async function update() {
+  const req = { cmd: 'update' };
+  if (flags.ref) req.ref = flags.ref;
+  if (flags['dry-run']) req.dryRun = true;
+  if (flags.theirs) req.takeTheirs = true;
+  if (flags.force) req.force = true;
+  const r = await call(req, 30 * 60000);
+  if (flags.json) return print(r);
+  console.log(r.summary);
+  if (r.base || r.head) console.log(`${r.base || '?'} -> ${r.head || '?'}`);
+  for (const [key, title] of [['applied', r.state === 'preview' ? 'would apply' : 'applied'], ['conflicts', 'conflicts'], ['failures', 'failures'], ['needsRestart', 'needs restart'], ['hostSide', 'host side'], ['vmDependent', 'depends on VM changes'], ['notApplied', 'not applied'], ['notes', 'notes']])
+    if (r[key] && r[key].length) console.log(`${title}:\n${r[key].map(x => '  ' + x).join('\n')}`);
+  if (r.state === 'failed' || r.state === 'partial') process.exit(1);
+}
+
 async function main() {
   switch (cmd) {
     case 'open': return open();
@@ -432,6 +450,7 @@ async function main() {
     }
     case 'record': return record();
     case 'github-config': return githubConfig();
+    case 'update': return update();
     case undefined: console.log(USAGE); process.exit(1); break;
     default: die(`unknown command ${JSON.stringify(cmd)}\n${USAGE}`);
   }

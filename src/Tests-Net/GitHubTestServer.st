@@ -3,11 +3,12 @@ Object subclass: #GitHubTestServer
 	classVariableNames: ''
 	package: 'Tests-Net'!
 
-GitHubTestServer comment: 'I am a fake GitHub REST API for tests, over an HTTPTestServer (plain HTTP on 127.0.0.1): one repository (''test/repo'') in memory, its blobs, trees (path -> {mode. sha}, flat), commits, branches and pull requests, and the requests that GitHubClient and SourceFiler''s GitHub store make: GET git/ref/heads/<branch>, git/commits/<sha>, git/trees/<sha>?recursive=1 (directories as tree entries too), git/blobs/<sha> (base64 in lines of 60, as GitHub), POST git/blobs, git/trees (base_tree; sha null removes a path), git/commits, git/refs (422 when it exists), pulls. Every request must carry Authorization: Bearer <token> (else 401 Bad credentials) and the JSON Accept and API version headers (else 400). fail: ''POST git/commits'' status: 500 message: ''...'' makes the next request starting so fail.
+GitHubTestServer comment: 'I am a fake GitHub REST API for tests, over an HTTPTestServer (plain HTTP on 127.0.0.1): one repository (''test/repo'') in memory, its blobs, trees (path -> {mode. sha}, flat), commits, branches and pull requests, and the requests that GitHubClient and SourceFiler''s GitHub store make: GET git/ref/heads/<branch>, git/commits/<sha>, git/trees/<sha>?recursive=1 (directories as tree entries too), git/blobs/<sha> (base64 in lines of 60, as GitHub), compare/<base>...<head> (status, ahead_by, behind_by, total_commits, commits, files), POST git/blobs, git/trees (base_tree; sha null removes a path), git/commits, git/refs (422 when it exists), pulls. Every request must carry Authorization: Bearer <token> (else 401 Bad credentials) and the JSON Accept and API version headers (else 400). fail: ''POST git/commits'' status: 500 message: ''...'' makes the next request starting so fail.
 
 	gh := GitHubTestServer token: ''t'' files: (Dictionary new at: ''src/A/B.st'' put: ''...''; yourself).
 	gh url.   "the account''s apiUrl"
 	gh textAt: ''src/A/B.st'' onBranch: ''agent/x''.
+	gh commit: (Dictionary new at: ''src/A/B.st'' put: ''...''; at: ''src/A/C.st'' put: nil; yourself) message: ''Next''.   "main moves on: changed and removed files"
 	gh stop'!
 
 !GitHubTestServer methodsFor: 'initialization'!
@@ -61,6 +62,18 @@ textAt: aPath onBranch: aBranch
 	| entry |
 	entry := (self treeOfBranch: aBranch) at: aPath ifAbsent: [^nil].
 	^(blobs at: entry last) utf8Decoded
+!
+commit: aDictionary message: aString
+	"A commit on main changing the files (path -> text, nil removes); main moves to it. Answer its sha."
+	| tree sha |
+	tree := (self treeOfBranch: 'main') copy.
+	aDictionary keysAndValuesDo: [:path :text |
+		text isNil
+			ifTrue: [tree removeKey: path ifAbsent: []]
+			ifFalse: [tree at: path put: (Array with: '100644' with: (self addBlob: text utf8Encoded))]].
+	sha := self addCommit: (self addTree: tree) parents: (Array with: (refs at: 'main')) message: aString.
+	refs at: 'main' put: sha.
+	^sha
 !
 fail: aString status: anInteger message: aMessage
 	"The next request whose method and path start with aString (as requestsTo:) gets this error."
@@ -122,7 +135,8 @@ route: method rest: rest request: aRequest
 		(rest beginsWith: 'git/ref/heads/') ifTrue: [^self getRef: (rest copyFrom: 15 to: rest size)].
 		(rest beginsWith: 'git/commits/') ifTrue: [^self getCommit: (rest copyFrom: 13 to: rest size)].
 		(rest beginsWith: 'git/trees/') ifTrue: [^self getTree: ((rest copyFrom: 11 to: rest size) copyUpTo: $?)].
-		(rest beginsWith: 'git/blobs/') ifTrue: [^self getBlob: (rest copyFrom: 11 to: rest size)]].
+		(rest beginsWith: 'git/blobs/') ifTrue: [^self getBlob: (rest copyFrom: 11 to: rest size)].
+		(rest beginsWith: 'compare/') ifTrue: [^self getCompare: (rest copyFrom: 9 to: rest size)]].
 	method = 'POST' ifTrue: [
 		rest = 'git/blobs' ifTrue: [^self postBlob: aRequest json].
 		rest = 'git/trees' ifTrue: [^self postTree: aRequest json].
@@ -159,6 +173,62 @@ getTree: aSha
 		1 to: path size do: [:i | (path at: i) = $/ ifTrue: [dirs add: (path copyFrom: 1 to: i - 1)]]].
 	dirs do: [:d | entries add: (Dictionary new at: 'path' put: d; at: 'mode' put: '040000'; at: 'type' put: 'tree'; at: 'sha' put: self newSha; yourself)].
 	^self status: 200 json: (Dictionary new at: 'sha' put: aSha; at: 'tree' put: entries asArray; at: 'truncated' put: false; yourself)
+!
+ancestorsOf: aSha
+	"aSha and every commit before it, nearest first."
+	| result queue |
+	result := OrderedCollection new.
+	queue := OrderedCollection with: aSha.
+	[queue isEmpty] whileFalse: [
+		| sha |
+		sha := queue removeFirst.
+		(result includes: sha) ifFalse: [
+			result add: sha.
+			queue addAll: (commits at: sha) second]].
+	^result
+!
+getCompare: aString
+	"base...head (branch names or shas): GitHub's compare of the two commits."
+	| i base head baseAncestors headAncestors status between oldTree newTree files |
+	i := aString indexOf: $..
+	(i > 0 and: [(aString copyFrom: i to: (i + 2 min: aString size)) = '...']) ifFalse: [^self status: 404 message: 'Not Found'].
+	base := aString copyFrom: 1 to: i - 1.
+	head := aString copyFrom: i + 3 to: aString size.
+	base := refs at: base ifAbsent: [base].
+	head := refs at: head ifAbsent: [head].
+	((commits includesKey: base) and: [commits includesKey: head]) ifFalse: [^self status: 404 message: 'Not Found'].
+	baseAncestors := self ancestorsOf: base.
+	headAncestors := self ancestorsOf: head.
+	between := headAncestors reject: [:c | baseAncestors includes: c].
+	status := base = head
+		ifTrue: ['identical']
+		ifFalse: [(headAncestors includes: base)
+			ifTrue: ['ahead']
+			ifFalse: [(baseAncestors includes: head) ifTrue: ['behind'] ifFalse: ['diverged']]].
+	oldTree := trees at: (commits at: base) first.
+	newTree := trees at: (commits at: head) first.
+	files := OrderedCollection new.
+	(oldTree keys asSet addAll: newTree keys; yourself) asSortedCollection do: [:path |
+		| o n |
+		o := oldTree at: path ifAbsent: [nil].
+		n := newTree at: path ifAbsent: [nil].
+		o = n ifFalse: [
+			files add: (Dictionary new
+				at: 'filename' put: path;
+				at: 'status' put: (o isNil ifTrue: ['added'] ifFalse: [n isNil ifTrue: ['removed'] ifFalse: ['modified']]);
+				at: 'sha' put: (n ifNil: [o]) last;
+				yourself)]].
+	^self status: 200 json: (Dictionary new
+		at: 'status' put: status;
+		at: 'ahead_by' put: between size;
+		at: 'behind_by' put: (baseAncestors reject: [:c | headAncestors includes: c]) size;
+		at: 'total_commits' put: between size;
+		at: 'commits' put: (between reverse collect: [:c | Dictionary new
+			at: 'sha' put: c;
+			at: 'commit' put: (Dictionary new at: 'message' put: (commits at: c) last; yourself);
+			yourself]) asArray;
+		at: 'files' put: files asArray;
+		yourself)
 !
 getBlob: aSha
 	| bytes b64 lines |

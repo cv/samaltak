@@ -12,8 +12,14 @@ vm:
 seed: vm
 	boot/build-image.sh src $(OUT)/seed.image
 
+# The commit the image's sources are at (SourceFiler baseCommit, for updates from GitHub: docs/github.md), and whether
+# src/ had uncommitted changes.
+BASE_COMMIT = $(shell git rev-parse HEAD 2>/dev/null)
+BASE_DIRTY = $(shell git status --porcelain -- src 2>/dev/null | head -1)
+BASE_ARGS = $(if $(BASE_COMMIT),--base-commit $(BASE_COMMIT)) $(if $(BASE_DIRTY),--base-dirty)
+
 image: vm seed
-	$(VM) $(OUT)/seed.image --headless --stage2 $(OUT)/samaltak.image
+	$(VM) $(OUT)/seed.image --headless --stage2 $(OUT)/samaltak.image $(BASE_ARGS)
 
 # The runtime image applications run on (bin/samaltak run, docs/apps.md): the packages of src/runtime.txt, lean on fonts.
 runtime: vm
