@@ -56,4 +56,31 @@ testDuplicateIDRejected
 		<returns: ''int64_t''>
 		^2')
 		do: [:functions | self should: [TApprovedFFI fromFunctions: functions] raise: TranslationError]
+!
+sourceWithSlots: n
+	"An approved export of n parameters: a float, then int64s."
+	| s |
+	s := WriteStream on: String new.
+	s nextPutAll: 'ffiRegistryTest: a1'.
+	2 to: n do: [:i | s nextPutAll: ' with: a'; print: i].
+	s nextPutAll: '
+	<function>
+	<approvedFFI: 3999 symbol: ''ffi_registry_test'' arguments: #(16'.
+	2 to: n do: [:i | s nextPutAll: ' 3'].
+	s nextPutAll: ') result: 16>
+	<var: #a1 type: ''float''>'.
+	2 to: n do: [:i | s nextPutAll: '
+	<var: #a'; print: i; nextPutAll: ' type: ''int64_t''>'].
+	s nextPutAll: '
+	<returns: ''float''>
+	^a1'.
+	^s contents
+!
+testSixteenSlotsAccepted
+	self withNativeFixture: {self sourceWithSlots: 16}
+		do: [:functions | self assert: (TApprovedFFI fromFunctions: functions) first id equals: 5023]
+!
+testSeventeenSlotsRejected
+	self withNativeFixture: {self sourceWithSlots: 17}
+		do: [:functions | self should: [TApprovedFFI fromFunctions: functions] raise: TranslationError]
 ! !
