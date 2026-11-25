@@ -101,8 +101,9 @@ first frames at 1920x1080 through a `SoftwareGPURecorder` (the Tools' default de
 the Mandelbrot, lines) and replays them on the GPU: no byte differs, in any pass or frame. On the GB10 a frame of the
 composited 1920x1080 screen (clear, the desk, the windows' layers as images, the top bar, the blit to the BGRA8
 swapchain) takes about 0.55 ms of GPU time, against 3.2 ms for the C reference on one of its CPU cores; rendering a
-window's layer costs about 20 µs a draw, mostly the two launches' fixed cost (a pass of 180 small draws: 4 ms), which
-batching a pass's draws into one launch pair would remove.
+window's layer cost about 20 µs a draw, mostly the two launches' fixed cost (a pass of 180 small draws: 4 ms), before
+NvComputeGPU batched a target's draws into one launch pair; a damaged frame's tiles and waits: docs/nv-gpu.md, Small
+frames.
 
 `NvComputeGPU` (docs/nv-gpu.md) launches them from the image through libcuda (NvCudaCompute), as Graphics-GPU's device (`--gpu nv`).
 

@@ -31,7 +31,7 @@ an unknown name likewise.
 | clear | `rasterFill` | `raster_fill` |
 | draw | `rasterDraw` | batched: a target's consecutive draws as one `raster_batch_prims` and one `raster_batch_tiles` |
 | blit | `rasterBlit` | `raster_blit` |
-| uploads, downloads | CPU copies | the same CPU copies, after waiting for the launches that use that memory |
+| uploads, downloads | CPU copies | buffers: CPU copies after the draws reading that range; textures up to 256 KB: into the arena, then `raster_copy` in launch order; downloads and larger uploads: CPU copies after the launches using that memory |
 | fences | done when made | the stream's fence values; elapsed from the GPU's clock |
 | present | the display gets the back buffer's address | the same, once the GPU drew it |
 
@@ -39,15 +39,16 @@ SoftwareGPU's 'memory and pixels' methods are the seam (`allocate:`, `free:`, `t
 `draw:buffer:offset:first:count:`, `blit:...`, `present:`). Launches are queued in call order on the default stream
 (`cuLaunchKernel`, the cubin loaded once by `cuModuleLoadData`) and run while the CPU encodes on, one after another
 (`raster_batch_tiles` reads what `raster_batch_prims` wrote, later launches see earlier ones). Each memory remembers
-the fence of the last launch that used it; the CPU waits for it before writing (uploads), reading (downloads, present)
-or freeing it, and nowhere else.
+the fence of the last launch that used it, a buffer the fences of the ranges draws read; the CPU waits for them before
+writing (a buffer's upload: only for the draws reading its range; small texture uploads go through the arena in launch
+order instead), reading (downloads, present) or freeing it, and nowhere else (Small frames, below).
 
 **Batches.** A draw does not launch: its RasterDrawParams (the pass's state, the vertices' address) join the batch of
-its target. The batch goes out when anything else comes (a draw into another target, a clear, a blit, a CPU access, a
-submit): the params and each draw's first slot are written into an arena (GPU memory used as a ring, the GPU done with
+its target. The batch goes out when anything else comes (a draw into another target, a clear, a blit, a CPU access to
+memory it uses, a submit): the params and each draw's first slot are written into an arena (GPU memory used as a ring, the GPU done with
 its start before it is reused), then `raster_batch_prims` (a thread per slot of all the draws, each with its draw's
 state, 64 threads a block) and `raster_batch_tiles` (16 x 16 tiles over the union of the draws' scissors within the
-target; a tile skips each 256 slots none of whose chunks' bounding boxes meets it, lists the slots over it in order and
+target, or only those the scissors meet when they are scattered; a tile skips each 256 slots none of whose chunks' bounding boxes meets it, lists the slots over it in order and
 applies each with its own draw's blend, texture and sampler). A pixel sees the
 draws in order, so the pixels are the same as draw by draw (docs/nv-kernels.md). A layer is two launches, not two a draw.
 
@@ -77,6 +78,62 @@ copied into a dumb buffer, docs/linux-appliance.md).
 fixes (fences across pushbuffer wraps, local memory sized per kernel's stack frame) and its L2 handling are in
 docs/nv-rm.md and at the tag `archive/nv-rm`. On libcuda the driver sizes a kernel's local memory and places its
 constant banks; `NvCudaComputeTest>>testLocalMemory` and `testConstantBank` check it.
+
+## Small frames
+
+An ordinary interactive frame (docs/graphics-damage.md's nine interactions, damage-limited: a typed character, a hovered
+item, a dragged window) renders a few hundred to a few thousand pixels in one or two layers and the composite. On the
+libcuda backend it had cost more than on the CPU: not the launches (5 to 14 a frame, batched already), but the CPU
+waiting for the GPU inside the frame and the GPU drawing far more than the damage.
+
+- **Waits.** Each list the Renderer uploads into its vertex ring waited for every launch that had used the ring, and a
+  glyph or Form uploaded mid-frame for every launch that had used its texture: 4 to 7 GPU round trips a frame, each
+  also ending the batch (so 4 to 5 batches a frame, not 2), each a GPU scheduling latency (0.5 to 2.5 ms when other
+  processes keep the GPU busy, as on this shared machine). Now a buffer upload waits only for the draws that read its
+  range (NvComputeGPU keeps the ranges a batch's draws read, with their fence), and a texture upload of up to 256 KB goes
+  through the arena and `raster_copy` in launch order, as SDL_GPU's copy pass does: one wait a frame, its present.
+- **Pixels.** A batch's tiles covered the bounds of its draws' clips: a typed character and the top bar's readout made
+  the composite's `raster_batch_tiles` run 8160 blocks (the whole screen), the damage fills drew under a full-target
+  scissor, and `raster_blit` ran a grid over the whole destination for each damage rectangle. Now a batch whose clips are
+  scattered passes the list of the tiles they meet (`tilesOf:within:`, RasterBatchParams' `tiles`, docs/nv-kernels.md),
+  the fills are scissored to their rectangles (`Renderer>>fill:color:into:commandBuffer:`) and a blit's grid covers its
+  rectangle.
+
+Measured with `tests/nv/frames.sh` (RenderScenarios: the nine interactions in a hidden 1920x1080 World under Xvfb, events
+injected) and nsys (`NV_FRAMES_NSYS=1`, `tests/nv/frames_nsys.py`), on the GB10 shared with other GPU work (load 10-36).
+Per presented frame, before (origin/main with the counters) → after. GPU: the kernels' own time (nsys), not waiting for
+the GPU; render: the renderer's CPU from the frame's lists to a frame ready to present (layer and composite encoding,
+the blit and the present's wait; the median of the frames, best of three runs: the other processes' load on the GPU
+moves a run's latencies by milliseconds); SoftwareGPU's render is its rasterizing on the CPU (the same stages).
+
+| scenario | kernels | waits | GPU µs | NV render µs | SoftwareGPU render µs |
+| --- | --- | --- | --- | --- | --- |
+| idle-caret | 16.5 → 13.2 | 7.0 → 1.2 | 295 → 171 | 1418 → 523 | 771 → 558 |
+| typing | 17.9 → 13.5 | 6.1 → 1.0 | 343 → 170 | 626 → 346 | 251 → 190 |
+| idle-after | 19.0 → 11.0 | 5.3 → 1.0 | 369 → 146 | 467 → 338 | 238 → 143 |
+| scroll-list | 15.3 → 8.5 | 5.1 → 1.0 | 294 → 102 | 765 → 581 | 346 → 270 |
+| hover | 14.2 → 8.0 | 4.3 → 1.0 | 287 → 96 | 448 → 345 | 183 → 169 |
+| drag-window | 7.9 → 6.6 | 3.1 → 1.0 | 432 → 195 | 506 → 274 | 672 → 552 |
+| agent-open | 16.3 → 10.8 | 6.3 → 1.1 | 522 → 267 | 771 → 479 | 2765 → 3035 |
+| agent-stream | 15.1 → 10.6 | 6.2 → 1.0 | 337 → 179 | 480 → 230 | 197 → 148 |
+| idle-end | 16.8 → 11.5 | 6.0 → 1.0 | 392 → 166 | 727 → 463 | 323 → 232 |
+
+(kernels include the 3 to 4 timestamp kernels a frame; under load a run's medians were up to 3x these.) The NV frame
+now costs the CPU 35-60 % less and the GPU 45-65 % less. It is faster than the CPU where a frame draws much (dragging a
+window 274 against 552 µs, a window opening 479 against 3035, the caret's frames), not yet where it draws a few hundred
+pixels: there SoftwareGPU rasterizes in 20-80 µs, while NV's fixed cost is its present's wait for the GPU (about 60 µs
+idle, a GPU timeslice or more when other processes load it), about 13 launches and timestamps at 2 µs, and building a
+draw's 200-byte RasterDrawParams in Smalltalk.
+
+**CUDA Graphs** were measured and not taken. `tests/nv/graph_bench.cpp` issues a frame of 6 or 12 small kernels 2 ms
+apart as stream launches, as a graph with each node's parameters set (cuGraphExecKernelNodeSetParams), and as the graph
+captured: CPU 33 / 22 / 20 µs and GPU 23 / 17 / 13 µs for 6 kernels, 49 / 22 / 19 and 38 / 22 / 16 for 12 (medians, C,
+two events and a fence included). A frame's shape changes with its damage (batches, blits, copies), so the graph would be
+updated each frame, and from Smalltalk each node's update is an FFI call like a launch (2 µs in the image, the driver's
+cost): it would save the GPU 1.5 µs a kernel, 10-20 µs a frame, against the 100-250 µs the tile lists and the waits
+saved. The single tiled pass is what a batch is (one `raster_batch_prims` and one `raster_batch_tiles` a target),
+now over the damaged tiles only; one launch for the whole frame cannot be had, the composite sampling the layers drawn
+before it.
 
 ## Tests
 

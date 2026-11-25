@@ -36,5 +36,8 @@
   events injected) on each device; per scenario and presented frame the renderer's CPU (median, 90th percentile, mean
   and its stages), the compositor's CPU, kernel launches, waits and GPU span. `NV_FRAMES_NSYS=1` profiles the libcuda
   run with nsys, and `frames_nsys.py [OUT]` reads it: the kernels per frame, their GPU time and their launch calls'.
+- `graph_bench.cpp` (built by hand: `c++ -O2 -I$CUDA/include tests/nv/graph_bench.cpp -o graph_bench -lcuda`): a frame's
+  small launches as stream launches or as a CUDA graph replayed with new parameters, CPU and GPU per frame (docs/nv-gpu.md,
+  Small frames: why NvComputeGPU does not use graphs).
 
 `make test-nv` also runs `NvComputeGPUTest` (SoftwareGPUTest on an NvComputeGPU) with NvCudaComputeTest and the CUDA libraries' GPU tests. Fails if the GPU differs from the reference without contraction anywhere, or a recorded frame equals neither reference.
