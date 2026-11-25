@@ -25,7 +25,9 @@
 # Reruns: a shard (or the single VM) that fails, crashes or ends early runs once more (tests/lib/rerun.sh,
 # SAMALTAK_TEST_RERUN; 0: no rerun), after the others, at once with the other failed ones: if it passes, the suite
 # passes and its first run's failure lines are printed as "flake: <line>" (tests/stages.sh lists them, tests/flakes.sh
-# records them); if it fails again, the suite fails with "st_suite: ... failed again on its rerun".
+# records them); if it fails again, the suite fails with "st_suite: ... failed again on its rerun". The rerun runs the
+# whole shard, its failed classes (from its FAIL and ERROR lines) in a VM of their own and the others in another, at
+# once: a failure that the classes before it cause (they run in name order) passes alone, and is a flake.
 set -u
 cd "$(dirname "$0")/.."
 IMAGE=$1
@@ -225,7 +227,17 @@ while [ $k -le "$JOBS" ]; do
   k=$((k + 1))
 done
 wait
-# the failed shards once more (not one that was interrupted)
+# failed_classes K: the classes of shard K's first run that its FAIL and ERROR lines name
+failed_classes() {
+  tr -d '\r' <"$WORK/$1.first/log" | sed -n -E 's/^(FAIL|ERROR) +([A-Za-z0-9_]+)( class)?>>.*/\2/p' | sort -u \
+    | awk -v list="$(cat "$WORK/$1.first/classes")" 'BEGIN { n = split(list, a, " "); for (i = 1; i <= n; i++) w[a[i]] = 1 } $1 in w' \
+    | tr '\n' ' '
+}
+# plan_tests CLASS...: their tests in the plan
+plan_tests() { awk -v list="$*" 'BEGIN { n = split(list, a, " "); for (i = 1; i <= n; i++) w[a[i]] = 1 } $2 in w { t += $3 } END { print t + 0 }' "$WORK/plan"; }
+
+# the failed shards once more (not one that was interrupted): their failed classes alone, the others beside them
+SHARDS=$JOBS
 if [ "$RERUN" = 1 ]; then
   PIDS=
   k=1
@@ -234,8 +246,26 @@ if [ "$RERUN" = 1 ]; then
     if ! shard_ok $k && [ "$e" != 130 ] && [ "$e" != 143 ]; then
       mv "$WORK/$k" "$WORK/$k.first"
       mkdir -p "$WORK/$k"
-      cp "$WORK/$k.first/classes" "$WORK/$k.first/tests" "$WORK/$k/"
-      start_shard $k rerun "$@"
+      bad=$(failed_classes $k)
+      all=$(cat "$WORK/$k.first/classes")
+      if [ -n "$bad" ] && [ "$(echo $bad | wc -w)" -lt "$(echo $all | wc -w)" ]; then
+        SHARDS=$((SHARDS + 1))
+        mkdir -p "$WORK/$SHARDS"
+        echo "$bad" >"$WORK/$k/classes"
+        plan_tests $bad >"$WORK/$k/tests"
+        # shellcheck disable=SC2086
+        rest=$(for c in $all; do case " $bad " in *" $c "*) ;; *) printf '%s ' "$c" ;; esac; done)
+        echo "$rest" >"$WORK/$SHARDS/classes"
+        # shellcheck disable=SC2086
+        plan_tests $rest >"$WORK/$SHARDS/tests"
+        echo $SHARDS >"$WORK/$k/rest"
+        echo $k >"$WORK/$SHARDS/restof"
+        start_shard $k rerun "$@"
+        start_shard $SHARDS rerun "$@"
+      else
+        cp "$WORK/$k.first/classes" "$WORK/$k.first/tests" "$WORK/$k/"
+        start_shard $k rerun "$@"
+      fi
     fi
     k=$((k + 1))
   done
@@ -245,7 +275,7 @@ fi
 # The logs in shard order without their summaries and class times, then the merged summary.
 code=0; missing=; run=0; passed=0; failed=0; errors=0; skipped=0; ms=0
 k=1
-while [ $k -le "$JOBS" ]; do
+while [ $k -le "$SHARDS" ]; do
   log=$WORK/$k/log
   e=$(cat "$WORK/$k/exit" 2>/dev/null || echo 1)
   s=$(summary_of "$log")
@@ -257,12 +287,15 @@ while [ $k -le "$JOBS" ]; do
   [ -f "$WORK/$k/trace" ] && cat "$WORK/$k/trace"
   if [ -d "$WORK/$k.first" ]; then
     e1=$(cat "$WORK/$k.first/exit" 2>/dev/null || echo 1)
-    if shard_ok $k; then
-      rerun_flakes "$WORK/$k.first/log" "$log" "shard $k of $JOBS"
-      echo "st_suite: shard $k of $JOBS failed (exit $e1) and passed on its rerun (a flake): $(cat "$WORK/$k/classes")"
+    r=$(cat "$WORK/$k/rest" 2>/dev/null)
+    cat "$log" ${r:+"$WORK/$r/log"} >"$WORK/$k.rerunlog" 2>/dev/null
+    how=; [ -n "$r" ] && how=" (its failed classes alone: $(cat "$WORK/$k/classes"))"
+    if shard_ok $k && { [ -z "$r" ] || shard_ok "$r"; }; then
+      rerun_flakes "$WORK/$k.first/log" "$WORK/$k.rerunlog" "shard $k of $JOBS"
+      echo "st_suite: shard $k of $JOBS failed (exit $e1) and passed on its rerun$how (a flake): $(cat "$WORK/$k.first/classes")"
     else
       rerun_fail_lines "$WORK/$k.first/log" | sed 's/^/rerun: 1| /'
-      echo "st_suite: shard $k of $JOBS failed again on its rerun (exit $e1, then $e): $(cat "$WORK/$k/classes")"
+      echo "st_suite: shard $k of $JOBS failed again on its rerun$how (exit $e1, then $e): $(cat "$WORK/$k.first/classes")"
     fi
   fi
   if [ -z "$s" ]; then

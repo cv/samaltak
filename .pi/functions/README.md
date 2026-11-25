@@ -48,7 +48,7 @@ Check with `context.get().projectFunctions`.
   Timings are shared by the machine's worktrees (`~/.cache/samaltak/test-times`), so a fresh worktree's first run
   is balanced. The gate's VM comes from `~/.cache/samaltak/build` when its `vm/` was built before (the log says
   `build-cache: the VM from the cache`; tests/build-cache.sh), so a re-run or a rebase that left `vm/` alone skips
-  the VM's compile. Flakes: a suite's failed shard, and a failed part of test-core, test-tools or test-uefi, runs once more
+  the VM's compile. Flakes: a suite's failed shard (its failed classes in a VM of their own, the others beside them), and a failed part of test-core, test-tools or test-uefi, runs once more
   (`tests/rerun.sh`, `tests/lib/rerun.sh`; `SAMALTAK_TEST_RERUN=0`: no reruns, as `suite` runs by default): one that
   passes then is a flake: its stage passes, its first run's failure lines print as `flake: ...` and are listed at the
   end (`stages: flake: <stage>: <line>`, the gate's `flakes`); a second failure fails the stage. Every stage's result,
