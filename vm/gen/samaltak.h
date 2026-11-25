@@ -25,11 +25,11 @@
 #include "nvrtc.h"
 #include <sys/mman.h>
 #include <sys/time.h>
-#include <sys/random.h>
 #include <time.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <limits.h>
+#include <sys/random.h>
 #include <dlfcn.h>
 #if defined(__x86_64__)
 #include <emmintrin.h>

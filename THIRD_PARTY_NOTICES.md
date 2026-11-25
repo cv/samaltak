@@ -1,0 +1,117 @@
+# Third-party notices
+
+The [project's MIT license](LICENSE) does not replace the terms for third-party material included in Samaltak.
+
+- **Fonts:** The Iosevka Etoile, JetBrains Mono, and Noto fonts in [`fonts/`](fonts/) are under the SIL Open Font License 1.1; see the corresponding `*-OFL.txt` files. [Twemoji.ttf](fonts/Twemoji.ttf) is a subset of Mozilla's Twemoji COLR font; see [its Apache 2.0 and CC BY 4.0 notices](fonts/twemoji-LICENSE.md). These terms also apply when the fonts are embedded in images. The prototype CSS embeds Iosevka Etoile and JetBrains Mono subsets; see the [manifest and licenses](prototypes/shared/fonts/).
+- **Benchmarks:** See the licenses for [Are We Fast Yet](vm/tests/bench/awfy/LICENSE.md) ([authors](vm/tests/bench/awfy/AUTHORS.md)), the [Benchmarks Game Pharo programs](vm/tests/bench/benchmarksgame/LICENSE.md) (Revised BSD), and [Extremem](vm/tests/bench/extremem/LICENSE) (Apache 2.0; [notice](vm/tests/bench/extremem/NOTICE)).
+- **Guest font:** The bitmap glyphs in [`DisplayFont.st`](st80/ST80-UI/DisplayFont.st) are from the public-domain X11 misc-fixed 7×14 font.
+- **Unicode data:** [`UnicodeTables.st`](src/Kernel-Collections/UnicodeTables.st) and [`GraphemeBreakTestData.st`](src/Tests-Kernel/GraphemeBreakTestData.st) contain data derived from the [Unicode Character Database 17.0.0](https://www.unicode.org/Public/17.0.0/ucd/ReadMe.txt), © 2025 Unicode, Inc. See the Unicode License v3 below.
+- **Tree-sitter:** The [bundled parser support headers](tools/zed-smalltalk/grammar/src/tree_sitter/) come from or adapt Tree-sitter headers; see the MIT notice below.
+- **UEFI math:** [`UefiLibM.st`](src/VM-UEFI/UefiLibM.st) includes routines and tables derived from fdlibm, musl, and Arm optimized-routines. See their notices below.
+
+## Unicode License v3
+
+```text
+UNICODE LICENSE V3
+
+COPYRIGHT AND PERMISSION NOTICE
+
+Copyright © 1991-2026 Unicode, Inc.
+
+NOTICE TO USER: Carefully read the following legal agreement. BY
+DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
+SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
+TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of data files and any associated documentation (the "Data Files") or
+software and any associated documentation (the "Software") to deal in the
+Data Files or Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, and/or sell
+copies of the Data Files or Software, and to permit persons to whom the
+Data Files or Software are furnished to do so, provided that either (a)
+this copyright and permission notice appear with all copies of the Data
+Files or Software, or (b) this copyright and permission notice appear in
+associated Documentation.
+
+THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+THIRD PARTY RIGHTS.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
+BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
+OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
+FILES OR SOFTWARE.
+
+Except as contained in this notice, the name of a copyright holder shall
+not be used in advertising or otherwise to promote the sale, use or other
+dealings in these Data Files or Software without prior written
+authorization of the copyright holder.
+```
+
+## Tree-sitter
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2018-2024 Max Brunsfeld
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## fdlibm
+
+```text
+Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+
+Developed at SunSoft, a Sun Microsystems, Inc. business.
+Permission to use, copy, modify, and distribute this
+software is freely granted, provided that this notice
+is preserved.
+```
+
+## musl and Arm optimized-routines
+
+```text
+Copyright © 2005-2020 Rich Felker, et al.
+Copyright (c) 2018, Arm Limited.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```

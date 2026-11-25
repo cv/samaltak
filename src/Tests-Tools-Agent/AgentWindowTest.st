@@ -333,6 +333,24 @@ testClickingTheChipOpensAnAgentOnTheWindow
 	self click: browser bounds origin + browser chipRectStatic center.
 	self settle.
 	self assert: (self windowsOf: AgentWindow) size = 1
+!
+testCanDragAndCopyAssistantText
+	| agent view row start stop |
+	agent := self openAgent.
+	provider reply: #('Seven and eight.') items: {ScriptedProvider message: 'Seven and eight.'}.
+	self ask: 'count' in: agent.
+	view := self in: agent do: [agent content transcript children last].
+	self in: agent do: [
+		row := view selectionRows first.
+		start := self screenPointOf: view at: row second + (0 @ 3).
+		stop := start + ((row third widthOf: 'Seven') @ 0)].
+	self moveTo: start.
+	self inject: 2 at: start button: 1 count: 1 modifiers: 0.
+	self moveTo: stop.
+	self inject: 3 at: stop button: 1 count: 1 modifiers: 0.
+	self assert: (self waitFor: [(self in: agent do: [view selectedText]) = 'Seven']).
+	self key: $c modifiers: self commandModifier.
+	self assert: (self waitFor: [(self in: agent do: [view clipboardText]) = 'Seven'])
 ! !
 
 !AgentWindowTest methodsFor: 'tests - contexts'!

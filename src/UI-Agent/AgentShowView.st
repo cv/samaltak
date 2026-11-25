@@ -70,6 +70,7 @@ drawSelfOn: aCanvas
 	y := self headerHeight + 6.
 	self isForm ifTrue: [^aCanvas image: item object in: (x @ y extent: (self imageExtentFor: self width))].
 	aCanvas clip: (box insetBy: 1) during: [
+		self drawSelectionOn: aCanvas.
 		(self textLinesFor: self width) do: [:line |
 			aCanvas drawString: line at: x @ y font: self font color: self theme ink.
 			y := y + self font lineHeight]]
@@ -78,4 +79,13 @@ drawSelfOn: aCanvas
 !AgentShowView methodsFor: 'remote control'!
 remoteLabel
 	^item objectId, ' ', (self isForm ifTrue: [item object printString] ifFalse: [self objectText])
+! !
+
+!AgentShowView methodsFor: 'selection'!
+selectionRows
+	| rows |
+	self isForm ifTrue: [^#()].
+	rows := OrderedCollection new.
+	self appendSelectionRows: (self textLinesFor: self width) at: (self gutterWidth + 8) @ (self headerHeight + 6) font: self font to: rows.
+	^rows
 ! !
