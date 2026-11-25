@@ -155,6 +155,15 @@ deoptFlagsAt: m pc: pc
 	s := self probe: m pc: pc hash: h.
 	^s isNull ifTrue: [0] ifFalse: [s flags bitAnd: (FB_DEOPT_OTHER bitOr: FB_DEOPT_HOISTED)]
 !
+siteFlagsAt: m pc: pc
+	"flagsAt:pc: without the Float byte: for an instruction whose lower-tier code has no inline Float path, which neither sets nor clears the byte at its hash (another method's)."
+	<function>
+	<var: #pc type: 'int64_t'>
+	| s |
+	s := self siteAt: m pc: pc.
+	s isNull ifTrue: [^0 asUInt32].
+	^s flags
+!
 clear
 	<function>
 	libc memset: fbSites value: 0 size: (self sizeof: 'FeedbackSite') * FB_MAX.
