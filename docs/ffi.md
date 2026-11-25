@@ -20,7 +20,8 @@ See the [primitive audit](ffi-primitive-audit.md), the
 The shape is `#(call library symbol argumentTypes resultType)`. The library and
 symbol are case-sensitive names (Strings or Symbols, 1–127 ASCII bytes with no
 NUL). The library is a logical name, not a path. `argumentTypes` is an Array of
-zero to six type Symbols; `resultType` is a type Symbol. A binding keeps its
+zero to sixteen type Symbols, which together occupy at most sixteen native C
+slots (a slice or text argument takes two); `resultType` is a type Symbol. A binding keeps its
 immutable copy of the names and signature.
 
 | Type | Value |
@@ -28,6 +29,7 @@ immutable copy of the names and signature.
 | `i32`, `i64` | Signed Integer of the given width |
 | `u32`, `u64` | Unsigned Integer of the given width |
 | `f64` | Float (C `double`) |
+| `f32` | Float rounded to the nearest C `float`; a result answers a Float |
 | `void` | Result only; answers `nil` |
 | `byteSlice` | Argument only for `memcmp`; a read-only byte slice |
 | `bytesWithLength` | Argument for a `syncBorrow` grant or registered built-in; a read-only byte slice with its length |
@@ -39,8 +41,8 @@ immutable copy of the names and signature.
 | `integerMagnitude`, `ownedIntegerMagnitude` | Approved variable-width Integer [argument and result](ffi-owned-output.md#owned-integer-result-tag-11) |
 
 An invalid descriptor, unavailable export or signature mismatch signals
-`FFIError` at bind time. Integers must fit the declared width; `f64` requires
-a Float.
+`FFIError` at bind time. Integers must fit the declared width; `f64` and `f32`
+require a Float.
 
 A byte slice is an exact three-element Array `{aByteArray. oneBasedOffset. length}`
 with an exact `ByteArray` and `SmallInteger` offset and length. The offset is at
@@ -55,7 +57,7 @@ and copy it before retaining it or passing it to a worker.
 
 A `writableBytesWithLength` slice additionally rejects a read-only ByteArray,
 even at length zero. It supplies a writable pointer and a `uint64_t` length
-(two of the six available native slots). All arguments are checked before the
+(two of the sixteen available native slots). All arguments are checked before the
 VM enters the target. The target may write only within the validated range
 and only on the calling VM thread before returning. It must not retain or
 handoff the pointer, reenter the VM, or trigger a callback or GC. It must not
@@ -85,7 +87,8 @@ reaches the target enters it exactly once. A native status such as zero or a
 negative value, or `nil` for `void`, is a completed call, not a rejection.
 
 Platform facades use the private positional protocol: `tryInvoke0`,
-`tryInvoke1:`, `tryInvoke2:with:`, and so on up to six arguments. Like the
+`tryInvoke1:`, `tryInvoke2:with:`, and so on up to sixteen arguments
+(`tryInvoke16:with:…`). Like the
 private Array form `tryInvoke:`, these sends answer `false` only for
 pre-entry rejection. A facade may use a supported nonnative path on `false`.
 It must not retry a completed call, even if it returned zero, an error
@@ -129,7 +132,7 @@ The stable registry ID is 1024 plus the declaration key. Use the original
 primitive ID as the key and a separate key for additional variants. The
 translator rejects duplicate keys, duplicate logical names within a library,
 legacy platform names, incompatible C prototypes, and signatures exceeding
-six C slots. These are prepared calls only: an exact library, symbol,
+sixteen C slots. These are prepared calls only: an exact library, symbol,
 argument signature and result tag must match. No lookup falls through from
 these libraries to launcher grants. `vm:core` is not a valid launcher alias;
 the existing alias `core` retains its meaning. `NO_PLATFORM` and UEFI do not
@@ -219,7 +222,7 @@ sum invoke: {10. {#[1 2 3]. 2. 2}}
 
 Each `bytesWithLength` supplies one Smalltalk argument but two native
 arguments: a read-only pointer and its validated length, in that order. The
-entire call must fit in six native argument slots. By granting `syncBorrow`,
+entire call must fit in sixteen native argument slots. By granting `syncBorrow`,
 the launcher promises the function reads only within each slice and does not
 mutate, retain or hand off any borrowed bytes. The borrow ends when the call
 returns.
@@ -248,9 +251,33 @@ generates a wrapper for the target and signature on a cache miss. Each wrapper
 calls a fixed native address for that VM session. A warm invocation checks the
 binding's session-local handle without resolving the export again. The wrapper
 validates the Smalltalk arguments, places the converted values in the native
-ABI's argument registers, calls the target, and converts the result back to a
-Smalltalk object. The positional path builds neither a Smalltalk argument
-Array nor an array of converted native scalars.
+ABI's argument registers and, past them, its outgoing stack arguments, calls
+the target, and converts the result back to a Smalltalk object. The positional
+path builds neither a Smalltalk argument Array nor an array of converted native
+scalars.
+
+The wrapper follows the C calling convention lane by lane, in argument order:
+a slice or text argument is two lanes, its pointer and then its length, as two
+C parameters. Integer and pointer lanes take the integer registers, `f64` and
+`f32` lanes the floating-point registers; once a class's registers are taken,
+its later lanes go to the stack, while the other class may still use
+registers.
+
+- arm64 (AAPCS64): x0–x7 and v0–v7. Each stack lane takes an 8-byte slot (a
+  32-bit value in its low half); on Apple's arm64 ABI (macOS) stack lanes take
+  their natural size and alignment instead (4 bytes for `i32`, `u32`,
+  `f32`). Converted register lanes live in callee-saved x20–x27 and d8–d15
+  across the conversion helpers; a stack lane is written straight into the
+  outgoing area at sp.
+- x86-64 (System V): rdi, rsi, rdx, rcx, r8, r9 and xmm0–xmm7; each stack
+  lane takes an 8-byte slot, the first at rsp at the call. Register lanes stay
+  in their final registers and are spilled only around the conversion helpers;
+  stack lanes go straight to their slots.
+
+The outgoing area is part of the wrapper's frame and keeps sp 16-byte aligned
+at every call. A signature of up to six integer and eight floating-point lanes
+(any of up to six arguments) compiles to the same code as before stack
+arguments existed. A float result is widened to a double and boxed as one.
 
 Saving a snapshot does not invalidate bindings in the running VM. A restored
 binding keeps its descriptor, not native authority: on first use it must
@@ -264,8 +291,8 @@ flushing the ordinary JIT cache does not reclaim them.
 
 ### Optimizing JIT call sites
 
-In `--jit opt`, an eligible positional send can learn one prepared binding
-and call its generated wrapper directly. The binding can be computed at
+In `--jit opt`, an eligible positional send of up to sixteen arguments can
+learn one prepared binding and call its generated wrapper directly. The binding can be computed at
 run time; the send need not load a literal. A hit skips the normal Smalltalk
 send and bound-invocation primitive, not the wrapper's argument checks or
 result conversion. If the guard misses, the normal send runs instead. A
@@ -286,6 +313,7 @@ With a hosted VM and full image, run:
 tests/vm/runtime_native_grants_test.sh build/samaltak.image vm/build/samaltak
 tests/vm/wrapped_ffi_specialization_test.sh build/samaltak.image vm/build/samaltak
 tests/vm/bound_ffi_site_test.sh build/samaltak.image vm/build/samaltak
+tests/vm/ffi_arity_test.sh build/samaltak.image vm/build/samaltak
 ```
 
 The grant test covers bind-time validation and reauthorization after restore.
@@ -298,6 +326,18 @@ and resumes the same snapshot for both flag settings. Set
 `SITEFFI_TEST_LOG_DIR` to keep the witness route and counters. To skip the PTY
 portion, pass `--no-pty` after the VM path to the wrapper and site tests. Both
 scripts use `--load`, which needs file support.
+
+The arity test (part of `make test-core`) calls launcher grants of
+`tests/vm/ffi_arity_fixture.c` with 7, 8, 9, 14 (cublasSgemm's shape) and 16
+arguments of mixed integer, float, double and slice types, which use stack
+lanes on both CPUs and split a slice between a register and the stack. Each
+native hashes its arguments in order and the proof checks the hash, in the
+interpreter, baseline and optimized code; a witness run counts the bound-site
+hits, and wrong values in stack lanes must be rejected before entry. Given a
+third argument, a VM built with `-DSAMALTAK_FFI_TEST_EXPORTS`, it calls the
+approved `ffi_test_arity*` exports of the same signatures too (`make
+test-ffi-arity`). `RUN` and `CC` run another CPU's VM, e.g. an x86-64 build
+under `qemu-x86_64 -L SYSROOT` with a cross compiler.
 
 On x64 and arm64 builds compiled with `-DSAMALTAK_FFI_TEST_EXPORTS`,
 `tests/vm/writable_ffi_test.sh IMAGE VM` checks guarded native writes,
