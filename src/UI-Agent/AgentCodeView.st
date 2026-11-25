@@ -56,6 +56,7 @@ drawSelfOn: aCanvas
 	aCanvas drawString: 'Code-mode' at: x @ 4 font: (self theme font: #header) color: self theme ink.
 	aCanvas fillRect: (box left @ (self headerHeight - 1) extent: box width @ 1) color: self theme rule.
 	aCanvas clip: (box insetBy: 1) during: [
+		self drawSelectionOn: aCanvas.
 		y := self drawSourceAt: x @ (self headerHeight + 3) on: aCanvas.
 		y := y + 3.
 		x := box left + 1.
@@ -93,4 +94,22 @@ drawResultAt: aPoint on: aCanvas
 	self resultLines do: [:line |
 		aCanvas drawString: line at: x @ y font: (item result isNil ifTrue: [self theme font: #smallItalic] ifFalse: [font]) color: self theme ink.
 		y := y + font lineHeight]
+! !
+
+!AgentCodeView methodsFor: 'selection'!
+selectionRows
+	| rows sourceRows x y font |
+	rows := OrderedCollection new.
+	sourceRows := self sourceLines.
+	x := self gutterWidth + 8.
+	y := self headerHeight + 3.
+	self appendSelectionRows: sourceRows at: x @ y font: self codeFont to: rows.
+	y := y + (sourceRows size * self codeFont lineHeight) + 6.
+	font := self resultFont.
+	x := x + (font widthOf: '→ ').
+	(item failed not and: [item objectId notNil]) ifTrue: [
+		x := x + (font widthOf: item objectId) + 14].
+	self appendSelectionRows: self resultLines at: x @ y
+		font: (item result isNil ifTrue: [self theme font: #smallItalic] ifFalse: [font]) to: rows.
+	^rows
 ! !

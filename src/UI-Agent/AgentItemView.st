@@ -1,5 +1,5 @@
 Widget subclass: #AgentItemView
-	instanceVariableNames: 'item shown heights'
+	instanceVariableNames: 'item shown heights selectionAnchor selectionEnd selecting selectionWidth'
 	classVariableNames: ''
 	package: 'UI-Agent'!
 
@@ -42,6 +42,7 @@ refresh
 	state = shown ifTrue: [^self].
 	shown := state.
 	heights := nil.
+	self clearTextSelection.
 	self invalidate
 ! !
 
@@ -81,7 +82,7 @@ drawOref: anId at: aPoint on: aCanvas
 	^w
 !
 drawOverlayOn: aCanvas
-	self hasKeyboardFocus ifTrue: [
+	(self hasKeyboardFocus and: [item objectId notNil and: [item failed not]]) ifTrue: [
 		aCanvas strokeRect: ((self gutterWidth @ 0 corner: (self width - self margin) @ (self height - 8)) insetBy: 1) color: self theme ultramarine width: 2]
 ! !
 
@@ -112,10 +113,121 @@ for: anAgentItem
 
 !AgentItemView methodsFor: 'events'!
 wantsKeyboardFocus
-	^item notNil and: [item objectId notNil and: [item failed not]]
+	^item notNil and: [(item objectId notNil and: [item failed not]) or: [self selectionRows notEmpty]]
 !
 mouseDown: anEvent
-	self wantsKeyboardFocus ifFalse: [^false].
+	| offset |
+	(anEvent button = 1 and: [self wantsKeyboardFocus]) ifFalse: [^false].
 	self focus.
+	self selectionRows isEmpty ifTrue: [^true].
+	offset := self selectionOffsetAt: (self localEventPosition: anEvent).
+	(anEvent modifiers shift and: [selectionAnchor notNil and: [selectionWidth = self width]])
+		ifFalse: [selectionAnchor := offset].
+	selectionWidth := self width.
+	selectionEnd := offset.
+	selecting := true.
+	self invalidate.
 	^true
+!
+focusLost
+	super focusLost.
+	self clearTextSelection.
+	self invalidate
+!
+cursorAt: aPoint
+	^(self selectionRows anySatisfy: [:row |
+		(aPoint y >= row second y) and: [aPoint y < (row second y + row third lineHeight)]])
+			ifTrue: [#ibeam] ifFalse: [super cursorAt: aPoint]
+!
+mouseMove: anEvent
+	(selecting == true and: [selectionWidth = self width]) ifFalse: [^false].
+	selectionEnd := self selectionOffsetAt: (self localEventPosition: anEvent).
+	self invalidate.
+	^true
+!
+mouseUp: anEvent
+	selecting == true ifFalse: [^false].
+	self mouseMove: anEvent.
+	selecting := false.
+	^true
+!
+keyDown: anEvent
+	| key |
+	key := anEvent key.
+	(anEvent modifiers commandKey and: [key isCharacter]) ifTrue: [
+		key := key asLowercase.
+		(key = $c and: [self hasTextSelection]) ifTrue: [
+			self clipboardText: self selectedText.
+			^true].
+		(key = $a and: [self selectionRows notEmpty]) ifTrue: [
+			selectionAnchor := 0.
+			selectionEnd := self selectionText size.
+			selectionWidth := self width.
+			self invalidate.
+			^true]].
+	^super keyDown: anEvent
+! !
+
+!AgentItemView methodsFor: 'selection'!
+selectionRows
+	"Each row holds its displayed text, origin and font."
+	^#()
+!
+appendSelectionRows: lines at: origin font: font to: rows
+	| y |
+	y := origin y.
+	lines do: [:line |
+		rows add: {line. origin x @ y. font}.
+		y := y + font lineHeight]
+!
+selectionOffsetAt: aPoint
+	| offset |
+	offset := 0.
+	self selectionRows do: [:row | | line origin font |
+		line := row first.
+		origin := row second.
+		font := row third.
+		aPoint y < origin y ifTrue: [^offset].
+		aPoint y < (origin y + font lineHeight) ifTrue: [
+			^offset + (font indexAt: aPoint x - origin x in: line)].
+		offset := offset + line size + 1].
+	^offset - 1 max: 0
+!
+selectionText
+	| rows |
+	rows := self selectionRows.
+	^String streamContents: [:stream |
+		rows doWithIndex: [:row :i |
+			i > 1 ifTrue: [stream nextPut: Character lf].
+			stream nextPutAll: row first]]
+!
+hasTextSelection
+	^selectionAnchor notNil and: [selectionWidth = self width and: [selectionAnchor ~= selectionEnd]]
+!
+selectedText
+	self hasTextSelection ifFalse: [^''].
+	^self selectionText copyFrom: (selectionAnchor min: selectionEnd) + 1 to: (selectionAnchor max: selectionEnd)
+!
+drawSelectionOn: aCanvas
+	| start stop offset color |
+	self hasTextSelection ifFalse: [^self].
+	start := selectionAnchor min: selectionEnd.
+	stop := selectionAnchor max: selectionEnd.
+	offset := 0.
+	color := self theme color: #textSelection.
+	self selectionRows do: [:row | | line origin font a b left right |
+		line := row first.
+		origin := row second.
+		font := row third.
+		a := (start - offset) max: 0.
+		b := (stop - offset) min: line size.
+		b > a ifTrue: [
+			left := a = 0 ifTrue: [0] ifFalse: [font widthOf: (line copyFrom: 1 to: a)].
+			right := font widthOf: (line copyFrom: 1 to: b).
+			aCanvas fillRect: (origin + (left @ 0) extent: (right - left) @ font lineHeight) color: color].
+		offset := offset + line size + 1]
+!
+clearTextSelection
+	selectionAnchor := selectionEnd := selectionWidth := nil.
+	selecting := false
 ! !

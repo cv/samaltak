@@ -41,6 +41,7 @@ drawSelfOn: aCanvas
 		color := self theme ultramarine.
 		aCanvas drawString: 'Error' in: (0 @ self top extent: (self gutterWidth - 12) @ font lineHeight)
 			font: (self theme font: #uiBold) color: color align: #right].
+	self drawSelectionOn: aCanvas.
 	y := self top.
 	self lines do: [:line |
 		aCanvas drawString: line at: self gutterWidth @ y font: font color: color.
@@ -50,4 +51,12 @@ drawSelfOn: aCanvas
 !AgentMessageView methodsFor: 'testing'!
 hasRetry
 	^item kind = #error and: [item failed and: [item call isNil]]
+! !
+
+!AgentMessageView methodsFor: 'selection'!
+selectionRows
+	| rows |
+	rows := OrderedCollection new.
+	self appendSelectionRows: self lines at: self gutterWidth @ self top font: self font to: rows.
+	^rows
 ! !
