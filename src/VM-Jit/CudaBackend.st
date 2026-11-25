@@ -23,6 +23,14 @@ callAllocations: out outLength: outLength
 	<c: 'int64_t samaltak_cuda_allocations(uint8_t *out, uint64_t outLength)'>
 	^-1
 !
+callCuoptSolveStart: problem settings: settings
+	<c: 'int64_t samaltak_cuda_cuopt_solve_start(int64_t problem, int64_t settings)'>
+	^-1
+!
+callCuoptSolvePoll: job outs: outs outsLength: outsLength
+	<c: 'int64_t samaltak_cuda_cuopt_solve_poll(int64_t job, uint8_t *outs, uint64_t outsLength)'>
+	^-1
+!
 callCudartAvailable
 	<c: 'int64_t samaltak_cuda_cudart_available(void)'>
 	^-1

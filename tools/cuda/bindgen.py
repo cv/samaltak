@@ -656,6 +656,8 @@ def gen(libs):
     exports.append((800, "cuda_session", [], []))
     exports.append((801, "cuda_live", [], [("kind", "int64_t", 3)]))
     exports.append((802, "cuda_allocations", [], [("out", "uint8_t *", 9), ("outLength", "uint64_t", None)]))
+    exports.append((803, "cuda_cuopt_solve_start", [], [("problem", "int64_t", 3), ("settings", "int64_t", 3)]))
+    exports.append((804, "cuda_cuopt_solve_poll", [], [("job", "int64_t", 3), ("outs", "uint8_t *", 9), ("outsLength", "uint64_t", None)]))
     c_lib_bodies = []
     st_files = {}
     for li, lib in enumerate(libs):

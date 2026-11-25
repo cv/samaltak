@@ -3,7 +3,7 @@ ToolPane subclass: #CuOptWindow
 	classVariableNames: ''
 	package: 'Tools-CUDA'!
 
-CuOptWindow comment: 'I am the cuOpt window (World menu › Apps › GPU): NVIDIA cuOpt solving on the GPU what one edits here, as one edits it. Routing: a depot and stops on a map (CuOptRouteMap: click to add, drag to move, shift-click to remove) and a number of vehicles; each change is solved (CuOptRouting, a mixed-integer program) and the routes drawn. Linear program: the program as text (CuOptProgram: an objective, constraints, integer declarations), solved shortly after each edit, with the objective, the variables and the constraints'' activities beside it. The status bar says the problem''s size, cuOpt''s answer and how long it took. cuOptSolve blocks the VM while it runs: tenths of a second for a linear program, up to the time limit (1 s for routes) for an integer one.
+CuOptWindow comment: 'I am the cuOpt window (World menu › Apps › GPU): NVIDIA cuOpt solving on the GPU what one edits here, as one edits it. Routing: a depot and stops on a map (CuOptRouteMap: click to add, drag to move, shift-click to remove) and a number of vehicles; each change is solved (CuOptRouting, a mixed-integer program) and the routes drawn. Linear program: the program as text (CuOptProgram: an objective, constraints, integer declarations), solved shortly after each edit, with the objective, the variables and the constraints'' activities beside it. The status bar says the problem''s size, cuOpt''s answer and how long it took. cuOpt solves on a thread of its own (CuOpt solveProblem:settings:) while my window''s Process waits: the World goes on; what one does here meanwhile waits in my queue.
 
 	CuOptWindow open'!
 
@@ -202,7 +202,7 @@ showProgram
 
 !CuOptWindow methodsFor: 'status'!
 showSolving: aString
-	"Say so, and let the compositor show it before cuOpt blocks the VM."
+	"Say so, now (my Process waits for cuOpt next)."
 	| w |
 	status clear.
 	status add: 'solving on the GPU' style: #pillBusy.

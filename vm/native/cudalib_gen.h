@@ -10,6 +10,8 @@
 int64_t samaltak_cuda_session(void);
 int64_t samaltak_cuda_live(int64_t kind);
 int64_t samaltak_cuda_allocations(uint8_t *out, uint64_t outLength);
+int64_t samaltak_cuda_cuopt_solve_start(int64_t problem, int64_t settings);
+int64_t samaltak_cuda_cuopt_solve_poll(int64_t job, uint8_t *outs, uint64_t outsLength);
 int64_t samaltak_cuda_cudart_available(void);
 int64_t samaltak_cuda_cudart_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t outLength);
 int64_t samaltak_cuda_cudaRuntimeGetVersion(uint8_t *outs, uint64_t outs_len);

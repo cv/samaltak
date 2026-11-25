@@ -287,8 +287,12 @@ World menu › Apps › **GPU** (shown where `Cuda isAvailable`; `GpuTools`, pac
   copies and Smalltalk work, against 11–15 ms for a radix-2 FFT in Smalltalk (512: 50 ms). The two engines' spectra
   agree to 1e-4 and each round trip is exact to 1e-6.
 
-cuOptSolve blocks the VM (the World stops for its duration, up to the time limit): an `async` flag in the
-spec running a call on a worker thread, as NVRTC's compiles run, is the fix (`The next libraries`, Asynchrony). Tests:
+cuOpt solves on a thread of its own, so the World goes on while it does (seconds for an integer program):
+`cuda_cuopt_solve_start` checks the problem's and settings' handles, pins them (the VM refuses them to every call
+until the job ends) and runs `cuOptSolve` on a detached thread; `cuda_cuopt_solve_poll` answers 0 while it runs,
+then cuOpt's status and the solution's new handle, made on the VM's thread (`CuOpt solveProblem:settings:` polls
+every 4 ms; interrupted, it waits for the job and frees the solution). A spec flag `async` for any long call is the
+general form of the same (`The next libraries`, Asynchrony). Tests:
 `CudaShowcaseModelTest` (Tests-CUDA) and `GpuToolsTest` (Tests-Tools-CUDA, the windows with `GpuTools forced:
 false`) in test-core; `CudaShowcaseGpuTest` and `GpuToolsGpuTest` in `make test-nv`.
 

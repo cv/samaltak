@@ -94,6 +94,35 @@ testRoutingSolved
 	self assert: (r routes allSatisfy: [:route | route size <= r capacity]).
 	self assert: (r totalDistance - r result objective) abs < 1.0e-6
 !
+testSolveLeavesTheVMRunning
+	"cuOpt solves on a thread of its own: another Process runs meanwhile, and the problem is refused to any call until the job ends."
+	| ticks p r program problem settings job outs refused n |
+	CuOpt isAvailable ifFalse: [^self skip: 'no cuOpt here'].
+	ticks := 0.
+	p := self fork: [[true] whileTrue: [ticks := ticks + 1. (Delay forMilliseconds: 5) wait]] at: Processor userSchedulingPriority + 1.
+	r := (CuOptProgram fromText: (CuOptProgram examples at: 3) value) solve.
+	p terminate.
+	self assert: r hasSolution.
+	self assert: ticks > 10 description: 'nothing else ran: ' , ticks printString.
+	program := CuOptProgram fromText: (CuOptProgram examples at: 3) value.
+	n := program variables size.
+	problem := CuOptAPI cuOptCreateProblem: 1 numVariables: n objectiveSense: -1 objectiveOffset: 0.0
+		objectiveCoefficients: (CuOpt doubles: program objective) constraintMatrixRowOffsets: (CuOpt ints: {0. n}) constraintMatrixColumnIndices: (CuOpt ints: (0 to: n - 1))
+		constraintMatrixCoefficentValues: (CuOpt doubles: program rows first) constraintSense: 'L' asByteArray rhs: (CuOpt doubles: program rhs)
+		lowerBounds: (CuOpt doubles: (Array new: n withAll: 0)) upperBounds: (CuOpt doubles: (Array new: n withAll: 1)) variableTypes: (ByteArray new: n withAll: $I value).
+	settings := CuOptAPI cuOptCreateSolverSettings.
+	CuOptAPI cuOptSetParameter: settings parameterName: 'log_to_console' parameterValue: 'false'.
+	[job := CuOpt ffiSolveStart: problem settings: settings.
+	self assert: job > 0.
+	refused := [CuOptAPI cuOptGetNumVariables: problem. nil] on: CudaArgumentError do: [:e | e code].
+	self assert: refused equals: -3.
+	outs := ByteArray new: 16.
+	[(CuOpt ffiSolvePoll: job outs: outs) = 0] whileTrue: [(Delay forMilliseconds: 5) wait].
+	self assert: (CudaLibraryAPI outs: outs at: 1 kind: #int) equals: 0.
+	self assert: (CuOptAPI cuOptGetNumVariables: problem) equals: n.
+	CuOptAPI cuOptDestroySolution: (CudaLibraryAPI outs: outs at: 2 kind: #int)]
+		ensure: [CuOptAPI cuOptDestroySolverSettings: settings. CuOptAPI cuOptDestroyProblem: problem]
+!
 testProgramSolved
 	| p |
 	CuOpt isAvailable ifFalse: [^self skip: 'no cuOpt here'].

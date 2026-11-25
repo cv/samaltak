@@ -173,6 +173,8 @@ static int64_t native_cuda_cufft_plan_many(int32_t rank, const uint8_t *n, uint6
 static int64_t native_cuda_cufft_set_stream(int64_t plan, int64_t stream);
 static int64_t native_cuda_cufft_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length);
 static int64_t native_cuda_cuopt_available(void);
+static int64_t native_cuda_cuopt_solve_poll(int64_t job, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cuopt_solve_start(int64_t problem, int64_t settings);
 static int64_t native_cuda_cuopt_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length);
 static int64_t native_cuda_curand_available(void);
 static int64_t native_cuda_curand_create_generator(int32_t rng_type, uint8_t *outs, uint64_t outs_length);
@@ -893,6 +895,14 @@ static int64_t native_cuda_live_entry_witness(int64_t a1) {
 static int64_t native_cuda_allocations_entry_witness(uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 1826\n");
     return native_cuda_allocations(a1, a2);
+}
+static int64_t native_cuda_cuopt_solve_start_entry_witness(int64_t a1, int64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1827\n");
+    return native_cuda_cuopt_solve_start(a1, a2);
+}
+static int64_t native_cuda_cuopt_solve_poll_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1828\n");
+    return native_cuda_cuopt_solve_poll(a1, a2, a3);
 }
 static int64_t native_cuda_cudart_available_entry_witness(void) {
     fprintf(stderr, "\nffi-native-entry 1829\n");
@@ -1757,6 +1767,18 @@ static int32_t ffi_approved_core(const char *approved_name, const uint8_t *signa
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_allocations_entry_witness;
         return 1826;
+    }
+    if (strcmp((const char *) signature, "\003\003\003") == 0 && strcmp(approved_name, "cuda_cuopt_solve_start") == 0) {
+        *target_out = (uint64_t) native_cuda_cuopt_solve_start;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuopt_solve_start_entry_witness;
+        return 1827;
+    }
+    if (strcmp((const char *) signature, "\003\011\003") == 0 && strcmp(approved_name, "cuda_cuopt_solve_poll") == 0) {
+        *target_out = (uint64_t) native_cuda_cuopt_solve_poll;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cuopt_solve_poll_entry_witness;
+        return 1828;
     }
     if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_cudart_available") == 0) {
         *target_out = (uint64_t) native_cuda_cudart_available;
@@ -3741,6 +3763,18 @@ static int64_t native_cuda_cufft_status_text(int64_t status, int64_t kind, uint8
 static int64_t native_cuda_cuopt_available(void)
 {
     return samaltak_cuda_cuopt_available();
+}
+
+/* FFIPrimitives>>nativeCudaCuoptSolvePoll:outs:outsLength: */
+static int64_t native_cuda_cuopt_solve_poll(int64_t job, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cuopt_solve_poll(job, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCuoptSolveStart:settings: */
+static int64_t native_cuda_cuopt_solve_start(int64_t problem, int64_t settings)
+{
+    return samaltak_cuda_cuopt_solve_start(problem, settings);
 }
 
 /* FFIPrimitives>>nativeCudaCuoptStatusText:kind:out:outLength: */

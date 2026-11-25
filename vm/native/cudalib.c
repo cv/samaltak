@@ -5,6 +5,7 @@
 #if !defined(SAMALTAK_UEFI)
 
 #include <dlfcn.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,7 +52,8 @@ int64_t cudalib_missing(int lib) {
 }
 
 /* Handles: id = serial << 12 | slot, the serial new for each handle, so a stale or forged id names nothing. */
-static struct { void *p; int64_t tag; uint32_t serial; int type; } handles[SAMALTAK_CUDA_HANDLES];
+/* pinned: in use by a call running on a thread of its own (cuOptSolve's), so not usable, nor freed, until it ends. */
+static struct { void *p; int64_t tag; uint32_t serial; int type; int pinned; } handles[SAMALTAK_CUDA_HANDLES];
 static uint32_t handleSerial;
 static int liveHandles;
 
@@ -76,7 +78,7 @@ static int slot_of(int64_t id) {
 int cudalib_handle_get(int type, int64_t id, int nullable, void **p, int64_t *tag) {
     if (id == 0 && nullable) { *p = NULL; *tag = 0; return 1; }
     int s = slot_of(id);
-    if (s < 0 || handles[s].type != type) return 0;
+    if (s < 0 || handles[s].type != type || handles[s].pinned) return 0;
     *p = handles[s].p; *tag = handles[s].tag;
     return 1;
 }
@@ -261,6 +263,98 @@ int64_t samaltak_cuda_session(void) {
         session = (int64_t)(x >> 2) | 1;
     }
     return session;
+}
+
+/* cuOptSolve on a thread of its own, so the VM goes on while cuOpt solves (seconds for an integer program):
+   start checks the problem and settings handles and pins them (no call can use or free them until the job is polled
+   done), and runs cuOptSolve on a detached thread; poll answers 0 while it runs, then 1 with cuOpt's status and the
+   solution's new handle (tagged with the problem's variable count, as the sync cuOptSolve's) in outs. The thread
+   touches neither table: the VM thread pins, unpins and makes the handle. */
+#define CUOPT_JOBS 8
+typedef int32_t (*CuOptSolveFn)(void *, void *, void **);
+static struct { int used, done; CuOptSolveFn fn; void *problem, *settings, *solution; int64_t ids[2], tag; int32_t status; } cuoptJobs[CUOPT_JOBS];
+static pthread_mutex_t cuoptLock = PTHREAD_MUTEX_INITIALIZER;
+
+static int lib_named(const char *name) {
+    for (int i = 0; i < SAMALTAK_CUDA_LIBS; i++) if (!strcmp(cudalib_names[i], name)) return i;
+    return -1;
+}
+
+static int handle_type_named(const char *name) {
+    for (int i = 1; i <= SAMALTAK_CUDA_HANDLE_TYPES; i++) if (!strcmp(cudalib_handle_names[i], name)) return i;
+    return 0;
+}
+
+static void pin(int64_t id, int on) {
+    int s = slot_of(id);
+    if (s >= 0) handles[s].pinned = on;
+}
+
+static void *cuopt_run(void *arg) {
+    int k = (int)(intptr_t)arg;
+    int32_t status = cuoptJobs[k].fn(cuoptJobs[k].problem, cuoptJobs[k].settings, &cuoptJobs[k].solution);
+    pthread_mutex_lock(&cuoptLock);
+    cuoptJobs[k].status = status;
+    cuoptJobs[k].done = 1;
+    pthread_mutex_unlock(&cuoptLock);
+    return NULL;
+}
+
+int64_t samaltak_cuda_cuopt_solve_start(int64_t problem, int64_t settings) {
+    int lib = lib_named("cuopt");
+    if (lib < 0) return SAMALTAK_CUDA_REJECT_UNAVAILABLE;
+    CuOptSolveFn fn = (CuOptSolveFn)cudalib_symbol(lib, "cuOptSolve");
+    if (!fn) return cudalib_missing(lib);
+    void *p, *s; int64_t tag, unused;
+    if (!cudalib_handle_get(handle_type_named("cuOptOptimizationProblem"), problem, 0, &p, &tag)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_handle_get(handle_type_named("cuOptSolverSettings"), settings, 0, &s, &unused)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    int k = 0;
+    pthread_mutex_lock(&cuoptLock);
+    while (k < CUOPT_JOBS && cuoptJobs[k].used) k++;
+    if (k == CUOPT_JOBS) { pthread_mutex_unlock(&cuoptLock); return SAMALTAK_CUDA_REJECT_FULL; }
+    memset(&cuoptJobs[k], 0, sizeof cuoptJobs[k]);
+    cuoptJobs[k].used = 1; cuoptJobs[k].fn = fn; cuoptJobs[k].problem = p; cuoptJobs[k].settings = s;
+    cuoptJobs[k].ids[0] = problem; cuoptJobs[k].ids[1] = settings; cuoptJobs[k].tag = tag;
+    pthread_mutex_unlock(&cuoptLock);
+    pin(problem, 1);
+    pin(settings, 1);
+    pthread_t t;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    pthread_attr_setstacksize(&attr, 64u << 20);
+    int failed = pthread_create(&t, &attr, cuopt_run, (void *)(intptr_t)k);
+    pthread_attr_destroy(&attr);
+    if (failed) {
+        pin(problem, 0); pin(settings, 0);
+        pthread_mutex_lock(&cuoptLock); cuoptJobs[k].used = 0; pthread_mutex_unlock(&cuoptLock);
+        return SAMALTAK_CUDA_REJECT_FULL;
+    }
+    return k + 1;
+}
+
+int64_t samaltak_cuda_cuopt_solve_poll(int64_t job, uint8_t *outs, uint64_t outsLength) {
+    if (job < 1 || job > CUOPT_JOBS) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    if (outsLength < 16) return SAMALTAK_CUDA_REJECT_SLICE;
+    int k = (int)job - 1;
+    pthread_mutex_lock(&cuoptLock);
+    int used = cuoptJobs[k].used, done = cuoptJobs[k].done;
+    pthread_mutex_unlock(&cuoptLock);
+    if (!used) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    if (!done) return 0;
+    pin(cuoptJobs[k].ids[0], 0);
+    pin(cuoptJobs[k].ids[1], 0);
+    int64_t id = 0;
+    if (cuoptJobs[k].status == 0 && cuoptJobs[k].solution) {
+        id = cudalib_handle_new(handle_type_named("cuOptSolution"), cuoptJobs[k].solution, cuoptJobs[k].tag);
+        if (id < 0) id = 0;
+    }
+    cudalib_put_i64(outs, 0, cuoptJobs[k].status);
+    cudalib_put_i64(outs, 1, id);
+    pthread_mutex_lock(&cuoptLock);
+    cuoptJobs[k].used = 0;
+    pthread_mutex_unlock(&cuoptLock);
+    return 1;
 }
 
 /* 0: live device allocations; 1: live handles; 2: bytes allocated. */

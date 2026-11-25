@@ -7,6 +7,8 @@
 int64_t samaltak_cuda_session(void) {  return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
 int64_t samaltak_cuda_live(int64_t kind) { (void)kind; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
 int64_t samaltak_cuda_allocations(uint8_t *out, uint64_t outLength) { (void)out; (void)outLength; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cuopt_solve_start(int64_t problem, int64_t settings) { (void)problem; (void)settings; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cuopt_solve_poll(int64_t job, uint8_t *outs, uint64_t outsLength) { (void)job; (void)outs; (void)outsLength; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
 int64_t samaltak_cuda_cudart_available(void) {  return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
 int64_t samaltak_cuda_cudart_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t outLength) { (void)status; (void)kind; (void)out; (void)outLength; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
 int64_t samaltak_cuda_cudaRuntimeGetVersion(uint8_t *outs, uint64_t outs_len) { (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }

@@ -20,6 +20,23 @@ nativeCudaAllocations: out outLength: outLength
 	<returns: 'int64_t'>
 	^cudaBackend callAllocations: out outLength: outLength
 !
+nativeCudaCuoptSolveStart: problem settings: settings
+	<function>
+	<approvedFFI: 803 symbol: 'cuda_cuopt_solve_start' arguments: #(3 3) result: 3>
+	<var: #problem type: 'int64_t'>
+	<var: #settings type: 'int64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCuoptSolveStart: problem settings: settings
+!
+nativeCudaCuoptSolvePoll: job outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 804 symbol: 'cuda_cuopt_solve_poll' arguments: #(3 9) result: 3>
+	<var: #job type: 'int64_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCuoptSolvePoll: job outs: outs outsLength: outsLength
+!
 nativeCudaCudartAvailable
 	<function>
 	<approvedFFI: 805 symbol: 'cuda_cudart_available' arguments: #() result: 3>

@@ -116,6 +116,17 @@ testComparisonFormats
 	self assert: (CudaComparison rate: 4.8e10 unit: ' numbers/s') equals: '48.0 G numbers/s'.
 	self assert: (CudaComparison format: 2.3e-6) equals: '2.3e-6'
 !
+testSolveJobsAreChecked
+	"A job the VM did not start is refused (or the export is missing)."
+	| r |
+	r := [CuOpt ffiSolvePoll: 5 outs: (ByteArray new: 16)] on: Error do: [:e | e return: false].
+	CudaLibraryAPI session = 0 ifTrue: [^self assert: r == false].
+	self assert: r equals: -7.
+	r := CuOpt ffiSolvePoll: 99 outs: (ByteArray new: 16).
+	self assert: r equals: -7.
+	r := CuOpt ffiSolvePoll: 1 outs: (ByteArray new: 8).
+	self assert: r equals: -5
+!
 testTraceRecordsWhileOn
 	| t e |
 	CudaTrace reset.
