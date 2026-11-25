@@ -3,7 +3,7 @@ Object subclass: #CuOptResult
 	classVariableNames: ''
 	package: 'System-CUDA'!
 
-CuOptResult comment: 'I am what cuOpt answered for a linear program (CuOpt): its termination status (statusName: Optimal, Infeasible, ...), the objective''s value, the variables'' values and the solver''s seconds.'!
+CuOptResult comment: 'I am what cuOpt answered for a linear program (CuOpt): its termination status (statusName: Optimal, Infeasible, ...), the objective''s value, the variables'' values (nil without a solution, e.g. an infeasible problem) and the solver''s seconds.'!
 
 !CuOptResult methodsFor: 'accessing'!
 setStatus: anInteger objective: aFloat values: anArray seconds: aNumber

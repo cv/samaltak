@@ -238,8 +238,10 @@ test-ffi-display: $(TEST_IMAGE)
 # there is none. Fails, saying so, without a GPU. NvGpuMeasure reports launch latency and copy bandwidth. Then the
 # raster kernels (gpu/nv, docs/nv-kernels.md) on the GPU against PlatformRaster (tests/nv/run.sh: needs the driver,
 # not nvcc).
+# cuOpt is no CUDA toolkit library: its wheel's lib64 (docs/cuda.md), where it is installed, adds CuOptGpuTest.
+CUOPT_LIB ?= $(wildcard $(HOME)/.local/share/samaltak-cuopt/venv/lib/python3.12/site-packages/libcuopt_mathopt/lib64)
 test-nv: $(TEST_IMAGE)
-	tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvComputeGPUTest NvFragmentShaderTest CudaGpuTest
+	SAMALTAK_CUDA_LIBS=$(CUOPT_LIB) tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvComputeGPUTest NvFragmentShaderTest CudaGpuTest $(if $(CUOPT_LIB),CuOptGpuTest)
 	tests/rerun.sh nv-kernels tests/nv/run.sh $(OUT)
 # test-tools's parts run at once too (TEST_TOOLS_JOBS, all by default; 1: one after another), the longest first, each
 # holding a test slot and, with SAMALTAK_TEST_XVFB=1 (tests/stages.sh), on an Xvfb of its own (tests/with-display).

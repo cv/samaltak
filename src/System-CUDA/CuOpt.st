@@ -45,11 +45,11 @@ solve: objective sense: aSymbol rows: rows senses: aString rhs: rhs lower: lower
 	[CuOptAPI cuOptSetParameter: settings parameterName: 'log_to_console' parameterValue: 'false'] on: CudaError do: [:e | nil].
 	solution := CuOptAPI cuOptSolve: problem settings: settings.
 	x := ByteArray new: n * 8.
-	CuOptAPI cuOptGetPrimalSolution: solution solutionValues: x.
+	[CuOptAPI cuOptGetPrimalSolution: solution solutionValues: x] on: CudaError do: [:e | x := nil].
 	result := CuOptResult new
 		setStatus: (CuOptAPI cuOptGetTerminationStatus: solution)
 		objective: (CuOptAPI cuOptGetObjectiveValue: solution)
-		values: ((1 to: n) collect: [:i | x float64At: i - 1 * 8 + 1])
+		values: (x ifNotNil: [(1 to: n) collect: [:i | x float64At: i - 1 * 8 + 1]])
 		seconds: (CuOptAPI cuOptGetSolveTime: solution)]
 		ensure: [
 			solution ifNotNil: [CuOptAPI cuOptDestroySolution: solution].

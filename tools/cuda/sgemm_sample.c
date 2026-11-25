@@ -1,9 +1,11 @@
 /* CUDA's own SGEMM, the baseline for Samaltak's binding (docs/cuda.md): n x n single precision,
    operands filled by cuRAND, timed with CUDA events. Build: cc -O2 -I/usr/local/cuda/include tools/cuda/sgemm_sample.c
-   -L/usr/local/cuda/lib64 -lcublas -lcurand -lcudart -o sgemm_sample; run: ./sgemm_sample [n] [reps]. */
+   -L/usr/local/cuda/lib64 -lcublas -lcurand -lcudart -ldl -o sgemm_sample; run: ./sgemm_sample [n] [reps] [cpu]: with cpu,
+   also the CPU's sgemm_ of the system BLAS (libblas.so.3: Ubuntu's reference BLAS here, unless an optimized one is installed). */
 #include <cublas_v2.h>
 #include <cuda_runtime_api.h>
 #include <curand.h>
+#include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -33,13 +35,33 @@ int main(int argc, char **argv) {
     double w0 = now();
     CHECK(cudaEventRecord(e0, 0));
     for (int i = 0; i < reps; i++) CHECK(cublasSgemm(h, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &alpha, a, n, b, n, &beta, c, n));
+    double queued = now() - w0;
     CHECK(cudaEventRecord(e1, 0));
     CHECK(cudaEventSynchronize(e1));
     double wall = now() - w0;
     CHECK(cudaEventElapsedTime(&ms, e0, e1));
     double flops = 2.0 * n * n * (double)n;
-    printf("n=%d reps=%d init=%.3fs gpu=%.3fms/gemm wall=%.3fms/gemm tflops=%.2f\n", n, reps, tInit, ms / reps,
-           wall * 1e3 / reps, flops / (ms / reps * 1e-3) / 1e12);
+    printf("n=%d reps=%d init=%.3fs gpu=%.3fms/gemm wall=%.3fms/gemm tflops=%.2f queue=%.2fus/call\n", n, reps, tInit, ms / reps,
+           wall * 1e3 / reps, flops / (ms / reps * 1e-3) / 1e12, queued * 1e6 / reps);
+    int dev = 0;
+    double d0 = now();
+    for (int i = 0; i < 100000; i++) CHECK(cudaGetDevice(&dev));
+    printf("cudaGetDevice: %.3fus/call\n", (now() - d0) * 10);
+    if (argc > 3) {
+        void *blas = dlopen("libblas.so.3", RTLD_NOW);
+        void (*sgemm)(const char *, const char *, const int *, const int *, const int *, const float *, const float *,
+                      const int *, const float *, const int *, const float *, float *, const int *) =
+            blas ? (void (*)(const char *, const char *, const int *, const int *, const int *, const float *, const float *,
+                             const int *, const float *, const int *, const float *, float *, const int *))dlsym(blas, "sgemm_") : NULL;
+        float *x = malloc(bytes), *y = malloc(bytes), *z = malloc(bytes);
+        for (size_t i = 0; i < (size_t)n * n; i++) { x[i] = (float)(i % 7) / 7; y[i] = (float)(i % 5) / 5; }
+        if (sgemm && x && y && z) {
+            double c0 = now();
+            sgemm("N", "N", &n, &n, &n, &alpha, x, &n, y, &n, &beta, z, &n);
+            double t = now() - c0;
+            printf("cpu libblas.so.3 sgemm_ n=%d: %.3fs %.2f GFLOPS\n", n, t, flops / t / 1e9);
+        }
+    }
     cublasDestroy(h); curandDestroyGenerator(g); cudaFree(a); cudaFree(b); cudaFree(c);
     return 0;
 }

@@ -3,7 +3,7 @@ TestCase subclass: #CudaGpuTest
 	classVariableNames: ''
 	package: 'Tests-CUDA'!
 
-CudaGpuTest comment: 'Tests System-CUDA on the GPU through NVIDIA''s CUDA libraries (libcudart, cuBLAS, cuRAND; cuOpt where SAMALTAK_CUDA_LIBS finds it): device memory, copies, gemm against a Smalltalk product, the VM''s checks of device extents and host buffers, error names, events. Needs a GPU and the CUDA toolkit''s libraries, so it does not run by default (runsByDefault): make test-nv runs it. Each test releases what it allocates.'!
+CudaGpuTest comment: 'Tests System-CUDA on the GPU through NVIDIA''s CUDA libraries (libcudart, cuBLAS, cuRAND; CuOptGpuTest has cuOpt): device memory, copies, gemm against a Smalltalk product, the VM''s checks of device extents and host buffers, error names, events. Needs a GPU and the CUDA toolkit''s libraries, so it does not run by default (runsByDefault): make test-nv runs it. Each test releases what it allocates.'!
 
 !CudaGpuTest class methodsFor: 'testing'!
 runsByDefault
@@ -132,12 +132,4 @@ testEventTiming
 	self assert: ms >= 0.
 	self assert: ms < 10000]
 		ensure: [a release. b release. c release. start ifNotNil: [start release]. stop ifNotNil: [stop release]]
-!
-testLinearProgram
-	| r |
-	CuOpt isAvailable ifFalse: [^self skip: 'no cuOpt here (SAMALTAK_CUDA_LIBS: the libcuopt wheel''s lib64)'].
-	r := CuOpt maximize: #(3 5) subjectTo: #(#(1 0) #(0 2) #(3 2)) atMost: #(4 12 18).
-	self assert: r isOptimal.
-	self assert: (r objective - 36) abs < 1.0e-6.
-	self assert: ((r values first - 2) abs < 1.0e-6 and: [(r values last - 6) abs < 1.0e-6])
 ! !
