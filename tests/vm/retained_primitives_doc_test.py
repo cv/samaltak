@@ -12,9 +12,10 @@ ROOT = Path(__file__).resolve().parents[2]
 BASES = ("necessity", "policy")
 IMAGE_DISPLAY_IDS = set(range(200, 207))
 # The fork's primitives (cv/samaltak), registered after the audit and outside it, as 422 is; upstream's registry has
-# 185 slots. One retired or added here changes this list and the catalog's fork-total and sdl-total.
+# 185 slots. One retired or added here changes this list and the catalog's fork-total and sdl-total. Retired into
+# typed vm:core exports (docs/ffi-fork.md), their numbers not reused: 119 and 122 (core_bytes_mismatch, _last_mismatch).
 FORK_PRIMITIVES = {
-    119: "bytesMismatch", 122: "bytesLastMismatch", 147: "samplerBuffer", 207: "pngFilter", 208: "zlibMatches",
+    147: "samplerBuffer", 207: "pngFilter", 208: "zlibMatches",
     210: "zlibWriteTokens", 212: "rawBytesReplace", 213: "pixelsPack", 214: "zrleTiles",
     462: "gpuUploadTextureAddress", 463: "windowPresentAddress", 485: "rasterQuadBounds",
     590: "deviceOpen", 591: "deviceClose", 592: "deviceIoctl", 593: "deviceMap", 594: "deviceUnmap",

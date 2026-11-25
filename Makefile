@@ -426,7 +426,7 @@ uefi-control: uefi
 UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest ContextTest ExceptionTest FloatTest FractionTest \
 	HashingTest ImmutabilityTest IntegerTest LazyContextTest MarriedContextTest MessageNotUnderstoodTest ObjectTest ProcessTest \
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \
-	Amd64DisassemblerTest Arm64DisassemblerTest ByteSearchTest FFIBindingTest \
+	Amd64DisassemblerTest Arm64DisassemblerTest ByteSearchTest FFIBindingTest CoreBytesFFITest \
 	GitHubClientTest SourceFilerGitHubTest SourceUpdateTest PosixDeviceTest ZLibTest PNGCodecTest AgentImageTest \
 	SoftwareGPUTest FrameTapTest PixelPackTest
 UEFI_WORLD := | w t | w := UIWindows startUp. RemoteInputDevice default inject: {1. nil. 123. 45. 0. 0. nil. w displayWindow windowId}. t := Time millisecondClockValue. [w dispatcher pointer = (123 @ 45) or: [Time millisecondClockValue - t > 20000]] whileFalse: [(Delay forMilliseconds: 50) wait]. Smalltalk vm stderrWrite: 'world ', w extent printString, ' ', Renderer default device isSoftware printString, ' ', w dispatcher pointer rounded printString, (String with: Character lf)

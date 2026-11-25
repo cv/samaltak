@@ -67,6 +67,8 @@ static void invoke_bound_array(oop args);
 static bool marshal(oop o, int32_t tag, uint64_t *out);
 static bool marshal_compare(oop array, uint64_t *words);
 static double native_atan(double x);
+static int64_t native_bytes_last_mismatch(const uint8_t *a, uint64_t a_size, int64_t start, const uint8_t *b, uint64_t b_size, int64_t other_start, int64_t n);
+static int64_t native_bytes_mismatch(const uint8_t *a, uint64_t a_size, int64_t start, const uint8_t *b, uint64_t b_size, int64_t other_start, int64_t n);
 static int32_t native_compare(const void *a, const void *b, uint64_t count);
 static double native_cos(double x);
 static int64_t native_crypto_aead(int64_t op_bits, const uint8_t *nonce_aad_bytes, uint64_t nonce_aad_bytes_len, uint8_t *text_bytes, uint64_t text_bytes_len);
@@ -257,6 +259,7 @@ static ffi_owned_row *owned_row(uint64_t ticket);
 static int32_t owned_size(uint64_t ticket);
 static int32_t owned_test(uint64_t ticket, int32_t mode);
 static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_out, bool *untryable, bool static_only);
+static bool range(int64_t start, int64_t n, uint64_t size);
 static void remember_static(oop owner, uint64_t entry, int32_t n);
 static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, const uint8_t *symbol, size_t sym_len, const uint8_t *tags, int32_t n, int32_t result, bool prepared, uint64_t *target);
 static void trace_bound_primitive(void);
@@ -805,6 +808,14 @@ static double native_float_fraction_part_entry_witness(double a1) {
 static int32_t native_float_print_string_entry_witness(double a1, uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1085\n");
     return native_float_print_string(a1, a2, a3);
+}
+static int64_t native_bytes_mismatch_entry_witness(const uint8_t *a1, uint64_t a2, int64_t a3, const uint8_t *a4, uint64_t a5, int64_t a6, int64_t a7) {
+    fprintf(stderr, "\nffi-native-entry 1143\n");
+    return native_bytes_mismatch(a1, a2, a3, a4, a5, a6, a7);
+}
+static int64_t native_bytes_last_mismatch_entry_witness(const uint8_t *a1, uint64_t a2, int64_t a3, const uint8_t *a4, uint64_t a5, int64_t a6, int64_t a7) {
+    fprintf(stderr, "\nffi-native-entry 1146\n");
+    return native_bytes_last_mismatch(a1, a2, a3, a4, a5, a6, a7);
 }
 static int64_t native_utc_microseconds_entry_witness(void) {
     fprintf(stderr, "\nffi-native-entry 1176\n");
@@ -1629,6 +1640,18 @@ static int32_t ffi_approved_core(const char *approved_name, const uint8_t *signa
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_float_print_string_entry_witness;
         return 1085;
+    }
+    if (strcmp((const char *) signature, "\021\003\021\003\003\003") == 0 && strcmp(approved_name, "core_bytes_mismatch") == 0) {
+        *target_out = (uint64_t) native_bytes_mismatch;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_bytes_mismatch_entry_witness;
+        return 1143;
+    }
+    if (strcmp((const char *) signature, "\021\003\021\003\003\003") == 0 && strcmp(approved_name, "core_bytes_last_mismatch") == 0) {
+        *target_out = (uint64_t) native_bytes_last_mismatch;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_bytes_last_mismatch_entry_witness;
+        return 1146;
     }
     if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "core_utc_microseconds") == 0) {
         *target_out = (uint64_t) native_utc_microseconds;
@@ -3115,6 +3138,26 @@ static bool marshal_compare(oop array, uint64_t *words)
 static double native_atan(double x)
 {
     return atan(x);
+}
+
+/* FFIPrimitives>>nativeBytesLastMismatch:size:at:with:size:at:count: */
+static int64_t native_bytes_last_mismatch(const uint8_t *a, uint64_t a_size, int64_t start, const uint8_t *b, uint64_t b_size, int64_t other_start, int64_t n)
+{
+    if (!(range(start, n, a_size) && range(other_start, n, b_size))) {
+        return -1;
+    }
+    return last_mismatch_of((uint8_t *)a + (start - 1), (uint8_t *)b + (other_start - 1), n) + 1;
+}
+
+/* FFIPrimitives>>nativeBytesMismatch:size:at:with:size:at:count: */
+static int64_t native_bytes_mismatch(const uint8_t *a, uint64_t a_size, int64_t start, const uint8_t *b, uint64_t b_size, int64_t other_start, int64_t n)
+{
+    int64_t k;
+    if (!(range(start, n, a_size) && range(other_start, n, b_size))) {
+        return -1;
+    }
+    k = mismatch_of((uint8_t *)a + (start - 1), (uint8_t *)b + (other_start - 1), 0, n);
+    return k == n ? 0 : k + 1;
 }
 
 /* FFIPrimitives>>nativeCompare:with:count: */
@@ -4988,6 +5031,12 @@ void ffi_primitives_print_bound_site_trace(void)
     if (bound_site_trace) {
         fprintf(stderr, "ffi-site trace hits=%llu misses=%llu primitive=%llu\n", (unsigned long long)bound_trace_counts[0], (unsigned long long)bound_trace_counts[1], (unsigned long long)bound_trace_counts[2]);
     }
+}
+
+/* FFIPrimitives>>range:count:within: */
+static bool range(int64_t start, int64_t n, uint64_t size)
+{
+    return (start >= 1) && ((n >= 0) && (((uint64_t)(start - 1) <= size) && ((uint64_t)n <= size - (uint64_t)(start - 1))));
 }
 
 /* FFIPrimitives>>rememberStatic:entry:arity: */

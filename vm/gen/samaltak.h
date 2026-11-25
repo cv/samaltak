@@ -2229,8 +2229,6 @@ void prim_bytes_float64_at(void);
 void prim_bytes_float64_at_put(void);
 void prim_bytes_int16_at(void);
 void prim_bytes_int16_big_endian_at(void);
-void prim_bytes_last_mismatch(void);
-void prim_bytes_mismatch(void);
 void prim_bytes_uint16_at(void);
 void prim_bytes_uint16_big_endian_at(void);
 void prim_bytes_uint32_at(void);

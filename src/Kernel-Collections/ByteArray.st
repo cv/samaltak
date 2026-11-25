@@ -18,15 +18,31 @@ compareBytes: aByteArray
 	^self size < aByteArray size ifTrue: [-1] ifFalse: [self size > aByteArray size ifTrue: [1] ifFalse: [0]]
 !
 indexOfMismatchAt: start with: anObject at: otherStart size: n
-	"The first i in 1 .. n where my byte start + i - 1 differs from anObject's byte otherStart + i - 1, or 0 if none does: two ranges compared in place, 16 bytes at a time (the bytesMismatch primitive; anObject bytes, or a Bitmap's words as the CPU stores them). An error if a range is outside."
-	<primitive: 'bytesMismatch'>
+	"The first i in 1 .. n where my byte start + i - 1 differs from anObject's byte otherStart + i - 1, or 0 if none does: two ranges compared in place, 16 bytes at a time (the VM's core_bytes_mismatch; anObject bytes, or a Bitmap's words as the CPU stores them). An error if a range is outside."
+	<ffiSite>
+	| k |
+	k := (self ffiSite: #(call 'vm:core' 'core_bytes_mismatch' (rawBytesWithLength i64 rawBytesWithLength i64 i64) i64))
+		tryInvoke5: self with: start with: anObject with: otherStart with: n.
+	(k == false or: [k < 0]) ifFalse: [^k].
+	^self indexOfMismatchInSmalltalkAt: start with: anObject at: otherStart size: n
+!
+indexOfMismatchInSmalltalkAt: start with: anObject at: otherStart size: n
+	"indexOfMismatchAt:with:at:size: one byte at a time, where the VM's cannot (anObject has pointers; a range is outside: an error)."
 	(start >= 1 and: [otherStart >= 1 and: [n >= 0 and: [start + n - 1 <= self size and: [otherStart + n - 1 <= anObject size]]]]) ifFalse: [^self error: 'range outside'].
 	1 to: n do: [:i | (self at: start + i - 1) = (anObject at: otherStart + i - 1) ifFalse: [^i]].
 	^0
 !
 lastIndexOfMismatchAt: start with: anObject at: otherStart size: n
-	"The last i in 1 .. n where my byte start + i - 1 differs from anObject's byte otherStart + i - 1, or 0 if none does (the bytesLastMismatch primitive; see indexOfMismatchAt:with:at:size:)."
-	<primitive: 'bytesLastMismatch'>
+	"The last i in 1 .. n where my byte start + i - 1 differs from anObject's byte otherStart + i - 1, or 0 if none does (the VM's core_bytes_last_mismatch; see indexOfMismatchAt:with:at:size:)."
+	<ffiSite>
+	| k |
+	k := (self ffiSite: #(call 'vm:core' 'core_bytes_last_mismatch' (rawBytesWithLength i64 rawBytesWithLength i64 i64) i64))
+		tryInvoke5: self with: start with: anObject with: otherStart with: n.
+	(k == false or: [k < 0]) ifFalse: [^k].
+	^self lastIndexOfMismatchInSmalltalkAt: start with: anObject at: otherStart size: n
+!
+lastIndexOfMismatchInSmalltalkAt: start with: anObject at: otherStart size: n
+	"lastIndexOfMismatchAt:with:at:size: one byte at a time, where the VM's cannot."
 	(start >= 1 and: [otherStart >= 1 and: [n >= 0 and: [start + n - 1 <= self size and: [otherStart + n - 1 <= anObject size]]]]) ifFalse: [^self error: 'range outside'].
 	n to: 1 by: -1 do: [:i | (self at: start + i - 1) = (anObject at: otherStart + i - 1) ifFalse: [^i]].
 	^0
