@@ -14,11 +14,11 @@ title
 !
 content
 	view isNil ifTrue: [
-		AgentWindow account == OpenAIAccount default ifTrue: [OpenAIAccount default keepIn: AgentWindow accountPath].
+		AgentWindow keepSignIn.
 		view := AgentWindow new
 			setConversation: (AgentConversation on: (AgentContext new label: 'Samaltak'; yourself))
 			origin: nil
-			account: AgentWindow account].
+			account: AgentWindow accountSetting].
 	^view
 !
 extent

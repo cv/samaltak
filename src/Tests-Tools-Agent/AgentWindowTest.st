@@ -190,6 +190,52 @@ testSignInFromTheLoginCard
 	self assert: (self waitFor: [self in: agent do: [card isVisible not and: [view transcript owner isVisible]]]) description: 'the transcript did not come back'.
 	self assert: account isSignedIn
 !
+testApiKeyAccount
+	"Configured without its key: the card says how the host sends it; the key arriving (from the control connection) brings the transcript; the status bar shows the model and the provider; Sign out forgets the key."
+	| keyAccount agent view card status |
+	keyAccount := ApiKeyAccount new.
+	keyAccount providerName: 'test' baseURL: 'https://models.example' model: 'claude-test' thinking: 'high' maxTokens: 1000.
+	AgentWindow account: keyAccount.
+	agent := self open: [AgentWindow openOn: (AgentConversation new provider: (AnthropicProvider new account: keyAccount; yourself); yourself) origin: nil in: (100 @ 60 extent: 720 @ 700)].
+	view := agent content.
+	card := view loginCard.
+	status := self named: 'status' in: view.
+	self assert: (self waitFor: [self in: agent do: [card isVisible and: [card isShowingKeyHelp]]]) description: 'no key help'.
+	self assert: (self in: agent do: [card title]) equals: 'The agent needs the API key for claude-test at test.'.
+	self deny: (self in: agent do: [card signInButton owner isVisible]).
+	self assert: ((self in: agent do: [status fullText]) includesSubstring: 'test (no key)').
+	keyAccount apiKey: 'sk-test-window' copy.
+	self assert: (self waitFor: [self in: agent do: [card isVisible not and: [view transcript owner isVisible]]]) description: 'the key did not show the transcript'.
+	self assert: ((self in: agent do: [status fullText]) includesSubstring: 'claude-test').
+	self deny: ((self in: agent do: [status fullText]) includesSubstring: 'no key').
+	self in: agent do: [(self named: 'sign-out' in: view) click].
+	self assert: (self waitFor: [self in: agent do: [card isVisible and: [card isShowingKeyHelp]]]) description: 'signing out did not forget the key'.
+	self deny: keyAccount isSignedIn.
+	self assert: keyAccount isConfigured.
+	agent close.
+	keyAccount forgetKey
+!
+testDefaultAccount
+	"An Agent window uses ApiKeyAccount default once it is configured, else the ChatGPT account."
+	| previous keyAccount |
+	previous := ApiKeyAccount default.
+	keyAccount := ApiKeyAccount new.
+	ApiKeyAccount default: keyAccount.
+	[self assert: AgentWindow defaultAccount == OpenAIAccount default.
+	 keyAccount configure: (Dictionary new at: 'model' put: 'claude-test'; yourself).
+	 self assert: AgentWindow defaultAccount == keyAccount.
+	 self assert: (AgentConversation new provider isKindOf: AnthropicProvider)]
+		ensure: [ApiKeyAccount default: previous]
+!
+testTokensTextWithAContextWindow
+	| keyAccount window |
+	keyAccount := ApiKeyAccount new.
+	window := AgentWindow new setConversation: AgentConversation new origin: nil account: keyAccount.
+	self assert: (window tokensText: 5000) equals: '5000 tokens'.
+	keyAccount contextWindow: 200000.
+	self assert: (window tokensText: 50000) equals: '50000 tokens (25% of 200000)'.
+	window windowClosed
+!
 testClosingCancelsTheLogin
 	| agent |
 	account signOut.

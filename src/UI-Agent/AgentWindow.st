@@ -1,18 +1,18 @@
 Column subclass: #AgentWindow
-	instanceVariableNames: 'conversation origin account transcript pane card askEditor sendButton stopButton status signOutButton updateQueued login'
+	instanceVariableNames: 'conversation origin account transcript pane card askEditor sendButton stopButton status signOutButton updateQueued login keyAccount'
 	classVariableNames: 'Account'
 	package: 'UI-Agent'!
 
-AgentWindow comment: 'I am the Agent window (docs/agent.md, prototypes/5-agent/6-chosen.html): a view of an AgentConversation. On the desktop ⌘J in a tool (Tools open: #agent with: aTool, Tools-Agent) opens me on a conversation with the tool''s agentContext, or brings back the one already open for that tool. An application''s right-click menu (Agent) opens me as a window of the host''s window manager, on the application''s agentContext (openNativeFor:); so does bin/samaltak agent, on nothing (AgentApp). Top to bottom: the context strip (what the tool bound), the transcript (AgentTranscript in a ScrollPane, following the end), the ASK editor (Return sends, Shift-Return is a new line) with Send and Stop, and the status bar (model, account, tokens of the last response, working…) with Sign out. Signed out, the login card (AgentLoginCard) replaces the transcript; the device login runs in a Process of its own.
+AgentWindow comment: 'I am the Agent window (docs/agent.md, prototypes/5-agent/6-chosen.html): a view of an AgentConversation. On the desktop ⌘J in a tool (Tools open: #agent with: aTool, Tools-Agent) opens me on a conversation with the tool''s agentContext, or brings back the one already open for that tool. An application''s right-click menu (Agent) opens me as a window of the host''s window manager, on the application''s agentContext (openNativeFor:); so does bin/samaltak agent, on nothing (AgentApp). Top to bottom: the context strip (what the tool bound), the transcript (AgentTranscript in a ScrollPane, following the end), the ASK editor (Return sends, Shift-Return is a new line) with Send and Stop, and the status bar (model, account or provider, tokens of the last response, working…) with Sign out. The account is ApiKeyAccount default while it isConfigured (the conversation then talks to an AnthropicProvider), else OpenAIAccount default, chosen at each update. Signed out, the login card (AgentLoginCard) replaces the transcript: for the OpenAI account the device login runs in a Process of its own; for an API-key account without its key the card says how the host sends it (samaltak-ctl agent-config), and I update when it arrives.
 
 The conversation notifies me in its turn''s Process; I redraw in my window''s Process, at most one update queued at a time. The account and the provider block on the network: I call them from other Processes only. Closing me stops a running turn and cancels a pending login.
 
 In a host window of my own the sign-in is kept in a file only the user may read (accountPath, OpenAIAccount>>keepIn:), so every application and later runs share it.
 
 	AgentWindow openNativeFor: anApplication
-	AgentWindow account: anAccountDouble   "tests; nil: OpenAIAccount default"
+	AgentWindow account: anAccountDouble   "tests: for the windows opened afterwards; nil: ApiKeyAccount default if configured, else OpenAIAccount default (defaultAccount)"
 
-Remote names: transcript (items user-3, code-4, show-5 with its inspect button …), login (sign-in url code copy message), ask, send, stop, status, sign-out.'!
+Remote names: transcript (items user-3, code-4, show-5 with its inspect button …), login (title sign-in url copy-url code copy message), ask, send, stop, status, sign-out.'!
 
 !AgentWindow methodsFor: 'initialization'!
 setConversation: anAgentConversation origin: aToolOrNil account: anAccount
@@ -38,7 +38,9 @@ setConversation: anAgentConversation origin: aToolOrNil account: anAccount
 		(Row with: {askEditor. (Column with: {sendButton. stopButton. Widget new}) spacing: 6; fixed: 92; padding: (0 @ 8 corner: 10 @ 8); yourself})
 			fixed: 72; yourself.
 		(Row with: {status. signOutButton}) fixed: (self theme metric: #statusBarHeight); yourself}.
-	conversation onChange: [:c | self conversationChanged] for: self
+	conversation onChange: [:c | self conversationChanged] for: self.
+	keyAccount := (self account isKindOf: ApiKeyAccount) ifTrue: [self account] ifFalse: [ApiKeyAccount default].
+	keyAccount onChange: [:a | self conversationChanged] for: self
 !
 contextStrip
 	"A header with the context's label above the lines of its description."
@@ -103,7 +105,8 @@ origin
 	^origin
 !
 account
-	^account
+	"The account set (the one a test set when I opened), else the image's now (AgentWindow defaultAccount)."
+	^account ifNil: [self class defaultAccount]
 !
 transcript
 	^transcript
@@ -124,7 +127,10 @@ conversationChanged
 !
 update
 	| signedIn atEnd busy tokens |
-	signedIn := account isSignedIn.
+	signedIn := self account isSignedIn.
+	(self account isKindOf: ApiKeyAccount)
+		ifTrue: [signedIn ifFalse: [card showKeyHelp: self account]]
+		ifFalse: [card isShowingKeyHelp ifTrue: [card showButton: nil]].
 	busy := conversation isBusy.
 	pane visible: signedIn.
 	card visible: signedIn not.
@@ -139,10 +145,17 @@ update
 	status clear.
 	status add: conversation provider modelName style: #strong.
 	status add: '│' style: #muted.
-	status add: (signedIn ifTrue: [account email ifNil: ['signed in']] ifFalse: ['signed out']).
-	tokens isNil ifFalse: [status add: '│' style: #muted. status add: tokens printString, ' tokens' style: #plain].
+	status add: self account statusLabel.
+	tokens isNil ifFalse: [status add: '│' style: #muted. status add: (self tokensText: tokens) style: #plain].
 	(self cacheUsageText: conversation usage) ifNotNil: [:text | status add: '│' style: #muted. status add: text style: #plain].
 	busy ifTrue: [status addRight: 'working…' style: #muted]
+!
+tokensText: anInteger
+	"The context's size, and the share of the model's context window when the account knows it."
+	| window |
+	window := (self account respondsTo: #contextWindow) ifTrue: [self account contextWindow].
+	window isNil ifTrue: [^anInteger printString, ' tokens'].
+	^anInteger printString, ' tokens (', (anInteger * 100 / window) rounded printString, '% of ', window printString, ')'
 !
 cacheUsageText: usage
 	"Show cumulative input cache reuse once the latest context exceeds 10k tokens."
@@ -175,7 +188,7 @@ send
 	attachments := (askEditor respondsTo: #images)
 		ifTrue: [askEditor images asArray]
 		ifFalse: [#()].
-	((text isEmpty and: [attachments isEmpty]) or: [conversation isBusy or: [account isSignedIn not]]) ifTrue: [^self].
+	((text isEmpty and: [attachments isEmpty]) or: [conversation isBusy or: [self account isSignedIn not]]) ifTrue: [^self].
 	conversation ask: text images: attachments.
 	askEditor text: ''.
 	(askEditor respondsTo: #clearImages) ifTrue: [askEditor clearImages].
@@ -185,7 +198,7 @@ stop
 	conversation isBusy ifTrue: [[conversation stop] forkAt: Processor userSchedulingPriority named: 'agent stop']
 !
 signOut
-	account signOut.
+	self account signOut.
 	self update
 !
 signIn
@@ -195,10 +208,11 @@ signIn
 !
 runLogin
 	"In the sign-in Process: the device login, showing its code, until it is approved, expires, fails or is cancelled."
-	| ok |
-	ok := [account startLogin.
-		self inWindowDo: [card showURL: account loginURL code: account loginCode].
-		account finishLogin]
+	| ok openAI |
+	openAI := self account.
+	ok := [openAI startLogin.
+		self inWindowDo: [card showURL: openAI loginURL code: openAI loginCode].
+		openAI finishLogin]
 			on: Error do: [:e | e return: e messageText asString].
 	self inWindowDo: [
 		card showButton: (ok == true ifTrue: [nil] ifFalse: [ok == false ifTrue: ['The code expired or the sign-in was cancelled.'] ifFalse: [ok]]).
@@ -210,17 +224,26 @@ focusOrigin
 
 !AgentWindow class methodsFor: 'accessing'!
 account
-	"The account new windows use: OpenAIAccount default unless a test set another."
-	^Account ifNil: [OpenAIAccount default]
+	"The account windows opened now use: the one a test set, else defaultAccount."
+	^Account ifNil: [self defaultAccount]
 !
 account: anAccountOrNil
+	"Make the windows opened from now on use anAccountOrNil (tests); windows already open keep theirs."
 	Account := anAccountOrNil
+!
+accountSetting
+	"What account: set, or nil."
+	^Account
+!
+defaultAccount
+	"The image's: ApiKeyAccount default while it isConfigured, else OpenAIAccount default."
+	^ApiKeyAccount default isConfigured ifTrue: [ApiKeyAccount default] ifFalse: [OpenAIAccount default]
 ! !
 
 !AgentWindow class methodsFor: 'opening'!
 openOn: anAgentConversation origin: aToolOrNil in: aRectangle
 	| view window |
-	view := self new setConversation: anAgentConversation origin: aToolOrNil account: self account.
+	view := self new setConversation: anAgentConversation origin: aToolOrNil account: Account.
 	window := view openIn: aRectangle title: 'Agent — ', anAgentConversation context label.
 	window do: [view update. view askEditor focus].
 	^window
@@ -228,8 +251,8 @@ openOn: anAgentConversation origin: aToolOrNil in: aRectangle
 openNativeOn: anAgentConversation origin: anObjectOrNil hidden: aBoolean
 	"Open me on anAgentConversation in a host window of my own (hidden: offscreen, for tests); answer my AppWindow."
 	| view window |
-	self account == OpenAIAccount default ifTrue: [OpenAIAccount default keepIn: self accountPath].
-	view := self new setConversation: anAgentConversation origin: anObjectOrNil account: self account.
+	self keepSignIn.
+	view := self new setConversation: anAgentConversation origin: anObjectOrNil account: Account.
 	window := view openNativeTitle: 'Agent — ', anAgentConversation context label hidden: aBoolean.
 	window do: [view update. view askEditor focus].
 	^window
@@ -255,6 +278,10 @@ accountPath
 	"Where host windows keep the sign-in (a file only the user may read)."
 	^XDG state: 'samaltak/agent/account.json'
 !
+keepSignIn
+	"A host window of mine shares the ChatGPT sign-in through accountPath, unless a test set another account."
+	(Account isNil or: [Account == OpenAIAccount default]) ifTrue: [OpenAIAccount default keepIn: self accountPath]
+!
 initialize
 	"An application's right-click menu offers me."
 	Application addMenuItem: #agent with: [:app :menu |
@@ -273,7 +300,8 @@ agentContext
 
 !AgentWindow methodsFor: 'events'!
 windowClosed
-	(login notNil and: [login isTerminated not]) ifTrue: [account cancelLogin].
+	(login notNil and: [login isTerminated not]) ifTrue: [self account cancelLogin].
 	conversation onChange: nil for: self.
+	keyAccount onChange: nil for: self.
 	self stop
 ! !

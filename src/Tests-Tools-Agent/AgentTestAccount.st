@@ -17,6 +17,9 @@ isSignedIn
 email
 	^signedIn ifTrue: ['tester@example.com'] ifFalse: [nil]
 !
+statusLabel
+	^signedIn ifTrue: [self email] ifFalse: ['signed out']
+!
 loginURL
 	^loginURL
 !
