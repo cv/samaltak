@@ -31,7 +31,9 @@ setReal: aNumber imaginary: anotherNumber
 		imaginary: (real * aComplex imaginary) + (imaginary * aComplex real)
 !
 squared
-	^Complex basicNew setReal: (real * real) - (imaginary * imaginary) imaginary: 2.0 * real * imaginary
+	| ri |
+	ri := real * imaginary.
+	^Complex basicNew setReal: (real * real) - (imaginary * imaginary) imaginary: ri + ri
 !
 squaredMagnitude
 	^(real * real) + (imaginary * imaginary)
