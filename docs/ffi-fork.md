@@ -72,11 +72,21 @@ crypto's main user there), interpreter and baseline callers would pay the slice 
 
 No. An FFI-bound C function is still C in the VM: binding a kernel through the FFI changes how it is called, not
 whether it is native, so it is neither a way to retire a primitive nor a reason to keep one. The review's split
-stands: keep what needs hardware instructions or SIMD (crypto and CRC, ByteSearch and the string kernels, the
+stands: keep native what needs hardware instructions or SIMD (crypto and CRC, ByteSearch and the string kernels, the
 byte-range compares, PixelPack, PNG, rawBytesReplace, PixelRows), and retire the scalar loops (Adler-32, the token
 counts and PixelDiff, retired; then ZRLE and the matcher) only when the opt tier's loop work makes their Smalltalk fast enough,
-each behind its benchmark. The optimized site removes the send and primitive dispatch (a few ns), which matters for
+each behind its benchmark. The optimized site removes the send and primitive dispatch, which matters for
 small calls; the fork's kernels run on kilobytes to megabytes, where it is noise.
+
+What moved, then, is how the general-purpose ones are called: the byte-range compares, the PNG filter and the raw
+copy are typed exports (above), native as before, their numbers free of the registry. Measured against their
+primitives (one X925 core, CPU time): equal in optimized code at their users (a 1440×900 `RfbDiffSource` frame
+0.44 ms, a 1080p PNG filter 1.93 ms, `pngBytes` 84 ms); about 2 ns more a call from a bound site (16 bytes compared
+in 8 ns, 6 before); unoptimized code pays the send and the invocation primitive, 20–30 ns a call (16 bytes: 36 ns in
+the interpreter and baseline code, 22 and 7 before; a 1080p row copied in 93 ns in baseline code, 74), and so UEFI,
+which has no bound sites (41 ns, 11). Still numbered: deflate's match finder and Huffman coder (208, 210), ZRLE tiles
+(214), PixelPack (213), the profiler's sampler ring (147) and the devices: fork-feature kernels, decided later; and
+upstream's String primitives, whose kernels the fork made NEON.
 
 What the FFI does change is the policy for *new* native code: a kernel with a slice-shaped signature that only opt
 code calls in bulk can be a `vm:core` export instead of a numbered primitive (no number to collide, a typed C
