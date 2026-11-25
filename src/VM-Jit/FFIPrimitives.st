@@ -479,12 +479,11 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 	<var: #target type: 'uint64_t *'>
 	<var: #prepared type: 'bool'>
 	<returns: 'int32_t'>
-	| name lib sig signature wide hasPointer hasVettedArgument t id |
+	| name lib sig wide hasPointer hasVettedArgument t id |
 	name := self cCoerce: symbol to: 'const char *'.
 	lib := self cCoerce: library to: 'const char *'.
-	"The fixed libm, libc and platform rows compare packed nibbles; approved exports the tags as a NUL-terminated string."
+	"The fixed libm, libc and platform rows compare packed nibbles; approved exports the tags as a string (approved:)."
 	sig := 0 asUInt32.
-	signature := self local: 'uint8_t[FFI_SIGNATURE_BYTES]'.
 	hasPointer := false.
 	wide := false.
 	result = 15 ifTrue: [(n = 1 and: [(tags at: 0) = 14]) ifFalse: [^0]].
@@ -504,13 +503,10 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 			hasVettedArgument := true].
 		t = 5 ifTrue: [hasPointer := true].
 		t = 16 ifTrue: [wide := true].
-		signature at: i put: t.
 		sig := ((sig asUInt64 << 4) bitOr: t asUInt64) asUInt32].
 	sig := ((sig asUInt64 << 4) bitOr: result asUInt64) asUInt32.
 	"Nibbles hold six argument tags up to 15; no fixed row is longer or uses f32."
 	(n > 6 or: [wide or: [result = 16]]) ifTrue: [sig := 0 asUInt32].
-	signature at: n put: result asUInt8.
-	signature at: n + 1 put: 0.
 	(libc strcmp: lib with: 'libm') = 0 ifTrue: [
 		0 to: 9 do: [:i |
 			(sig = (mathSignatures at: i) and: [(libc strcmp: name with: (mathNames at: i)) = 0]) ifTrue: [
@@ -525,7 +521,7 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 	hasPointer ifTrue: [^0].
 	(libc strcmp: lib with: 'vm:core') = 0 ifTrue: [
 		prepared ifFalse: [^0].
-		^self ffiApprovedCore: name signature: signature into: target].
+		^self approved: name tags: tags count: n result: result platform: false into: target].
 	(libc strcmp: lib with: 'platform') = 0 ifTrue: [
 		0 to: 8 do: [:i |
 			(sig = (platformSignatures at: i) and: [(libc strcmp: name with: (platformNames at: i)) = 0]) ifTrue: [
@@ -533,10 +529,29 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 				target value: (platform ffiTarget: id).
 				^target value = 0 ifTrue: [0] ifFalse: [id]]].
 		prepared ifFalse: [^0].
-		^platform ffiApprovedPlatform: name signature: signature into: target].
+		^self approved: name tags: tags count: n result: result platform: true into: target].
 	(hasVettedArgument or: [result = 12]) ifTrue: [^0].
 	target value: (self cCoerce: (runtimeNative lookupLibrary: library length: libLen symbol: symbol length: symLen types: tags count: n result: result) to: 'uint64_t').
 	^target value = 0 ifTrue: [0] ifFalse: [FFI_DYNAMIC]
+!
+approved: name tags: tags count: n result: result platform: isPlatform into: target
+	"Look up an approved export by its tag string: the argument tags, the result tag, NUL."
+	<function>
+	<var: #name type: 'const char *'>
+	<var: #tags type: 'const uint8_t *'>
+	<var: #n type: 'int32_t'>
+	<var: #result type: 'int32_t'>
+	<var: #isPlatform type: 'bool'>
+	<var: #target type: 'uint64_t *'>
+	<returns: 'int32_t'>
+	| signature |
+	signature := self local: 'uint8_t[FFI_SIGNATURE_BYTES]'.
+	0 to: n - 1 do: [:i | signature at: i put: (tags at: i)].
+	signature at: n put: result asUInt8.
+	signature at: n + 1 put: 0.
+	^isPlatform
+		ifTrue: [platform ffiApprovedPlatform: name signature: signature into: target]
+		ifFalse: [self ffiApprovedCore: name signature: signature into: target]
 !
 ffiApprovedCore: approvedName signature: signature into: targetOut
 	"Generated from the core approvedFFI declarations. signature: the argument tags, the result tag, NUL. Simulated native stubs are unavailable."

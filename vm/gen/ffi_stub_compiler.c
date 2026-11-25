@@ -4,8 +4,7 @@
 
 static uint32_t published_count;
 static uint64_t stub_entries[4096];
-static uint64_t stub_keys[4096];
-static uint64_t stub_keys_high[4096];
+static uint64_t stub_keys[8192];
 static uint64_t stub_targets[4096];
 static uint32_t wrapped_count;
 
@@ -153,8 +152,8 @@ uint64_t downcall(uint64_t target, uint8_t *types, int32_t n, int32_t result)
     if (entry != 0) {
         key_2 = (uint64_t)key;
         stub_targets[slot] = target;
-        stub_keys[slot] = key_2;
-        stub_keys_high[slot] = 0;
+        stub_keys[2 * slot] = key_2;
+        stub_keys[2 * slot + 1] = 0;
         stub_entries[slot] = entry;
     }
     return entry;
@@ -206,8 +205,8 @@ uint64_t downcall(uint64_t target, uint8_t *types, int32_t n, int32_t result)
     if (entry != 0) {
         key_2 = (uint64_t)key;
         stub_targets[slot] = target;
-        stub_keys[slot] = key_2;
-        stub_keys_high[slot] = 0;
+        stub_keys[2 * slot] = key_2;
+        stub_keys[2 * slot + 1] = 0;
         stub_entries[slot] = entry;
     }
     return entry;
@@ -980,8 +979,8 @@ exit_text_result_helper:;
     if (entry != 0) {
         wrapped_count = wrapped_count + 1;
         stub_targets[slot] = target;
-        stub_keys[slot] = key;
-        stub_keys_high[slot] = key_high;
+        stub_keys[2 * slot] = key;
+        stub_keys[2 * slot + 1] = key_high;
         stub_entries[slot] = entry;
     }
     return entry;
@@ -1092,8 +1091,8 @@ exit_text_result_helper:;
     if (entry != 0) {
         wrapped_count = wrapped_count + 1;
         stub_targets[slot] = target;
-        stub_keys[slot] = key;
-        stub_keys_high[slot] = key_high;
+        stub_keys[2 * slot] = key;
+        stub_keys[2 * slot + 1] = key_high;
         stub_entries[slot] = entry;
     }
     return entry;
@@ -1169,10 +1168,13 @@ static uint32_t stub_slot_for(uint64_t target, uint64_t key, uint64_t key_high)
     uint64_t hash;
     uint32_t slot;
     hash = (target >> 4) ^ ((target >> 17) ^ (target >> 32));
-    hash = hash ^ (key ^ ((key >> 12) ^ ((key >> 37) ^ (key_high ^ (key_high >> 19)))));
+    hash = hash ^ (key ^ ((key >> 12) ^ (key >> 36)));
+    if (key_high != 0) {
+        hash = hash ^ (key_high ^ (key_high >> 19));
+    }
     slot = (uint32_t)(hash & 4095);
     while (stub_entries[slot] != 0) {
-        if ((stub_targets[slot] == target) && ((stub_keys[slot] == key) && (stub_keys_high[slot] == key_high))) {
+        if ((stub_targets[slot] == target) && ((stub_keys[2 * slot] == key) && (stub_keys[2 * slot + 1] == key_high))) {
             return slot;
         }
         slot = (slot + 1) & 4095;
