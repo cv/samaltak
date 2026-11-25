@@ -42,13 +42,38 @@ testConstants
 	self assert: (CurandAPI constant: 'CURAND_RNG_PSEUDO_DEFAULT') equals: 100.
 	self assert: (CuOptAPI constant: 'CUOPT_TERMINATION_STATUS_OPTIMAL') equals: 1.
 	self assert: (CudaRuntimeAPI constant: 'cudaErrorNotReady') equals: 600.
+	self assert: (CufftAPI constant: 'CUFFT_R2C') equals: 42.
+	self assert: (CufftAPI constant: 'CUFFT_FORWARD') equals: -1.
+	self assert: (CusolverAPI constant: 'CUDA_R_64F') equals: 1.
 	self should: [CublasAPI constant: 'NO_SUCH_THING'] raise: Error
 !
 testStatusNamesWithoutTheLibrary
 	"cuRAND and cuOpt have no status strings of their own: the generator made them from the headers."
 	self hasExports ifFalse: [^self skip: 'this VM has no cuda_* exports'].
 	self assert: (CurandAPI statusName: 101) equals: 'CURAND_STATUS_NOT_INITIALIZED'.
-	self assert: (CuOptAPI statusName: 4) equals: 'CUOPT_VALIDATION_ERROR'
+	self assert: (CuOptAPI statusName: 4) equals: 'CUOPT_VALIDATION_ERROR'.
+	self assert: (CusolverAPI statusName: 7) equals: 'CUSOLVER_STATUS_INTERNAL_ERROR'.
+	self assert: (CufftAPI statusName: 5) equals: 'CUFFT_INTERNAL_ERROR'
+!
+testForgedSolverAndPlanHandlesRefused
+	"A forged cuSOLVER handle or cuFFT plan (an int in cuFFT, kept in the VM's handle table like the pointers) is refused before the library is called."
+	| e |
+	e := self errorOf: [CufftAPI cufftExecC2C: 12345 idata: 4096 odata: 4096 direction: -1].
+	self assert: (e isKindOf: CudaError).
+	CufftAPI isAvailable ifTrue: [self assert: e class equals: CudaArgumentError. self assert: e code equals: -3].
+	e := self errorOf: [CusolverAPI cusolverDnSsyevd: 12345 jobz: 1 uplo: 0 n: 2 a: 4096 lda: 2 w: 4096 work: 4096 lwork: 1 info: 4096].
+	self assert: (e isKindOf: CudaError).
+	CusolverAPI isAvailable ifTrue: [self assert: e class equals: CudaArgumentError. self assert: e code equals: -3]
+!
+testSolverErrorMeanings
+	| e |
+	e := CudaSingularMatrix library: CusolverAPI function: 'cusolverDnXgetrf' code: 3.
+	self assert: e messageText equals: 'cusolverDnXgetrf: the matrix is singular: U(3,3) is exactly zero (devInfo 3)'.
+	e := CudaSolverError library: CusolverAPI function: 'cusolverDnSgesvd' code: -4.
+	self assert: e messageText equals: 'cusolverDnSgesvd: parameter 4 is wrong (devInfo -4)'.
+	e := CudaNotPositiveDefinite library: CusolverAPI function: 'cusolverDnXpotrf' code: 2.
+	self assert: e devInfo equals: 2.
+	self assert: e statusName isNil
 !
 testRejectionMessages
 	| e |

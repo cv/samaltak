@@ -1,9 +1,9 @@
 Object subclass: #Cuda
-	instanceVariableNames: 'session blas rng device compute kernels'
+	instanceVariableNames: 'session blas rng device compute kernels solver solverParams'
 	classVariableNames: 'Default'
 	package: 'System-CUDA'!
 
-Cuda comment: 'I am the CUDA device as NVIDIA''s CUDA libraries see it (docs/cuda.md): the runtime''s implicit context (its primary context on device 0, made on first use), its cuBLAS handle and cuRAND generator, made once a VM session. CudaArray and CudaMatrix keep data in its memory; CudaEvent times work on it; CuOpt solves on it. Everything goes through the generated bindings (CudaRuntimeAPI, CudaDriverAPI, CublasAPI, CurandAPI, CuOptAPI).
+Cuda comment: 'I am the CUDA device as NVIDIA''s CUDA libraries see it (docs/cuda.md): the runtime''s implicit context (its primary context on device 0, made on first use), its cuBLAS handle, cuRAND generator and cuSOLVER handle, made once a VM session. CudaArray and CudaMatrix keep data in its memory; CudaEvent times work on it; CuOpt solves on it. Everything goes through the generated bindings (CudaRuntimeAPI, CudaDriverAPI, CublasAPI, CurandAPI, CusolverAPI, CufftAPI, CuOptAPI).
 
 	Cuda isAvailable.
 	Cuda summary.          "the device, its memory, the library versions"
@@ -50,6 +50,12 @@ kernelNamed: aString source: cudaSource
 	Cuda compute run: k grid: 4 block: 256 arguments: {aCudaArray. 2.0. 1000}"
 	^self default kernelNamed: aString source: cudaSource
 !
+solver
+	^self default solver
+!
+solverParams
+	^self default solverParams
+!
 synchronize
 	"Wait until the device has done all work queued so far."
 	CudaRuntimeAPI cudaDeviceSynchronize
@@ -93,6 +99,8 @@ summary
 			nextPutAll: (self versionString: CudaRuntimeAPI cudaDriverGetVersion).
 		CublasAPI isAvailable ifTrue: [s nextPutAll: '; cuBLAS '; print: (CublasAPI cublasGetVersion: self blas)].
 		CurandAPI isAvailable ifTrue: [s nextPutAll: '; cuRAND '; print: CurandAPI curandGetVersion].
+		CusolverAPI isAvailable ifTrue: [s nextPutAll: '; cuSOLVER '; print: CusolverAPI cusolverGetVersion].
+		CufftAPI isAvailable ifTrue: [s nextPutAll: '; cuFFT '; print: CufftAPI cufftGetVersion].
 		CuOptAPI isAvailable ifTrue: [s nextPutAll: '; cuOpt '; nextPutAll: CuOpt version]]
 ! !
 
@@ -125,4 +133,12 @@ kernelNamed: aString source: cudaSource
 		r := NvRtc compile: cudaSource options: (Array with: '-arch=', self compute device arch with: '-std=c++17').
 		r first isNil ifTrue: [^self error: 'NVRTC: ', r last].
 		kernels at: key put: ((NvCubin on: r first) kernelNamed: aString)]
+!
+solver
+	"This session's cuSOLVER dense handle (made on first use)."
+	^solver ifNil: [solver := CusolverAPI cusolverDnCreate]
+!
+solverParams
+	"The cusolverDnParams of the 64-bit API's calls (the default algorithms)."
+	^solverParams ifNil: [solverParams := CusolverAPI cusolverDnCreateParams]
 ! !
