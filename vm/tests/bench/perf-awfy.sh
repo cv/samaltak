@@ -9,12 +9,14 @@
 # OUT/MODE-Bench.spe.data, then perf_mix.py: where the operations are and what kind (class checks, frame traffic, ...).
 set -u
 ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
-VM=$ROOT/vm/build/samaltak IMAGE=$ROOT/build/samaltak.image MODE=opt CPU= OUT=/tmp/perf-awfy PERIOD=4096 FREQ=10000
+VM=$ROOT/vm/build/samaltak IMAGE=$ROOT/build/samaltak.image MODE=opt CPU= OUT=/tmp/perf-awfy PERIOD=4096 FREQ=10000 INIT= RECARGS=
 usage() {
     cat <<EOF
 usage: $0 [--vm PATH] [--image PATH] [--jit MODE] [--cpu N] [-o DIR] [--period N] [--freq N] stat|record|spe Bench [n [inner]]
   --cpu N    the logical CPU to pin the VM to (default: the last of the fastest cores)
   -o DIR     output directory (default /tmp/perf-awfy)
+  --record-args A record: more perf record options, e.g. '-g'
+  --init EXPR Smalltalk to evaluate before the laps, e.g. 'Profiler default stop'
   --period N spe: sample every Nth operation (default 4096); --freq N record: samples a second per event (default 10000)
 EOF
     exit 2
@@ -22,7 +24,7 @@ EOF
 while [ $# -gt 0 ]; do
     case $1 in
     --vm) VM=$2; shift ;; --image) IMAGE=$2; shift ;; --jit) MODE=$2; shift ;; --cpu) CPU=$2; shift ;;
-    -o) OUT=$2; shift ;; --period) PERIOD=$2; shift ;; --freq) FREQ=$2; shift ;;
+    -o) OUT=$2; shift ;; --init) INIT=$2; shift ;; --record-args) RECARGS=$2; shift ;; --period) PERIOD=$2; shift ;; --freq) FREQ=$2; shift ;;
     -*) usage ;; *) break ;;
     esac
     shift
@@ -53,13 +55,13 @@ case $B in Micro*) F=Micro ;; Adv*) F=Adverse ;; *) F=$(sh "$ROOT/vm/tests/bench
 G=$OUT/go-$MODE-$B
 rm -f "$G" "$G.ready" "$G.done" "$G.quit" "$OUT/perfpid"
 D=$ROOT/vm/tests/bench/awfy
-E="[#('Samaltak' 'Harness' 'Core' '$F') do: [:n | Compiler fileIn: '$D/', n, '.st']. (FileStream forceNewFileNamed: '$G.ready') close. [File exists: '$G'] whileFalse: [(Delay forMilliseconds: 2) wait]. (Smalltalk at: #Harness) new run: #('$B' '$N' '$IN'). (FileStream forceNewFileNamed: '$G.done') close. [File exists: '$G.quit'] whileFalse: [(Delay forMilliseconds: 2) wait]. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
+E="[#('Samaltak' 'Harness' 'Core' '$F') do: [:n | Compiler fileIn: '$D/', n, '.st']. (FileStream forceNewFileNamed: '$G.ready') close. [File exists: '$G'] whileFalse: [(Delay forMilliseconds: 2) wait]. ${INIT:+$INIT. }(Smalltalk at: #Harness) new run: #('$B' '$N' '$IN'). (FileStream forceNewFileNamed: '$G.done') close. [File exists: '$G.quit'] whileFalse: [(Delay forMilliseconds: 2) wait]. ''] on: Error do: [:e | 'ERROR ', e class name, ': ', e messageText]"
 SAMALTAK_PERF_MAP=jitdump taskset -c "$CPU" "$VM" --jit "$MODE" "$IMAGE" --headless --eval "$E" > "$OUT/$MODE-$B.out" 2>&1 &
 PID=$!
 while [ ! -e "$G.ready" ]; do kill -0 $PID 2>/dev/null || { cat "$OUT/$MODE-$B.out" >&2; exit 1; }; sleep 0.05; done
 case $WHAT in
 stat) PERF="perf stat -x, -o $OUT/$MODE-$B.stat -e $STAT" ;;
-record) PERF="perf record -q -k mono -F $FREQ -o $OUT/$MODE-$B.data -e $REC" ;;
+record) PERF="perf record -q -k mono -F $FREQ $RECARGS -o $OUT/$MODE-$B.data -e $REC" ;;
 spe) PERF="perf record -q -k mono -c $PERIOD -o $OUT/$MODE-$B.spe.data -e arm_spe_0/ts_enable=1,pa_enable=0/" ;;
 *) kill $PID; usage ;;
 esac
