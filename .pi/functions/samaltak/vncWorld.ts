@@ -99,7 +99,7 @@ async function vncWorld(
     );
     return v.stdout.trim().split("\n").pop();
   };
-  const stepLines = (results: Array<{ step: string[]; code: number; out: string; hint?: string }>) =>
+  const stepLines = (results: Array<{ step: string[]; code: number | null; out: string; hint?: string }>) =>
     results.map(
       (r) =>
         r.step.join(" ") + ": " +
