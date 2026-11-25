@@ -57,22 +57,22 @@ registerBuiltins
 
 !RemoteControl class methodsFor: 'registering commands'!
 registerCommand: aString handler: aBlock
-	"aBlock value: aRemoteRequest. Replaces a command of the same name."
-	Commands at: aString asString put: aBlock.
-	GenericCommands remove: aString asString ifAbsent: []
+	"aBlock value: aRemoteRequest. Replaces a command of the same name. The registries change by copy (also the hooks'): a request in another Process (a connection's, at a higher priority) may look a command up while a UI registers its own, as it starts; a Dictionary that grows under the lookup would miss 'wait'."
+	Commands := Commands copy at: aString asString put: aBlock; yourself.
+	GenericCommands := GenericCommands copy remove: aString asString ifAbsent: []; yourself
 !
 unregisterCommand: aString
-	Commands removeKey: aString asString ifAbsent: [].
-	GenericCommands remove: aString asString ifAbsent: []
+	Commands := Commands copy removeKey: aString asString ifAbsent: []; yourself.
+	GenericCommands := GenericCommands copy remove: aString asString ifAbsent: []; yourself
 !
 registerGenericCommand: aString handler: aBlock
 	"Register aBlock unless the UI already registered its own command aString."
-	(Commands includesKey: aString) ifTrue: [^self].
-	Commands at: aString put: aBlock.
-	GenericCommands add: aString
+	(Commands includesKey: aString asString) ifTrue: [^self].
+	Commands := Commands copy at: aString asString put: aBlock; yourself.
+	GenericCommands := GenericCommands copy add: aString asString; yourself
 !
 commandNames
-	^Commands keys asSortedCollection asArray
+	^(Commands keys collect: [:k | k asString]) asSortedCollection asArray
 !
 handlerFor: aString
 	^Commands at: aString ifAbsent: [nil]
@@ -129,24 +129,24 @@ pointResolver: aBlock
 !RemoteControl class methodsFor: 'idle, state and wait hooks'!
 addIdleCondition: aBlock
 	"aBlock answers true when its part of the system is idle (e.g. no input events queued, the compositor presented the last change)."
-	IdleConditions add: aBlock
+	IdleConditions := IdleConditions copy add: aBlock; yourself
 !
 removeIdleCondition: aBlock
-	IdleConditions remove: aBlock ifAbsent: []
+	IdleConditions := IdleConditions copy remove: aBlock ifAbsent: []; yourself
 !
 addStateProvider: aBlock
 	"aBlock value: aDictionary adds fields to the state command's answer."
-	StateProviders add: aBlock
+	StateProviders := StateProviders copy add: aBlock; yourself
 !
 removeStateProvider: aBlock
-	StateProviders remove: aBlock ifAbsent: []
+	StateProviders := StateProviders copy remove: aBlock ifAbsent: []; yourself
 !
 registerWaitCondition: aString with: aBlock
 	"wait {aString: value} holds when aBlock value: value value: aRemoteRequest answers true. Polled every 20 ms in the waiting client's process."
-	WaitConditions at: aString put: aBlock
+	WaitConditions := WaitConditions copy at: aString put: aBlock; yourself
 !
 unregisterWaitCondition: aString
-	WaitConditions removeKey: aString ifAbsent: []
+	WaitConditions := WaitConditions copy removeKey: aString ifAbsent: []; yourself
 ! !
 
 !RemoteControl class methodsFor: 'dispatching'!
@@ -175,7 +175,7 @@ begin: aRequest
 		LastRequestTime := Time millisecondClockValue.
 		LastCommand := aRequest command].
 	handler := aRequest command isNil ifFalse: [self handlerFor: aRequest command].
-	handler isNil ifTrue: [^self finish: (self errorResponse: (self unknownCommandMessage: aRequest command) code: 1) request: aRequest].
+	handler isNil ifTrue: [^self finish: (self errorResponse: ([self unknownCommandMessage: aRequest command] on: Error do: [:e | e return: 'unknown command ', aRequest command printString]) code: 1) request: aRequest].
 	answer := self catchErrorsDuring: [handler value: aRequest].
 	(answer isKindOf: RemoteInputJob) ifTrue: [^answer].
 	^self finish: (self responseFrom: answer) request: aRequest
