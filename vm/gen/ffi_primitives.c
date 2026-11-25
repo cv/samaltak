@@ -106,17 +106,27 @@ static int64_t native_cuda_cu_opt_solve(int64_t problem, int64_t settings, uint8
 static int64_t native_cuda_cu_stream_write_value64(int64_t stream, uint64_t addr, uint64_t value, uint32_t flags);
 static int64_t native_cuda_cublas_available(void);
 static int64_t native_cuda_cublas_create(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cublas_csscal(int64_t handle, int32_t n, float alpha, uint64_t x, int32_t incx);
 static int64_t native_cuda_cublas_daxpy(int64_t handle, int32_t n, double alpha, uint64_t x, int32_t incx, uint64_t y, int32_t incy);
+static int64_t native_cuda_cublas_dcopy(int64_t handle, int32_t n, uint64_t x, int32_t incx, uint64_t y, int32_t incy);
 static int64_t native_cuda_cublas_destroy(int64_t handle);
+static int64_t native_cuda_cublas_dgeam(int64_t handle, int32_t transa, int32_t transb, int32_t m, int32_t n, double alpha, uint64_t a, int32_t lda, double beta, uint64_t b, int32_t ldb, uint64_t c, int32_t ldc);
 static int64_t native_cuda_cublas_dgemm(int64_t handle, int32_t transa, int32_t transb, int32_t m, int32_t n, int32_t k, double alpha, uint64_t a, int32_t lda, uint64_t b, int32_t ldb, double beta, uint64_t c, int32_t ldc);
 static int64_t native_cuda_cublas_dnrm2(int64_t handle, int32_t n, uint64_t x, int32_t incx, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cublas_dscal(int64_t handle, int32_t n, double alpha, uint64_t x, int32_t incx);
+static int64_t native_cuda_cublas_dtrmm(int64_t handle, int32_t side, int32_t uplo, int32_t trans, int32_t diag, int32_t m, int32_t n, double alpha, uint64_t a, int32_t lda, uint64_t b, int32_t ldb, uint64_t c, int32_t ldc);
 static int64_t native_cuda_cublas_get_version(int64_t handle, uint8_t *outs, uint64_t outs_length);
 static int64_t native_cuda_cublas_saxpy(int64_t handle, int32_t n, float alpha, uint64_t x, int32_t incx, uint64_t y, int32_t incy);
+static int64_t native_cuda_cublas_scopy(int64_t handle, int32_t n, uint64_t x, int32_t incx, uint64_t y, int32_t incy);
 static int64_t native_cuda_cublas_set_math_mode(int64_t handle, int32_t mode);
 static int64_t native_cuda_cublas_set_stream(int64_t handle, int64_t stream_id);
+static int64_t native_cuda_cublas_sgeam(int64_t handle, int32_t transa, int32_t transb, int32_t m, int32_t n, float alpha, uint64_t a, int32_t lda, float beta, uint64_t b, int32_t ldb, uint64_t c, int32_t ldc);
 static int64_t native_cuda_cublas_sgemm(int64_t handle, int32_t transa, int32_t transb, int32_t m, int32_t n, int32_t k, float alpha, uint64_t a, int32_t lda, uint64_t b, int32_t ldb, float beta, uint64_t c, int32_t ldc);
 static int64_t native_cuda_cublas_snrm2(int64_t handle, int32_t n, uint64_t x, int32_t incx, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cublas_sscal(int64_t handle, int32_t n, float alpha, uint64_t x, int32_t incx);
 static int64_t native_cuda_cublas_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length);
+static int64_t native_cuda_cublas_strmm(int64_t handle, int32_t side, int32_t uplo, int32_t trans, int32_t diag, int32_t m, int32_t n, float alpha, uint64_t a, int32_t lda, uint64_t b, int32_t ldb, uint64_t c, int32_t ldc);
+static int64_t native_cuda_cublas_zdscal(int64_t handle, int32_t n, double alpha, uint64_t x, int32_t incx);
 static int64_t native_cuda_cuda_device_get_attribute(int32_t attr, int32_t device, uint8_t *outs, uint64_t outs_length);
 static int64_t native_cuda_cuda_device_synchronize(void);
 static int64_t native_cuda_cuda_driver_get_version(uint8_t *outs, uint64_t outs_length);
@@ -147,6 +157,20 @@ static int64_t native_cuda_cuda_stream_query(int64_t stream);
 static int64_t native_cuda_cuda_stream_synchronize(int64_t stream);
 static int64_t native_cuda_cudart_available(void);
 static int64_t native_cuda_cudart_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length);
+static int64_t native_cuda_cufft_available(void);
+static int64_t native_cuda_cufft_destroy(int64_t plan);
+static int64_t native_cuda_cufft_exec_c2_c(int64_t plan, uint64_t idata, uint64_t odata, int32_t direction);
+static int64_t native_cuda_cufft_exec_c2_r(int64_t plan, uint64_t idata, uint64_t odata);
+static int64_t native_cuda_cufft_exec_d2_z(int64_t plan, uint64_t idata, uint64_t odata);
+static int64_t native_cuda_cufft_exec_r2_c(int64_t plan, uint64_t idata, uint64_t odata);
+static int64_t native_cuda_cufft_exec_z2_d(int64_t plan, uint64_t idata, uint64_t odata);
+static int64_t native_cuda_cufft_exec_z2_z(int64_t plan, uint64_t idata, uint64_t odata, int32_t direction);
+static int64_t native_cuda_cufft_get_version(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cufft_plan1d(int32_t nx, int32_t type, int32_t batch, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cufft_plan2d(int32_t nx, int32_t ny, int32_t type, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cufft_plan_many(int32_t rank, const uint8_t *n, uint64_t n_length, int32_t type, int32_t batch, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cufft_set_stream(int64_t plan, int64_t stream);
+static int64_t native_cuda_cufft_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length);
 static int64_t native_cuda_cuopt_available(void);
 static int64_t native_cuda_cuopt_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length);
 static int64_t native_cuda_curand_available(void);
@@ -160,6 +184,34 @@ static int64_t native_cuda_curand_get_version(uint8_t *outs, uint64_t outs_lengt
 static int64_t native_cuda_curand_set_pseudo_random_generator_seed(int64_t generator, uint64_t seed);
 static int64_t native_cuda_curand_set_stream(int64_t generator, int64_t stream);
 static int64_t native_cuda_curand_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length);
+static int64_t native_cuda_cusolver_available(void);
+static int64_t native_cuda_cusolver_dn_create(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cusolver_dn_create_params(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cusolver_dn_destroy(int64_t handle);
+static int64_t native_cuda_cusolver_dn_destroy_params(int64_t params);
+static int64_t native_cuda_cusolver_dn_dgesvd(int64_t handle, int32_t jobu, int32_t jobvt, int32_t m, int32_t n, uint64_t a, int32_t lda, uint64_t s, uint64_t u, int32_t ldu, uint64_t v_t, int32_t ldvt, uint64_t work, int32_t lwork, uint64_t rwork, uint64_t info);
+static int64_t native_cuda_cusolver_dn_dgesvd_buffer_size(int64_t handle, int32_t m, int32_t n, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cusolver_dn_dorgqr(int64_t handle, int32_t m, int32_t n, int32_t k, uint64_t a, int32_t lda, uint64_t tau, uint64_t work, int32_t lwork, uint64_t info);
+static int64_t native_cuda_cusolver_dn_dorgqr_buffer_size(int64_t handle, int32_t m, int32_t n, int32_t k, uint64_t a, int32_t lda, uint64_t tau, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cusolver_dn_dsyevd(int64_t handle, int32_t jobz, int32_t uplo, int32_t n, uint64_t a, int32_t lda, uint64_t w, uint64_t work, int32_t lwork, uint64_t info);
+static int64_t native_cuda_cusolver_dn_dsyevd_buffer_size(int64_t handle, int32_t jobz, int32_t uplo, int32_t n, uint64_t a, int32_t lda, uint64_t w, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cusolver_dn_set_stream(int64_t handle, int64_t stream_id);
+static int64_t native_cuda_cusolver_dn_sgesvd(int64_t handle, int32_t jobu, int32_t jobvt, int32_t m, int32_t n, uint64_t a, int32_t lda, uint64_t s, uint64_t u, int32_t ldu, uint64_t v_t, int32_t ldvt, uint64_t work, int32_t lwork, uint64_t rwork, uint64_t info);
+static int64_t native_cuda_cusolver_dn_sgesvd_buffer_size(int64_t handle, int32_t m, int32_t n, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cusolver_dn_sorgqr(int64_t handle, int32_t m, int32_t n, int32_t k, uint64_t a, int32_t lda, uint64_t tau, uint64_t work, int32_t lwork, uint64_t info);
+static int64_t native_cuda_cusolver_dn_sorgqr_buffer_size(int64_t handle, int32_t m, int32_t n, int32_t k, uint64_t a, int32_t lda, uint64_t tau, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cusolver_dn_ssyevd(int64_t handle, int32_t jobz, int32_t uplo, int32_t n, uint64_t a, int32_t lda, uint64_t w, uint64_t work, int32_t lwork, uint64_t info);
+static int64_t native_cuda_cusolver_dn_ssyevd_buffer_size(int64_t handle, int32_t jobz, int32_t uplo, int32_t n, uint64_t a, int32_t lda, uint64_t w, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cusolver_dn_xgeqrf(int64_t handle, int64_t params, int64_t m, int64_t n, int32_t data_type_a, uint64_t a, int64_t lda, int32_t data_type_tau, uint64_t tau, int32_t compute_type, uint64_t buffer_on_device, uint64_t workspace_in_bytes_on_device, uint8_t *buffer_on_host, uint64_t buffer_on_host_length, uint64_t workspace_in_bytes_on_host, uint64_t info);
+static int64_t native_cuda_cusolver_dn_xgeqrf_buffer_size(int64_t handle, int64_t params, int64_t m, int64_t n, int32_t data_type_a, uint64_t a, int64_t lda, int32_t data_type_tau, uint64_t tau, int32_t compute_type, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cusolver_dn_xgetrf(int64_t handle, int64_t params, int64_t m, int64_t n, int32_t data_type_a, uint64_t a, int64_t lda, uint64_t ipiv, int32_t compute_type, uint64_t buffer_on_device, uint64_t workspace_in_bytes_on_device, uint8_t *buffer_on_host, uint64_t buffer_on_host_length, uint64_t workspace_in_bytes_on_host, uint64_t info);
+static int64_t native_cuda_cusolver_dn_xgetrf_buffer_size(int64_t handle, int64_t params, int64_t m, int64_t n, int32_t data_type_a, uint64_t a, int64_t lda, int32_t compute_type, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cusolver_dn_xgetrs(int64_t handle, int64_t params, int32_t trans, int64_t n, int64_t nrhs, int32_t data_type_a, uint64_t a, int64_t lda, uint64_t ipiv, int32_t data_type_b, uint64_t b, int64_t ldb, uint64_t info);
+static int64_t native_cuda_cusolver_dn_xpotrf(int64_t handle, int64_t params, int32_t uplo, int64_t n, int32_t data_type_a, uint64_t a, int64_t lda, int32_t compute_type, uint64_t buffer_on_device, uint64_t workspace_in_bytes_on_device, uint8_t *buffer_on_host, uint64_t buffer_on_host_length, uint64_t workspace_in_bytes_on_host, uint64_t info);
+static int64_t native_cuda_cusolver_dn_xpotrf_buffer_size(int64_t handle, int64_t params, int32_t uplo, int64_t n, int32_t data_type_a, uint64_t a, int64_t lda, int32_t compute_type, uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cusolver_dn_xpotrs(int64_t handle, int64_t params, int32_t uplo, int64_t n, int64_t nrhs, int32_t data_type_a, uint64_t a, int64_t lda, int32_t data_type_b, uint64_t b, int64_t ldb, uint64_t info);
+static int64_t native_cuda_cusolver_get_version(uint8_t *outs, uint64_t outs_length);
+static int64_t native_cuda_cusolver_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length);
 static int64_t native_cuda_driver_available(void);
 static int64_t native_cuda_driver_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length);
 static int64_t native_cuda_live(int64_t kind);
@@ -1069,6 +1121,46 @@ static int64_t native_cuda_cublas_daxpy_entry_witness(int64_t a1, int32_t a2, do
     fprintf(stderr, "\nffi-native-entry 1906\n");
     return native_cuda_cublas_daxpy(a1, a2, a3, a4, a5, a6, a7);
 }
+static int64_t native_cuda_cublas_sgeam_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, float a6, uint64_t a7, int32_t a8, float a9, uint64_t a10, int32_t a11, uint64_t a12, int32_t a13) {
+    fprintf(stderr, "\nffi-native-entry 1907\n");
+    return native_cuda_cublas_sgeam(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13);
+}
+static int64_t native_cuda_cublas_dgeam_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, double a6, uint64_t a7, int32_t a8, double a9, uint64_t a10, int32_t a11, uint64_t a12, int32_t a13) {
+    fprintf(stderr, "\nffi-native-entry 1908\n");
+    return native_cuda_cublas_dgeam(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13);
+}
+static int64_t native_cuda_cublas_scopy_entry_witness(int64_t a1, int32_t a2, uint64_t a3, int32_t a4, uint64_t a5, int32_t a6) {
+    fprintf(stderr, "\nffi-native-entry 1909\n");
+    return native_cuda_cublas_scopy(a1, a2, a3, a4, a5, a6);
+}
+static int64_t native_cuda_cublas_dcopy_entry_witness(int64_t a1, int32_t a2, uint64_t a3, int32_t a4, uint64_t a5, int32_t a6) {
+    fprintf(stderr, "\nffi-native-entry 1910\n");
+    return native_cuda_cublas_dcopy(a1, a2, a3, a4, a5, a6);
+}
+static int64_t native_cuda_cublas_strmm_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7, float a8, uint64_t a9, int32_t a10, uint64_t a11, int32_t a12, uint64_t a13, int32_t a14) {
+    fprintf(stderr, "\nffi-native-entry 1911\n");
+    return native_cuda_cublas_strmm(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14);
+}
+static int64_t native_cuda_cublas_dtrmm_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, int32_t a6, int32_t a7, double a8, uint64_t a9, int32_t a10, uint64_t a11, int32_t a12, uint64_t a13, int32_t a14) {
+    fprintf(stderr, "\nffi-native-entry 1912\n");
+    return native_cuda_cublas_dtrmm(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14);
+}
+static int64_t native_cuda_cublas_sscal_entry_witness(int64_t a1, int32_t a2, float a3, uint64_t a4, int32_t a5) {
+    fprintf(stderr, "\nffi-native-entry 1913\n");
+    return native_cuda_cublas_sscal(a1, a2, a3, a4, a5);
+}
+static int64_t native_cuda_cublas_dscal_entry_witness(int64_t a1, int32_t a2, double a3, uint64_t a4, int32_t a5) {
+    fprintf(stderr, "\nffi-native-entry 1914\n");
+    return native_cuda_cublas_dscal(a1, a2, a3, a4, a5);
+}
+static int64_t native_cuda_cublas_csscal_entry_witness(int64_t a1, int32_t a2, float a3, uint64_t a4, int32_t a5) {
+    fprintf(stderr, "\nffi-native-entry 1915\n");
+    return native_cuda_cublas_csscal(a1, a2, a3, a4, a5);
+}
+static int64_t native_cuda_cublas_zdscal_entry_witness(int64_t a1, int32_t a2, double a3, uint64_t a4, int32_t a5) {
+    fprintf(stderr, "\nffi-native-entry 1916\n");
+    return native_cuda_cublas_zdscal(a1, a2, a3, a4, a5);
+}
 static int64_t native_cuda_curand_available_entry_witness(void) {
     fprintf(stderr, "\nffi-native-entry 1924\n");
     return native_cuda_curand_available();
@@ -1184,6 +1276,174 @@ static int64_t native_cuda_cu_opt_get_solve_time_entry_witness(int64_t a1, uint8
 static int64_t native_cuda_cu_opt_get_primal_solution_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1971\n");
     return native_cuda_cu_opt_get_primal_solution(a1, a2, a3);
+}
+static int64_t native_cuda_cusolver_available_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 1984\n");
+    return native_cuda_cusolver_available();
+}
+static int64_t native_cuda_cusolver_status_text_entry_witness(int64_t a1, int64_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 1985\n");
+    return native_cuda_cusolver_status_text(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cusolver_get_version_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1986\n");
+    return native_cuda_cusolver_get_version(a1, a2);
+}
+static int64_t native_cuda_cusolver_dn_create_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1987\n");
+    return native_cuda_cusolver_dn_create(a1, a2);
+}
+static int64_t native_cuda_cusolver_dn_destroy_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1988\n");
+    return native_cuda_cusolver_dn_destroy(a1);
+}
+static int64_t native_cuda_cusolver_dn_set_stream_entry_witness(int64_t a1, int64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1989\n");
+    return native_cuda_cusolver_dn_set_stream(a1, a2);
+}
+static int64_t native_cuda_cusolver_dn_create_params_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1990\n");
+    return native_cuda_cusolver_dn_create_params(a1, a2);
+}
+static int64_t native_cuda_cusolver_dn_destroy_params_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1991\n");
+    return native_cuda_cusolver_dn_destroy_params(a1);
+}
+static int64_t native_cuda_cusolver_dn_xgetrf_buffer_size_entry_witness(int64_t a1, int64_t a2, int64_t a3, int64_t a4, int32_t a5, uint64_t a6, int64_t a7, int32_t a8, uint8_t *a9, uint64_t a10) {
+    fprintf(stderr, "\nffi-native-entry 1992\n");
+    return native_cuda_cusolver_dn_xgetrf_buffer_size(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10);
+}
+static int64_t native_cuda_cusolver_dn_xgetrf_entry_witness(int64_t a1, int64_t a2, int64_t a3, int64_t a4, int32_t a5, uint64_t a6, int64_t a7, uint64_t a8, int32_t a9, uint64_t a10, uint64_t a11, uint8_t *a12, uint64_t a13, uint64_t a14, uint64_t a15) {
+    fprintf(stderr, "\nffi-native-entry 1993\n");
+    return native_cuda_cusolver_dn_xgetrf(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15);
+}
+static int64_t native_cuda_cusolver_dn_xgetrs_entry_witness(int64_t a1, int64_t a2, int32_t a3, int64_t a4, int64_t a5, int32_t a6, uint64_t a7, int64_t a8, uint64_t a9, int32_t a10, uint64_t a11, int64_t a12, uint64_t a13) {
+    fprintf(stderr, "\nffi-native-entry 1994\n");
+    return native_cuda_cusolver_dn_xgetrs(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13);
+}
+static int64_t native_cuda_cusolver_dn_xpotrf_buffer_size_entry_witness(int64_t a1, int64_t a2, int32_t a3, int64_t a4, int32_t a5, uint64_t a6, int64_t a7, int32_t a8, uint8_t *a9, uint64_t a10) {
+    fprintf(stderr, "\nffi-native-entry 1995\n");
+    return native_cuda_cusolver_dn_xpotrf_buffer_size(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10);
+}
+static int64_t native_cuda_cusolver_dn_xpotrf_entry_witness(int64_t a1, int64_t a2, int32_t a3, int64_t a4, int32_t a5, uint64_t a6, int64_t a7, int32_t a8, uint64_t a9, uint64_t a10, uint8_t *a11, uint64_t a12, uint64_t a13, uint64_t a14) {
+    fprintf(stderr, "\nffi-native-entry 1996\n");
+    return native_cuda_cusolver_dn_xpotrf(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14);
+}
+static int64_t native_cuda_cusolver_dn_xpotrs_entry_witness(int64_t a1, int64_t a2, int32_t a3, int64_t a4, int64_t a5, int32_t a6, uint64_t a7, int64_t a8, int32_t a9, uint64_t a10, int64_t a11, uint64_t a12) {
+    fprintf(stderr, "\nffi-native-entry 1997\n");
+    return native_cuda_cusolver_dn_xpotrs(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12);
+}
+static int64_t native_cuda_cusolver_dn_xgeqrf_buffer_size_entry_witness(int64_t a1, int64_t a2, int64_t a3, int64_t a4, int32_t a5, uint64_t a6, int64_t a7, int32_t a8, uint64_t a9, int32_t a10, uint8_t *a11, uint64_t a12) {
+    fprintf(stderr, "\nffi-native-entry 1998\n");
+    return native_cuda_cusolver_dn_xgeqrf_buffer_size(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12);
+}
+static int64_t native_cuda_cusolver_dn_xgeqrf_entry_witness(int64_t a1, int64_t a2, int64_t a3, int64_t a4, int32_t a5, uint64_t a6, int64_t a7, int32_t a8, uint64_t a9, int32_t a10, uint64_t a11, uint64_t a12, uint8_t *a13, uint64_t a14, uint64_t a15, uint64_t a16) {
+    fprintf(stderr, "\nffi-native-entry 1999\n");
+    return native_cuda_cusolver_dn_xgeqrf(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16);
+}
+static int64_t native_cuda_cusolver_dn_sorgqr_buffer_size_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, uint64_t a5, int32_t a6, uint64_t a7, uint8_t *a8, uint64_t a9) {
+    fprintf(stderr, "\nffi-native-entry 2000\n");
+    return native_cuda_cusolver_dn_sorgqr_buffer_size(a1, a2, a3, a4, a5, a6, a7, a8, a9);
+}
+static int64_t native_cuda_cusolver_dn_sorgqr_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, uint64_t a5, int32_t a6, uint64_t a7, uint64_t a8, int32_t a9, uint64_t a10) {
+    fprintf(stderr, "\nffi-native-entry 2001\n");
+    return native_cuda_cusolver_dn_sorgqr(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10);
+}
+static int64_t native_cuda_cusolver_dn_dorgqr_buffer_size_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, uint64_t a5, int32_t a6, uint64_t a7, uint8_t *a8, uint64_t a9) {
+    fprintf(stderr, "\nffi-native-entry 2002\n");
+    return native_cuda_cusolver_dn_dorgqr_buffer_size(a1, a2, a3, a4, a5, a6, a7, a8, a9);
+}
+static int64_t native_cuda_cusolver_dn_dorgqr_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, uint64_t a5, int32_t a6, uint64_t a7, uint64_t a8, int32_t a9, uint64_t a10) {
+    fprintf(stderr, "\nffi-native-entry 2003\n");
+    return native_cuda_cusolver_dn_dorgqr(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10);
+}
+static int64_t native_cuda_cusolver_dn_sgesvd_buffer_size_entry_witness(int64_t a1, int32_t a2, int32_t a3, uint8_t *a4, uint64_t a5) {
+    fprintf(stderr, "\nffi-native-entry 2004\n");
+    return native_cuda_cusolver_dn_sgesvd_buffer_size(a1, a2, a3, a4, a5);
+}
+static int64_t native_cuda_cusolver_dn_dgesvd_buffer_size_entry_witness(int64_t a1, int32_t a2, int32_t a3, uint8_t *a4, uint64_t a5) {
+    fprintf(stderr, "\nffi-native-entry 2005\n");
+    return native_cuda_cusolver_dn_dgesvd_buffer_size(a1, a2, a3, a4, a5);
+}
+static int64_t native_cuda_cusolver_dn_sgesvd_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, uint64_t a6, int32_t a7, uint64_t a8, uint64_t a9, int32_t a10, uint64_t a11, int32_t a12, uint64_t a13, int32_t a14, uint64_t a15, uint64_t a16) {
+    fprintf(stderr, "\nffi-native-entry 2006\n");
+    return native_cuda_cusolver_dn_sgesvd(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16);
+}
+static int64_t native_cuda_cusolver_dn_dgesvd_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, int32_t a5, uint64_t a6, int32_t a7, uint64_t a8, uint64_t a9, int32_t a10, uint64_t a11, int32_t a12, uint64_t a13, int32_t a14, uint64_t a15, uint64_t a16) {
+    fprintf(stderr, "\nffi-native-entry 2007\n");
+    return native_cuda_cusolver_dn_dgesvd(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16);
+}
+static int64_t native_cuda_cusolver_dn_ssyevd_buffer_size_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, uint64_t a5, int32_t a6, uint64_t a7, uint8_t *a8, uint64_t a9) {
+    fprintf(stderr, "\nffi-native-entry 2008\n");
+    return native_cuda_cusolver_dn_ssyevd_buffer_size(a1, a2, a3, a4, a5, a6, a7, a8, a9);
+}
+static int64_t native_cuda_cusolver_dn_dsyevd_buffer_size_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, uint64_t a5, int32_t a6, uint64_t a7, uint8_t *a8, uint64_t a9) {
+    fprintf(stderr, "\nffi-native-entry 2009\n");
+    return native_cuda_cusolver_dn_dsyevd_buffer_size(a1, a2, a3, a4, a5, a6, a7, a8, a9);
+}
+static int64_t native_cuda_cusolver_dn_ssyevd_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, uint64_t a5, int32_t a6, uint64_t a7, uint64_t a8, int32_t a9, uint64_t a10) {
+    fprintf(stderr, "\nffi-native-entry 2010\n");
+    return native_cuda_cusolver_dn_ssyevd(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10);
+}
+static int64_t native_cuda_cusolver_dn_dsyevd_entry_witness(int64_t a1, int32_t a2, int32_t a3, int32_t a4, uint64_t a5, int32_t a6, uint64_t a7, uint64_t a8, int32_t a9, uint64_t a10) {
+    fprintf(stderr, "\nffi-native-entry 2011\n");
+    return native_cuda_cusolver_dn_dsyevd(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10);
+}
+static int64_t native_cuda_cufft_available_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 2034\n");
+    return native_cuda_cufft_available();
+}
+static int64_t native_cuda_cufft_status_text_entry_witness(int64_t a1, int64_t a2, uint8_t *a3, uint64_t a4) {
+    fprintf(stderr, "\nffi-native-entry 2035\n");
+    return native_cuda_cufft_status_text(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cufft_get_version_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 2036\n");
+    return native_cuda_cufft_get_version(a1, a2);
+}
+static int64_t native_cuda_cufft_plan1d_entry_witness(int32_t a1, int32_t a2, int32_t a3, uint8_t *a4, uint64_t a5) {
+    fprintf(stderr, "\nffi-native-entry 2037\n");
+    return native_cuda_cufft_plan1d(a1, a2, a3, a4, a5);
+}
+static int64_t native_cuda_cufft_plan2d_entry_witness(int32_t a1, int32_t a2, int32_t a3, uint8_t *a4, uint64_t a5) {
+    fprintf(stderr, "\nffi-native-entry 2038\n");
+    return native_cuda_cufft_plan2d(a1, a2, a3, a4, a5);
+}
+static int64_t native_cuda_cufft_plan_many_entry_witness(int32_t a1, const uint8_t *a2, uint64_t a3, int32_t a4, int32_t a5, uint8_t *a6, uint64_t a7) {
+    fprintf(stderr, "\nffi-native-entry 2039\n");
+    return native_cuda_cufft_plan_many(a1, a2, a3, a4, a5, a6, a7);
+}
+static int64_t native_cuda_cufft_destroy_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 2040\n");
+    return native_cuda_cufft_destroy(a1);
+}
+static int64_t native_cuda_cufft_set_stream_entry_witness(int64_t a1, int64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 2041\n");
+    return native_cuda_cufft_set_stream(a1, a2);
+}
+static int64_t native_cuda_cufft_exec_c2_c_entry_witness(int64_t a1, uint64_t a2, uint64_t a3, int32_t a4) {
+    fprintf(stderr, "\nffi-native-entry 2042\n");
+    return native_cuda_cufft_exec_c2_c(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cufft_exec_r2_c_entry_witness(int64_t a1, uint64_t a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 2043\n");
+    return native_cuda_cufft_exec_r2_c(a1, a2, a3);
+}
+static int64_t native_cuda_cufft_exec_c2_r_entry_witness(int64_t a1, uint64_t a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 2044\n");
+    return native_cuda_cufft_exec_c2_r(a1, a2, a3);
+}
+static int64_t native_cuda_cufft_exec_z2_z_entry_witness(int64_t a1, uint64_t a2, uint64_t a3, int32_t a4) {
+    fprintf(stderr, "\nffi-native-entry 2045\n");
+    return native_cuda_cufft_exec_z2_z(a1, a2, a3, a4);
+}
+static int64_t native_cuda_cufft_exec_d2_z_entry_witness(int64_t a1, uint64_t a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 2046\n");
+    return native_cuda_cufft_exec_d2_z(a1, a2, a3);
+}
+static int64_t native_cuda_cufft_exec_z2_d_entry_witness(int64_t a1, uint64_t a2, uint64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 2047\n");
+    return native_cuda_cufft_exec_z2_d(a1, a2, a3);
 }
 static void native_text_stdout_entry_witness(const uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 2193\n");
@@ -1835,6 +2095,66 @@ static int32_t ffi_approved_core(const char *approved_name, const uint8_t *signa
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_daxpy_entry_witness;
         return 1906;
     }
+    if (strcmp((const char *) signature, "\003\001\001\001\001\020\004\001\020\004\001\004\001\003") == 0 && strcmp(approved_name, "cuda_cublasSgeam") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_sgeam;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_sgeam_entry_witness;
+        return 1907;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\001\001\006\004\001\006\004\001\004\001\003") == 0 && strcmp(approved_name, "cuda_cublasDgeam") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_dgeam;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_dgeam_entry_witness;
+        return 1908;
+    }
+    if (strcmp((const char *) signature, "\003\001\004\001\004\001\003") == 0 && strcmp(approved_name, "cuda_cublasScopy") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_scopy;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_scopy_entry_witness;
+        return 1909;
+    }
+    if (strcmp((const char *) signature, "\003\001\004\001\004\001\003") == 0 && strcmp(approved_name, "cuda_cublasDcopy") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_dcopy;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_dcopy_entry_witness;
+        return 1910;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\001\001\001\001\020\004\001\004\001\004\001\003") == 0 && strcmp(approved_name, "cuda_cublasStrmm") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_strmm;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_strmm_entry_witness;
+        return 1911;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\001\001\001\001\006\004\001\004\001\004\001\003") == 0 && strcmp(approved_name, "cuda_cublasDtrmm") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_dtrmm;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_dtrmm_entry_witness;
+        return 1912;
+    }
+    if (strcmp((const char *) signature, "\003\001\020\004\001\003") == 0 && strcmp(approved_name, "cuda_cublasSscal") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_sscal;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_sscal_entry_witness;
+        return 1913;
+    }
+    if (strcmp((const char *) signature, "\003\001\006\004\001\003") == 0 && strcmp(approved_name, "cuda_cublasDscal") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_dscal;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_dscal_entry_witness;
+        return 1914;
+    }
+    if (strcmp((const char *) signature, "\003\001\020\004\001\003") == 0 && strcmp(approved_name, "cuda_cublasCsscal") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_csscal;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_csscal_entry_witness;
+        return 1915;
+    }
+    if (strcmp((const char *) signature, "\003\001\006\004\001\003") == 0 && strcmp(approved_name, "cuda_cublasZdscal") == 0) {
+        *target_out = (uint64_t) native_cuda_cublas_zdscal;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cublas_zdscal_entry_witness;
+        return 1916;
+    }
     if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_curand_available") == 0) {
         *target_out = (uint64_t) native_cuda_curand_available;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
@@ -2008,6 +2328,258 @@ static int32_t ffi_approved_core(const char *approved_name, const uint8_t *signa
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cu_opt_get_primal_solution_entry_witness;
         return 1971;
+    }
+    if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_cusolver_available") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_available;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_available_entry_witness;
+        return 1984;
+    }
+    if (strcmp((const char *) signature, "\003\003\011\003") == 0 && strcmp(approved_name, "cuda_cusolver_status_text") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_status_text;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_status_text_entry_witness;
+        return 1985;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cusolverGetVersion") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_get_version;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_get_version_entry_witness;
+        return 1986;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cusolverDnCreate") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_create;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_create_entry_witness;
+        return 1987;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_cusolverDnDestroy") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_destroy;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_destroy_entry_witness;
+        return 1988;
+    }
+    if (strcmp((const char *) signature, "\003\003\003") == 0 && strcmp(approved_name, "cuda_cusolverDnSetStream") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_set_stream;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_set_stream_entry_witness;
+        return 1989;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cusolverDnCreateParams") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_create_params;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_create_params_entry_witness;
+        return 1990;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_cusolverDnDestroyParams") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_destroy_params;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_destroy_params_entry_witness;
+        return 1991;
+    }
+    if (strcmp((const char *) signature, "\003\003\003\003\001\004\003\001\011\003") == 0 && strcmp(approved_name, "cuda_cusolverDnXgetrfBufferSize") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_xgetrf_buffer_size;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_xgetrf_buffer_size_entry_witness;
+        return 1992;
+    }
+    if (strcmp((const char *) signature, "\003\003\003\003\001\004\003\004\001\004\004\011\004\004\003") == 0 && strcmp(approved_name, "cuda_cusolverDnXgetrf") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_xgetrf;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_xgetrf_entry_witness;
+        return 1993;
+    }
+    if (strcmp((const char *) signature, "\003\003\001\003\003\001\004\003\004\001\004\003\004\003") == 0 && strcmp(approved_name, "cuda_cusolverDnXgetrs") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_xgetrs;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_xgetrs_entry_witness;
+        return 1994;
+    }
+    if (strcmp((const char *) signature, "\003\003\001\003\001\004\003\001\011\003") == 0 && strcmp(approved_name, "cuda_cusolverDnXpotrfBufferSize") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_xpotrf_buffer_size;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_xpotrf_buffer_size_entry_witness;
+        return 1995;
+    }
+    if (strcmp((const char *) signature, "\003\003\001\003\001\004\003\001\004\004\011\004\004\003") == 0 && strcmp(approved_name, "cuda_cusolverDnXpotrf") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_xpotrf;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_xpotrf_entry_witness;
+        return 1996;
+    }
+    if (strcmp((const char *) signature, "\003\003\001\003\003\001\004\003\001\004\003\004\003") == 0 && strcmp(approved_name, "cuda_cusolverDnXpotrs") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_xpotrs;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_xpotrs_entry_witness;
+        return 1997;
+    }
+    if (strcmp((const char *) signature, "\003\003\003\003\001\004\003\001\004\001\011\003") == 0 && strcmp(approved_name, "cuda_cusolverDnXgeqrfBufferSize") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_xgeqrf_buffer_size;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_xgeqrf_buffer_size_entry_witness;
+        return 1998;
+    }
+    if (strcmp((const char *) signature, "\003\003\003\003\001\004\003\001\004\001\004\004\011\004\004\003") == 0 && strcmp(approved_name, "cuda_cusolverDnXgeqrf") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_xgeqrf;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_xgeqrf_entry_witness;
+        return 1999;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\001\004\001\004\011\003") == 0 && strcmp(approved_name, "cuda_cusolverDnSorgqrBufferSize") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_sorgqr_buffer_size;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_sorgqr_buffer_size_entry_witness;
+        return 2000;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\001\004\001\004\004\001\004\003") == 0 && strcmp(approved_name, "cuda_cusolverDnSorgqr") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_sorgqr;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_sorgqr_entry_witness;
+        return 2001;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\001\004\001\004\011\003") == 0 && strcmp(approved_name, "cuda_cusolverDnDorgqrBufferSize") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_dorgqr_buffer_size;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_dorgqr_buffer_size_entry_witness;
+        return 2002;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\001\004\001\004\004\001\004\003") == 0 && strcmp(approved_name, "cuda_cusolverDnDorgqr") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_dorgqr;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_dorgqr_entry_witness;
+        return 2003;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\011\003") == 0 && strcmp(approved_name, "cuda_cusolverDnSgesvdBufferSize") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_sgesvd_buffer_size;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_sgesvd_buffer_size_entry_witness;
+        return 2004;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\011\003") == 0 && strcmp(approved_name, "cuda_cusolverDnDgesvdBufferSize") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_dgesvd_buffer_size;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_dgesvd_buffer_size_entry_witness;
+        return 2005;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\001\001\004\001\004\004\001\004\001\004\001\004\004\003") == 0 && strcmp(approved_name, "cuda_cusolverDnSgesvd") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_sgesvd;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_sgesvd_entry_witness;
+        return 2006;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\001\001\004\001\004\004\001\004\001\004\001\004\004\003") == 0 && strcmp(approved_name, "cuda_cusolverDnDgesvd") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_dgesvd;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_dgesvd_entry_witness;
+        return 2007;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\001\004\001\004\011\003") == 0 && strcmp(approved_name, "cuda_cusolverDnSsyevdBufferSize") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_ssyevd_buffer_size;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_ssyevd_buffer_size_entry_witness;
+        return 2008;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\001\004\001\004\011\003") == 0 && strcmp(approved_name, "cuda_cusolverDnDsyevdBufferSize") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_dsyevd_buffer_size;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_dsyevd_buffer_size_entry_witness;
+        return 2009;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\001\004\001\004\004\001\004\003") == 0 && strcmp(approved_name, "cuda_cusolverDnSsyevd") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_ssyevd;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_ssyevd_entry_witness;
+        return 2010;
+    }
+    if (strcmp((const char *) signature, "\003\001\001\001\004\001\004\004\001\004\003") == 0 && strcmp(approved_name, "cuda_cusolverDnDsyevd") == 0) {
+        *target_out = (uint64_t) native_cuda_cusolver_dn_dsyevd;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cusolver_dn_dsyevd_entry_witness;
+        return 2011;
+    }
+    if (strcmp((const char *) signature, "\003") == 0 && strcmp(approved_name, "cuda_cufft_available") == 0) {
+        *target_out = (uint64_t) native_cuda_cufft_available;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cufft_available_entry_witness;
+        return 2034;
+    }
+    if (strcmp((const char *) signature, "\003\003\011\003") == 0 && strcmp(approved_name, "cuda_cufft_status_text") == 0) {
+        *target_out = (uint64_t) native_cuda_cufft_status_text;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cufft_status_text_entry_witness;
+        return 2035;
+    }
+    if (strcmp((const char *) signature, "\011\003") == 0 && strcmp(approved_name, "cuda_cufftGetVersion") == 0) {
+        *target_out = (uint64_t) native_cuda_cufft_get_version;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cufft_get_version_entry_witness;
+        return 2036;
+    }
+    if (strcmp((const char *) signature, "\001\001\001\011\003") == 0 && strcmp(approved_name, "cuda_cufftPlan1d") == 0) {
+        *target_out = (uint64_t) native_cuda_cufft_plan1d;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cufft_plan1d_entry_witness;
+        return 2037;
+    }
+    if (strcmp((const char *) signature, "\001\001\001\011\003") == 0 && strcmp(approved_name, "cuda_cufftPlan2d") == 0) {
+        *target_out = (uint64_t) native_cuda_cufft_plan2d;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cufft_plan2d_entry_witness;
+        return 2038;
+    }
+    if (strcmp((const char *) signature, "\001\010\001\001\011\003") == 0 && strcmp(approved_name, "cuda_cufftPlanMany") == 0) {
+        *target_out = (uint64_t) native_cuda_cufft_plan_many;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cufft_plan_many_entry_witness;
+        return 2039;
+    }
+    if (strcmp((const char *) signature, "\003\003") == 0 && strcmp(approved_name, "cuda_cufftDestroy") == 0) {
+        *target_out = (uint64_t) native_cuda_cufft_destroy;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cufft_destroy_entry_witness;
+        return 2040;
+    }
+    if (strcmp((const char *) signature, "\003\003\003") == 0 && strcmp(approved_name, "cuda_cufftSetStream") == 0) {
+        *target_out = (uint64_t) native_cuda_cufft_set_stream;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cufft_set_stream_entry_witness;
+        return 2041;
+    }
+    if (strcmp((const char *) signature, "\003\004\004\001\003") == 0 && strcmp(approved_name, "cuda_cufftExecC2C") == 0) {
+        *target_out = (uint64_t) native_cuda_cufft_exec_c2_c;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cufft_exec_c2_c_entry_witness;
+        return 2042;
+    }
+    if (strcmp((const char *) signature, "\003\004\004\003") == 0 && strcmp(approved_name, "cuda_cufftExecR2C") == 0) {
+        *target_out = (uint64_t) native_cuda_cufft_exec_r2_c;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cufft_exec_r2_c_entry_witness;
+        return 2043;
+    }
+    if (strcmp((const char *) signature, "\003\004\004\003") == 0 && strcmp(approved_name, "cuda_cufftExecC2R") == 0) {
+        *target_out = (uint64_t) native_cuda_cufft_exec_c2_r;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cufft_exec_c2_r_entry_witness;
+        return 2044;
+    }
+    if (strcmp((const char *) signature, "\003\004\004\001\003") == 0 && strcmp(approved_name, "cuda_cufftExecZ2Z") == 0) {
+        *target_out = (uint64_t) native_cuda_cufft_exec_z2_z;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cufft_exec_z2_z_entry_witness;
+        return 2045;
+    }
+    if (strcmp((const char *) signature, "\003\004\004\003") == 0 && strcmp(approved_name, "cuda_cufftExecD2Z") == 0) {
+        *target_out = (uint64_t) native_cuda_cufft_exec_d2_z;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cufft_exec_d2_z_entry_witness;
+        return 2046;
+    }
+    if (strcmp((const char *) signature, "\003\004\004\003") == 0 && strcmp(approved_name, "cuda_cufftExecZ2D") == 0) {
+        *target_out = (uint64_t) native_cuda_cufft_exec_z2_d;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) native_cuda_cufft_exec_z2_d_entry_witness;
+        return 2047;
     }
     if (strcmp((const char *) signature, "\015\007") == 0 && strcmp(approved_name, "core_stdout_text") == 0) {
         *target_out = (uint64_t) native_text_stdout;
@@ -2758,16 +3330,34 @@ static int64_t native_cuda_cublas_create(uint8_t *outs, uint64_t outs_length)
     return samaltak_cuda_cublasCreate(outs, outs_length);
 }
 
+/* FFIPrimitives>>nativeCudaCublasCsscal:n:alpha:x:incx: */
+static int64_t native_cuda_cublas_csscal(int64_t handle, int32_t n, float alpha, uint64_t x, int32_t incx)
+{
+    return samaltak_cuda_cublasCsscal(handle, n, alpha, x, incx);
+}
+
 /* FFIPrimitives>>nativeCudaCublasDaxpy:n:alpha:x:incx:y:incy: */
 static int64_t native_cuda_cublas_daxpy(int64_t handle, int32_t n, double alpha, uint64_t x, int32_t incx, uint64_t y, int32_t incy)
 {
     return samaltak_cuda_cublasDaxpy(handle, n, alpha, x, incx, y, incy);
 }
 
+/* FFIPrimitives>>nativeCudaCublasDcopy:n:x:incx:y:incy: */
+static int64_t native_cuda_cublas_dcopy(int64_t handle, int32_t n, uint64_t x, int32_t incx, uint64_t y, int32_t incy)
+{
+    return samaltak_cuda_cublasDcopy(handle, n, x, incx, y, incy);
+}
+
 /* FFIPrimitives>>nativeCudaCublasDestroy: */
 static int64_t native_cuda_cublas_destroy(int64_t handle)
 {
     return samaltak_cuda_cublasDestroy(handle);
+}
+
+/* FFIPrimitives>>nativeCudaCublasDgeam:transa:transb:m:n:alpha:a:lda:beta:b:ldb:c:ldc: */
+static int64_t native_cuda_cublas_dgeam(int64_t handle, int32_t transa, int32_t transb, int32_t m, int32_t n, double alpha, uint64_t a, int32_t lda, double beta, uint64_t b, int32_t ldb, uint64_t c, int32_t ldc)
+{
+    return samaltak_cuda_cublasDgeam(handle, transa, transb, m, n, alpha, a, lda, beta, b, ldb, c, ldc);
 }
 
 /* FFIPrimitives>>nativeCudaCublasDgemm:transa:transb:m:n:k:alpha:a:lda:b:ldb:beta:c:ldc: */
@@ -2782,6 +3372,18 @@ static int64_t native_cuda_cublas_dnrm2(int64_t handle, int32_t n, uint64_t x, i
     return samaltak_cuda_cublasDnrm2(handle, n, x, incx, outs, outs_length);
 }
 
+/* FFIPrimitives>>nativeCudaCublasDscal:n:alpha:x:incx: */
+static int64_t native_cuda_cublas_dscal(int64_t handle, int32_t n, double alpha, uint64_t x, int32_t incx)
+{
+    return samaltak_cuda_cublasDscal(handle, n, alpha, x, incx);
+}
+
+/* FFIPrimitives>>nativeCudaCublasDtrmm:side:uplo:trans:diag:m:n:alpha:a:lda:b:ldb:c:ldc: */
+static int64_t native_cuda_cublas_dtrmm(int64_t handle, int32_t side, int32_t uplo, int32_t trans, int32_t diag, int32_t m, int32_t n, double alpha, uint64_t a, int32_t lda, uint64_t b, int32_t ldb, uint64_t c, int32_t ldc)
+{
+    return samaltak_cuda_cublasDtrmm(handle, side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, c, ldc);
+}
+
 /* FFIPrimitives>>nativeCudaCublasGetVersion:outs:outsLength: */
 static int64_t native_cuda_cublas_get_version(int64_t handle, uint8_t *outs, uint64_t outs_length)
 {
@@ -2792,6 +3394,12 @@ static int64_t native_cuda_cublas_get_version(int64_t handle, uint8_t *outs, uin
 static int64_t native_cuda_cublas_saxpy(int64_t handle, int32_t n, float alpha, uint64_t x, int32_t incx, uint64_t y, int32_t incy)
 {
     return samaltak_cuda_cublasSaxpy(handle, n, alpha, x, incx, y, incy);
+}
+
+/* FFIPrimitives>>nativeCudaCublasScopy:n:x:incx:y:incy: */
+static int64_t native_cuda_cublas_scopy(int64_t handle, int32_t n, uint64_t x, int32_t incx, uint64_t y, int32_t incy)
+{
+    return samaltak_cuda_cublasScopy(handle, n, x, incx, y, incy);
 }
 
 /* FFIPrimitives>>nativeCudaCublasSetMathMode:mode: */
@@ -2806,6 +3414,12 @@ static int64_t native_cuda_cublas_set_stream(int64_t handle, int64_t stream_id)
     return samaltak_cuda_cublasSetStream(handle, stream_id);
 }
 
+/* FFIPrimitives>>nativeCudaCublasSgeam:transa:transb:m:n:alpha:a:lda:beta:b:ldb:c:ldc: */
+static int64_t native_cuda_cublas_sgeam(int64_t handle, int32_t transa, int32_t transb, int32_t m, int32_t n, float alpha, uint64_t a, int32_t lda, float beta, uint64_t b, int32_t ldb, uint64_t c, int32_t ldc)
+{
+    return samaltak_cuda_cublasSgeam(handle, transa, transb, m, n, alpha, a, lda, beta, b, ldb, c, ldc);
+}
+
 /* FFIPrimitives>>nativeCudaCublasSgemm:transa:transb:m:n:k:alpha:a:lda:b:ldb:beta:c:ldc: */
 static int64_t native_cuda_cublas_sgemm(int64_t handle, int32_t transa, int32_t transb, int32_t m, int32_t n, int32_t k, float alpha, uint64_t a, int32_t lda, uint64_t b, int32_t ldb, float beta, uint64_t c, int32_t ldc)
 {
@@ -2818,10 +3432,28 @@ static int64_t native_cuda_cublas_snrm2(int64_t handle, int32_t n, uint64_t x, i
     return samaltak_cuda_cublasSnrm2(handle, n, x, incx, outs, outs_length);
 }
 
+/* FFIPrimitives>>nativeCudaCublasSscal:n:alpha:x:incx: */
+static int64_t native_cuda_cublas_sscal(int64_t handle, int32_t n, float alpha, uint64_t x, int32_t incx)
+{
+    return samaltak_cuda_cublasSscal(handle, n, alpha, x, incx);
+}
+
 /* FFIPrimitives>>nativeCudaCublasStatusText:kind:out:outLength: */
 static int64_t native_cuda_cublas_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length)
 {
     return samaltak_cuda_cublas_status_text(status, kind, out, out_length);
+}
+
+/* FFIPrimitives>>nativeCudaCublasStrmm:side:uplo:trans:diag:m:n:alpha:a:lda:b:ldb:c:ldc: */
+static int64_t native_cuda_cublas_strmm(int64_t handle, int32_t side, int32_t uplo, int32_t trans, int32_t diag, int32_t m, int32_t n, float alpha, uint64_t a, int32_t lda, uint64_t b, int32_t ldb, uint64_t c, int32_t ldc)
+{
+    return samaltak_cuda_cublasStrmm(handle, side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, c, ldc);
+}
+
+/* FFIPrimitives>>nativeCudaCublasZdscal:n:alpha:x:incx: */
+static int64_t native_cuda_cublas_zdscal(int64_t handle, int32_t n, double alpha, uint64_t x, int32_t incx)
+{
+    return samaltak_cuda_cublasZdscal(handle, n, alpha, x, incx);
 }
 
 /* FFIPrimitives>>nativeCudaCudaDeviceGetAttribute:device:outs:outsLength: */
@@ -3004,6 +3636,90 @@ static int64_t native_cuda_cudart_status_text(int64_t status, int64_t kind, uint
     return samaltak_cuda_cudart_status_text(status, kind, out, out_length);
 }
 
+/* FFIPrimitives>>nativeCudaCufftAvailable */
+static int64_t native_cuda_cufft_available(void)
+{
+    return samaltak_cuda_cufft_available();
+}
+
+/* FFIPrimitives>>nativeCudaCufftDestroy: */
+static int64_t native_cuda_cufft_destroy(int64_t plan)
+{
+    return samaltak_cuda_cufftDestroy(plan);
+}
+
+/* FFIPrimitives>>nativeCudaCufftExecC2C:idata:odata:direction: */
+static int64_t native_cuda_cufft_exec_c2_c(int64_t plan, uint64_t idata, uint64_t odata, int32_t direction)
+{
+    return samaltak_cuda_cufftExecC2C(plan, idata, odata, direction);
+}
+
+/* FFIPrimitives>>nativeCudaCufftExecC2R:idata:odata: */
+static int64_t native_cuda_cufft_exec_c2_r(int64_t plan, uint64_t idata, uint64_t odata)
+{
+    return samaltak_cuda_cufftExecC2R(plan, idata, odata);
+}
+
+/* FFIPrimitives>>nativeCudaCufftExecD2Z:idata:odata: */
+static int64_t native_cuda_cufft_exec_d2_z(int64_t plan, uint64_t idata, uint64_t odata)
+{
+    return samaltak_cuda_cufftExecD2Z(plan, idata, odata);
+}
+
+/* FFIPrimitives>>nativeCudaCufftExecR2C:idata:odata: */
+static int64_t native_cuda_cufft_exec_r2_c(int64_t plan, uint64_t idata, uint64_t odata)
+{
+    return samaltak_cuda_cufftExecR2C(plan, idata, odata);
+}
+
+/* FFIPrimitives>>nativeCudaCufftExecZ2D:idata:odata: */
+static int64_t native_cuda_cufft_exec_z2_d(int64_t plan, uint64_t idata, uint64_t odata)
+{
+    return samaltak_cuda_cufftExecZ2D(plan, idata, odata);
+}
+
+/* FFIPrimitives>>nativeCudaCufftExecZ2Z:idata:odata:direction: */
+static int64_t native_cuda_cufft_exec_z2_z(int64_t plan, uint64_t idata, uint64_t odata, int32_t direction)
+{
+    return samaltak_cuda_cufftExecZ2Z(plan, idata, odata, direction);
+}
+
+/* FFIPrimitives>>nativeCudaCufftGetVersion:outsLength: */
+static int64_t native_cuda_cufft_get_version(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cufftGetVersion(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCufftPlan1d:type:batch:outs:outsLength: */
+static int64_t native_cuda_cufft_plan1d(int32_t nx, int32_t type, int32_t batch, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cufftPlan1d(nx, type, batch, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCufftPlan2d:ny:type:outs:outsLength: */
+static int64_t native_cuda_cufft_plan2d(int32_t nx, int32_t ny, int32_t type, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cufftPlan2d(nx, ny, type, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCufftPlanMany:n:nLength:type:batch:outs:outsLength: */
+static int64_t native_cuda_cufft_plan_many(int32_t rank, const uint8_t *n, uint64_t n_length, int32_t type, int32_t batch, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cufftPlanMany(rank, n, n_length, type, batch, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCufftSetStream:stream: */
+static int64_t native_cuda_cufft_set_stream(int64_t plan, int64_t stream)
+{
+    return samaltak_cuda_cufftSetStream(plan, stream);
+}
+
+/* FFIPrimitives>>nativeCudaCufftStatusText:kind:out:outLength: */
+static int64_t native_cuda_cufft_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length)
+{
+    return samaltak_cuda_cufft_status_text(status, kind, out, out_length);
+}
+
 /* FFIPrimitives>>nativeCudaCuoptAvailable */
 static int64_t native_cuda_cuopt_available(void)
 {
@@ -3080,6 +3796,174 @@ static int64_t native_cuda_curand_set_stream(int64_t generator, int64_t stream)
 static int64_t native_cuda_curand_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length)
 {
     return samaltak_cuda_curand_status_text(status, kind, out, out_length);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverAvailable */
+static int64_t native_cuda_cusolver_available(void)
+{
+    return samaltak_cuda_cusolver_available();
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnCreate:outsLength: */
+static int64_t native_cuda_cusolver_dn_create(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cusolverDnCreate(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnCreateParams:outsLength: */
+static int64_t native_cuda_cusolver_dn_create_params(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cusolverDnCreateParams(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnDestroy: */
+static int64_t native_cuda_cusolver_dn_destroy(int64_t handle)
+{
+    return samaltak_cuda_cusolverDnDestroy(handle);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnDestroyParams: */
+static int64_t native_cuda_cusolver_dn_destroy_params(int64_t params)
+{
+    return samaltak_cuda_cusolverDnDestroyParams(params);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnDgesvd:jobu:jobvt:m:n:a:lda:s:u:ldu:vT:ldvt:work:lwork:rwork:info: */
+static int64_t native_cuda_cusolver_dn_dgesvd(int64_t handle, int32_t jobu, int32_t jobvt, int32_t m, int32_t n, uint64_t a, int32_t lda, uint64_t s, uint64_t u, int32_t ldu, uint64_t v_t, int32_t ldvt, uint64_t work, int32_t lwork, uint64_t rwork, uint64_t info)
+{
+    return samaltak_cuda_cusolverDnDgesvd(handle, jobu, jobvt, m, n, a, lda, s, u, ldu, v_t, ldvt, work, lwork, rwork, info);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnDgesvdBufferSize:m:n:outs:outsLength: */
+static int64_t native_cuda_cusolver_dn_dgesvd_buffer_size(int64_t handle, int32_t m, int32_t n, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cusolverDnDgesvdBufferSize(handle, m, n, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnDorgqr:m:n:k:a:lda:tau:work:lwork:info: */
+static int64_t native_cuda_cusolver_dn_dorgqr(int64_t handle, int32_t m, int32_t n, int32_t k, uint64_t a, int32_t lda, uint64_t tau, uint64_t work, int32_t lwork, uint64_t info)
+{
+    return samaltak_cuda_cusolverDnDorgqr(handle, m, n, k, a, lda, tau, work, lwork, info);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnDorgqrBufferSize:m:n:k:a:lda:tau:outs:outsLength: */
+static int64_t native_cuda_cusolver_dn_dorgqr_buffer_size(int64_t handle, int32_t m, int32_t n, int32_t k, uint64_t a, int32_t lda, uint64_t tau, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cusolverDnDorgqrBufferSize(handle, m, n, k, a, lda, tau, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnDsyevd:jobz:uplo:n:a:lda:w:work:lwork:info: */
+static int64_t native_cuda_cusolver_dn_dsyevd(int64_t handle, int32_t jobz, int32_t uplo, int32_t n, uint64_t a, int32_t lda, uint64_t w, uint64_t work, int32_t lwork, uint64_t info)
+{
+    return samaltak_cuda_cusolverDnDsyevd(handle, jobz, uplo, n, a, lda, w, work, lwork, info);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnDsyevdBufferSize:jobz:uplo:n:a:lda:w:outs:outsLength: */
+static int64_t native_cuda_cusolver_dn_dsyevd_buffer_size(int64_t handle, int32_t jobz, int32_t uplo, int32_t n, uint64_t a, int32_t lda, uint64_t w, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cusolverDnDsyevdBufferSize(handle, jobz, uplo, n, a, lda, w, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnSetStream:streamId: */
+static int64_t native_cuda_cusolver_dn_set_stream(int64_t handle, int64_t stream_id)
+{
+    return samaltak_cuda_cusolverDnSetStream(handle, stream_id);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnSgesvd:jobu:jobvt:m:n:a:lda:s:u:ldu:vT:ldvt:work:lwork:rwork:info: */
+static int64_t native_cuda_cusolver_dn_sgesvd(int64_t handle, int32_t jobu, int32_t jobvt, int32_t m, int32_t n, uint64_t a, int32_t lda, uint64_t s, uint64_t u, int32_t ldu, uint64_t v_t, int32_t ldvt, uint64_t work, int32_t lwork, uint64_t rwork, uint64_t info)
+{
+    return samaltak_cuda_cusolverDnSgesvd(handle, jobu, jobvt, m, n, a, lda, s, u, ldu, v_t, ldvt, work, lwork, rwork, info);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnSgesvdBufferSize:m:n:outs:outsLength: */
+static int64_t native_cuda_cusolver_dn_sgesvd_buffer_size(int64_t handle, int32_t m, int32_t n, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cusolverDnSgesvdBufferSize(handle, m, n, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnSorgqr:m:n:k:a:lda:tau:work:lwork:info: */
+static int64_t native_cuda_cusolver_dn_sorgqr(int64_t handle, int32_t m, int32_t n, int32_t k, uint64_t a, int32_t lda, uint64_t tau, uint64_t work, int32_t lwork, uint64_t info)
+{
+    return samaltak_cuda_cusolverDnSorgqr(handle, m, n, k, a, lda, tau, work, lwork, info);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnSorgqrBufferSize:m:n:k:a:lda:tau:outs:outsLength: */
+static int64_t native_cuda_cusolver_dn_sorgqr_buffer_size(int64_t handle, int32_t m, int32_t n, int32_t k, uint64_t a, int32_t lda, uint64_t tau, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cusolverDnSorgqrBufferSize(handle, m, n, k, a, lda, tau, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnSsyevd:jobz:uplo:n:a:lda:w:work:lwork:info: */
+static int64_t native_cuda_cusolver_dn_ssyevd(int64_t handle, int32_t jobz, int32_t uplo, int32_t n, uint64_t a, int32_t lda, uint64_t w, uint64_t work, int32_t lwork, uint64_t info)
+{
+    return samaltak_cuda_cusolverDnSsyevd(handle, jobz, uplo, n, a, lda, w, work, lwork, info);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnSsyevdBufferSize:jobz:uplo:n:a:lda:w:outs:outsLength: */
+static int64_t native_cuda_cusolver_dn_ssyevd_buffer_size(int64_t handle, int32_t jobz, int32_t uplo, int32_t n, uint64_t a, int32_t lda, uint64_t w, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cusolverDnSsyevdBufferSize(handle, jobz, uplo, n, a, lda, w, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnXgeqrf:params:m:n:dataTypeA:a:lda:dataTypeTau:tau:computeType:bufferOnDevice:workspaceInBytesOnDevice:bufferOnHost:bufferOnHostLength:workspaceInBytesOnHost:info: */
+static int64_t native_cuda_cusolver_dn_xgeqrf(int64_t handle, int64_t params, int64_t m, int64_t n, int32_t data_type_a, uint64_t a, int64_t lda, int32_t data_type_tau, uint64_t tau, int32_t compute_type, uint64_t buffer_on_device, uint64_t workspace_in_bytes_on_device, uint8_t *buffer_on_host, uint64_t buffer_on_host_length, uint64_t workspace_in_bytes_on_host, uint64_t info)
+{
+    return samaltak_cuda_cusolverDnXgeqrf(handle, params, m, n, data_type_a, a, lda, data_type_tau, tau, compute_type, buffer_on_device, workspace_in_bytes_on_device, buffer_on_host, buffer_on_host_length, workspace_in_bytes_on_host, info);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnXgeqrfBufferSize:params:m:n:dataTypeA:a:lda:dataTypeTau:tau:computeType:outs:outsLength: */
+static int64_t native_cuda_cusolver_dn_xgeqrf_buffer_size(int64_t handle, int64_t params, int64_t m, int64_t n, int32_t data_type_a, uint64_t a, int64_t lda, int32_t data_type_tau, uint64_t tau, int32_t compute_type, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cusolverDnXgeqrfBufferSize(handle, params, m, n, data_type_a, a, lda, data_type_tau, tau, compute_type, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnXgetrf:params:m:n:dataTypeA:a:lda:ipiv:computeType:bufferOnDevice:workspaceInBytesOnDevice:bufferOnHost:bufferOnHostLength:workspaceInBytesOnHost:info: */
+static int64_t native_cuda_cusolver_dn_xgetrf(int64_t handle, int64_t params, int64_t m, int64_t n, int32_t data_type_a, uint64_t a, int64_t lda, uint64_t ipiv, int32_t compute_type, uint64_t buffer_on_device, uint64_t workspace_in_bytes_on_device, uint8_t *buffer_on_host, uint64_t buffer_on_host_length, uint64_t workspace_in_bytes_on_host, uint64_t info)
+{
+    return samaltak_cuda_cusolverDnXgetrf(handle, params, m, n, data_type_a, a, lda, ipiv, compute_type, buffer_on_device, workspace_in_bytes_on_device, buffer_on_host, buffer_on_host_length, workspace_in_bytes_on_host, info);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnXgetrfBufferSize:params:m:n:dataTypeA:a:lda:computeType:outs:outsLength: */
+static int64_t native_cuda_cusolver_dn_xgetrf_buffer_size(int64_t handle, int64_t params, int64_t m, int64_t n, int32_t data_type_a, uint64_t a, int64_t lda, int32_t compute_type, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cusolverDnXgetrfBufferSize(handle, params, m, n, data_type_a, a, lda, compute_type, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnXgetrs:params:trans:n:nrhs:dataTypeA:a:lda:ipiv:dataTypeB:b:ldb:info: */
+static int64_t native_cuda_cusolver_dn_xgetrs(int64_t handle, int64_t params, int32_t trans, int64_t n, int64_t nrhs, int32_t data_type_a, uint64_t a, int64_t lda, uint64_t ipiv, int32_t data_type_b, uint64_t b, int64_t ldb, uint64_t info)
+{
+    return samaltak_cuda_cusolverDnXgetrs(handle, params, trans, n, nrhs, data_type_a, a, lda, ipiv, data_type_b, b, ldb, info);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnXpotrf:params:uplo:n:dataTypeA:a:lda:computeType:bufferOnDevice:workspaceInBytesOnDevice:bufferOnHost:bufferOnHostLength:workspaceInBytesOnHost:info: */
+static int64_t native_cuda_cusolver_dn_xpotrf(int64_t handle, int64_t params, int32_t uplo, int64_t n, int32_t data_type_a, uint64_t a, int64_t lda, int32_t compute_type, uint64_t buffer_on_device, uint64_t workspace_in_bytes_on_device, uint8_t *buffer_on_host, uint64_t buffer_on_host_length, uint64_t workspace_in_bytes_on_host, uint64_t info)
+{
+    return samaltak_cuda_cusolverDnXpotrf(handle, params, uplo, n, data_type_a, a, lda, compute_type, buffer_on_device, workspace_in_bytes_on_device, buffer_on_host, buffer_on_host_length, workspace_in_bytes_on_host, info);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnXpotrfBufferSize:params:uplo:n:dataTypeA:a:lda:computeType:outs:outsLength: */
+static int64_t native_cuda_cusolver_dn_xpotrf_buffer_size(int64_t handle, int64_t params, int32_t uplo, int64_t n, int32_t data_type_a, uint64_t a, int64_t lda, int32_t compute_type, uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cusolverDnXpotrfBufferSize(handle, params, uplo, n, data_type_a, a, lda, compute_type, outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverDnXpotrs:params:uplo:n:nrhs:dataTypeA:a:lda:dataTypeB:b:ldb:info: */
+static int64_t native_cuda_cusolver_dn_xpotrs(int64_t handle, int64_t params, int32_t uplo, int64_t n, int64_t nrhs, int32_t data_type_a, uint64_t a, int64_t lda, int32_t data_type_b, uint64_t b, int64_t ldb, uint64_t info)
+{
+    return samaltak_cuda_cusolverDnXpotrs(handle, params, uplo, n, nrhs, data_type_a, a, lda, data_type_b, b, ldb, info);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverGetVersion:outsLength: */
+static int64_t native_cuda_cusolver_get_version(uint8_t *outs, uint64_t outs_length)
+{
+    return samaltak_cuda_cusolverGetVersion(outs, outs_length);
+}
+
+/* FFIPrimitives>>nativeCudaCusolverStatusText:kind:out:outLength: */
+static int64_t native_cuda_cusolver_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t out_length)
+{
+    return samaltak_cuda_cusolver_status_text(status, kind, out, out_length);
 }
 
 /* FFIPrimitives>>nativeCudaDriverAvailable */

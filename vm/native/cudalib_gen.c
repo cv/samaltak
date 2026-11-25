@@ -64,6 +64,16 @@ int64_t samaltak_cuda_cublasSnrm2(int64_t a_handle, int32_t a_n, uint64_t a_x, i
 int64_t samaltak_cuda_cublasDnrm2(int64_t a_handle, int32_t a_n, uint64_t a_x, int32_t a_incx, uint8_t *outs, uint64_t outs_len) { (void)a_handle; (void)a_n; (void)a_x; (void)a_incx; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
 int64_t samaltak_cuda_cublasSaxpy(int64_t a_handle, int32_t a_n, float a_alpha, uint64_t a_x, int32_t a_incx, uint64_t a_y, int32_t a_incy) { (void)a_handle; (void)a_n; (void)a_alpha; (void)a_x; (void)a_incx; (void)a_y; (void)a_incy; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
 int64_t samaltak_cuda_cublasDaxpy(int64_t a_handle, int32_t a_n, double a_alpha, uint64_t a_x, int32_t a_incx, uint64_t a_y, int32_t a_incy) { (void)a_handle; (void)a_n; (void)a_alpha; (void)a_x; (void)a_incx; (void)a_y; (void)a_incy; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cublasSgeam(int64_t a_handle, int32_t a_transa, int32_t a_transb, int32_t a_m, int32_t a_n, float a_alpha, uint64_t a_A, int32_t a_lda, float a_beta, uint64_t a_B, int32_t a_ldb, uint64_t a_C, int32_t a_ldc) { (void)a_handle; (void)a_transa; (void)a_transb; (void)a_m; (void)a_n; (void)a_alpha; (void)a_A; (void)a_lda; (void)a_beta; (void)a_B; (void)a_ldb; (void)a_C; (void)a_ldc; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cublasDgeam(int64_t a_handle, int32_t a_transa, int32_t a_transb, int32_t a_m, int32_t a_n, double a_alpha, uint64_t a_A, int32_t a_lda, double a_beta, uint64_t a_B, int32_t a_ldb, uint64_t a_C, int32_t a_ldc) { (void)a_handle; (void)a_transa; (void)a_transb; (void)a_m; (void)a_n; (void)a_alpha; (void)a_A; (void)a_lda; (void)a_beta; (void)a_B; (void)a_ldb; (void)a_C; (void)a_ldc; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cublasScopy(int64_t a_handle, int32_t a_n, uint64_t a_x, int32_t a_incx, uint64_t a_y, int32_t a_incy) { (void)a_handle; (void)a_n; (void)a_x; (void)a_incx; (void)a_y; (void)a_incy; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cublasDcopy(int64_t a_handle, int32_t a_n, uint64_t a_x, int32_t a_incx, uint64_t a_y, int32_t a_incy) { (void)a_handle; (void)a_n; (void)a_x; (void)a_incx; (void)a_y; (void)a_incy; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cublasStrmm(int64_t a_handle, int32_t a_side, int32_t a_uplo, int32_t a_trans, int32_t a_diag, int32_t a_m, int32_t a_n, float a_alpha, uint64_t a_A, int32_t a_lda, uint64_t a_B, int32_t a_ldb, uint64_t a_C, int32_t a_ldc) { (void)a_handle; (void)a_side; (void)a_uplo; (void)a_trans; (void)a_diag; (void)a_m; (void)a_n; (void)a_alpha; (void)a_A; (void)a_lda; (void)a_B; (void)a_ldb; (void)a_C; (void)a_ldc; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cublasDtrmm(int64_t a_handle, int32_t a_side, int32_t a_uplo, int32_t a_trans, int32_t a_diag, int32_t a_m, int32_t a_n, double a_alpha, uint64_t a_A, int32_t a_lda, uint64_t a_B, int32_t a_ldb, uint64_t a_C, int32_t a_ldc) { (void)a_handle; (void)a_side; (void)a_uplo; (void)a_trans; (void)a_diag; (void)a_m; (void)a_n; (void)a_alpha; (void)a_A; (void)a_lda; (void)a_B; (void)a_ldb; (void)a_C; (void)a_ldc; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cublasSscal(int64_t a_handle, int32_t a_n, float a_alpha, uint64_t a_x, int32_t a_incx) { (void)a_handle; (void)a_n; (void)a_alpha; (void)a_x; (void)a_incx; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cublasDscal(int64_t a_handle, int32_t a_n, double a_alpha, uint64_t a_x, int32_t a_incx) { (void)a_handle; (void)a_n; (void)a_alpha; (void)a_x; (void)a_incx; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cublasCsscal(int64_t a_handle, int32_t a_n, float a_alpha, uint64_t a_x, int32_t a_incx) { (void)a_handle; (void)a_n; (void)a_alpha; (void)a_x; (void)a_incx; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cublasZdscal(int64_t a_handle, int32_t a_n, double a_alpha, uint64_t a_x, int32_t a_incx) { (void)a_handle; (void)a_n; (void)a_alpha; (void)a_x; (void)a_incx; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
 int64_t samaltak_cuda_curand_available(void) {  return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
 int64_t samaltak_cuda_curand_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t outLength) { (void)status; (void)kind; (void)out; (void)outLength; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
 int64_t samaltak_cuda_curandCreateGenerator(int32_t a_rng_type, uint8_t *outs, uint64_t outs_len) { (void)a_rng_type; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
@@ -93,6 +103,48 @@ int64_t samaltak_cuda_cuOptGetErrorStatus(int64_t a_solution, uint8_t *outs, uin
 int64_t samaltak_cuda_cuOptGetObjectiveValue(int64_t a_solution, uint8_t *outs, uint64_t outs_len) { (void)a_solution; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
 int64_t samaltak_cuda_cuOptGetSolveTime(int64_t a_solution, uint8_t *outs, uint64_t outs_len) { (void)a_solution; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
 int64_t samaltak_cuda_cuOptGetPrimalSolution(int64_t a_solution, uint8_t *a_solution_values, uint64_t a_solution_values_len) { (void)a_solution; (void)a_solution_values; (void)a_solution_values_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolver_available(void) {  return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolver_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t outLength) { (void)status; (void)kind; (void)out; (void)outLength; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverGetVersion(uint8_t *outs, uint64_t outs_len) { (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnCreate(uint8_t *outs, uint64_t outs_len) { (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnDestroy(int64_t a_handle) { (void)a_handle; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnSetStream(int64_t a_handle, int64_t a_streamId) { (void)a_handle; (void)a_streamId; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnCreateParams(uint8_t *outs, uint64_t outs_len) { (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnDestroyParams(int64_t a_params) { (void)a_params; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnXgetrfBufferSize(int64_t a_handle, int64_t a_params, int64_t a_m, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_computeType, uint8_t *outs, uint64_t outs_len) { (void)a_handle; (void)a_params; (void)a_m; (void)a_n; (void)a_dataTypeA; (void)a_A; (void)a_lda; (void)a_computeType; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnXgetrf(int64_t a_handle, int64_t a_params, int64_t a_m, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, uint64_t a_ipiv, int32_t a_computeType, uint64_t a_bufferOnDevice, uint64_t a_workspaceInBytesOnDevice, uint8_t *a_bufferOnHost, uint64_t a_bufferOnHost_len, uint64_t a_workspaceInBytesOnHost, uint64_t a_info) { (void)a_handle; (void)a_params; (void)a_m; (void)a_n; (void)a_dataTypeA; (void)a_A; (void)a_lda; (void)a_ipiv; (void)a_computeType; (void)a_bufferOnDevice; (void)a_workspaceInBytesOnDevice; (void)a_bufferOnHost; (void)a_bufferOnHost_len; (void)a_workspaceInBytesOnHost; (void)a_info; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnXgetrs(int64_t a_handle, int64_t a_params, int32_t a_trans, int64_t a_n, int64_t a_nrhs, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, uint64_t a_ipiv, int32_t a_dataTypeB, uint64_t a_B, int64_t a_ldb, uint64_t a_info) { (void)a_handle; (void)a_params; (void)a_trans; (void)a_n; (void)a_nrhs; (void)a_dataTypeA; (void)a_A; (void)a_lda; (void)a_ipiv; (void)a_dataTypeB; (void)a_B; (void)a_ldb; (void)a_info; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnXpotrfBufferSize(int64_t a_handle, int64_t a_params, int32_t a_uplo, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_computeType, uint8_t *outs, uint64_t outs_len) { (void)a_handle; (void)a_params; (void)a_uplo; (void)a_n; (void)a_dataTypeA; (void)a_A; (void)a_lda; (void)a_computeType; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnXpotrf(int64_t a_handle, int64_t a_params, int32_t a_uplo, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_computeType, uint64_t a_bufferOnDevice, uint64_t a_workspaceInBytesOnDevice, uint8_t *a_bufferOnHost, uint64_t a_bufferOnHost_len, uint64_t a_workspaceInBytesOnHost, uint64_t a_info) { (void)a_handle; (void)a_params; (void)a_uplo; (void)a_n; (void)a_dataTypeA; (void)a_A; (void)a_lda; (void)a_computeType; (void)a_bufferOnDevice; (void)a_workspaceInBytesOnDevice; (void)a_bufferOnHost; (void)a_bufferOnHost_len; (void)a_workspaceInBytesOnHost; (void)a_info; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnXpotrs(int64_t a_handle, int64_t a_params, int32_t a_uplo, int64_t a_n, int64_t a_nrhs, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_dataTypeB, uint64_t a_B, int64_t a_ldb, uint64_t a_info) { (void)a_handle; (void)a_params; (void)a_uplo; (void)a_n; (void)a_nrhs; (void)a_dataTypeA; (void)a_A; (void)a_lda; (void)a_dataTypeB; (void)a_B; (void)a_ldb; (void)a_info; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnXgeqrfBufferSize(int64_t a_handle, int64_t a_params, int64_t a_m, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_dataTypeTau, uint64_t a_tau, int32_t a_computeType, uint8_t *outs, uint64_t outs_len) { (void)a_handle; (void)a_params; (void)a_m; (void)a_n; (void)a_dataTypeA; (void)a_A; (void)a_lda; (void)a_dataTypeTau; (void)a_tau; (void)a_computeType; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnXgeqrf(int64_t a_handle, int64_t a_params, int64_t a_m, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_dataTypeTau, uint64_t a_tau, int32_t a_computeType, uint64_t a_bufferOnDevice, uint64_t a_workspaceInBytesOnDevice, uint8_t *a_bufferOnHost, uint64_t a_bufferOnHost_len, uint64_t a_workspaceInBytesOnHost, uint64_t a_info) { (void)a_handle; (void)a_params; (void)a_m; (void)a_n; (void)a_dataTypeA; (void)a_A; (void)a_lda; (void)a_dataTypeTau; (void)a_tau; (void)a_computeType; (void)a_bufferOnDevice; (void)a_workspaceInBytesOnDevice; (void)a_bufferOnHost; (void)a_bufferOnHost_len; (void)a_workspaceInBytesOnHost; (void)a_info; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnSorgqrBufferSize(int64_t a_handle, int32_t a_m, int32_t a_n, int32_t a_k, uint64_t a_A, int32_t a_lda, uint64_t a_tau, uint8_t *outs, uint64_t outs_len) { (void)a_handle; (void)a_m; (void)a_n; (void)a_k; (void)a_A; (void)a_lda; (void)a_tau; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnSorgqr(int64_t a_handle, int32_t a_m, int32_t a_n, int32_t a_k, uint64_t a_A, int32_t a_lda, uint64_t a_tau, uint64_t a_work, int32_t a_lwork, uint64_t a_info) { (void)a_handle; (void)a_m; (void)a_n; (void)a_k; (void)a_A; (void)a_lda; (void)a_tau; (void)a_work; (void)a_lwork; (void)a_info; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnDorgqrBufferSize(int64_t a_handle, int32_t a_m, int32_t a_n, int32_t a_k, uint64_t a_A, int32_t a_lda, uint64_t a_tau, uint8_t *outs, uint64_t outs_len) { (void)a_handle; (void)a_m; (void)a_n; (void)a_k; (void)a_A; (void)a_lda; (void)a_tau; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnDorgqr(int64_t a_handle, int32_t a_m, int32_t a_n, int32_t a_k, uint64_t a_A, int32_t a_lda, uint64_t a_tau, uint64_t a_work, int32_t a_lwork, uint64_t a_info) { (void)a_handle; (void)a_m; (void)a_n; (void)a_k; (void)a_A; (void)a_lda; (void)a_tau; (void)a_work; (void)a_lwork; (void)a_info; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnSgesvdBufferSize(int64_t a_handle, int32_t a_m, int32_t a_n, uint8_t *outs, uint64_t outs_len) { (void)a_handle; (void)a_m; (void)a_n; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnDgesvdBufferSize(int64_t a_handle, int32_t a_m, int32_t a_n, uint8_t *outs, uint64_t outs_len) { (void)a_handle; (void)a_m; (void)a_n; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnSgesvd(int64_t a_handle, int32_t a_jobu, int32_t a_jobvt, int32_t a_m, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_S, uint64_t a_U, int32_t a_ldu, uint64_t a_VT, int32_t a_ldvt, uint64_t a_work, int32_t a_lwork, uint64_t a_rwork, uint64_t a_info) { (void)a_handle; (void)a_jobu; (void)a_jobvt; (void)a_m; (void)a_n; (void)a_A; (void)a_lda; (void)a_S; (void)a_U; (void)a_ldu; (void)a_VT; (void)a_ldvt; (void)a_work; (void)a_lwork; (void)a_rwork; (void)a_info; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnDgesvd(int64_t a_handle, int32_t a_jobu, int32_t a_jobvt, int32_t a_m, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_S, uint64_t a_U, int32_t a_ldu, uint64_t a_VT, int32_t a_ldvt, uint64_t a_work, int32_t a_lwork, uint64_t a_rwork, uint64_t a_info) { (void)a_handle; (void)a_jobu; (void)a_jobvt; (void)a_m; (void)a_n; (void)a_A; (void)a_lda; (void)a_S; (void)a_U; (void)a_ldu; (void)a_VT; (void)a_ldvt; (void)a_work; (void)a_lwork; (void)a_rwork; (void)a_info; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnSsyevdBufferSize(int64_t a_handle, int32_t a_jobz, int32_t a_uplo, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_W, uint8_t *outs, uint64_t outs_len) { (void)a_handle; (void)a_jobz; (void)a_uplo; (void)a_n; (void)a_A; (void)a_lda; (void)a_W; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnDsyevdBufferSize(int64_t a_handle, int32_t a_jobz, int32_t a_uplo, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_W, uint8_t *outs, uint64_t outs_len) { (void)a_handle; (void)a_jobz; (void)a_uplo; (void)a_n; (void)a_A; (void)a_lda; (void)a_W; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnSsyevd(int64_t a_handle, int32_t a_jobz, int32_t a_uplo, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_W, uint64_t a_work, int32_t a_lwork, uint64_t a_info) { (void)a_handle; (void)a_jobz; (void)a_uplo; (void)a_n; (void)a_A; (void)a_lda; (void)a_W; (void)a_work; (void)a_lwork; (void)a_info; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cusolverDnDsyevd(int64_t a_handle, int32_t a_jobz, int32_t a_uplo, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_W, uint64_t a_work, int32_t a_lwork, uint64_t a_info) { (void)a_handle; (void)a_jobz; (void)a_uplo; (void)a_n; (void)a_A; (void)a_lda; (void)a_W; (void)a_work; (void)a_lwork; (void)a_info; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cufft_available(void) {  return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cufft_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t outLength) { (void)status; (void)kind; (void)out; (void)outLength; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cufftGetVersion(uint8_t *outs, uint64_t outs_len) { (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cufftPlan1d(int32_t a_nx, int32_t a_type, int32_t a_batch, uint8_t *outs, uint64_t outs_len) { (void)a_nx; (void)a_type; (void)a_batch; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cufftPlan2d(int32_t a_nx, int32_t a_ny, int32_t a_type, uint8_t *outs, uint64_t outs_len) { (void)a_nx; (void)a_ny; (void)a_type; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cufftPlanMany(int32_t a_rank, const uint8_t *a_n, uint64_t a_n_len, int32_t a_type, int32_t a_batch, uint8_t *outs, uint64_t outs_len) { (void)a_rank; (void)a_n; (void)a_n_len; (void)a_type; (void)a_batch; (void)outs; (void)outs_len; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cufftDestroy(int64_t a_plan) { (void)a_plan; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cufftSetStream(int64_t a_plan, int64_t a_stream) { (void)a_plan; (void)a_stream; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cufftExecC2C(int64_t a_plan, uint64_t a_idata, uint64_t a_odata, int32_t a_direction) { (void)a_plan; (void)a_idata; (void)a_odata; (void)a_direction; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cufftExecR2C(int64_t a_plan, uint64_t a_idata, uint64_t a_odata) { (void)a_plan; (void)a_idata; (void)a_odata; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cufftExecC2R(int64_t a_plan, uint64_t a_idata, uint64_t a_odata) { (void)a_plan; (void)a_idata; (void)a_odata; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cufftExecZ2Z(int64_t a_plan, uint64_t a_idata, uint64_t a_odata, int32_t a_direction) { (void)a_plan; (void)a_idata; (void)a_odata; (void)a_direction; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cufftExecD2Z(int64_t a_plan, uint64_t a_idata, uint64_t a_odata) { (void)a_plan; (void)a_idata; (void)a_odata; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+int64_t samaltak_cuda_cufftExecZ2D(int64_t a_plan, uint64_t a_idata, uint64_t a_odata) { (void)a_plan; (void)a_idata; (void)a_odata; return SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
 
 #else
 
@@ -104,10 +156,12 @@ const char *const *const cudalib_sonames[SAMALTAK_CUDA_LIBS] = {
     (const char *const[]){ "libcublas.so.13", "libcublas.so.12", "libcublas.so", NULL },
     (const char *const[]){ "libcurand.so.10", "libcurand.so", NULL },
     (const char *const[]){ "libcuopt_mathopt.so", NULL },
+    (const char *const[]){ "libcusolver.so.12", "libcusolver.so.11", "libcusolver.so", NULL },
+    (const char *const[]){ "libcufft.so.12", "libcufft.so.11", "libcufft.so", NULL },
 };
-const char *const cudalib_names[SAMALTAK_CUDA_LIBS] = { "cudart", "driver", "cublas", "curand", "cuopt" };
+const char *const cudalib_names[SAMALTAK_CUDA_LIBS] = { "cudart", "driver", "cublas", "curand", "cuopt", "cusolver", "cufft" };
 
-const char *const cudalib_handle_names[SAMALTAK_CUDA_HANDLE_TYPES + 1] = { NULL, "cudaStream_t", "cudaEvent_t", "CUmodule", "CUfunction", "cublasHandle_t", "curandGenerator_t", "cuOptOptimizationProblem", "cuOptSolverSettings", "cuOptSolution" };
+const char *const cudalib_handle_names[SAMALTAK_CUDA_HANDLE_TYPES + 1] = { NULL, "cudaStream_t", "cudaEvent_t", "CUmodule", "CUfunction", "cublasHandle_t", "curandGenerator_t", "cuOptOptimizationProblem", "cuOptSolverSettings", "cuOptSolution", "cusolverDnHandle_t", "cusolverDnParams_t", "cufftHandle" };
 
 int64_t samaltak_cuda_cudart_available(void) { return cudalib_load(0) ? 1 : SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
 
@@ -193,6 +247,69 @@ int64_t samaltak_cuda_cuopt_status_text(int64_t status, int64_t kind, uint8_t *o
     case 4: s = "CUOPT_VALIDATION_ERROR"; break;
     case 5: s = "CUOPT_OUT_OF_MEMORY"; break;
     case 6: s = "CUOPT_RUNTIME_ERROR"; break;
+    }
+    return cudalib_text(s, out, outLength);
+}
+
+int64_t samaltak_cuda_cusolver_available(void) { return cudalib_load(5) ? 1 : SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+
+int64_t samaltak_cuda_cusolver_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t outLength) {
+    (void)kind;
+    const char *s = NULL;
+    switch (status) {
+    case 0: s = "CUSOLVER_STATUS_SUCCESS"; break;
+    case 1: s = "CUSOLVER_STATUS_NOT_INITIALIZED"; break;
+    case 2: s = "CUSOLVER_STATUS_ALLOC_FAILED"; break;
+    case 3: s = "CUSOLVER_STATUS_INVALID_VALUE"; break;
+    case 4: s = "CUSOLVER_STATUS_ARCH_MISMATCH"; break;
+    case 5: s = "CUSOLVER_STATUS_MAPPING_ERROR"; break;
+    case 6: s = "CUSOLVER_STATUS_EXECUTION_FAILED"; break;
+    case 7: s = "CUSOLVER_STATUS_INTERNAL_ERROR"; break;
+    case 8: s = "CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED"; break;
+    case 9: s = "CUSOLVER_STATUS_NOT_SUPPORTED"; break;
+    case 10: s = "CUSOLVER_STATUS_ZERO_PIVOT"; break;
+    case 11: s = "CUSOLVER_STATUS_INVALID_LICENSE"; break;
+    case 12: s = "CUSOLVER_STATUS_IRS_PARAMS_NOT_INITIALIZED"; break;
+    case 13: s = "CUSOLVER_STATUS_IRS_PARAMS_INVALID"; break;
+    case 14: s = "CUSOLVER_STATUS_IRS_PARAMS_INVALID_PREC"; break;
+    case 15: s = "CUSOLVER_STATUS_IRS_PARAMS_INVALID_REFINE"; break;
+    case 16: s = "CUSOLVER_STATUS_IRS_PARAMS_INVALID_MAXITER"; break;
+    case 20: s = "CUSOLVER_STATUS_IRS_INTERNAL_ERROR"; break;
+    case 21: s = "CUSOLVER_STATUS_IRS_NOT_SUPPORTED"; break;
+    case 22: s = "CUSOLVER_STATUS_IRS_OUT_OF_RANGE"; break;
+    case 23: s = "CUSOLVER_STATUS_IRS_NRHS_NOT_SUPPORTED_FOR_REFINE_GMRES"; break;
+    case 25: s = "CUSOLVER_STATUS_IRS_INFOS_NOT_INITIALIZED"; break;
+    case 26: s = "CUSOLVER_STATUS_IRS_INFOS_NOT_DESTROYED"; break;
+    case 30: s = "CUSOLVER_STATUS_IRS_MATRIX_SINGULAR"; break;
+    case 31: s = "CUSOLVER_STATUS_INVALID_WORKSPACE"; break;
+    }
+    return cudalib_text(s, out, outLength);
+}
+
+int64_t samaltak_cuda_cufft_available(void) { return cudalib_load(6) ? 1 : SAMALTAK_CUDA_REJECT_UNAVAILABLE; }
+
+int64_t samaltak_cuda_cufft_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t outLength) {
+    (void)kind;
+    const char *s = NULL;
+    switch (status) {
+    case 0: s = "CUFFT_SUCCESS"; break;
+    case 1: s = "CUFFT_INVALID_PLAN"; break;
+    case 2: s = "CUFFT_ALLOC_FAILED"; break;
+    case 3: s = "CUFFT_INVALID_TYPE"; break;
+    case 4: s = "CUFFT_INVALID_VALUE"; break;
+    case 5: s = "CUFFT_INTERNAL_ERROR"; break;
+    case 6: s = "CUFFT_EXEC_FAILED"; break;
+    case 7: s = "CUFFT_SETUP_FAILED"; break;
+    case 8: s = "CUFFT_INVALID_SIZE"; break;
+    case 9: s = "CUFFT_UNALIGNED_DATA"; break;
+    case 11: s = "CUFFT_INVALID_DEVICE"; break;
+    case 13: s = "CUFFT_NO_WORKSPACE"; break;
+    case 14: s = "CUFFT_NOT_IMPLEMENTED"; break;
+    case 16: s = "CUFFT_NOT_SUPPORTED"; break;
+    case 17: s = "CUFFT_MISSING_DEPENDENCY"; break;
+    case 18: s = "CUFFT_NVRTC_FAILURE"; break;
+    case 19: s = "CUFFT_NVJITLINK_FAILURE"; break;
+    case 20: s = "CUFFT_NVSHMEM_FAILURE"; break;
     }
     return cudalib_text(s, out, outLength);
 }
@@ -311,8 +428,7 @@ int64_t samaltak_cuda_cudaFree(uint64_t a_devPtr) {
 int64_t samaltak_cuda_cudaMemcpyHtoD(uint64_t a_dst, const uint8_t *a_src, uint64_t a_src_len, uint64_t a_count) {
     static void *fn;
     if (!fn && !(fn = cudalib_symbol(0, "cudaMemcpy"))) return cudalib_missing(0);
-    int64_t n_dst = (int64_t)(a_count);
-    if (n_dst < 0 || !cudalib_device_ok(a_dst, (uint64_t)n_dst * sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_dst, (int64_t)(a_count), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
     const uint8_t *s_src = a_src; uint64_t l_src = a_src_len;
     int64_t n_src = (int64_t)(a_count);
     if (n_src < 0 || (uint64_t)n_src > l_src / sizeof(uint8_t)) return SAMALTAK_CUDA_REJECT_SLICE;
@@ -329,8 +445,7 @@ int64_t samaltak_cuda_cudaMemcpyDtoH(uint8_t *a_dst, uint64_t a_dst_len, uint64_
     int64_t n_dst = (int64_t)(a_count);
     if (n_dst < 0 || (uint64_t)n_dst > l_dst / sizeof(uint8_t)) return SAMALTAK_CUDA_REJECT_SLICE;
     uint8_t *p_dst = (uint8_t *)s_dst; (void)p_dst;
-    int64_t n_src = (int64_t)(a_count);
-    if (n_src < 0 || !cudalib_device_ok(a_src, (uint64_t)n_src * sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_src, (int64_t)(a_count), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
     int64_t r = (int64_t)((int32_t (*)(void *, void *, uint64_t, int32_t))fn)((void *)p_dst, (void *)(uintptr_t)a_src, (uint64_t)a_count, (int32_t)2);
     return r;
 }
@@ -339,10 +454,8 @@ int64_t samaltak_cuda_cudaMemcpyDtoH(uint8_t *a_dst, uint64_t a_dst_len, uint64_
 int64_t samaltak_cuda_cudaMemcpyDtoD(uint64_t a_dst, uint64_t a_src, uint64_t a_count) {
     static void *fn;
     if (!fn && !(fn = cudalib_symbol(0, "cudaMemcpy"))) return cudalib_missing(0);
-    int64_t n_dst = (int64_t)(a_count);
-    if (n_dst < 0 || !cudalib_device_ok(a_dst, (uint64_t)n_dst * sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
-    int64_t n_src = (int64_t)(a_count);
-    if (n_src < 0 || !cudalib_device_ok(a_src, (uint64_t)n_src * sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_dst, (int64_t)(a_count), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_src, (int64_t)(a_count), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
     int64_t r = (int64_t)((int32_t (*)(void *, void *, uint64_t, int32_t))fn)((void *)(uintptr_t)a_dst, (void *)(uintptr_t)a_src, (uint64_t)a_count, (int32_t)3);
     return r;
 }
@@ -351,8 +464,7 @@ int64_t samaltak_cuda_cudaMemcpyDtoD(uint64_t a_dst, uint64_t a_src, uint64_t a_
 int64_t samaltak_cuda_cudaMemset(uint64_t a_devPtr, int32_t a_value, uint64_t a_count) {
     static void *fn;
     if (!fn && !(fn = cudalib_symbol(0, "cudaMemset"))) return cudalib_missing(0);
-    int64_t n_devPtr = (int64_t)(a_count);
-    if (n_devPtr < 0 || !cudalib_device_ok(a_devPtr, (uint64_t)n_devPtr * sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_devPtr, (int64_t)(a_count), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
     int64_t r = (int64_t)((int32_t (*)(void *, int32_t, uint64_t))fn)((void *)(uintptr_t)a_devPtr, (int32_t)a_value, (uint64_t)a_count);
     return r;
 }
@@ -672,8 +784,7 @@ int64_t samaltak_cuda_cuStreamWriteValue64(int64_t a_stream, uint64_t a_addr, ui
     if (!fn && !(fn = cudalib_symbol(1, "cuStreamWriteValue64_v2"))) return cudalib_missing(1);
     void *h_stream; int64_t t_stream;
     if (!cudalib_handle_get(1, a_stream, 1, &h_stream, &t_stream)) return SAMALTAK_CUDA_REJECT_HANDLE;
-    int64_t n_addr = (int64_t)(1);
-    if (n_addr < 0 || !cudalib_device_ok(a_addr, (uint64_t)n_addr * sizeof(uint64_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_addr, (int64_t)(1), sizeof(uint64_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
     int64_t r = (int64_t)((int32_t (*)(void *, uint64_t, uint64_t, uint32_t))fn)(h_stream, (uint64_t)a_addr, (uint64_t)a_value, (uint32_t)a_flags);
     return r;
 }
@@ -744,13 +855,10 @@ int64_t samaltak_cuda_cublasSgemm(int64_t a_handle, int32_t a_transa, int32_t a_
     void *h_handle; int64_t t_handle;
     if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
     float v_alpha = (float)a_alpha;
-    int64_t n_A = (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_transa==0?a_m:a_k,a_transa==0?a_k:a_m));
-    if (n_A < 0 || !cudalib_device_ok(a_A, (uint64_t)n_A * sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
-    int64_t n_B = (int64_t)(SAMALTAK_CUDA_MAT(a_ldb,a_transb==0?a_k:a_n,a_transb==0?a_n:a_k));
-    if (n_B < 0 || !cudalib_device_ok(a_B, (uint64_t)n_B * sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_transa==0?a_m:a_k,a_transa==0?a_k:a_m)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_B, (int64_t)(SAMALTAK_CUDA_MAT(a_ldb,a_transb==0?a_k:a_n,a_transb==0?a_n:a_k)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
     float v_beta = (float)a_beta;
-    int64_t n_C = (int64_t)(SAMALTAK_CUDA_MAT(a_ldc,a_m,a_n));
-    if (n_C < 0 || !cudalib_device_ok(a_C, (uint64_t)n_C * sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_C, (int64_t)(SAMALTAK_CUDA_MAT(a_ldc,a_m,a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
     int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t, int32_t, int32_t, void *, void *, int32_t, void *, int32_t, void *, void *, int32_t))fn)(h_handle, (int32_t)a_transa, (int32_t)a_transb, (int32_t)a_m, (int32_t)a_n, (int32_t)a_k, &v_alpha, (void *)(uintptr_t)a_A, (int32_t)a_lda, (void *)(uintptr_t)a_B, (int32_t)a_ldb, &v_beta, (void *)(uintptr_t)a_C, (int32_t)a_ldc);
     return r;
 }
@@ -762,13 +870,10 @@ int64_t samaltak_cuda_cublasDgemm(int64_t a_handle, int32_t a_transa, int32_t a_
     void *h_handle; int64_t t_handle;
     if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
     double v_alpha = (double)a_alpha;
-    int64_t n_A = (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_transa==0?a_m:a_k,a_transa==0?a_k:a_m));
-    if (n_A < 0 || !cudalib_device_ok(a_A, (uint64_t)n_A * sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
-    int64_t n_B = (int64_t)(SAMALTAK_CUDA_MAT(a_ldb,a_transb==0?a_k:a_n,a_transb==0?a_n:a_k));
-    if (n_B < 0 || !cudalib_device_ok(a_B, (uint64_t)n_B * sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_transa==0?a_m:a_k,a_transa==0?a_k:a_m)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_B, (int64_t)(SAMALTAK_CUDA_MAT(a_ldb,a_transb==0?a_k:a_n,a_transb==0?a_n:a_k)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
     double v_beta = (double)a_beta;
-    int64_t n_C = (int64_t)(SAMALTAK_CUDA_MAT(a_ldc,a_m,a_n));
-    if (n_C < 0 || !cudalib_device_ok(a_C, (uint64_t)n_C * sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_C, (int64_t)(SAMALTAK_CUDA_MAT(a_ldc,a_m,a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
     int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t, int32_t, int32_t, void *, void *, int32_t, void *, int32_t, void *, void *, int32_t))fn)(h_handle, (int32_t)a_transa, (int32_t)a_transb, (int32_t)a_m, (int32_t)a_n, (int32_t)a_k, &v_alpha, (void *)(uintptr_t)a_A, (int32_t)a_lda, (void *)(uintptr_t)a_B, (int32_t)a_ldb, &v_beta, (void *)(uintptr_t)a_C, (int32_t)a_ldc);
     return r;
 }
@@ -780,8 +885,7 @@ int64_t samaltak_cuda_cublasSnrm2(int64_t a_handle, int32_t a_n, uint64_t a_x, i
     if (outs_len < 8) return SAMALTAK_CUDA_REJECT_SLICE;
     void *h_handle; int64_t t_handle;
     if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
-    int64_t n_x = (int64_t)(SAMALTAK_CUDA_MAT(a_incx,1,a_n));
-    if (n_x < 0 || !cudalib_device_ok(a_x, (uint64_t)n_x * sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_x, (int64_t)(SAMALTAK_CUDA_MAT(a_incx,1,a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
     float o_result = 0;
     int64_t r = (int64_t)((int32_t (*)(void *, int32_t, void *, int32_t, void *))fn)(h_handle, (int32_t)a_n, (void *)(uintptr_t)a_x, (int32_t)a_incx, &o_result);
     cudalib_put_f64(outs, 0, o_result);
@@ -795,8 +899,7 @@ int64_t samaltak_cuda_cublasDnrm2(int64_t a_handle, int32_t a_n, uint64_t a_x, i
     if (outs_len < 8) return SAMALTAK_CUDA_REJECT_SLICE;
     void *h_handle; int64_t t_handle;
     if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
-    int64_t n_x = (int64_t)(SAMALTAK_CUDA_MAT(a_incx,1,a_n));
-    if (n_x < 0 || !cudalib_device_ok(a_x, (uint64_t)n_x * sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_x, (int64_t)(SAMALTAK_CUDA_MAT(a_incx,1,a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
     double o_result = 0;
     int64_t r = (int64_t)((int32_t (*)(void *, int32_t, void *, int32_t, void *))fn)(h_handle, (int32_t)a_n, (void *)(uintptr_t)a_x, (int32_t)a_incx, &o_result);
     cudalib_put_f64(outs, 0, o_result);
@@ -810,10 +913,8 @@ int64_t samaltak_cuda_cublasSaxpy(int64_t a_handle, int32_t a_n, float a_alpha, 
     void *h_handle; int64_t t_handle;
     if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
     float v_alpha = (float)a_alpha;
-    int64_t n_x = (int64_t)(SAMALTAK_CUDA_MAT(a_incx,1,a_n));
-    if (n_x < 0 || !cudalib_device_ok(a_x, (uint64_t)n_x * sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
-    int64_t n_y = (int64_t)(SAMALTAK_CUDA_MAT(a_incy,1,a_n));
-    if (n_y < 0 || !cudalib_device_ok(a_y, (uint64_t)n_y * sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_x, (int64_t)(SAMALTAK_CUDA_MAT(a_incx,1,a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_y, (int64_t)(SAMALTAK_CUDA_MAT(a_incy,1,a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
     int64_t r = (int64_t)((int32_t (*)(void *, int32_t, void *, void *, int32_t, void *, int32_t))fn)(h_handle, (int32_t)a_n, &v_alpha, (void *)(uintptr_t)a_x, (int32_t)a_incx, (void *)(uintptr_t)a_y, (int32_t)a_incy);
     return r;
 }
@@ -825,11 +926,139 @@ int64_t samaltak_cuda_cublasDaxpy(int64_t a_handle, int32_t a_n, double a_alpha,
     void *h_handle; int64_t t_handle;
     if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
     double v_alpha = (double)a_alpha;
-    int64_t n_x = (int64_t)(SAMALTAK_CUDA_MAT(a_incx,1,a_n));
-    if (n_x < 0 || !cudalib_device_ok(a_x, (uint64_t)n_x * sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
-    int64_t n_y = (int64_t)(SAMALTAK_CUDA_MAT(a_incy,1,a_n));
-    if (n_y < 0 || !cudalib_device_ok(a_y, (uint64_t)n_y * sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_x, (int64_t)(SAMALTAK_CUDA_MAT(a_incx,1,a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_y, (int64_t)(SAMALTAK_CUDA_MAT(a_incy,1,a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
     int64_t r = (int64_t)((int32_t (*)(void *, int32_t, void *, void *, int32_t, void *, int32_t))fn)(h_handle, (int32_t)a_n, &v_alpha, (void *)(uintptr_t)a_x, (int32_t)a_incx, (void *)(uintptr_t)a_y, (int32_t)a_incy);
+    return r;
+}
+
+/* cublasStatus_t cublasSgeam(cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb, int m, int n, const float* alpha, const float* A, int lda, const float* beta, const float* B, int ldb, float* C, int ldc) */
+int64_t samaltak_cuda_cublasSgeam(int64_t a_handle, int32_t a_transa, int32_t a_transb, int32_t a_m, int32_t a_n, float a_alpha, uint64_t a_A, int32_t a_lda, float a_beta, uint64_t a_B, int32_t a_ldb, uint64_t a_C, int32_t a_ldc) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(2, "cublasSgeam"))) return cudalib_missing(2);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    float v_alpha = (float)a_alpha;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_transa==0?a_m:a_n,a_transa==0?a_n:a_m)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    float v_beta = (float)a_beta;
+    if (!cudalib_device_span(a_B, (int64_t)(SAMALTAK_CUDA_MAT(a_ldb,a_transb==0?a_m:a_n,a_transb==0?a_n:a_m)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_C, (int64_t)(SAMALTAK_CUDA_MAT(a_ldc,a_m,a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t, int32_t, void *, void *, int32_t, void *, void *, int32_t, void *, int32_t))fn)(h_handle, (int32_t)a_transa, (int32_t)a_transb, (int32_t)a_m, (int32_t)a_n, &v_alpha, (void *)(uintptr_t)a_A, (int32_t)a_lda, &v_beta, (void *)(uintptr_t)a_B, (int32_t)a_ldb, (void *)(uintptr_t)a_C, (int32_t)a_ldc);
+    return r;
+}
+
+/* cublasStatus_t cublasDgeam(cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb, int m, int n, const double* alpha, const double* A, int lda, const double* beta, const double* B, int ldb, double* C, int ldc) */
+int64_t samaltak_cuda_cublasDgeam(int64_t a_handle, int32_t a_transa, int32_t a_transb, int32_t a_m, int32_t a_n, double a_alpha, uint64_t a_A, int32_t a_lda, double a_beta, uint64_t a_B, int32_t a_ldb, uint64_t a_C, int32_t a_ldc) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(2, "cublasDgeam"))) return cudalib_missing(2);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    double v_alpha = (double)a_alpha;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_transa==0?a_m:a_n,a_transa==0?a_n:a_m)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    double v_beta = (double)a_beta;
+    if (!cudalib_device_span(a_B, (int64_t)(SAMALTAK_CUDA_MAT(a_ldb,a_transb==0?a_m:a_n,a_transb==0?a_n:a_m)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_C, (int64_t)(SAMALTAK_CUDA_MAT(a_ldc,a_m,a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t, int32_t, void *, void *, int32_t, void *, void *, int32_t, void *, int32_t))fn)(h_handle, (int32_t)a_transa, (int32_t)a_transb, (int32_t)a_m, (int32_t)a_n, &v_alpha, (void *)(uintptr_t)a_A, (int32_t)a_lda, &v_beta, (void *)(uintptr_t)a_B, (int32_t)a_ldb, (void *)(uintptr_t)a_C, (int32_t)a_ldc);
+    return r;
+}
+
+/* cublasStatus_t cublasScopy_v2(cublasHandle_t handle, int n, const float* x, int incx, float* y, int incy) */
+int64_t samaltak_cuda_cublasScopy(int64_t a_handle, int32_t a_n, uint64_t a_x, int32_t a_incx, uint64_t a_y, int32_t a_incy) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(2, "cublasScopy_v2"))) return cudalib_missing(2);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_x, (int64_t)(SAMALTAK_CUDA_MAT(a_incx,1,a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_y, (int64_t)(SAMALTAK_CUDA_MAT(a_incy,1,a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, void *, int32_t, void *, int32_t))fn)(h_handle, (int32_t)a_n, (void *)(uintptr_t)a_x, (int32_t)a_incx, (void *)(uintptr_t)a_y, (int32_t)a_incy);
+    return r;
+}
+
+/* cublasStatus_t cublasDcopy_v2(cublasHandle_t handle, int n, const double* x, int incx, double* y, int incy) */
+int64_t samaltak_cuda_cublasDcopy(int64_t a_handle, int32_t a_n, uint64_t a_x, int32_t a_incx, uint64_t a_y, int32_t a_incy) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(2, "cublasDcopy_v2"))) return cudalib_missing(2);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_x, (int64_t)(SAMALTAK_CUDA_MAT(a_incx,1,a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_y, (int64_t)(SAMALTAK_CUDA_MAT(a_incy,1,a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, void *, int32_t, void *, int32_t))fn)(h_handle, (int32_t)a_n, (void *)(uintptr_t)a_x, (int32_t)a_incx, (void *)(uintptr_t)a_y, (int32_t)a_incy);
+    return r;
+}
+
+/* cublasStatus_t cublasStrmm_v2(cublasHandle_t handle, cublasSideMode_t side, cublasFillMode_t uplo, cublasOperation_t trans, cublasDiagType_t diag, int m, int n, const float* alpha, const float* A, int lda, const float* B, int ldb, float* C, int ldc) */
+int64_t samaltak_cuda_cublasStrmm(int64_t a_handle, int32_t a_side, int32_t a_uplo, int32_t a_trans, int32_t a_diag, int32_t a_m, int32_t a_n, float a_alpha, uint64_t a_A, int32_t a_lda, uint64_t a_B, int32_t a_ldb, uint64_t a_C, int32_t a_ldc) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(2, "cublasStrmm_v2"))) return cudalib_missing(2);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    float v_alpha = (float)a_alpha;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_side==(0)?a_m:a_n,a_side==(0)?a_m:a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_B, (int64_t)(SAMALTAK_CUDA_MAT(a_ldb,a_m,a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_C, (int64_t)(SAMALTAK_CUDA_MAT(a_ldc,a_m,a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, void *, void *, int32_t, void *, int32_t, void *, int32_t))fn)(h_handle, (int32_t)a_side, (int32_t)a_uplo, (int32_t)a_trans, (int32_t)a_diag, (int32_t)a_m, (int32_t)a_n, &v_alpha, (void *)(uintptr_t)a_A, (int32_t)a_lda, (void *)(uintptr_t)a_B, (int32_t)a_ldb, (void *)(uintptr_t)a_C, (int32_t)a_ldc);
+    return r;
+}
+
+/* cublasStatus_t cublasDtrmm_v2(cublasHandle_t handle, cublasSideMode_t side, cublasFillMode_t uplo, cublasOperation_t trans, cublasDiagType_t diag, int m, int n, const double* alpha, const double* A, int lda, const double* B, int ldb, double* C, int ldc) */
+int64_t samaltak_cuda_cublasDtrmm(int64_t a_handle, int32_t a_side, int32_t a_uplo, int32_t a_trans, int32_t a_diag, int32_t a_m, int32_t a_n, double a_alpha, uint64_t a_A, int32_t a_lda, uint64_t a_B, int32_t a_ldb, uint64_t a_C, int32_t a_ldc) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(2, "cublasDtrmm_v2"))) return cudalib_missing(2);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    double v_alpha = (double)a_alpha;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_side==(0)?a_m:a_n,a_side==(0)?a_m:a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_B, (int64_t)(SAMALTAK_CUDA_MAT(a_ldb,a_m,a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_C, (int64_t)(SAMALTAK_CUDA_MAT(a_ldc,a_m,a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, void *, void *, int32_t, void *, int32_t, void *, int32_t))fn)(h_handle, (int32_t)a_side, (int32_t)a_uplo, (int32_t)a_trans, (int32_t)a_diag, (int32_t)a_m, (int32_t)a_n, &v_alpha, (void *)(uintptr_t)a_A, (int32_t)a_lda, (void *)(uintptr_t)a_B, (int32_t)a_ldb, (void *)(uintptr_t)a_C, (int32_t)a_ldc);
+    return r;
+}
+
+/* cublasStatus_t cublasSscal_v2(cublasHandle_t handle, int n, const float* alpha, float* x, int incx) */
+int64_t samaltak_cuda_cublasSscal(int64_t a_handle, int32_t a_n, float a_alpha, uint64_t a_x, int32_t a_incx) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(2, "cublasSscal_v2"))) return cudalib_missing(2);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    float v_alpha = (float)a_alpha;
+    if (!cudalib_device_span(a_x, (int64_t)(SAMALTAK_CUDA_MAT(a_incx,1,a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, void *, void *, int32_t))fn)(h_handle, (int32_t)a_n, &v_alpha, (void *)(uintptr_t)a_x, (int32_t)a_incx);
+    return r;
+}
+
+/* cublasStatus_t cublasDscal_v2(cublasHandle_t handle, int n, const double* alpha, double* x, int incx) */
+int64_t samaltak_cuda_cublasDscal(int64_t a_handle, int32_t a_n, double a_alpha, uint64_t a_x, int32_t a_incx) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(2, "cublasDscal_v2"))) return cudalib_missing(2);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    double v_alpha = (double)a_alpha;
+    if (!cudalib_device_span(a_x, (int64_t)(SAMALTAK_CUDA_MAT(a_incx,1,a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, void *, void *, int32_t))fn)(h_handle, (int32_t)a_n, &v_alpha, (void *)(uintptr_t)a_x, (int32_t)a_incx);
+    return r;
+}
+
+/* cublasStatus_t cublasCsscal_v2(cublasHandle_t handle, int n, const float* alpha, cuComplex* x, int incx) */
+int64_t samaltak_cuda_cublasCsscal(int64_t a_handle, int32_t a_n, float a_alpha, uint64_t a_x, int32_t a_incx) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(2, "cublasCsscal_v2"))) return cudalib_missing(2);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    float v_alpha = (float)a_alpha;
+    if (!cudalib_device_span(a_x, (int64_t)(SAMALTAK_CUDA_MAT(a_incx,1,a_n)), sizeof(float[2]))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, void *, void *, int32_t))fn)(h_handle, (int32_t)a_n, &v_alpha, (void *)(uintptr_t)a_x, (int32_t)a_incx);
+    return r;
+}
+
+/* cublasStatus_t cublasZdscal_v2(cublasHandle_t handle, int n, const double* alpha, cuDoubleComplex* x, int incx) */
+int64_t samaltak_cuda_cublasZdscal(int64_t a_handle, int32_t a_n, double a_alpha, uint64_t a_x, int32_t a_incx) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(2, "cublasZdscal_v2"))) return cudalib_missing(2);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(5, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    double v_alpha = (double)a_alpha;
+    if (!cudalib_device_span(a_x, (int64_t)(SAMALTAK_CUDA_MAT(a_incx,1,a_n)), sizeof(double[2]))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, void *, void *, int32_t))fn)(h_handle, (int32_t)a_n, &v_alpha, (void *)(uintptr_t)a_x, (int32_t)a_incx);
     return r;
 }
 
@@ -896,8 +1125,7 @@ int64_t samaltak_cuda_curandGenerateUniform(int64_t a_generator, uint64_t a_outp
     if (!fn && !(fn = cudalib_symbol(3, "curandGenerateUniform"))) return cudalib_missing(3);
     void *h_generator; int64_t t_generator;
     if (!cudalib_handle_get(6, a_generator, 0, &h_generator, &t_generator)) return SAMALTAK_CUDA_REJECT_HANDLE;
-    int64_t n_outputPtr = (int64_t)(a_num);
-    if (n_outputPtr < 0 || !cudalib_device_ok(a_outputPtr, (uint64_t)n_outputPtr * sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_outputPtr, (int64_t)(a_num), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
     int64_t r = (int64_t)((int32_t (*)(void *, void *, uint64_t))fn)(h_generator, (void *)(uintptr_t)a_outputPtr, (uint64_t)a_num);
     return r;
 }
@@ -908,8 +1136,7 @@ int64_t samaltak_cuda_curandGenerateUniformDouble(int64_t a_generator, uint64_t 
     if (!fn && !(fn = cudalib_symbol(3, "curandGenerateUniformDouble"))) return cudalib_missing(3);
     void *h_generator; int64_t t_generator;
     if (!cudalib_handle_get(6, a_generator, 0, &h_generator, &t_generator)) return SAMALTAK_CUDA_REJECT_HANDLE;
-    int64_t n_outputPtr = (int64_t)(a_num);
-    if (n_outputPtr < 0 || !cudalib_device_ok(a_outputPtr, (uint64_t)n_outputPtr * sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_outputPtr, (int64_t)(a_num), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
     int64_t r = (int64_t)((int32_t (*)(void *, void *, uint64_t))fn)(h_generator, (void *)(uintptr_t)a_outputPtr, (uint64_t)a_num);
     return r;
 }
@@ -920,8 +1147,7 @@ int64_t samaltak_cuda_curandGenerateNormal(int64_t a_generator, uint64_t a_outpu
     if (!fn && !(fn = cudalib_symbol(3, "curandGenerateNormal"))) return cudalib_missing(3);
     void *h_generator; int64_t t_generator;
     if (!cudalib_handle_get(6, a_generator, 0, &h_generator, &t_generator)) return SAMALTAK_CUDA_REJECT_HANDLE;
-    int64_t n_outputPtr = (int64_t)(a_n);
-    if (n_outputPtr < 0 || !cudalib_device_ok(a_outputPtr, (uint64_t)n_outputPtr * sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_outputPtr, (int64_t)(a_n), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
     int64_t r = (int64_t)((int32_t (*)(void *, void *, uint64_t, float, float))fn)(h_generator, (void *)(uintptr_t)a_outputPtr, (uint64_t)a_n, (float)a_mean, (float)a_stddev);
     return r;
 }
@@ -932,8 +1158,7 @@ int64_t samaltak_cuda_curandGenerateNormalDouble(int64_t a_generator, uint64_t a
     if (!fn && !(fn = cudalib_symbol(3, "curandGenerateNormalDouble"))) return cudalib_missing(3);
     void *h_generator; int64_t t_generator;
     if (!cudalib_handle_get(6, a_generator, 0, &h_generator, &t_generator)) return SAMALTAK_CUDA_REJECT_HANDLE;
-    int64_t n_outputPtr = (int64_t)(a_n);
-    if (n_outputPtr < 0 || !cudalib_device_ok(a_outputPtr, (uint64_t)n_outputPtr * sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_outputPtr, (int64_t)(a_n), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
     int64_t r = (int64_t)((int32_t (*)(void *, void *, uint64_t, double, double))fn)(h_generator, (void *)(uintptr_t)a_outputPtr, (uint64_t)a_n, (double)a_mean, (double)a_stddev);
     return r;
 }
@@ -1201,6 +1426,565 @@ int64_t samaltak_cuda_cuOptGetPrimalSolution(int64_t a_solution, uint8_t *a_solu
     if (n_solution_values < 0 || (uint64_t)n_solution_values > l_solution_values / sizeof(double)) return SAMALTAK_CUDA_REJECT_SLICE;
     double *p_solution_values = (double *)s_solution_values; (void)p_solution_values;
     int64_t r = (int64_t)((int32_t (*)(void *, void *))fn)(h_solution, (void *)p_solution_values);
+    return r;
+}
+
+/* cusolverStatus_t cusolverGetVersion(int *version) */
+int64_t samaltak_cuda_cusolverGetVersion(uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverGetVersion"))) return cudalib_missing(5);
+    if (outs_len < 8) return SAMALTAK_CUDA_REJECT_SLICE;
+    int32_t o_version = 0;
+    int64_t r = (int64_t)((int32_t (*)(void *))fn)(&o_version);
+    cudalib_put_i64(outs, 0, o_version);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnCreate(cusolverDnHandle_t *handle) */
+int64_t samaltak_cuda_cusolverDnCreate(uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnCreate"))) return cudalib_missing(5);
+    if (outs_len < 8) return SAMALTAK_CUDA_REJECT_SLICE;
+    void *o_handle = NULL;
+    int64_t r = (int64_t)((int32_t (*)(void *))fn)(&o_handle);
+    if (r == 0) {
+        if (o_handle) { int64_t id = cudalib_handle_new(10, o_handle, (int64_t)(0)); if (id < 0) return id; cudalib_put_i64(outs, 0, id); }
+    }
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnDestroy(cusolverDnHandle_t handle) */
+int64_t samaltak_cuda_cusolverDnDestroy(int64_t a_handle) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnDestroy"))) return cudalib_missing(5);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    int64_t r = (int64_t)((int32_t (*)(void *))fn)(h_handle);
+    cudalib_handle_drop(a_handle);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnSetStream(cusolverDnHandle_t handle, cudaStream_t streamId) */
+int64_t samaltak_cuda_cusolverDnSetStream(int64_t a_handle, int64_t a_streamId) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnSetStream"))) return cudalib_missing(5);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    void *h_streamId; int64_t t_streamId;
+    if (!cudalib_handle_get(1, a_streamId, 1, &h_streamId, &t_streamId)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    int64_t r = (int64_t)((int32_t (*)(void *, void *))fn)(h_handle, h_streamId);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnCreateParams(cusolverDnParams_t *params) */
+int64_t samaltak_cuda_cusolverDnCreateParams(uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnCreateParams"))) return cudalib_missing(5);
+    if (outs_len < 8) return SAMALTAK_CUDA_REJECT_SLICE;
+    void *o_params = NULL;
+    int64_t r = (int64_t)((int32_t (*)(void *))fn)(&o_params);
+    if (r == 0) {
+        if (o_params) { int64_t id = cudalib_handle_new(11, o_params, (int64_t)(0)); if (id < 0) return id; cudalib_put_i64(outs, 0, id); }
+    }
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnDestroyParams(cusolverDnParams_t params) */
+int64_t samaltak_cuda_cusolverDnDestroyParams(int64_t a_params) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnDestroyParams"))) return cudalib_missing(5);
+    void *h_params; int64_t t_params;
+    if (!cudalib_handle_get(11, a_params, 0, &h_params, &t_params)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    int64_t r = (int64_t)((int32_t (*)(void *))fn)(h_params);
+    cudalib_handle_drop(a_params);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnXgetrf_bufferSize(cusolverDnHandle_t handle, cusolverDnParams_t params, int64_t m, int64_t n, cudaDataType dataTypeA, const void * A, int64_t lda, cudaDataType computeType, size_t * workspaceInBytesOnDevice, size_t * workspaceInBytesOnHost) */
+int64_t samaltak_cuda_cusolverDnXgetrfBufferSize(int64_t a_handle, int64_t a_params, int64_t a_m, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_computeType, uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnXgetrf_bufferSize"))) return cudalib_missing(5);
+    if (outs_len < 16) return SAMALTAK_CUDA_REJECT_SLICE;
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    void *h_params; int64_t t_params;
+    if (!cudalib_handle_get(11, a_params, 0, &h_params, &t_params)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(cudalib_dtype_bytes(SAMALTAK_CUDA_MAT(a_lda,a_m,a_n),a_dataTypeA)), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    uint64_t o_workspaceInBytesOnDevice = 0;
+    uint64_t o_workspaceInBytesOnHost = 0;
+    int64_t r = (int64_t)((int32_t (*)(void *, void *, int64_t, int64_t, int32_t, void *, int64_t, int32_t, void *, void *))fn)(h_handle, h_params, (int64_t)a_m, (int64_t)a_n, (int32_t)a_dataTypeA, (void *)(uintptr_t)a_A, (int64_t)a_lda, (int32_t)a_computeType, &o_workspaceInBytesOnDevice, &o_workspaceInBytesOnHost);
+    cudalib_put_u64(outs, 0, o_workspaceInBytesOnDevice);
+    cudalib_put_u64(outs, 1, o_workspaceInBytesOnHost);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnXgetrf(cusolverDnHandle_t handle, cusolverDnParams_t params, int64_t m, int64_t n, cudaDataType dataTypeA, void * A, int64_t lda, int64_t * ipiv, cudaDataType computeType, void * bufferOnDevice, size_t workspaceInBytesOnDevice, void * bufferOnHost, size_t workspaceInBytesOnHost, int * info) */
+int64_t samaltak_cuda_cusolverDnXgetrf(int64_t a_handle, int64_t a_params, int64_t a_m, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, uint64_t a_ipiv, int32_t a_computeType, uint64_t a_bufferOnDevice, uint64_t a_workspaceInBytesOnDevice, uint8_t *a_bufferOnHost, uint64_t a_bufferOnHost_len, uint64_t a_workspaceInBytesOnHost, uint64_t a_info) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnXgetrf"))) return cudalib_missing(5);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    void *h_params; int64_t t_params;
+    if (!cudalib_handle_get(11, a_params, 0, &h_params, &t_params)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(cudalib_dtype_bytes(SAMALTAK_CUDA_MAT(a_lda,a_m,a_n),a_dataTypeA)), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_ipiv, (int64_t)(a_m<a_n?a_m:a_n), sizeof(int64_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_bufferOnDevice, (int64_t)(a_workspaceInBytesOnDevice), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    uint8_t *s_bufferOnHost = a_bufferOnHost; uint64_t l_bufferOnHost = a_bufferOnHost_len;
+    int64_t n_bufferOnHost = (int64_t)(a_workspaceInBytesOnHost);
+    if (n_bufferOnHost < 0 || (uint64_t)n_bufferOnHost > l_bufferOnHost / sizeof(uint8_t)) return SAMALTAK_CUDA_REJECT_SLICE;
+    uint8_t *p_bufferOnHost = (uint8_t *)s_bufferOnHost; (void)p_bufferOnHost;
+    if (!cudalib_device_span(a_info, (int64_t)(1), sizeof(int32_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, void *, int64_t, int64_t, int32_t, void *, int64_t, void *, int32_t, void *, uint64_t, void *, uint64_t, void *))fn)(h_handle, h_params, (int64_t)a_m, (int64_t)a_n, (int32_t)a_dataTypeA, (void *)(uintptr_t)a_A, (int64_t)a_lda, (void *)(uintptr_t)a_ipiv, (int32_t)a_computeType, (void *)(uintptr_t)a_bufferOnDevice, (uint64_t)a_workspaceInBytesOnDevice, (void *)p_bufferOnHost, (uint64_t)a_workspaceInBytesOnHost, (void *)(uintptr_t)a_info);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnXgetrs(cusolverDnHandle_t handle, cusolverDnParams_t params, cublasOperation_t trans, int64_t n, int64_t nrhs, cudaDataType dataTypeA, const void * A, int64_t lda, const int64_t * ipiv, cudaDataType dataTypeB, void * B, int64_t ldb, int * info) */
+int64_t samaltak_cuda_cusolverDnXgetrs(int64_t a_handle, int64_t a_params, int32_t a_trans, int64_t a_n, int64_t a_nrhs, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, uint64_t a_ipiv, int32_t a_dataTypeB, uint64_t a_B, int64_t a_ldb, uint64_t a_info) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnXgetrs"))) return cudalib_missing(5);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    void *h_params; int64_t t_params;
+    if (!cudalib_handle_get(11, a_params, 0, &h_params, &t_params)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(cudalib_dtype_bytes(SAMALTAK_CUDA_MAT(a_lda,a_n,a_n),a_dataTypeA)), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_ipiv, (int64_t)(a_n), sizeof(int64_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_B, (int64_t)(cudalib_dtype_bytes(SAMALTAK_CUDA_MAT(a_ldb,a_n,a_nrhs),a_dataTypeB)), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_info, (int64_t)(1), sizeof(int32_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, void *, int32_t, int64_t, int64_t, int32_t, void *, int64_t, void *, int32_t, void *, int64_t, void *))fn)(h_handle, h_params, (int32_t)a_trans, (int64_t)a_n, (int64_t)a_nrhs, (int32_t)a_dataTypeA, (void *)(uintptr_t)a_A, (int64_t)a_lda, (void *)(uintptr_t)a_ipiv, (int32_t)a_dataTypeB, (void *)(uintptr_t)a_B, (int64_t)a_ldb, (void *)(uintptr_t)a_info);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnXpotrf_bufferSize(cusolverDnHandle_t handle, cusolverDnParams_t params, cublasFillMode_t uplo, int64_t n, cudaDataType dataTypeA, const void * A, int64_t lda, cudaDataType computeType, size_t * workspaceInBytesOnDevice, size_t * workspaceInBytesOnHost) */
+int64_t samaltak_cuda_cusolverDnXpotrfBufferSize(int64_t a_handle, int64_t a_params, int32_t a_uplo, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_computeType, uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnXpotrf_bufferSize"))) return cudalib_missing(5);
+    if (outs_len < 16) return SAMALTAK_CUDA_REJECT_SLICE;
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    void *h_params; int64_t t_params;
+    if (!cudalib_handle_get(11, a_params, 0, &h_params, &t_params)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(cudalib_dtype_bytes(SAMALTAK_CUDA_MAT(a_lda,a_n,a_n),a_dataTypeA)), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    uint64_t o_workspaceInBytesOnDevice = 0;
+    uint64_t o_workspaceInBytesOnHost = 0;
+    int64_t r = (int64_t)((int32_t (*)(void *, void *, int32_t, int64_t, int32_t, void *, int64_t, int32_t, void *, void *))fn)(h_handle, h_params, (int32_t)a_uplo, (int64_t)a_n, (int32_t)a_dataTypeA, (void *)(uintptr_t)a_A, (int64_t)a_lda, (int32_t)a_computeType, &o_workspaceInBytesOnDevice, &o_workspaceInBytesOnHost);
+    cudalib_put_u64(outs, 0, o_workspaceInBytesOnDevice);
+    cudalib_put_u64(outs, 1, o_workspaceInBytesOnHost);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnXpotrf(cusolverDnHandle_t handle, cusolverDnParams_t params, cublasFillMode_t uplo, int64_t n, cudaDataType dataTypeA, void * A, int64_t lda, cudaDataType computeType, void * bufferOnDevice, size_t workspaceInBytesOnDevice, void * bufferOnHost, size_t workspaceInBytesOnHost, int * info) */
+int64_t samaltak_cuda_cusolverDnXpotrf(int64_t a_handle, int64_t a_params, int32_t a_uplo, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_computeType, uint64_t a_bufferOnDevice, uint64_t a_workspaceInBytesOnDevice, uint8_t *a_bufferOnHost, uint64_t a_bufferOnHost_len, uint64_t a_workspaceInBytesOnHost, uint64_t a_info) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnXpotrf"))) return cudalib_missing(5);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    void *h_params; int64_t t_params;
+    if (!cudalib_handle_get(11, a_params, 0, &h_params, &t_params)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(cudalib_dtype_bytes(SAMALTAK_CUDA_MAT(a_lda,a_n,a_n),a_dataTypeA)), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_bufferOnDevice, (int64_t)(a_workspaceInBytesOnDevice), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    uint8_t *s_bufferOnHost = a_bufferOnHost; uint64_t l_bufferOnHost = a_bufferOnHost_len;
+    int64_t n_bufferOnHost = (int64_t)(a_workspaceInBytesOnHost);
+    if (n_bufferOnHost < 0 || (uint64_t)n_bufferOnHost > l_bufferOnHost / sizeof(uint8_t)) return SAMALTAK_CUDA_REJECT_SLICE;
+    uint8_t *p_bufferOnHost = (uint8_t *)s_bufferOnHost; (void)p_bufferOnHost;
+    if (!cudalib_device_span(a_info, (int64_t)(1), sizeof(int32_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, void *, int32_t, int64_t, int32_t, void *, int64_t, int32_t, void *, uint64_t, void *, uint64_t, void *))fn)(h_handle, h_params, (int32_t)a_uplo, (int64_t)a_n, (int32_t)a_dataTypeA, (void *)(uintptr_t)a_A, (int64_t)a_lda, (int32_t)a_computeType, (void *)(uintptr_t)a_bufferOnDevice, (uint64_t)a_workspaceInBytesOnDevice, (void *)p_bufferOnHost, (uint64_t)a_workspaceInBytesOnHost, (void *)(uintptr_t)a_info);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnXpotrs(cusolverDnHandle_t handle, cusolverDnParams_t params, cublasFillMode_t uplo, int64_t n, int64_t nrhs, cudaDataType dataTypeA, const void * A, int64_t lda, cudaDataType dataTypeB, void * B, int64_t ldb, int * info) */
+int64_t samaltak_cuda_cusolverDnXpotrs(int64_t a_handle, int64_t a_params, int32_t a_uplo, int64_t a_n, int64_t a_nrhs, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_dataTypeB, uint64_t a_B, int64_t a_ldb, uint64_t a_info) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnXpotrs"))) return cudalib_missing(5);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    void *h_params; int64_t t_params;
+    if (!cudalib_handle_get(11, a_params, 0, &h_params, &t_params)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(cudalib_dtype_bytes(SAMALTAK_CUDA_MAT(a_lda,a_n,a_n),a_dataTypeA)), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_B, (int64_t)(cudalib_dtype_bytes(SAMALTAK_CUDA_MAT(a_ldb,a_n,a_nrhs),a_dataTypeB)), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_info, (int64_t)(1), sizeof(int32_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, void *, int32_t, int64_t, int64_t, int32_t, void *, int64_t, int32_t, void *, int64_t, void *))fn)(h_handle, h_params, (int32_t)a_uplo, (int64_t)a_n, (int64_t)a_nrhs, (int32_t)a_dataTypeA, (void *)(uintptr_t)a_A, (int64_t)a_lda, (int32_t)a_dataTypeB, (void *)(uintptr_t)a_B, (int64_t)a_ldb, (void *)(uintptr_t)a_info);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnXgeqrf_bufferSize(cusolverDnHandle_t handle, cusolverDnParams_t params, int64_t m, int64_t n, cudaDataType dataTypeA, const void * A, int64_t lda, cudaDataType dataTypeTau, const void * tau, cudaDataType computeType, size_t * workspaceInBytesOnDevice, size_t * workspaceInBytesOnHost) */
+int64_t samaltak_cuda_cusolverDnXgeqrfBufferSize(int64_t a_handle, int64_t a_params, int64_t a_m, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_dataTypeTau, uint64_t a_tau, int32_t a_computeType, uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnXgeqrf_bufferSize"))) return cudalib_missing(5);
+    if (outs_len < 16) return SAMALTAK_CUDA_REJECT_SLICE;
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    void *h_params; int64_t t_params;
+    if (!cudalib_handle_get(11, a_params, 0, &h_params, &t_params)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(cudalib_dtype_bytes(SAMALTAK_CUDA_MAT(a_lda,a_m,a_n),a_dataTypeA)), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_tau, (int64_t)(cudalib_dtype_bytes(a_m<a_n?a_m:a_n,a_dataTypeTau)), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    uint64_t o_workspaceInBytesOnDevice = 0;
+    uint64_t o_workspaceInBytesOnHost = 0;
+    int64_t r = (int64_t)((int32_t (*)(void *, void *, int64_t, int64_t, int32_t, void *, int64_t, int32_t, void *, int32_t, void *, void *))fn)(h_handle, h_params, (int64_t)a_m, (int64_t)a_n, (int32_t)a_dataTypeA, (void *)(uintptr_t)a_A, (int64_t)a_lda, (int32_t)a_dataTypeTau, (void *)(uintptr_t)a_tau, (int32_t)a_computeType, &o_workspaceInBytesOnDevice, &o_workspaceInBytesOnHost);
+    cudalib_put_u64(outs, 0, o_workspaceInBytesOnDevice);
+    cudalib_put_u64(outs, 1, o_workspaceInBytesOnHost);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnXgeqrf(cusolverDnHandle_t handle, cusolverDnParams_t params, int64_t m, int64_t n, cudaDataType dataTypeA, void * A, int64_t lda, cudaDataType dataTypeTau, void * tau, cudaDataType computeType, void * bufferOnDevice, size_t workspaceInBytesOnDevice, void * bufferOnHost, size_t workspaceInBytesOnHost, int * info) */
+int64_t samaltak_cuda_cusolverDnXgeqrf(int64_t a_handle, int64_t a_params, int64_t a_m, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_dataTypeTau, uint64_t a_tau, int32_t a_computeType, uint64_t a_bufferOnDevice, uint64_t a_workspaceInBytesOnDevice, uint8_t *a_bufferOnHost, uint64_t a_bufferOnHost_len, uint64_t a_workspaceInBytesOnHost, uint64_t a_info) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnXgeqrf"))) return cudalib_missing(5);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    void *h_params; int64_t t_params;
+    if (!cudalib_handle_get(11, a_params, 0, &h_params, &t_params)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(cudalib_dtype_bytes(SAMALTAK_CUDA_MAT(a_lda,a_m,a_n),a_dataTypeA)), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_tau, (int64_t)(cudalib_dtype_bytes(a_m<a_n?a_m:a_n,a_dataTypeTau)), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_bufferOnDevice, (int64_t)(a_workspaceInBytesOnDevice), sizeof(uint8_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    uint8_t *s_bufferOnHost = a_bufferOnHost; uint64_t l_bufferOnHost = a_bufferOnHost_len;
+    int64_t n_bufferOnHost = (int64_t)(a_workspaceInBytesOnHost);
+    if (n_bufferOnHost < 0 || (uint64_t)n_bufferOnHost > l_bufferOnHost / sizeof(uint8_t)) return SAMALTAK_CUDA_REJECT_SLICE;
+    uint8_t *p_bufferOnHost = (uint8_t *)s_bufferOnHost; (void)p_bufferOnHost;
+    if (!cudalib_device_span(a_info, (int64_t)(1), sizeof(int32_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, void *, int64_t, int64_t, int32_t, void *, int64_t, int32_t, void *, int32_t, void *, uint64_t, void *, uint64_t, void *))fn)(h_handle, h_params, (int64_t)a_m, (int64_t)a_n, (int32_t)a_dataTypeA, (void *)(uintptr_t)a_A, (int64_t)a_lda, (int32_t)a_dataTypeTau, (void *)(uintptr_t)a_tau, (int32_t)a_computeType, (void *)(uintptr_t)a_bufferOnDevice, (uint64_t)a_workspaceInBytesOnDevice, (void *)p_bufferOnHost, (uint64_t)a_workspaceInBytesOnHost, (void *)(uintptr_t)a_info);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnSorgqr_bufferSize(cusolverDnHandle_t handle, int m, int n, int k, const float * A, int lda, const float * tau, int * lwork) */
+int64_t samaltak_cuda_cusolverDnSorgqrBufferSize(int64_t a_handle, int32_t a_m, int32_t a_n, int32_t a_k, uint64_t a_A, int32_t a_lda, uint64_t a_tau, uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnSorgqr_bufferSize"))) return cudalib_missing(5);
+    if (outs_len < 8) return SAMALTAK_CUDA_REJECT_SLICE;
+    if (!(a_m>=a_n&&a_n>=a_k&&a_k>=0)) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_m,a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_tau, (int64_t)(a_k), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int32_t o_lwork = 0;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t, void *, int32_t, void *, void *))fn)(h_handle, (int32_t)a_m, (int32_t)a_n, (int32_t)a_k, (void *)(uintptr_t)a_A, (int32_t)a_lda, (void *)(uintptr_t)a_tau, &o_lwork);
+    cudalib_put_i64(outs, 0, o_lwork);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnSorgqr(cusolverDnHandle_t handle, int m, int n, int k, float * A, int lda, const float * tau, float * work, int lwork, int * info) */
+int64_t samaltak_cuda_cusolverDnSorgqr(int64_t a_handle, int32_t a_m, int32_t a_n, int32_t a_k, uint64_t a_A, int32_t a_lda, uint64_t a_tau, uint64_t a_work, int32_t a_lwork, uint64_t a_info) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnSorgqr"))) return cudalib_missing(5);
+    if (!(a_m>=a_n&&a_n>=a_k&&a_k>=0)) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_m,a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_tau, (int64_t)(a_k), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_work, (int64_t)(a_lwork), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_info, (int64_t)(1), sizeof(int32_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t, void *, int32_t, void *, void *, int32_t, void *))fn)(h_handle, (int32_t)a_m, (int32_t)a_n, (int32_t)a_k, (void *)(uintptr_t)a_A, (int32_t)a_lda, (void *)(uintptr_t)a_tau, (void *)(uintptr_t)a_work, (int32_t)a_lwork, (void *)(uintptr_t)a_info);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnDorgqr_bufferSize(cusolverDnHandle_t handle, int m, int n, int k, const double * A, int lda, const double * tau, int * lwork) */
+int64_t samaltak_cuda_cusolverDnDorgqrBufferSize(int64_t a_handle, int32_t a_m, int32_t a_n, int32_t a_k, uint64_t a_A, int32_t a_lda, uint64_t a_tau, uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnDorgqr_bufferSize"))) return cudalib_missing(5);
+    if (outs_len < 8) return SAMALTAK_CUDA_REJECT_SLICE;
+    if (!(a_m>=a_n&&a_n>=a_k&&a_k>=0)) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_m,a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_tau, (int64_t)(a_k), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int32_t o_lwork = 0;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t, void *, int32_t, void *, void *))fn)(h_handle, (int32_t)a_m, (int32_t)a_n, (int32_t)a_k, (void *)(uintptr_t)a_A, (int32_t)a_lda, (void *)(uintptr_t)a_tau, &o_lwork);
+    cudalib_put_i64(outs, 0, o_lwork);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnDorgqr(cusolverDnHandle_t handle, int m, int n, int k, double * A, int lda, const double * tau, double * work, int lwork, int * info) */
+int64_t samaltak_cuda_cusolverDnDorgqr(int64_t a_handle, int32_t a_m, int32_t a_n, int32_t a_k, uint64_t a_A, int32_t a_lda, uint64_t a_tau, uint64_t a_work, int32_t a_lwork, uint64_t a_info) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnDorgqr"))) return cudalib_missing(5);
+    if (!(a_m>=a_n&&a_n>=a_k&&a_k>=0)) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_m,a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_tau, (int64_t)(a_k), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_work, (int64_t)(a_lwork), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_info, (int64_t)(1), sizeof(int32_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t, void *, int32_t, void *, void *, int32_t, void *))fn)(h_handle, (int32_t)a_m, (int32_t)a_n, (int32_t)a_k, (void *)(uintptr_t)a_A, (int32_t)a_lda, (void *)(uintptr_t)a_tau, (void *)(uintptr_t)a_work, (int32_t)a_lwork, (void *)(uintptr_t)a_info);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnSgesvd_bufferSize(cusolverDnHandle_t handle, int m, int n, int * lwork) */
+int64_t samaltak_cuda_cusolverDnSgesvdBufferSize(int64_t a_handle, int32_t a_m, int32_t a_n, uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnSgesvd_bufferSize"))) return cudalib_missing(5);
+    if (outs_len < 8) return SAMALTAK_CUDA_REJECT_SLICE;
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    int32_t o_lwork = 0;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, void *))fn)(h_handle, (int32_t)a_m, (int32_t)a_n, &o_lwork);
+    cudalib_put_i64(outs, 0, o_lwork);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnDgesvd_bufferSize(cusolverDnHandle_t handle, int m, int n, int * lwork) */
+int64_t samaltak_cuda_cusolverDnDgesvdBufferSize(int64_t a_handle, int32_t a_m, int32_t a_n, uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnDgesvd_bufferSize"))) return cudalib_missing(5);
+    if (outs_len < 8) return SAMALTAK_CUDA_REJECT_SLICE;
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    int32_t o_lwork = 0;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, void *))fn)(h_handle, (int32_t)a_m, (int32_t)a_n, &o_lwork);
+    cudalib_put_i64(outs, 0, o_lwork);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnSgesvd(cusolverDnHandle_t handle, signed char jobu, signed char jobvt, int m, int n, float * A, int lda, float * S, float * U, int ldu, float * VT, int ldvt, float * work, int lwork, float * rwork, int * info) */
+int64_t samaltak_cuda_cusolverDnSgesvd(int64_t a_handle, int32_t a_jobu, int32_t a_jobvt, int32_t a_m, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_S, uint64_t a_U, int32_t a_ldu, uint64_t a_VT, int32_t a_ldvt, uint64_t a_work, int32_t a_lwork, uint64_t a_rwork, uint64_t a_info) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnSgesvd"))) return cudalib_missing(5);
+    if (!(a_m>=a_n)) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_m,a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_S, (int64_t)(a_n), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_U, (int64_t)(a_jobu==65?SAMALTAK_CUDA_MAT(a_ldu,a_m,a_m):a_jobu==83?SAMALTAK_CUDA_MAT(a_ldu,a_m,a_n):0), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_VT, (int64_t)(a_jobvt==65||a_jobvt==83?SAMALTAK_CUDA_MAT(a_ldvt,a_n,a_n):0), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_work, (int64_t)(a_lwork), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_rwork, (int64_t)(a_n-1), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_info, (int64_t)(1), sizeof(int32_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int8_t, int8_t, int32_t, int32_t, void *, int32_t, void *, void *, int32_t, void *, int32_t, void *, int32_t, void *, void *))fn)(h_handle, (int8_t)a_jobu, (int8_t)a_jobvt, (int32_t)a_m, (int32_t)a_n, (void *)(uintptr_t)a_A, (int32_t)a_lda, (void *)(uintptr_t)a_S, (void *)(uintptr_t)a_U, (int32_t)a_ldu, (void *)(uintptr_t)a_VT, (int32_t)a_ldvt, (void *)(uintptr_t)a_work, (int32_t)a_lwork, (void *)(uintptr_t)a_rwork, (void *)(uintptr_t)a_info);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnDgesvd(cusolverDnHandle_t handle, signed char jobu, signed char jobvt, int m, int n, double * A, int lda, double * S, double * U, int ldu, double * VT, int ldvt, double * work, int lwork, double * rwork, int * info) */
+int64_t samaltak_cuda_cusolverDnDgesvd(int64_t a_handle, int32_t a_jobu, int32_t a_jobvt, int32_t a_m, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_S, uint64_t a_U, int32_t a_ldu, uint64_t a_VT, int32_t a_ldvt, uint64_t a_work, int32_t a_lwork, uint64_t a_rwork, uint64_t a_info) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnDgesvd"))) return cudalib_missing(5);
+    if (!(a_m>=a_n)) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_m,a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_S, (int64_t)(a_n), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_U, (int64_t)(a_jobu==65?SAMALTAK_CUDA_MAT(a_ldu,a_m,a_m):a_jobu==83?SAMALTAK_CUDA_MAT(a_ldu,a_m,a_n):0), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_VT, (int64_t)(a_jobvt==65||a_jobvt==83?SAMALTAK_CUDA_MAT(a_ldvt,a_n,a_n):0), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_work, (int64_t)(a_lwork), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_rwork, (int64_t)(a_n-1), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_info, (int64_t)(1), sizeof(int32_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int8_t, int8_t, int32_t, int32_t, void *, int32_t, void *, void *, int32_t, void *, int32_t, void *, int32_t, void *, void *))fn)(h_handle, (int8_t)a_jobu, (int8_t)a_jobvt, (int32_t)a_m, (int32_t)a_n, (void *)(uintptr_t)a_A, (int32_t)a_lda, (void *)(uintptr_t)a_S, (void *)(uintptr_t)a_U, (int32_t)a_ldu, (void *)(uintptr_t)a_VT, (int32_t)a_ldvt, (void *)(uintptr_t)a_work, (int32_t)a_lwork, (void *)(uintptr_t)a_rwork, (void *)(uintptr_t)a_info);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnSsyevd_bufferSize(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cublasFillMode_t uplo, int n, const float * A, int lda, const float * W, int * lwork) */
+int64_t samaltak_cuda_cusolverDnSsyevdBufferSize(int64_t a_handle, int32_t a_jobz, int32_t a_uplo, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_W, uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnSsyevd_bufferSize"))) return cudalib_missing(5);
+    if (outs_len < 8) return SAMALTAK_CUDA_REJECT_SLICE;
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_n,a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_W, (int64_t)(a_n), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int32_t o_lwork = 0;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t, void *, int32_t, void *, void *))fn)(h_handle, (int32_t)a_jobz, (int32_t)a_uplo, (int32_t)a_n, (void *)(uintptr_t)a_A, (int32_t)a_lda, (void *)(uintptr_t)a_W, &o_lwork);
+    cudalib_put_i64(outs, 0, o_lwork);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnDsyevd_bufferSize(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cublasFillMode_t uplo, int n, const double * A, int lda, const double * W, int * lwork) */
+int64_t samaltak_cuda_cusolverDnDsyevdBufferSize(int64_t a_handle, int32_t a_jobz, int32_t a_uplo, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_W, uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnDsyevd_bufferSize"))) return cudalib_missing(5);
+    if (outs_len < 8) return SAMALTAK_CUDA_REJECT_SLICE;
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_n,a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_W, (int64_t)(a_n), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int32_t o_lwork = 0;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t, void *, int32_t, void *, void *))fn)(h_handle, (int32_t)a_jobz, (int32_t)a_uplo, (int32_t)a_n, (void *)(uintptr_t)a_A, (int32_t)a_lda, (void *)(uintptr_t)a_W, &o_lwork);
+    cudalib_put_i64(outs, 0, o_lwork);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnSsyevd(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cublasFillMode_t uplo, int n, float * A, int lda, float * W, float * work, int lwork, int * info) */
+int64_t samaltak_cuda_cusolverDnSsyevd(int64_t a_handle, int32_t a_jobz, int32_t a_uplo, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_W, uint64_t a_work, int32_t a_lwork, uint64_t a_info) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnSsyevd"))) return cudalib_missing(5);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_n,a_n)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_W, (int64_t)(a_n), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_work, (int64_t)(a_lwork), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_info, (int64_t)(1), sizeof(int32_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t, void *, int32_t, void *, void *, int32_t, void *))fn)(h_handle, (int32_t)a_jobz, (int32_t)a_uplo, (int32_t)a_n, (void *)(uintptr_t)a_A, (int32_t)a_lda, (void *)(uintptr_t)a_W, (void *)(uintptr_t)a_work, (int32_t)a_lwork, (void *)(uintptr_t)a_info);
+    return r;
+}
+
+/* cusolverStatus_t cusolverDnDsyevd(cusolverDnHandle_t handle, cusolverEigMode_t jobz, cublasFillMode_t uplo, int n, double * A, int lda, double * W, double * work, int lwork, int * info) */
+int64_t samaltak_cuda_cusolverDnDsyevd(int64_t a_handle, int32_t a_jobz, int32_t a_uplo, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_W, uint64_t a_work, int32_t a_lwork, uint64_t a_info) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(5, "cusolverDnDsyevd"))) return cudalib_missing(5);
+    void *h_handle; int64_t t_handle;
+    if (!cudalib_handle_get(10, a_handle, 0, &h_handle, &t_handle)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_A, (int64_t)(SAMALTAK_CUDA_MAT(a_lda,a_n,a_n)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_W, (int64_t)(a_n), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_work, (int64_t)(a_lwork), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_info, (int64_t)(1), sizeof(int32_t))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t, void *, int32_t, void *, void *, int32_t, void *))fn)(h_handle, (int32_t)a_jobz, (int32_t)a_uplo, (int32_t)a_n, (void *)(uintptr_t)a_A, (int32_t)a_lda, (void *)(uintptr_t)a_W, (void *)(uintptr_t)a_work, (int32_t)a_lwork, (void *)(uintptr_t)a_info);
+    return r;
+}
+
+/* cufftResult cufftGetVersion(int *version) */
+int64_t samaltak_cuda_cufftGetVersion(uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(6, "cufftGetVersion"))) return cudalib_missing(6);
+    if (outs_len < 8) return SAMALTAK_CUDA_REJECT_SLICE;
+    int32_t o_version = 0;
+    int64_t r = (int64_t)((int32_t (*)(void *))fn)(&o_version);
+    cudalib_put_i64(outs, 0, o_version);
+    return r;
+}
+
+/* cufftResult cufftPlan1d(cufftHandle *plan, int nx, cufftType type, int batch) */
+int64_t samaltak_cuda_cufftPlan1d(int32_t a_nx, int32_t a_type, int32_t a_batch, uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(6, "cufftPlan1d"))) return cudalib_missing(6);
+    if (outs_len < 8) return SAMALTAK_CUDA_REJECT_SLICE;
+    if (!(cudalib_fft_tag(a_type,1,a_nx,a_batch)>=0)) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    int32_t o_plan = 0;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t))fn)(&o_plan, (int32_t)a_nx, (int32_t)a_type, (int32_t)a_batch);
+    if (r == 0) {
+        { int64_t id = cudalib_handle_new(12, (void *)(uintptr_t)(((uint64_t)1 << 32) | (uint32_t)o_plan), (int64_t)(cudalib_fft_tag(a_type,1,a_nx,a_batch))); if (id < 0) return id; cudalib_put_i64(outs, 0, id); }
+    }
+    return r;
+}
+
+/* cufftResult cufftPlan2d(cufftHandle *plan, int nx, int ny, cufftType type) */
+int64_t samaltak_cuda_cufftPlan2d(int32_t a_nx, int32_t a_ny, int32_t a_type, uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(6, "cufftPlan2d"))) return cudalib_missing(6);
+    if (outs_len < 8) return SAMALTAK_CUDA_REJECT_SLICE;
+    if (!(cudalib_fft_tag(a_type,a_nx,a_ny,1)>=0)) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    int32_t o_plan = 0;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, int32_t, int32_t))fn)(&o_plan, (int32_t)a_nx, (int32_t)a_ny, (int32_t)a_type);
+    if (r == 0) {
+        { int64_t id = cudalib_handle_new(12, (void *)(uintptr_t)(((uint64_t)1 << 32) | (uint32_t)o_plan), (int64_t)(cudalib_fft_tag(a_type,a_nx,a_ny,1))); if (id < 0) return id; cudalib_put_i64(outs, 0, id); }
+    }
+    return r;
+}
+
+/* cufftResult cufftPlanMany(cufftHandle *plan, int rank, int *n, int *inembed, int istride, int idist, int *onembed, int ostride, int odist, cufftType type, int batch) */
+int64_t samaltak_cuda_cufftPlanMany(int32_t a_rank, const uint8_t *a_n, uint64_t a_n_len, int32_t a_type, int32_t a_batch, uint8_t *outs, uint64_t outs_len) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(6, "cufftPlanMany"))) return cudalib_missing(6);
+    if (outs_len < 8) return SAMALTAK_CUDA_REJECT_SLICE;
+    if (!(a_rank>=1&&a_rank<=3)) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    int32_t o_plan = 0;
+    const uint8_t *s_n = a_n; uint64_t l_n = a_n_len;
+    int64_t n_n = (int64_t)(a_rank);
+    if (n_n < 0 || (uint64_t)n_n > l_n / sizeof(int32_t)) return SAMALTAK_CUDA_REJECT_SLICE;
+    const int32_t *p_n = (const int32_t *)s_n; (void)p_n;
+    if (!(cudalib_fft_many_tag(a_type,a_rank,p_n,a_batch)>=0)) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    int64_t r = (int64_t)((int32_t (*)(void *, int32_t, void *, void *, int32_t, int32_t, void *, int32_t, int32_t, int32_t, int32_t))fn)(&o_plan, (int32_t)a_rank, (void *)p_n, NULL, (int32_t)1, (int32_t)0, NULL, (int32_t)1, (int32_t)0, (int32_t)a_type, (int32_t)a_batch);
+    if (r == 0) {
+        { int64_t id = cudalib_handle_new(12, (void *)(uintptr_t)(((uint64_t)1 << 32) | (uint32_t)o_plan), (int64_t)(cudalib_fft_many_tag(a_type,a_rank,p_n,a_batch))); if (id < 0) return id; cudalib_put_i64(outs, 0, id); }
+    }
+    return r;
+}
+
+/* cufftResult cufftDestroy(cufftHandle plan) */
+int64_t samaltak_cuda_cufftDestroy(int64_t a_plan) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(6, "cufftDestroy"))) return cudalib_missing(6);
+    void *h_plan; int64_t t_plan;
+    if (!cudalib_handle_get(12, a_plan, 0, &h_plan, &t_plan)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    int64_t r = (int64_t)((int32_t (*)(int32_t))fn)((int32_t)(uint32_t)(uintptr_t)h_plan);
+    cudalib_handle_drop(a_plan);
+    return r;
+}
+
+/* cufftResult cufftSetStream(cufftHandle plan, cudaStream_t stream) */
+int64_t samaltak_cuda_cufftSetStream(int64_t a_plan, int64_t a_stream) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(6, "cufftSetStream"))) return cudalib_missing(6);
+    void *h_plan; int64_t t_plan;
+    if (!cudalib_handle_get(12, a_plan, 0, &h_plan, &t_plan)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    void *h_stream; int64_t t_stream;
+    if (!cudalib_handle_get(1, a_stream, 1, &h_stream, &t_stream)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    int64_t r = (int64_t)((int32_t (*)(int32_t, void *))fn)((int32_t)(uint32_t)(uintptr_t)h_plan, h_stream);
+    return r;
+}
+
+/* cufftResult cufftExecC2C(cufftHandle plan, cufftComplex *idata, cufftComplex *odata, int direction) */
+int64_t samaltak_cuda_cufftExecC2C(int64_t a_plan, uint64_t a_idata, uint64_t a_odata, int32_t a_direction) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(6, "cufftExecC2C"))) return cudalib_missing(6);
+    if (!(a_direction==(-1)||a_direction==(1))) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    void *h_plan; int64_t t_plan;
+    if (!cudalib_handle_get(12, a_plan, 0, &h_plan, &t_plan)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_idata, (int64_t)(CUDALIB_FFT_N(t_plan)), sizeof(float[2]))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_odata, (int64_t)(CUDALIB_FFT_N(t_plan)), sizeof(float[2]))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!(CUDALIB_FFT_TYPE(t_plan)==(41))) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    int64_t r = (int64_t)((int32_t (*)(int32_t, void *, void *, int32_t))fn)((int32_t)(uint32_t)(uintptr_t)h_plan, (void *)(uintptr_t)a_idata, (void *)(uintptr_t)a_odata, (int32_t)a_direction);
+    return r;
+}
+
+/* cufftResult cufftExecR2C(cufftHandle plan, cufftReal *idata, cufftComplex *odata) */
+int64_t samaltak_cuda_cufftExecR2C(int64_t a_plan, uint64_t a_idata, uint64_t a_odata) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(6, "cufftExecR2C"))) return cudalib_missing(6);
+    void *h_plan; int64_t t_plan;
+    if (!cudalib_handle_get(12, a_plan, 0, &h_plan, &t_plan)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_idata, (int64_t)(CUDALIB_FFT_N(t_plan)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_odata, (int64_t)(CUDALIB_FFT_HALF(t_plan)), sizeof(float[2]))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!(CUDALIB_FFT_TYPE(t_plan)==(42))) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    int64_t r = (int64_t)((int32_t (*)(int32_t, void *, void *))fn)((int32_t)(uint32_t)(uintptr_t)h_plan, (void *)(uintptr_t)a_idata, (void *)(uintptr_t)a_odata);
+    return r;
+}
+
+/* cufftResult cufftExecC2R(cufftHandle plan, cufftComplex *idata, cufftReal *odata) */
+int64_t samaltak_cuda_cufftExecC2R(int64_t a_plan, uint64_t a_idata, uint64_t a_odata) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(6, "cufftExecC2R"))) return cudalib_missing(6);
+    void *h_plan; int64_t t_plan;
+    if (!cudalib_handle_get(12, a_plan, 0, &h_plan, &t_plan)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_idata, (int64_t)(CUDALIB_FFT_HALF(t_plan)), sizeof(float[2]))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_odata, (int64_t)(CUDALIB_FFT_N(t_plan)), sizeof(float))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!(CUDALIB_FFT_TYPE(t_plan)==(44))) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    int64_t r = (int64_t)((int32_t (*)(int32_t, void *, void *))fn)((int32_t)(uint32_t)(uintptr_t)h_plan, (void *)(uintptr_t)a_idata, (void *)(uintptr_t)a_odata);
+    return r;
+}
+
+/* cufftResult cufftExecZ2Z(cufftHandle plan, cufftDoubleComplex *idata, cufftDoubleComplex *odata, int direction) */
+int64_t samaltak_cuda_cufftExecZ2Z(int64_t a_plan, uint64_t a_idata, uint64_t a_odata, int32_t a_direction) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(6, "cufftExecZ2Z"))) return cudalib_missing(6);
+    if (!(a_direction==(-1)||a_direction==(1))) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    void *h_plan; int64_t t_plan;
+    if (!cudalib_handle_get(12, a_plan, 0, &h_plan, &t_plan)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_idata, (int64_t)(CUDALIB_FFT_N(t_plan)), sizeof(double[2]))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_odata, (int64_t)(CUDALIB_FFT_N(t_plan)), sizeof(double[2]))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!(CUDALIB_FFT_TYPE(t_plan)==(105))) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    int64_t r = (int64_t)((int32_t (*)(int32_t, void *, void *, int32_t))fn)((int32_t)(uint32_t)(uintptr_t)h_plan, (void *)(uintptr_t)a_idata, (void *)(uintptr_t)a_odata, (int32_t)a_direction);
+    return r;
+}
+
+/* cufftResult cufftExecD2Z(cufftHandle plan, cufftDoubleReal *idata, cufftDoubleComplex *odata) */
+int64_t samaltak_cuda_cufftExecD2Z(int64_t a_plan, uint64_t a_idata, uint64_t a_odata) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(6, "cufftExecD2Z"))) return cudalib_missing(6);
+    void *h_plan; int64_t t_plan;
+    if (!cudalib_handle_get(12, a_plan, 0, &h_plan, &t_plan)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_idata, (int64_t)(CUDALIB_FFT_N(t_plan)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_odata, (int64_t)(CUDALIB_FFT_HALF(t_plan)), sizeof(double[2]))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!(CUDALIB_FFT_TYPE(t_plan)==(106))) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    int64_t r = (int64_t)((int32_t (*)(int32_t, void *, void *))fn)((int32_t)(uint32_t)(uintptr_t)h_plan, (void *)(uintptr_t)a_idata, (void *)(uintptr_t)a_odata);
+    return r;
+}
+
+/* cufftResult cufftExecZ2D(cufftHandle plan, cufftDoubleComplex *idata, cufftDoubleReal *odata) */
+int64_t samaltak_cuda_cufftExecZ2D(int64_t a_plan, uint64_t a_idata, uint64_t a_odata) {
+    static void *fn;
+    if (!fn && !(fn = cudalib_symbol(6, "cufftExecZ2D"))) return cudalib_missing(6);
+    void *h_plan; int64_t t_plan;
+    if (!cudalib_handle_get(12, a_plan, 0, &h_plan, &t_plan)) return SAMALTAK_CUDA_REJECT_HANDLE;
+    if (!cudalib_device_span(a_idata, (int64_t)(CUDALIB_FFT_HALF(t_plan)), sizeof(double[2]))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!cudalib_device_span(a_odata, (int64_t)(CUDALIB_FFT_N(t_plan)), sizeof(double))) return SAMALTAK_CUDA_REJECT_DEVICE;
+    if (!(CUDALIB_FFT_TYPE(t_plan)==(108))) return SAMALTAK_CUDA_REJECT_ARGUMENT;
+    int64_t r = (int64_t)((int32_t (*)(int32_t, void *, void *))fn)((int32_t)(uint32_t)(uintptr_t)h_plan, (void *)(uintptr_t)a_idata, (void *)(uintptr_t)a_odata);
     return r;
 }
 

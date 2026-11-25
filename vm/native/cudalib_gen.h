@@ -4,8 +4,8 @@
 #define SAMALTAK_NATIVE_CUDALIB_GEN_H
 #include <stdint.h>
 
-#define SAMALTAK_CUDA_LIBS 5
-#define SAMALTAK_CUDA_HANDLE_TYPES 9
+#define SAMALTAK_CUDA_LIBS 7
+#define SAMALTAK_CUDA_HANDLE_TYPES 12
 
 int64_t samaltak_cuda_session(void);
 int64_t samaltak_cuda_live(int64_t kind);
@@ -67,6 +67,16 @@ int64_t samaltak_cuda_cublasSnrm2(int64_t a_handle, int32_t a_n, uint64_t a_x, i
 int64_t samaltak_cuda_cublasDnrm2(int64_t a_handle, int32_t a_n, uint64_t a_x, int32_t a_incx, uint8_t *outs, uint64_t outs_len);
 int64_t samaltak_cuda_cublasSaxpy(int64_t a_handle, int32_t a_n, float a_alpha, uint64_t a_x, int32_t a_incx, uint64_t a_y, int32_t a_incy);
 int64_t samaltak_cuda_cublasDaxpy(int64_t a_handle, int32_t a_n, double a_alpha, uint64_t a_x, int32_t a_incx, uint64_t a_y, int32_t a_incy);
+int64_t samaltak_cuda_cublasSgeam(int64_t a_handle, int32_t a_transa, int32_t a_transb, int32_t a_m, int32_t a_n, float a_alpha, uint64_t a_A, int32_t a_lda, float a_beta, uint64_t a_B, int32_t a_ldb, uint64_t a_C, int32_t a_ldc);
+int64_t samaltak_cuda_cublasDgeam(int64_t a_handle, int32_t a_transa, int32_t a_transb, int32_t a_m, int32_t a_n, double a_alpha, uint64_t a_A, int32_t a_lda, double a_beta, uint64_t a_B, int32_t a_ldb, uint64_t a_C, int32_t a_ldc);
+int64_t samaltak_cuda_cublasScopy(int64_t a_handle, int32_t a_n, uint64_t a_x, int32_t a_incx, uint64_t a_y, int32_t a_incy);
+int64_t samaltak_cuda_cublasDcopy(int64_t a_handle, int32_t a_n, uint64_t a_x, int32_t a_incx, uint64_t a_y, int32_t a_incy);
+int64_t samaltak_cuda_cublasStrmm(int64_t a_handle, int32_t a_side, int32_t a_uplo, int32_t a_trans, int32_t a_diag, int32_t a_m, int32_t a_n, float a_alpha, uint64_t a_A, int32_t a_lda, uint64_t a_B, int32_t a_ldb, uint64_t a_C, int32_t a_ldc);
+int64_t samaltak_cuda_cublasDtrmm(int64_t a_handle, int32_t a_side, int32_t a_uplo, int32_t a_trans, int32_t a_diag, int32_t a_m, int32_t a_n, double a_alpha, uint64_t a_A, int32_t a_lda, uint64_t a_B, int32_t a_ldb, uint64_t a_C, int32_t a_ldc);
+int64_t samaltak_cuda_cublasSscal(int64_t a_handle, int32_t a_n, float a_alpha, uint64_t a_x, int32_t a_incx);
+int64_t samaltak_cuda_cublasDscal(int64_t a_handle, int32_t a_n, double a_alpha, uint64_t a_x, int32_t a_incx);
+int64_t samaltak_cuda_cublasCsscal(int64_t a_handle, int32_t a_n, float a_alpha, uint64_t a_x, int32_t a_incx);
+int64_t samaltak_cuda_cublasZdscal(int64_t a_handle, int32_t a_n, double a_alpha, uint64_t a_x, int32_t a_incx);
 int64_t samaltak_cuda_curand_available(void);
 int64_t samaltak_cuda_curand_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t outLength);
 int64_t samaltak_cuda_curandCreateGenerator(int32_t a_rng_type, uint8_t *outs, uint64_t outs_len);
@@ -96,5 +106,47 @@ int64_t samaltak_cuda_cuOptGetErrorStatus(int64_t a_solution, uint8_t *outs, uin
 int64_t samaltak_cuda_cuOptGetObjectiveValue(int64_t a_solution, uint8_t *outs, uint64_t outs_len);
 int64_t samaltak_cuda_cuOptGetSolveTime(int64_t a_solution, uint8_t *outs, uint64_t outs_len);
 int64_t samaltak_cuda_cuOptGetPrimalSolution(int64_t a_solution, uint8_t *a_solution_values, uint64_t a_solution_values_len);
+int64_t samaltak_cuda_cusolver_available(void);
+int64_t samaltak_cuda_cusolver_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t outLength);
+int64_t samaltak_cuda_cusolverGetVersion(uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cusolverDnCreate(uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cusolverDnDestroy(int64_t a_handle);
+int64_t samaltak_cuda_cusolverDnSetStream(int64_t a_handle, int64_t a_streamId);
+int64_t samaltak_cuda_cusolverDnCreateParams(uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cusolverDnDestroyParams(int64_t a_params);
+int64_t samaltak_cuda_cusolverDnXgetrfBufferSize(int64_t a_handle, int64_t a_params, int64_t a_m, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_computeType, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cusolverDnXgetrf(int64_t a_handle, int64_t a_params, int64_t a_m, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, uint64_t a_ipiv, int32_t a_computeType, uint64_t a_bufferOnDevice, uint64_t a_workspaceInBytesOnDevice, uint8_t *a_bufferOnHost, uint64_t a_bufferOnHost_len, uint64_t a_workspaceInBytesOnHost, uint64_t a_info);
+int64_t samaltak_cuda_cusolverDnXgetrs(int64_t a_handle, int64_t a_params, int32_t a_trans, int64_t a_n, int64_t a_nrhs, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, uint64_t a_ipiv, int32_t a_dataTypeB, uint64_t a_B, int64_t a_ldb, uint64_t a_info);
+int64_t samaltak_cuda_cusolverDnXpotrfBufferSize(int64_t a_handle, int64_t a_params, int32_t a_uplo, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_computeType, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cusolverDnXpotrf(int64_t a_handle, int64_t a_params, int32_t a_uplo, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_computeType, uint64_t a_bufferOnDevice, uint64_t a_workspaceInBytesOnDevice, uint8_t *a_bufferOnHost, uint64_t a_bufferOnHost_len, uint64_t a_workspaceInBytesOnHost, uint64_t a_info);
+int64_t samaltak_cuda_cusolverDnXpotrs(int64_t a_handle, int64_t a_params, int32_t a_uplo, int64_t a_n, int64_t a_nrhs, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_dataTypeB, uint64_t a_B, int64_t a_ldb, uint64_t a_info);
+int64_t samaltak_cuda_cusolverDnXgeqrfBufferSize(int64_t a_handle, int64_t a_params, int64_t a_m, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_dataTypeTau, uint64_t a_tau, int32_t a_computeType, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cusolverDnXgeqrf(int64_t a_handle, int64_t a_params, int64_t a_m, int64_t a_n, int32_t a_dataTypeA, uint64_t a_A, int64_t a_lda, int32_t a_dataTypeTau, uint64_t a_tau, int32_t a_computeType, uint64_t a_bufferOnDevice, uint64_t a_workspaceInBytesOnDevice, uint8_t *a_bufferOnHost, uint64_t a_bufferOnHost_len, uint64_t a_workspaceInBytesOnHost, uint64_t a_info);
+int64_t samaltak_cuda_cusolverDnSorgqrBufferSize(int64_t a_handle, int32_t a_m, int32_t a_n, int32_t a_k, uint64_t a_A, int32_t a_lda, uint64_t a_tau, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cusolverDnSorgqr(int64_t a_handle, int32_t a_m, int32_t a_n, int32_t a_k, uint64_t a_A, int32_t a_lda, uint64_t a_tau, uint64_t a_work, int32_t a_lwork, uint64_t a_info);
+int64_t samaltak_cuda_cusolverDnDorgqrBufferSize(int64_t a_handle, int32_t a_m, int32_t a_n, int32_t a_k, uint64_t a_A, int32_t a_lda, uint64_t a_tau, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cusolverDnDorgqr(int64_t a_handle, int32_t a_m, int32_t a_n, int32_t a_k, uint64_t a_A, int32_t a_lda, uint64_t a_tau, uint64_t a_work, int32_t a_lwork, uint64_t a_info);
+int64_t samaltak_cuda_cusolverDnSgesvdBufferSize(int64_t a_handle, int32_t a_m, int32_t a_n, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cusolverDnDgesvdBufferSize(int64_t a_handle, int32_t a_m, int32_t a_n, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cusolverDnSgesvd(int64_t a_handle, int32_t a_jobu, int32_t a_jobvt, int32_t a_m, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_S, uint64_t a_U, int32_t a_ldu, uint64_t a_VT, int32_t a_ldvt, uint64_t a_work, int32_t a_lwork, uint64_t a_rwork, uint64_t a_info);
+int64_t samaltak_cuda_cusolverDnDgesvd(int64_t a_handle, int32_t a_jobu, int32_t a_jobvt, int32_t a_m, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_S, uint64_t a_U, int32_t a_ldu, uint64_t a_VT, int32_t a_ldvt, uint64_t a_work, int32_t a_lwork, uint64_t a_rwork, uint64_t a_info);
+int64_t samaltak_cuda_cusolverDnSsyevdBufferSize(int64_t a_handle, int32_t a_jobz, int32_t a_uplo, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_W, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cusolverDnDsyevdBufferSize(int64_t a_handle, int32_t a_jobz, int32_t a_uplo, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_W, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cusolverDnSsyevd(int64_t a_handle, int32_t a_jobz, int32_t a_uplo, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_W, uint64_t a_work, int32_t a_lwork, uint64_t a_info);
+int64_t samaltak_cuda_cusolverDnDsyevd(int64_t a_handle, int32_t a_jobz, int32_t a_uplo, int32_t a_n, uint64_t a_A, int32_t a_lda, uint64_t a_W, uint64_t a_work, int32_t a_lwork, uint64_t a_info);
+int64_t samaltak_cuda_cufft_available(void);
+int64_t samaltak_cuda_cufft_status_text(int64_t status, int64_t kind, uint8_t *out, uint64_t outLength);
+int64_t samaltak_cuda_cufftGetVersion(uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cufftPlan1d(int32_t a_nx, int32_t a_type, int32_t a_batch, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cufftPlan2d(int32_t a_nx, int32_t a_ny, int32_t a_type, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cufftPlanMany(int32_t a_rank, const uint8_t *a_n, uint64_t a_n_len, int32_t a_type, int32_t a_batch, uint8_t *outs, uint64_t outs_len);
+int64_t samaltak_cuda_cufftDestroy(int64_t a_plan);
+int64_t samaltak_cuda_cufftSetStream(int64_t a_plan, int64_t a_stream);
+int64_t samaltak_cuda_cufftExecC2C(int64_t a_plan, uint64_t a_idata, uint64_t a_odata, int32_t a_direction);
+int64_t samaltak_cuda_cufftExecR2C(int64_t a_plan, uint64_t a_idata, uint64_t a_odata);
+int64_t samaltak_cuda_cufftExecC2R(int64_t a_plan, uint64_t a_idata, uint64_t a_odata);
+int64_t samaltak_cuda_cufftExecZ2Z(int64_t a_plan, uint64_t a_idata, uint64_t a_odata, int32_t a_direction);
+int64_t samaltak_cuda_cufftExecD2Z(int64_t a_plan, uint64_t a_idata, uint64_t a_odata);
+int64_t samaltak_cuda_cufftExecZ2D(int64_t a_plan, uint64_t a_idata, uint64_t a_odata);
 
 #endif

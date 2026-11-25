@@ -21,12 +21,16 @@
 #define SAMALTAK_CUDA_HANDLES 4096
 #define SAMALTAK_CUDA_ALLOCATIONS 4096
 
-/* The elements a column-major rows x cols matrix with leading dimension ld spans; -1 if ld < rows. */
-#define SAMALTAK_CUDA_MAT(ld, rows, cols) \
-    ((int64_t)(cols) <= 0 || (int64_t)(rows) <= 0 ? (int64_t)0 \
-     : (int64_t)(ld) < (int64_t)(rows) ? (int64_t)-1 : (int64_t)(ld) * ((int64_t)(cols) - 1) + (int64_t)(rows))
-
 #ifndef SAMALTAK_UEFI
+/* The elements a column-major rows x cols matrix with leading dimension ld spans; -1 if ld < rows or it overflows. */
+static inline int64_t samaltak_cuda_mat(int64_t ld, int64_t rows, int64_t cols) {
+    int64_t r;
+    if (cols <= 0 || rows <= 0) return 0;
+    if (ld < rows || __builtin_mul_overflow(ld, cols - 1, &r) || __builtin_add_overflow(r, rows, &r)) return -1;
+    return r;
+}
+#define SAMALTAK_CUDA_MAT(ld, rows, cols) samaltak_cuda_mat((int64_t)(ld), (int64_t)(rows), (int64_t)(cols))
+
 extern const char *const *const cudalib_sonames[];
 extern const char *const cudalib_names[];
 extern const char *const cudalib_handle_names[];
@@ -44,6 +48,10 @@ int cudalib_device_room(void);
 void cudalib_device_add(uint64_t base, uint64_t size);
 int cudalib_device_is_base(uint64_t p);
 int cudalib_device_ok(uint64_t p, uint64_t bytes);
+/* n elements of size bytes from p lie in one live allocation (n >= 0, no overflow). */
+int cudalib_device_span(uint64_t p, int64_t n, uint64_t size);
+/* The bytes of n elements of a cudaDataType (CUDA_R_32F, R_64F, C_32F, C_64F); -1 for another type, n < 0 or overflow. */
+int64_t cudalib_dtype_bytes(int64_t n, int64_t dataType);
 void cudalib_device_drop(uint64_t p);
 
 /* A pack: count (offset, length) pairs of uint64_t, then the arrays, each at an offset that is a multiple of 8. */
@@ -62,6 +70,16 @@ int cudalib_module_image_ok(const uint8_t *p, uint64_t len);
 
 /* A CSR matrix of rows rows: offsets from 0, never decreasing, column indices in [0, cols). */
 int cudalib_csr_ok(const int32_t *offsets, int64_t rows, const int32_t *columns, int64_t cols);
+
+/* A cuFFT plan's tag: its type, the elements of its full arrays (n: reals or complex values) and of its half-spectrum
+   arrays (half: real-to-complex output, complex-to-real input), as type << 56 | half << 28 | n. outer is the product of
+   the dimensions but the last, last the last (the fastest-varying), batch the transforms; -1 for a type cuFFT does not
+   have, a dimension below 1 or an array of 2^28 elements or more. */
+int64_t cudalib_fft_tag(int64_t type, int64_t outer, int64_t last, int64_t batch);
+int64_t cudalib_fft_many_tag(int64_t type, int64_t rank, const int32_t *dims, int64_t batch);
+#define CUDALIB_FFT_TYPE(tag) ((int64_t)(tag) >> 56)
+#define CUDALIB_FFT_HALF(tag) (((int64_t)(tag) >> 28) & ((1 << 28) - 1))
+#define CUDALIB_FFT_N(tag) ((int64_t)(tag) & ((1 << 28) - 1))
 #endif
 
 #endif

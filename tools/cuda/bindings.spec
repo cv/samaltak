@@ -91,7 +91,7 @@ text cublasGetStatusName cublasGetStatusString
 handle cublasHandle_t
 handle cudaStream_t null
 pointers dev
-constants CUBLAS_OP_N CUBLAS_OP_T CUBLAS_DEFAULT_MATH CUBLAS_TF32_TENSOR_OP_MATH CUBLAS_PEDANTIC_MATH
+constants CUBLAS_OP_N CUBLAS_OP_T CUBLAS_DEFAULT_MATH CUBLAS_TF32_TENSOR_OP_MATH CUBLAS_PEDANTIC_MATH CUBLAS_SIDE_LEFT CUBLAS_SIDE_RIGHT CUBLAS_FILL_MODE_LOWER CUBLAS_FILL_MODE_UPPER CUBLAS_DIAG_NON_UNIT CUBLAS_DIAG_UNIT
 fn cublasCreate
 fn cublasDestroy handle=free
 fn cublasGetVersion version=out
@@ -103,6 +103,16 @@ fn cublasSnrm2 x=dev:MAT(incx,1,n) result=out
 fn cublasDnrm2 x=dev:MAT(incx,1,n) result=out
 fn cublasSaxpy alpha=value x=dev:MAT(incx,1,n) y=dev:MAT(incy,1,n)
 fn cublasDaxpy alpha=value x=dev:MAT(incx,1,n) y=dev:MAT(incy,1,n)
+fn cublasSgeam alpha=value beta=value A=dev:MAT(lda,transa==0?m:n,transa==0?n:m) B=dev:MAT(ldb,transb==0?m:n,transb==0?n:m) C=dev:MAT(ldc,m,n)
+fn cublasDgeam alpha=value beta=value A=dev:MAT(lda,transa==0?m:n,transa==0?n:m) B=dev:MAT(ldb,transb==0?m:n,transb==0?n:m) C=dev:MAT(ldc,m,n)
+fn cublasScopy x=dev:MAT(incx,1,n) y=dev:MAT(incy,1,n)
+fn cublasDcopy x=dev:MAT(incx,1,n) y=dev:MAT(incy,1,n)
+fn cublasStrmm alpha=value A=dev:MAT(lda,side==CUBLAS_SIDE_LEFT?m:n,side==CUBLAS_SIDE_LEFT?m:n) B=dev:MAT(ldb,m,n) C=dev:MAT(ldc,m,n)
+fn cublasDtrmm alpha=value A=dev:MAT(lda,side==CUBLAS_SIDE_LEFT?m:n,side==CUBLAS_SIDE_LEFT?m:n) B=dev:MAT(ldb,m,n) C=dev:MAT(ldc,m,n)
+fn cublasSscal alpha=value x=dev:MAT(incx,1,n)
+fn cublasDscal alpha=value x=dev:MAT(incx,1,n)
+fn cublasCsscal alpha=value x=dev:MAT(incx,1,n)
+fn cublasZdscal alpha=value x=dev:MAT(incx,1,n)
 
 lib curand CurandAPI key 900 header curand.h
 soname libcurand.so.10 libcurand.so
@@ -147,3 +157,67 @@ fn cuOptGetErrorStatus
 fn cuOptGetObjectiveValue
 fn cuOptGetSolveTime
 fn cuOptGetPrimalSolution solution_values=outarray:TAG(solution)
+
+# cuSOLVER's dense API. The 64-bit (X) functions take the data type and the workspace sizes as arguments, so their
+# extents are checkable: a matrix is MAT(...) elements of its cudaDataType, a workspace the bytes its _bufferSize
+# answered. The legacy functions where the X API has none (orgqr) or would take more than 16 slots (gesvd, syevd).
+# devInfo is a 1-element int array on the device: the image reads it back (CudaSolverError).
+lib cusolver CusolverAPI key 960 header cusolverDn.h
+soname libcusolver.so.12 libcusolver.so.11 libcusolver.so
+status cusolverStatus_t
+text enum cusolverStatus_t
+handle cusolverDnHandle_t
+handle cusolverDnParams_t
+handle cudaStream_t null
+pointers dev
+constants CUDA_R_32F CUDA_R_64F CUDA_C_32F CUDA_C_64F CUBLAS_OP_N CUBLAS_OP_T CUBLAS_FILL_MODE_LOWER CUBLAS_FILL_MODE_UPPER CUSOLVER_EIG_MODE_NOVECTOR CUSOLVER_EIG_MODE_VECTOR
+fn cusolverGetVersion version=out
+fn cusolverDnCreate
+fn cusolverDnDestroy handle=free
+fn cusolverDnSetStream
+fn cusolverDnCreateParams
+fn cusolverDnDestroyParams params=free
+fn cusolverDnXgetrf_bufferSize as cusolverDnXgetrfBufferSize A=dev:cudalib_dtype_bytes(MAT(lda,m,n),dataTypeA) workspaceInBytesOnDevice=out workspaceInBytesOnHost=out
+fn cusolverDnXgetrf A=dev:cudalib_dtype_bytes(MAT(lda,m,n),dataTypeA) ipiv=dev:m<n?m:n bufferOnDevice=dev:workspaceInBytesOnDevice bufferOnHost=outarray:workspaceInBytesOnHost info=dev:1
+fn cusolverDnXgetrs A=dev:cudalib_dtype_bytes(MAT(lda,n,n),dataTypeA) ipiv=dev:n B=dev:cudalib_dtype_bytes(MAT(ldb,n,nrhs),dataTypeB) info=dev:1
+fn cusolverDnXpotrf_bufferSize as cusolverDnXpotrfBufferSize A=dev:cudalib_dtype_bytes(MAT(lda,n,n),dataTypeA) workspaceInBytesOnDevice=out workspaceInBytesOnHost=out
+fn cusolverDnXpotrf A=dev:cudalib_dtype_bytes(MAT(lda,n,n),dataTypeA) bufferOnDevice=dev:workspaceInBytesOnDevice bufferOnHost=outarray:workspaceInBytesOnHost info=dev:1
+fn cusolverDnXpotrs A=dev:cudalib_dtype_bytes(MAT(lda,n,n),dataTypeA) B=dev:cudalib_dtype_bytes(MAT(ldb,n,nrhs),dataTypeB) info=dev:1
+fn cusolverDnXgeqrf_bufferSize as cusolverDnXgeqrfBufferSize A=dev:cudalib_dtype_bytes(MAT(lda,m,n),dataTypeA) tau=dev:cudalib_dtype_bytes(m<n?m:n,dataTypeTau) workspaceInBytesOnDevice=out workspaceInBytesOnHost=out
+fn cusolverDnXgeqrf A=dev:cudalib_dtype_bytes(MAT(lda,m,n),dataTypeA) tau=dev:cudalib_dtype_bytes(m<n?m:n,dataTypeTau) bufferOnDevice=dev:workspaceInBytesOnDevice bufferOnHost=outarray:workspaceInBytesOnHost info=dev:1
+fn cusolverDnSorgqr_bufferSize as cusolverDnSorgqrBufferSize require=m>=n&&n>=k&&k>=0 A=dev:MAT(lda,m,n) tau=dev:k lwork=out
+fn cusolverDnSorgqr require=m>=n&&n>=k&&k>=0 A=dev:MAT(lda,m,n) tau=dev:k work=dev:lwork info=dev:1
+fn cusolverDnDorgqr_bufferSize as cusolverDnDorgqrBufferSize require=m>=n&&n>=k&&k>=0 A=dev:MAT(lda,m,n) tau=dev:k lwork=out
+fn cusolverDnDorgqr require=m>=n&&n>=k&&k>=0 A=dev:MAT(lda,m,n) tau=dev:k work=dev:lwork info=dev:1
+fn cusolverDnSgesvd_bufferSize as cusolverDnSgesvdBufferSize lwork=out
+fn cusolverDnDgesvd_bufferSize as cusolverDnDgesvdBufferSize lwork=out
+fn cusolverDnSgesvd require=m>=n A=dev:MAT(lda,m,n) S=dev:n U=dev:jobu==65?MAT(ldu,m,m):jobu==83?MAT(ldu,m,n):0 VT=dev:jobvt==65||jobvt==83?MAT(ldvt,n,n):0 work=dev:lwork rwork=dev:n-1 info=dev:1
+fn cusolverDnDgesvd require=m>=n A=dev:MAT(lda,m,n) S=dev:n U=dev:jobu==65?MAT(ldu,m,m):jobu==83?MAT(ldu,m,n):0 VT=dev:jobvt==65||jobvt==83?MAT(ldvt,n,n):0 work=dev:lwork rwork=dev:n-1 info=dev:1
+fn cusolverDnSsyevd_bufferSize as cusolverDnSsyevdBufferSize A=dev:MAT(lda,n,n) W=dev:n lwork=out
+fn cusolverDnDsyevd_bufferSize as cusolverDnDsyevdBufferSize A=dev:MAT(lda,n,n) W=dev:n lwork=out
+fn cusolverDnSsyevd A=dev:MAT(lda,n,n) W=dev:n work=dev:lwork info=dev:1
+fn cusolverDnDsyevd A=dev:MAT(lda,n,n) W=dev:n work=dev:lwork info=dev:1
+
+# cuFFT. A plan is an int handle (kept in the handle table like a pointer one) whose tag remembers its type and array
+# sizes (cudalib_fft_tag: the full arrays' elements and the half spectrum's, n/2 + 1 in the last dimension), so an exec
+# is checked against the plan it runs: the plan's type, each pointer's extent. Complex data is interleaved pairs.
+lib cufft CufftAPI key 1010 header cufft.h
+soname libcufft.so.12 libcufft.so.11 libcufft.so
+status cufftResult
+text enum cufftResult_t
+handle cufftHandle
+handle cudaStream_t null
+pointers dev
+constants CUFFT_R2C CUFFT_C2R CUFFT_C2C CUFFT_D2Z CUFFT_Z2D CUFFT_Z2Z CUFFT_FORWARD CUFFT_INVERSE
+fn cufftGetVersion version=out
+fn cufftPlan1d require=cudalib_fft_tag(type,1,nx,batch)>=0 plan=handleout:cudalib_fft_tag(type,1,nx,batch)
+fn cufftPlan2d require=cudalib_fft_tag(type,nx,ny,1)>=0 plan=handleout:cudalib_fft_tag(type,nx,ny,1)
+fn cufftPlanMany require=rank>=1&&rank<=3 n=in:rank inembed=null istride=const:1 idist=const:0 onembed=null ostride=const:1 odist=const:0 require=cudalib_fft_many_tag(type,rank,P(n),batch)>=0 plan=handleout:cudalib_fft_many_tag(type,rank,P(n),batch)
+fn cufftDestroy plan=free
+fn cufftSetStream
+fn cufftExecC2C require=CUDALIB_FFT_TYPE(TAG(plan))==CUFFT_C2C require=direction==CUFFT_FORWARD||direction==CUFFT_INVERSE idata=dev:CUDALIB_FFT_N(TAG(plan)) odata=dev:CUDALIB_FFT_N(TAG(plan))
+fn cufftExecR2C require=CUDALIB_FFT_TYPE(TAG(plan))==CUFFT_R2C idata=dev:CUDALIB_FFT_N(TAG(plan)) odata=dev:CUDALIB_FFT_HALF(TAG(plan))
+fn cufftExecC2R require=CUDALIB_FFT_TYPE(TAG(plan))==CUFFT_C2R idata=dev:CUDALIB_FFT_HALF(TAG(plan)) odata=dev:CUDALIB_FFT_N(TAG(plan))
+fn cufftExecZ2Z require=CUDALIB_FFT_TYPE(TAG(plan))==CUFFT_Z2Z require=direction==CUFFT_FORWARD||direction==CUFFT_INVERSE idata=dev:CUDALIB_FFT_N(TAG(plan)) odata=dev:CUDALIB_FFT_N(TAG(plan))
+fn cufftExecD2Z require=CUDALIB_FFT_TYPE(TAG(plan))==CUFFT_D2Z idata=dev:CUDALIB_FFT_N(TAG(plan)) odata=dev:CUDALIB_FFT_HALF(TAG(plan))
+fn cufftExecZ2D require=CUDALIB_FFT_TYPE(TAG(plan))==CUFFT_Z2D idata=dev:CUDALIB_FFT_HALF(TAG(plan)) odata=dev:CUDALIB_FFT_N(TAG(plan))

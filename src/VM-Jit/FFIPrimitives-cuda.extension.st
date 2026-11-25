@@ -537,6 +537,152 @@ nativeCudaCublasDaxpy: handle n: n alpha: alpha x: x incx: incx y: y incy: incy
 	<returns: 'int64_t'>
 	^cudaBackend callCublasDaxpy: handle n: n alpha: alpha x: x incx: incx y: y incy: incy
 !
+nativeCudaCublasSgeam: handle transa: transa transb: transb m: m n: n alpha: alpha a: a lda: lda beta: beta b: b ldb: ldb c: c ldc: ldc
+	<function>
+	<approvedFFI: 883 symbol: 'cuda_cublasSgeam' arguments: #(3 1 1 1 1 16 4 1 16 4 1 4 1) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #transa type: 'int32_t'>
+	<var: #transb type: 'int32_t'>
+	<var: #m type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #alpha type: 'float'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int32_t'>
+	<var: #beta type: 'float'>
+	<var: #b type: 'uint64_t'>
+	<var: #ldb type: 'int32_t'>
+	<var: #c type: 'uint64_t'>
+	<var: #ldc type: 'int32_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCublasSgeam: handle transa: transa transb: transb m: m n: n alpha: alpha a: a lda: lda beta: beta b: b ldb: ldb c: c ldc: ldc
+!
+nativeCudaCublasDgeam: handle transa: transa transb: transb m: m n: n alpha: alpha a: a lda: lda beta: beta b: b ldb: ldb c: c ldc: ldc
+	<function>
+	<approvedFFI: 884 symbol: 'cuda_cublasDgeam' arguments: #(3 1 1 1 1 6 4 1 6 4 1 4 1) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #transa type: 'int32_t'>
+	<var: #transb type: 'int32_t'>
+	<var: #m type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #alpha type: 'double'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int32_t'>
+	<var: #beta type: 'double'>
+	<var: #b type: 'uint64_t'>
+	<var: #ldb type: 'int32_t'>
+	<var: #c type: 'uint64_t'>
+	<var: #ldc type: 'int32_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCublasDgeam: handle transa: transa transb: transb m: m n: n alpha: alpha a: a lda: lda beta: beta b: b ldb: ldb c: c ldc: ldc
+!
+nativeCudaCublasScopy: handle n: n x: x incx: incx y: y incy: incy
+	<function>
+	<approvedFFI: 885 symbol: 'cuda_cublasScopy' arguments: #(3 1 4 1 4 1) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #n type: 'int32_t'>
+	<var: #x type: 'uint64_t'>
+	<var: #incx type: 'int32_t'>
+	<var: #y type: 'uint64_t'>
+	<var: #incy type: 'int32_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCublasScopy: handle n: n x: x incx: incx y: y incy: incy
+!
+nativeCudaCublasDcopy: handle n: n x: x incx: incx y: y incy: incy
+	<function>
+	<approvedFFI: 886 symbol: 'cuda_cublasDcopy' arguments: #(3 1 4 1 4 1) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #n type: 'int32_t'>
+	<var: #x type: 'uint64_t'>
+	<var: #incx type: 'int32_t'>
+	<var: #y type: 'uint64_t'>
+	<var: #incy type: 'int32_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCublasDcopy: handle n: n x: x incx: incx y: y incy: incy
+!
+nativeCudaCublasStrmm: handle side: side uplo: uplo trans: trans diag: diag m: m n: n alpha: alpha a: a lda: lda b: b ldb: ldb c: c ldc: ldc
+	<function>
+	<approvedFFI: 887 symbol: 'cuda_cublasStrmm' arguments: #(3 1 1 1 1 1 1 16 4 1 4 1 4 1) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #side type: 'int32_t'>
+	<var: #uplo type: 'int32_t'>
+	<var: #trans type: 'int32_t'>
+	<var: #diag type: 'int32_t'>
+	<var: #m type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #alpha type: 'float'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int32_t'>
+	<var: #b type: 'uint64_t'>
+	<var: #ldb type: 'int32_t'>
+	<var: #c type: 'uint64_t'>
+	<var: #ldc type: 'int32_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCublasStrmm: handle side: side uplo: uplo trans: trans diag: diag m: m n: n alpha: alpha a: a lda: lda b: b ldb: ldb c: c ldc: ldc
+!
+nativeCudaCublasDtrmm: handle side: side uplo: uplo trans: trans diag: diag m: m n: n alpha: alpha a: a lda: lda b: b ldb: ldb c: c ldc: ldc
+	<function>
+	<approvedFFI: 888 symbol: 'cuda_cublasDtrmm' arguments: #(3 1 1 1 1 1 1 6 4 1 4 1 4 1) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #side type: 'int32_t'>
+	<var: #uplo type: 'int32_t'>
+	<var: #trans type: 'int32_t'>
+	<var: #diag type: 'int32_t'>
+	<var: #m type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #alpha type: 'double'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int32_t'>
+	<var: #b type: 'uint64_t'>
+	<var: #ldb type: 'int32_t'>
+	<var: #c type: 'uint64_t'>
+	<var: #ldc type: 'int32_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCublasDtrmm: handle side: side uplo: uplo trans: trans diag: diag m: m n: n alpha: alpha a: a lda: lda b: b ldb: ldb c: c ldc: ldc
+!
+nativeCudaCublasSscal: handle n: n alpha: alpha x: x incx: incx
+	<function>
+	<approvedFFI: 889 symbol: 'cuda_cublasSscal' arguments: #(3 1 16 4 1) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #n type: 'int32_t'>
+	<var: #alpha type: 'float'>
+	<var: #x type: 'uint64_t'>
+	<var: #incx type: 'int32_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCublasSscal: handle n: n alpha: alpha x: x incx: incx
+!
+nativeCudaCublasDscal: handle n: n alpha: alpha x: x incx: incx
+	<function>
+	<approvedFFI: 890 symbol: 'cuda_cublasDscal' arguments: #(3 1 6 4 1) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #n type: 'int32_t'>
+	<var: #alpha type: 'double'>
+	<var: #x type: 'uint64_t'>
+	<var: #incx type: 'int32_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCublasDscal: handle n: n alpha: alpha x: x incx: incx
+!
+nativeCudaCublasCsscal: handle n: n alpha: alpha x: x incx: incx
+	<function>
+	<approvedFFI: 891 symbol: 'cuda_cublasCsscal' arguments: #(3 1 16 4 1) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #n type: 'int32_t'>
+	<var: #alpha type: 'float'>
+	<var: #x type: 'uint64_t'>
+	<var: #incx type: 'int32_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCublasCsscal: handle n: n alpha: alpha x: x incx: incx
+!
+nativeCudaCublasZdscal: handle n: n alpha: alpha x: x incx: incx
+	<function>
+	<approvedFFI: 892 symbol: 'cuda_cublasZdscal' arguments: #(3 1 6 4 1) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #n type: 'int32_t'>
+	<var: #alpha type: 'double'>
+	<var: #x type: 'uint64_t'>
+	<var: #incx type: 'int32_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCublasZdscal: handle n: n alpha: alpha x: x incx: incx
+!
 nativeCudaCurandAvailable
 	<function>
 	<approvedFFI: 900 symbol: 'cuda_curand_available' arguments: #() result: 3>
@@ -794,4 +940,536 @@ nativeCudaCuOptGetPrimalSolution: solution solutionValues: solutionValues soluti
 	<var: #solutionValuesLength type: 'uint64_t'>
 	<returns: 'int64_t'>
 	^cudaBackend callCuOptGetPrimalSolution: solution solutionValues: solutionValues solutionValuesLength: solutionValuesLength
+!
+nativeCudaCusolverAvailable
+	<function>
+	<approvedFFI: 960 symbol: 'cuda_cusolver_available' arguments: #() result: 3>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverAvailable
+!
+nativeCudaCusolverStatusText: status kind: kind out: out outLength: outLength
+	<function>
+	<approvedFFI: 961 symbol: 'cuda_cusolver_status_text' arguments: #(3 3 9) result: 3>
+	<var: #status type: 'int64_t'>
+	<var: #kind type: 'int64_t'>
+	<var: #out type: 'uint8_t *'>
+	<var: #outLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverStatusText: status kind: kind out: out outLength: outLength
+!
+nativeCudaCusolverGetVersion: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 962 symbol: 'cuda_cusolverGetVersion' arguments: #(9) result: 3>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverGetVersion: outs outsLength: outsLength
+!
+nativeCudaCusolverDnCreate: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 963 symbol: 'cuda_cusolverDnCreate' arguments: #(9) result: 3>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnCreate: outs outsLength: outsLength
+!
+nativeCudaCusolverDnDestroy: handle
+	<function>
+	<approvedFFI: 964 symbol: 'cuda_cusolverDnDestroy' arguments: #(3) result: 3>
+	<var: #handle type: 'int64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnDestroy: handle
+!
+nativeCudaCusolverDnSetStream: handle streamId: streamId
+	<function>
+	<approvedFFI: 965 symbol: 'cuda_cusolverDnSetStream' arguments: #(3 3) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #streamId type: 'int64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnSetStream: handle streamId: streamId
+!
+nativeCudaCusolverDnCreateParams: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 966 symbol: 'cuda_cusolverDnCreateParams' arguments: #(9) result: 3>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnCreateParams: outs outsLength: outsLength
+!
+nativeCudaCusolverDnDestroyParams: params
+	<function>
+	<approvedFFI: 967 symbol: 'cuda_cusolverDnDestroyParams' arguments: #(3) result: 3>
+	<var: #params type: 'int64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnDestroyParams: params
+!
+nativeCudaCusolverDnXgetrfBufferSize: handle params: params m: m n: n dataTypeA: dataTypeA a: a lda: lda computeType: computeType outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 968 symbol: 'cuda_cusolverDnXgetrfBufferSize' arguments: #(3 3 3 3 1 4 3 1 9) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #params type: 'int64_t'>
+	<var: #m type: 'int64_t'>
+	<var: #n type: 'int64_t'>
+	<var: #dataTypeA type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int64_t'>
+	<var: #computeType type: 'int32_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnXgetrfBufferSize: handle params: params m: m n: n dataTypeA: dataTypeA a: a lda: lda computeType: computeType outs: outs outsLength: outsLength
+!
+nativeCudaCusolverDnXgetrf: handle params: params m: m n: n dataTypeA: dataTypeA a: a lda: lda ipiv: ipiv computeType: computeType bufferOnDevice: bufferOnDevice workspaceInBytesOnDevice: workspaceInBytesOnDevice bufferOnHost: bufferOnHost bufferOnHostLength: bufferOnHostLength workspaceInBytesOnHost: workspaceInBytesOnHost info: info
+	<function>
+	<approvedFFI: 969 symbol: 'cuda_cusolverDnXgetrf' arguments: #(3 3 3 3 1 4 3 4 1 4 4 9 4 4) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #params type: 'int64_t'>
+	<var: #m type: 'int64_t'>
+	<var: #n type: 'int64_t'>
+	<var: #dataTypeA type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int64_t'>
+	<var: #ipiv type: 'uint64_t'>
+	<var: #computeType type: 'int32_t'>
+	<var: #bufferOnDevice type: 'uint64_t'>
+	<var: #workspaceInBytesOnDevice type: 'uint64_t'>
+	<var: #bufferOnHost type: 'uint8_t *'>
+	<var: #bufferOnHostLength type: 'uint64_t'>
+	<var: #workspaceInBytesOnHost type: 'uint64_t'>
+	<var: #info type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnXgetrf: handle params: params m: m n: n dataTypeA: dataTypeA a: a lda: lda ipiv: ipiv computeType: computeType bufferOnDevice: bufferOnDevice workspaceInBytesOnDevice: workspaceInBytesOnDevice bufferOnHost: bufferOnHost bufferOnHostLength: bufferOnHostLength workspaceInBytesOnHost: workspaceInBytesOnHost info: info
+!
+nativeCudaCusolverDnXgetrs: handle params: params trans: trans n: n nrhs: nrhs dataTypeA: dataTypeA a: a lda: lda ipiv: ipiv dataTypeB: dataTypeB b: b ldb: ldb info: info
+	<function>
+	<approvedFFI: 970 symbol: 'cuda_cusolverDnXgetrs' arguments: #(3 3 1 3 3 1 4 3 4 1 4 3 4) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #params type: 'int64_t'>
+	<var: #trans type: 'int32_t'>
+	<var: #n type: 'int64_t'>
+	<var: #nrhs type: 'int64_t'>
+	<var: #dataTypeA type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int64_t'>
+	<var: #ipiv type: 'uint64_t'>
+	<var: #dataTypeB type: 'int32_t'>
+	<var: #b type: 'uint64_t'>
+	<var: #ldb type: 'int64_t'>
+	<var: #info type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnXgetrs: handle params: params trans: trans n: n nrhs: nrhs dataTypeA: dataTypeA a: a lda: lda ipiv: ipiv dataTypeB: dataTypeB b: b ldb: ldb info: info
+!
+nativeCudaCusolverDnXpotrfBufferSize: handle params: params uplo: uplo n: n dataTypeA: dataTypeA a: a lda: lda computeType: computeType outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 971 symbol: 'cuda_cusolverDnXpotrfBufferSize' arguments: #(3 3 1 3 1 4 3 1 9) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #params type: 'int64_t'>
+	<var: #uplo type: 'int32_t'>
+	<var: #n type: 'int64_t'>
+	<var: #dataTypeA type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int64_t'>
+	<var: #computeType type: 'int32_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnXpotrfBufferSize: handle params: params uplo: uplo n: n dataTypeA: dataTypeA a: a lda: lda computeType: computeType outs: outs outsLength: outsLength
+!
+nativeCudaCusolverDnXpotrf: handle params: params uplo: uplo n: n dataTypeA: dataTypeA a: a lda: lda computeType: computeType bufferOnDevice: bufferOnDevice workspaceInBytesOnDevice: workspaceInBytesOnDevice bufferOnHost: bufferOnHost bufferOnHostLength: bufferOnHostLength workspaceInBytesOnHost: workspaceInBytesOnHost info: info
+	<function>
+	<approvedFFI: 972 symbol: 'cuda_cusolverDnXpotrf' arguments: #(3 3 1 3 1 4 3 1 4 4 9 4 4) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #params type: 'int64_t'>
+	<var: #uplo type: 'int32_t'>
+	<var: #n type: 'int64_t'>
+	<var: #dataTypeA type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int64_t'>
+	<var: #computeType type: 'int32_t'>
+	<var: #bufferOnDevice type: 'uint64_t'>
+	<var: #workspaceInBytesOnDevice type: 'uint64_t'>
+	<var: #bufferOnHost type: 'uint8_t *'>
+	<var: #bufferOnHostLength type: 'uint64_t'>
+	<var: #workspaceInBytesOnHost type: 'uint64_t'>
+	<var: #info type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnXpotrf: handle params: params uplo: uplo n: n dataTypeA: dataTypeA a: a lda: lda computeType: computeType bufferOnDevice: bufferOnDevice workspaceInBytesOnDevice: workspaceInBytesOnDevice bufferOnHost: bufferOnHost bufferOnHostLength: bufferOnHostLength workspaceInBytesOnHost: workspaceInBytesOnHost info: info
+!
+nativeCudaCusolverDnXpotrs: handle params: params uplo: uplo n: n nrhs: nrhs dataTypeA: dataTypeA a: a lda: lda dataTypeB: dataTypeB b: b ldb: ldb info: info
+	<function>
+	<approvedFFI: 973 symbol: 'cuda_cusolverDnXpotrs' arguments: #(3 3 1 3 3 1 4 3 1 4 3 4) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #params type: 'int64_t'>
+	<var: #uplo type: 'int32_t'>
+	<var: #n type: 'int64_t'>
+	<var: #nrhs type: 'int64_t'>
+	<var: #dataTypeA type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int64_t'>
+	<var: #dataTypeB type: 'int32_t'>
+	<var: #b type: 'uint64_t'>
+	<var: #ldb type: 'int64_t'>
+	<var: #info type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnXpotrs: handle params: params uplo: uplo n: n nrhs: nrhs dataTypeA: dataTypeA a: a lda: lda dataTypeB: dataTypeB b: b ldb: ldb info: info
+!
+nativeCudaCusolverDnXgeqrfBufferSize: handle params: params m: m n: n dataTypeA: dataTypeA a: a lda: lda dataTypeTau: dataTypeTau tau: tau computeType: computeType outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 974 symbol: 'cuda_cusolverDnXgeqrfBufferSize' arguments: #(3 3 3 3 1 4 3 1 4 1 9) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #params type: 'int64_t'>
+	<var: #m type: 'int64_t'>
+	<var: #n type: 'int64_t'>
+	<var: #dataTypeA type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int64_t'>
+	<var: #dataTypeTau type: 'int32_t'>
+	<var: #tau type: 'uint64_t'>
+	<var: #computeType type: 'int32_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnXgeqrfBufferSize: handle params: params m: m n: n dataTypeA: dataTypeA a: a lda: lda dataTypeTau: dataTypeTau tau: tau computeType: computeType outs: outs outsLength: outsLength
+!
+nativeCudaCusolverDnXgeqrf: handle params: params m: m n: n dataTypeA: dataTypeA a: a lda: lda dataTypeTau: dataTypeTau tau: tau computeType: computeType bufferOnDevice: bufferOnDevice workspaceInBytesOnDevice: workspaceInBytesOnDevice bufferOnHost: bufferOnHost bufferOnHostLength: bufferOnHostLength workspaceInBytesOnHost: workspaceInBytesOnHost info: info
+	<function>
+	<approvedFFI: 975 symbol: 'cuda_cusolverDnXgeqrf' arguments: #(3 3 3 3 1 4 3 1 4 1 4 4 9 4 4) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #params type: 'int64_t'>
+	<var: #m type: 'int64_t'>
+	<var: #n type: 'int64_t'>
+	<var: #dataTypeA type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int64_t'>
+	<var: #dataTypeTau type: 'int32_t'>
+	<var: #tau type: 'uint64_t'>
+	<var: #computeType type: 'int32_t'>
+	<var: #bufferOnDevice type: 'uint64_t'>
+	<var: #workspaceInBytesOnDevice type: 'uint64_t'>
+	<var: #bufferOnHost type: 'uint8_t *'>
+	<var: #bufferOnHostLength type: 'uint64_t'>
+	<var: #workspaceInBytesOnHost type: 'uint64_t'>
+	<var: #info type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnXgeqrf: handle params: params m: m n: n dataTypeA: dataTypeA a: a lda: lda dataTypeTau: dataTypeTau tau: tau computeType: computeType bufferOnDevice: bufferOnDevice workspaceInBytesOnDevice: workspaceInBytesOnDevice bufferOnHost: bufferOnHost bufferOnHostLength: bufferOnHostLength workspaceInBytesOnHost: workspaceInBytesOnHost info: info
+!
+nativeCudaCusolverDnSorgqrBufferSize: handle m: m n: n k: k a: a lda: lda tau: tau outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 976 symbol: 'cuda_cusolverDnSorgqrBufferSize' arguments: #(3 1 1 1 4 1 4 9) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #m type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #k type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int32_t'>
+	<var: #tau type: 'uint64_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnSorgqrBufferSize: handle m: m n: n k: k a: a lda: lda tau: tau outs: outs outsLength: outsLength
+!
+nativeCudaCusolverDnSorgqr: handle m: m n: n k: k a: a lda: lda tau: tau work: work lwork: lwork info: info
+	<function>
+	<approvedFFI: 977 symbol: 'cuda_cusolverDnSorgqr' arguments: #(3 1 1 1 4 1 4 4 1 4) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #m type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #k type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int32_t'>
+	<var: #tau type: 'uint64_t'>
+	<var: #work type: 'uint64_t'>
+	<var: #lwork type: 'int32_t'>
+	<var: #info type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnSorgqr: handle m: m n: n k: k a: a lda: lda tau: tau work: work lwork: lwork info: info
+!
+nativeCudaCusolverDnDorgqrBufferSize: handle m: m n: n k: k a: a lda: lda tau: tau outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 978 symbol: 'cuda_cusolverDnDorgqrBufferSize' arguments: #(3 1 1 1 4 1 4 9) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #m type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #k type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int32_t'>
+	<var: #tau type: 'uint64_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnDorgqrBufferSize: handle m: m n: n k: k a: a lda: lda tau: tau outs: outs outsLength: outsLength
+!
+nativeCudaCusolverDnDorgqr: handle m: m n: n k: k a: a lda: lda tau: tau work: work lwork: lwork info: info
+	<function>
+	<approvedFFI: 979 symbol: 'cuda_cusolverDnDorgqr' arguments: #(3 1 1 1 4 1 4 4 1 4) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #m type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #k type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int32_t'>
+	<var: #tau type: 'uint64_t'>
+	<var: #work type: 'uint64_t'>
+	<var: #lwork type: 'int32_t'>
+	<var: #info type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnDorgqr: handle m: m n: n k: k a: a lda: lda tau: tau work: work lwork: lwork info: info
+!
+nativeCudaCusolverDnSgesvdBufferSize: handle m: m n: n outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 980 symbol: 'cuda_cusolverDnSgesvdBufferSize' arguments: #(3 1 1 9) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #m type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnSgesvdBufferSize: handle m: m n: n outs: outs outsLength: outsLength
+!
+nativeCudaCusolverDnDgesvdBufferSize: handle m: m n: n outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 981 symbol: 'cuda_cusolverDnDgesvdBufferSize' arguments: #(3 1 1 9) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #m type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnDgesvdBufferSize: handle m: m n: n outs: outs outsLength: outsLength
+!
+nativeCudaCusolverDnSgesvd: handle jobu: jobu jobvt: jobvt m: m n: n a: a lda: lda s: s u: u ldu: ldu vT: vT ldvt: ldvt work: work lwork: lwork rwork: rwork info: info
+	<function>
+	<approvedFFI: 982 symbol: 'cuda_cusolverDnSgesvd' arguments: #(3 1 1 1 1 4 1 4 4 1 4 1 4 1 4 4) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #jobu type: 'int32_t'>
+	<var: #jobvt type: 'int32_t'>
+	<var: #m type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int32_t'>
+	<var: #s type: 'uint64_t'>
+	<var: #u type: 'uint64_t'>
+	<var: #ldu type: 'int32_t'>
+	<var: #vT type: 'uint64_t'>
+	<var: #ldvt type: 'int32_t'>
+	<var: #work type: 'uint64_t'>
+	<var: #lwork type: 'int32_t'>
+	<var: #rwork type: 'uint64_t'>
+	<var: #info type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnSgesvd: handle jobu: jobu jobvt: jobvt m: m n: n a: a lda: lda s: s u: u ldu: ldu vT: vT ldvt: ldvt work: work lwork: lwork rwork: rwork info: info
+!
+nativeCudaCusolverDnDgesvd: handle jobu: jobu jobvt: jobvt m: m n: n a: a lda: lda s: s u: u ldu: ldu vT: vT ldvt: ldvt work: work lwork: lwork rwork: rwork info: info
+	<function>
+	<approvedFFI: 983 symbol: 'cuda_cusolverDnDgesvd' arguments: #(3 1 1 1 1 4 1 4 4 1 4 1 4 1 4 4) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #jobu type: 'int32_t'>
+	<var: #jobvt type: 'int32_t'>
+	<var: #m type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int32_t'>
+	<var: #s type: 'uint64_t'>
+	<var: #u type: 'uint64_t'>
+	<var: #ldu type: 'int32_t'>
+	<var: #vT type: 'uint64_t'>
+	<var: #ldvt type: 'int32_t'>
+	<var: #work type: 'uint64_t'>
+	<var: #lwork type: 'int32_t'>
+	<var: #rwork type: 'uint64_t'>
+	<var: #info type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnDgesvd: handle jobu: jobu jobvt: jobvt m: m n: n a: a lda: lda s: s u: u ldu: ldu vT: vT ldvt: ldvt work: work lwork: lwork rwork: rwork info: info
+!
+nativeCudaCusolverDnSsyevdBufferSize: handle jobz: jobz uplo: uplo n: n a: a lda: lda w: w outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 984 symbol: 'cuda_cusolverDnSsyevdBufferSize' arguments: #(3 1 1 1 4 1 4 9) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #jobz type: 'int32_t'>
+	<var: #uplo type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int32_t'>
+	<var: #w type: 'uint64_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnSsyevdBufferSize: handle jobz: jobz uplo: uplo n: n a: a lda: lda w: w outs: outs outsLength: outsLength
+!
+nativeCudaCusolverDnDsyevdBufferSize: handle jobz: jobz uplo: uplo n: n a: a lda: lda w: w outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 985 symbol: 'cuda_cusolverDnDsyevdBufferSize' arguments: #(3 1 1 1 4 1 4 9) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #jobz type: 'int32_t'>
+	<var: #uplo type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int32_t'>
+	<var: #w type: 'uint64_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnDsyevdBufferSize: handle jobz: jobz uplo: uplo n: n a: a lda: lda w: w outs: outs outsLength: outsLength
+!
+nativeCudaCusolverDnSsyevd: handle jobz: jobz uplo: uplo n: n a: a lda: lda w: w work: work lwork: lwork info: info
+	<function>
+	<approvedFFI: 986 symbol: 'cuda_cusolverDnSsyevd' arguments: #(3 1 1 1 4 1 4 4 1 4) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #jobz type: 'int32_t'>
+	<var: #uplo type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int32_t'>
+	<var: #w type: 'uint64_t'>
+	<var: #work type: 'uint64_t'>
+	<var: #lwork type: 'int32_t'>
+	<var: #info type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnSsyevd: handle jobz: jobz uplo: uplo n: n a: a lda: lda w: w work: work lwork: lwork info: info
+!
+nativeCudaCusolverDnDsyevd: handle jobz: jobz uplo: uplo n: n a: a lda: lda w: w work: work lwork: lwork info: info
+	<function>
+	<approvedFFI: 987 symbol: 'cuda_cusolverDnDsyevd' arguments: #(3 1 1 1 4 1 4 4 1 4) result: 3>
+	<var: #handle type: 'int64_t'>
+	<var: #jobz type: 'int32_t'>
+	<var: #uplo type: 'int32_t'>
+	<var: #n type: 'int32_t'>
+	<var: #a type: 'uint64_t'>
+	<var: #lda type: 'int32_t'>
+	<var: #w type: 'uint64_t'>
+	<var: #work type: 'uint64_t'>
+	<var: #lwork type: 'int32_t'>
+	<var: #info type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCusolverDnDsyevd: handle jobz: jobz uplo: uplo n: n a: a lda: lda w: w work: work lwork: lwork info: info
+!
+nativeCudaCufftAvailable
+	<function>
+	<approvedFFI: 1010 symbol: 'cuda_cufft_available' arguments: #() result: 3>
+	<returns: 'int64_t'>
+	^cudaBackend callCufftAvailable
+!
+nativeCudaCufftStatusText: status kind: kind out: out outLength: outLength
+	<function>
+	<approvedFFI: 1011 symbol: 'cuda_cufft_status_text' arguments: #(3 3 9) result: 3>
+	<var: #status type: 'int64_t'>
+	<var: #kind type: 'int64_t'>
+	<var: #out type: 'uint8_t *'>
+	<var: #outLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCufftStatusText: status kind: kind out: out outLength: outLength
+!
+nativeCudaCufftGetVersion: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 1012 symbol: 'cuda_cufftGetVersion' arguments: #(9) result: 3>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCufftGetVersion: outs outsLength: outsLength
+!
+nativeCudaCufftPlan1d: nx type: type batch: batch outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 1013 symbol: 'cuda_cufftPlan1d' arguments: #(1 1 1 9) result: 3>
+	<var: #nx type: 'int32_t'>
+	<var: #type type: 'int32_t'>
+	<var: #batch type: 'int32_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCufftPlan1d: nx type: type batch: batch outs: outs outsLength: outsLength
+!
+nativeCudaCufftPlan2d: nx ny: ny type: type outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 1014 symbol: 'cuda_cufftPlan2d' arguments: #(1 1 1 9) result: 3>
+	<var: #nx type: 'int32_t'>
+	<var: #ny type: 'int32_t'>
+	<var: #type type: 'int32_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCufftPlan2d: nx ny: ny type: type outs: outs outsLength: outsLength
+!
+nativeCudaCufftPlanMany: rank n: n nLength: nLength type: type batch: batch outs: outs outsLength: outsLength
+	<function>
+	<approvedFFI: 1015 symbol: 'cuda_cufftPlanMany' arguments: #(1 8 1 1 9) result: 3>
+	<var: #rank type: 'int32_t'>
+	<var: #n type: 'const uint8_t *'>
+	<var: #nLength type: 'uint64_t'>
+	<var: #type type: 'int32_t'>
+	<var: #batch type: 'int32_t'>
+	<var: #outs type: 'uint8_t *'>
+	<var: #outsLength type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCufftPlanMany: rank n: n nLength: nLength type: type batch: batch outs: outs outsLength: outsLength
+!
+nativeCudaCufftDestroy: plan
+	<function>
+	<approvedFFI: 1016 symbol: 'cuda_cufftDestroy' arguments: #(3) result: 3>
+	<var: #plan type: 'int64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCufftDestroy: plan
+!
+nativeCudaCufftSetStream: plan stream: stream
+	<function>
+	<approvedFFI: 1017 symbol: 'cuda_cufftSetStream' arguments: #(3 3) result: 3>
+	<var: #plan type: 'int64_t'>
+	<var: #stream type: 'int64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCufftSetStream: plan stream: stream
+!
+nativeCudaCufftExecC2C: plan idata: idata odata: odata direction: direction
+	<function>
+	<approvedFFI: 1018 symbol: 'cuda_cufftExecC2C' arguments: #(3 4 4 1) result: 3>
+	<var: #plan type: 'int64_t'>
+	<var: #idata type: 'uint64_t'>
+	<var: #odata type: 'uint64_t'>
+	<var: #direction type: 'int32_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCufftExecC2C: plan idata: idata odata: odata direction: direction
+!
+nativeCudaCufftExecR2C: plan idata: idata odata: odata
+	<function>
+	<approvedFFI: 1019 symbol: 'cuda_cufftExecR2C' arguments: #(3 4 4) result: 3>
+	<var: #plan type: 'int64_t'>
+	<var: #idata type: 'uint64_t'>
+	<var: #odata type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCufftExecR2C: plan idata: idata odata: odata
+!
+nativeCudaCufftExecC2R: plan idata: idata odata: odata
+	<function>
+	<approvedFFI: 1020 symbol: 'cuda_cufftExecC2R' arguments: #(3 4 4) result: 3>
+	<var: #plan type: 'int64_t'>
+	<var: #idata type: 'uint64_t'>
+	<var: #odata type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCufftExecC2R: plan idata: idata odata: odata
+!
+nativeCudaCufftExecZ2Z: plan idata: idata odata: odata direction: direction
+	<function>
+	<approvedFFI: 1021 symbol: 'cuda_cufftExecZ2Z' arguments: #(3 4 4 1) result: 3>
+	<var: #plan type: 'int64_t'>
+	<var: #idata type: 'uint64_t'>
+	<var: #odata type: 'uint64_t'>
+	<var: #direction type: 'int32_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCufftExecZ2Z: plan idata: idata odata: odata direction: direction
+!
+nativeCudaCufftExecD2Z: plan idata: idata odata: odata
+	<function>
+	<approvedFFI: 1022 symbol: 'cuda_cufftExecD2Z' arguments: #(3 4 4) result: 3>
+	<var: #plan type: 'int64_t'>
+	<var: #idata type: 'uint64_t'>
+	<var: #odata type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCufftExecD2Z: plan idata: idata odata: odata
+!
+nativeCudaCufftExecZ2D: plan idata: idata odata: odata
+	<function>
+	<approvedFFI: 1023 symbol: 'cuda_cufftExecZ2D' arguments: #(3 4 4) result: 3>
+	<var: #plan type: 'int64_t'>
+	<var: #idata type: 'uint64_t'>
+	<var: #odata type: 'uint64_t'>
+	<returns: 'int64_t'>
+	^cudaBackend callCufftExecZ2D: plan idata: idata odata: odata
 ! !

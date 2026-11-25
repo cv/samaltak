@@ -126,10 +126,15 @@ class Header:
             self.statement(stmt)
 
     def statements(self, text):
-        depth, start = 0, 0
+        depth, start, opened = 0, 0, 0
         for i, c in enumerate(text):
-            if c == "{": depth += 1
-            elif c == "}": depth -= 1
+            if c == "{":
+                if depth == 0: opened = i
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0 and text[start:opened].rstrip().endswith(")"):
+                    start = i + 1  # an inline function's definition (cuComplex.h): not a statement to bind
             elif c == ";" and depth == 0:
                 yield " ".join(text[start:i].split())
                 start = i + 1
@@ -137,7 +142,10 @@ class Header:
     def statement(self, s):
         s = re.sub(r'^extern\s+(?:"C"\s*)?', "", s)
         for m in re.finditer(r"enum\s*(\w*)\s*\{([^}]*)\}", s):
-            self.enum(m.group(1), m.group(2))
+            names = self.enum(m.group(1), m.group(2))
+            t = re.search(r"\}\s*(\w+)\s*$", s)
+            if not m.group(1) and s.startswith("typedef") and t:
+                self.enums[t.group(1)] = names  # typedef enum { ... } name;
         if s.startswith("typedef"):
             body = s[len("typedef"):].strip()
             fp = re.search(r"\(\s*\*\s*(\w+)\s*\)\s*\(", body)
@@ -165,11 +173,18 @@ class Header:
             self.consts[k] = value
             names.append(k)
         if name: self.enums[name] = names
+        return names
 
     def eval(self, expr):
         e = re.sub(r"\b(\w+)\b", lambda m: str(self.consts[m.group(1)]) if m.group(1) in self.consts else m.group(1), expr)
         e = re.sub(r"(?<=\d)[uUlL]+\b", "", e)
         return int(eval(e, {}, {}))
+
+    def integer(self, name):
+        """An enum constant or integer macro, or None."""
+        if name in self.consts: return self.consts[name]
+        if name in self.macros and re.match(r"^\(?-?\d+\)?$", self.macros[name]): return int(self.macros[name].strip("()"))
+        return None
 
     def constant(self, name):
         if name in self.consts: return self.consts[name]
@@ -196,6 +211,7 @@ class CType:
         self.const = self.text.startswith("const ")
         base = " ".join(w for w in words if w != "*")
         self.name = base
+        self.struct = None
         self.kind, self.bits, self.signed = self.base(base, hdr, 0)
 
     def base(self, base, hdr, n):
@@ -209,7 +225,9 @@ class CType:
             t = hdr.typedefs[base]
             if "*" in t: return ("ptr", 64, False)
             words = [w for w in t.replace("*", " ").split() if w not in ("const", "volatile")]
-            if words and words[0] in ("struct", "union"): return ("struct", 0, False)
+            if words and words[0] in ("struct", "union"):
+                self.struct = words[1] if len(words) > 1 else None
+                return ("struct", 0, False)
             return self.base(" ".join(words), hdr, n + 1)
         if base in hdr.enums: return ("enum", 32, True)
         die("unknown type " + base)
@@ -252,10 +270,16 @@ def abi_c(kind, bits, signed, depth):
     if kind == "enum": return "int32_t"
     return ("int%d_t" if signed else "uint%d_t") % bits
 
+# Structs a device pointer may point to, as C element types of the same size (CUDA's complex types).
+STRUCT_ELEMS = {"float2": "float[2]", "double2": "double[2]"}
+
 def elem_c(t):
     """The C element type a T * points to, for sizes and P()."""
     if t.depth > 1 or t.kind == "ptr": return "void *"
     if t.kind == "void": return "uint8_t"
+    if t.kind == "struct":
+        if t.struct in STRUCT_ELEMS: return STRUCT_ELEMS[t.struct]
+        die("no element size for struct %s (STRUCT_ELEMS)" % t.struct)
     return abi_c(t.kind, t.bits, t.signed, 0)
 
 def camel(name):
@@ -271,7 +295,7 @@ class Param:
 
 class Fn:
     def __init__(self, lib, hdr, spec, key, handle_ids):
-        self.lib, self.spec, self.key, self.name = lib, spec, key, spec["name"]
+        self.lib, self.spec, self.key, self.name, self.hdr = lib, spec, key, spec["name"], hdr
         self.handle_ids = handle_ids
         self.symbol = hdr.resolve(spec["c"])
         if self.symbol not in hdr.protos: die("%s: no prototype for %s" % (lib.name, self.symbol))
@@ -318,7 +342,7 @@ class Fn:
             "dev": t.depth == 1 or (t.depth == 0 and t.name == "CUdeviceptr"), "devfree": t.depth == 1,
             "null": t.depth >= 1, "params": t.depth == 2, "devalloc": t.depth == 2, "in": t.depth == 1,
             "outarray": t.depth == 1 and not t.const, "cstr": t.depth == 1 and t.kind == "int" and t.bits == 8,
-            "const": t.depth == 0,
+            "const": t.depth <= 1,
         }
         if r not in ok: die("%s: unknown role %s" % (self.name, r))
         if not ok[r]: die("%s: role %s does not fit %s %s" % (self.name, r, t.text, p.c))
@@ -326,7 +350,10 @@ class Fn:
         if r == "params" and self.pack: die("%s: params cannot be packed" % self.name)
         if r == "const":
             p.value = hdr.constant(p.expr) if re.match(r"^[A-Za-z_]\w*$", p.expr) else int(p.expr, 0)
+        if p.handle and t.kind == "int" and (t.depth > 1 or (t.depth == 1 and r != "handleout")):
+            die("%s: an integer handle (%s) is passed by value or made through a pointer" % (self.name, p.c))
         p.sliced = r in ("in", "outarray", "cstr", "params")
+        if p.sliced and t.kind == "struct": die("%s: a host array of structs (%s)" % (self.name, p.c))
         p.packed = p.sliced and self.pack
         if p.handle: p.handle_id = handle_ids[p.handle]
 
@@ -372,7 +399,12 @@ class Fn:
         e = re.sub(r"\bTAG\((\w+)\)", r"t_\1", e)
         e = re.sub(r"\bP\((\w+)\)", r"p_\1", e)
         e = re.sub(r"\bMAT\(", "SAMALTAK_CUDA_MAT(", e)
-        return re.sub(r"(?<![\w.])(\w+)\b", lambda m: "a_" + m.group(1) if m.group(1) in names else m.group(1), e)
+        def word(m):
+            w = m.group(1)
+            if w in names: return "a_" + w
+            v = self.hdr.integer(w) if re.match(r"^[A-Za-z_]", w) else None
+            return w if v is None else "(%d)" % v
+        return re.sub(r"(?<![\w.])(\w+)\b", word, e)
 
     def c_body(self, lib_index):
         L = []
@@ -406,9 +438,17 @@ class Fn:
                 w("    void *h_%s; int64_t t_%s;" % (n, n))
                 w("    if (!cudalib_handle_get(%d, %s, %d, &h_%s, &t_%s)) return SAMALTAK_CUDA_REJECT_HANDLE;"
                   % (p.handle_id, a, 1 if p.handle in NULLABLE else 0, n, n))
-                call.append("&h_" + n if p.t.depth == 1 else "h_" + n)
+                if p.t.kind == "int":  # an integer handle (cufftHandle), kept as 1 << 32 | value
+                    call.append("(%s)(uint32_t)(uintptr_t)h_%s" % (abi_c(p.t.kind, p.t.bits, p.t.signed, 0), n))
+                else:
+                    call.append("&h_" + n if p.t.depth == 1 else "h_" + n)
                 if r == "free" and p.expr: post.append(("always", "    cudalib_handle_drop_tagged(%d, %s);" % (self.handle_ids[p.expr], a)))
                 if r == "free": post.append(("always", "    cudalib_handle_drop(%s);" % a))
+            elif r == "handleout" and p.t.kind == "int":
+                w("    %s o_%s = 0;" % (abi_c(p.t.kind, p.t.bits, p.t.signed, 0), n)); call.append("&o_" + n)
+                tag = self.expr(p.expr) if p.expr else "0"
+                post.append(("success", "    { int64_t id = cudalib_handle_new(%d, (void *)(uintptr_t)(((uint64_t)1 << 32) | (uint32_t)o_%s), (int64_t)(%s)); if (id < 0) return id; cudalib_put_i64(outs, %d, id); }" % (p.handle_id, n, tag, k)))
+                k += 1
             elif r == "handleout":
                 w("    void *o_%s = NULL;" % n); call.append("&o_" + n)
                 tag = self.expr(p.expr) if p.expr else "0"
@@ -432,8 +472,7 @@ class Fn:
                 post.append(("always", "    cudalib_device_drop(%s);" % a))
             elif r == "dev":
                 ext = "(int64_t)(%s)" % self.expr(p.expr) if p.expr else "0"
-                w("    int64_t n_%s = %s;" % (n, ext))
-                w("    if (n_%s < 0 || !cudalib_device_ok(%s, (uint64_t)n_%s * sizeof(%s))) return SAMALTAK_CUDA_REJECT_DEVICE;" % (n, a, n, ec))
+                w("    if (!cudalib_device_span(%s, %s, sizeof(%s))) return SAMALTAK_CUDA_REJECT_DEVICE;" % (a, ext, ec))
                 call.append("(void *)(uintptr_t)" + a if p.t.depth else "(uint64_t)" + a)
             elif r == "params":
                 # cuLaunchKernel's extra: the parameter area as one buffer (CU_LAUNCH_PARAM_BUFFER_POINTER 1,
@@ -506,7 +545,7 @@ def gen_lowtalk(libs, fns):
     ext, back = [], []
     ext.append("!FFIPrimitives methodsFor: 'cuda exports (generated by tools/cuda/bindgen.py)'!")
     back.append("CLibrary subclass: #CudaBackend\n\tinstanceVariableNames: ''\n\tclassVariableNames: ''\n\tpackage: 'VM-Jit'!\n")
-    back.append("CudaBackend comment: 'NVIDIA''s CUDA libraries (the runtime, the driver API, cuBLAS, cuRAND, cuOpt) behind dlopen, one checked C wrapper a function (vm/native/cudalib_gen.c, cudalib.c: loaded on first use where they are installed; stubs on UEFI). FFIPrimitives exports them to the image as cuda_* (FFIPrimitives-cuda); System-CUDA''s Cuda*API classes use them. %s docs/cuda.md. Not simulated.'!\n" % GENERATED.replace("'", "''"))
+    back.append("CudaBackend comment: 'NVIDIA''s CUDA libraries (the runtime, the driver API, cuBLAS, cuRAND, cuOpt, cuSOLVER, cuFFT) behind dlopen, one checked C wrapper a function (vm/native/cudalib_gen.c, cudalib.c: loaded on first use where they are installed; stubs on UEFI). FFIPrimitives exports them to the image as cuda_* (FFIPrimitives-cuda); System-CUDA''s Cuda*API classes use them. %s docs/cuda.md. Not simulated.'!\n" % GENERATED.replace("'", "''"))
     back.append("!CudaBackend class methodsFor: 'declaring'!\nheaders\n\t^#('\"cudalib_gen.h\"')\n! !\n")
     back.append("!CudaBackend methodsFor: 'calls'!")
     for key, export, args, sl in fns:

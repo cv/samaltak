@@ -19,7 +19,7 @@ ffiStatusText: code kind: kind into: slice
 !
 constants
 	"The library's constants, name and value."
-	^#('CUBLAS_OP_N' 0 'CUBLAS_OP_T' 1 'CUBLAS_DEFAULT_MATH' 0 'CUBLAS_TF32_TENSOR_OP_MATH' 3 'CUBLAS_PEDANTIC_MATH' 2)
+	^#('CUBLAS_OP_N' 0 'CUBLAS_OP_T' 1 'CUBLAS_DEFAULT_MATH' 0 'CUBLAS_TF32_TENSOR_OP_MATH' 3 'CUBLAS_PEDANTIC_MATH' 2 'CUBLAS_SIDE_LEFT' 0 'CUBLAS_SIDE_RIGHT' 1 'CUBLAS_FILL_MODE_LOWER' 0 'CUBLAS_FILL_MODE_UPPER' 1 'CUBLAS_DIAG_NON_UNIT' 0 'CUBLAS_DIAG_UNIT' 1)
 ! !
 
 !CublasAPI class methodsFor: 'generated'!
@@ -124,5 +124,95 @@ cublasDaxpy: handle n: n alpha: alpha x: x incx: incx y: y incy: incy
 	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cublasDaxpy' (i64 i32 f64 u64 i32 u64 i32) i64))
 		tryInvoke7: handle with: n with: alpha with: x with: incx with: y with: incy.
 	self check: ffiResult in: 'cublasDaxpy' allowing: #().
+	^ffiResult
+!
+cublasSgeam: handle transa: transa transb: transb m: m n: n alpha: alpha a: a lda: lda beta: beta b: b ldb: ldb c: c ldc: ldc
+	"cublasStatus_t cublasSgeam(cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb, int m, int n, const float* alpha, const float* A, int lda, const float* beta, const float* B, int ldb, float* C, int ldc)"
+	<ffiSite>
+	| ffiResult |
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cublasSgeam' (i64 i32 i32 i32 i32 f32 u64 i32 f32 u64 i32 u64 i32) i64))
+		tryInvoke13: handle with: transa with: transb with: m with: n with: alpha with: a with: lda with: beta with: b with: ldb with: c with: ldc.
+	self check: ffiResult in: 'cublasSgeam' allowing: #().
+	^ffiResult
+!
+cublasDgeam: handle transa: transa transb: transb m: m n: n alpha: alpha a: a lda: lda beta: beta b: b ldb: ldb c: c ldc: ldc
+	"cublasStatus_t cublasDgeam(cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb, int m, int n, const double* alpha, const double* A, int lda, const double* beta, const double* B, int ldb, double* C, int ldc)"
+	<ffiSite>
+	| ffiResult |
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cublasDgeam' (i64 i32 i32 i32 i32 f64 u64 i32 f64 u64 i32 u64 i32) i64))
+		tryInvoke13: handle with: transa with: transb with: m with: n with: alpha with: a with: lda with: beta with: b with: ldb with: c with: ldc.
+	self check: ffiResult in: 'cublasDgeam' allowing: #().
+	^ffiResult
+!
+cublasScopy: handle n: n x: x incx: incx y: y incy: incy
+	"cublasStatus_t cublasScopy_v2(cublasHandle_t handle, int n, const float* x, int incx, float* y, int incy)"
+	<ffiSite>
+	| ffiResult |
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cublasScopy' (i64 i32 u64 i32 u64 i32) i64))
+		tryInvoke6: handle with: n with: x with: incx with: y with: incy.
+	self check: ffiResult in: 'cublasScopy' allowing: #().
+	^ffiResult
+!
+cublasDcopy: handle n: n x: x incx: incx y: y incy: incy
+	"cublasStatus_t cublasDcopy_v2(cublasHandle_t handle, int n, const double* x, int incx, double* y, int incy)"
+	<ffiSite>
+	| ffiResult |
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cublasDcopy' (i64 i32 u64 i32 u64 i32) i64))
+		tryInvoke6: handle with: n with: x with: incx with: y with: incy.
+	self check: ffiResult in: 'cublasDcopy' allowing: #().
+	^ffiResult
+!
+cublasStrmm: handle side: side uplo: uplo trans: trans diag: diag m: m n: n alpha: alpha a: a lda: lda b: b ldb: ldb c: c ldc: ldc
+	"cublasStatus_t cublasStrmm_v2(cublasHandle_t handle, cublasSideMode_t side, cublasFillMode_t uplo, cublasOperation_t trans, cublasDiagType_t diag, int m, int n, const float* alpha, const float* A, int lda, const float* B, int ldb, float* C, int ldc)"
+	<ffiSite>
+	| ffiResult |
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cublasStrmm' (i64 i32 i32 i32 i32 i32 i32 f32 u64 i32 u64 i32 u64 i32) i64))
+		tryInvoke14: handle with: side with: uplo with: trans with: diag with: m with: n with: alpha with: a with: lda with: b with: ldb with: c with: ldc.
+	self check: ffiResult in: 'cublasStrmm' allowing: #().
+	^ffiResult
+!
+cublasDtrmm: handle side: side uplo: uplo trans: trans diag: diag m: m n: n alpha: alpha a: a lda: lda b: b ldb: ldb c: c ldc: ldc
+	"cublasStatus_t cublasDtrmm_v2(cublasHandle_t handle, cublasSideMode_t side, cublasFillMode_t uplo, cublasOperation_t trans, cublasDiagType_t diag, int m, int n, const double* alpha, const double* A, int lda, const double* B, int ldb, double* C, int ldc)"
+	<ffiSite>
+	| ffiResult |
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cublasDtrmm' (i64 i32 i32 i32 i32 i32 i32 f64 u64 i32 u64 i32 u64 i32) i64))
+		tryInvoke14: handle with: side with: uplo with: trans with: diag with: m with: n with: alpha with: a with: lda with: b with: ldb with: c with: ldc.
+	self check: ffiResult in: 'cublasDtrmm' allowing: #().
+	^ffiResult
+!
+cublasSscal: handle n: n alpha: alpha x: x incx: incx
+	"cublasStatus_t cublasSscal_v2(cublasHandle_t handle, int n, const float* alpha, float* x, int incx)"
+	<ffiSite>
+	| ffiResult |
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cublasSscal' (i64 i32 f32 u64 i32) i64))
+		tryInvoke5: handle with: n with: alpha with: x with: incx.
+	self check: ffiResult in: 'cublasSscal' allowing: #().
+	^ffiResult
+!
+cublasDscal: handle n: n alpha: alpha x: x incx: incx
+	"cublasStatus_t cublasDscal_v2(cublasHandle_t handle, int n, const double* alpha, double* x, int incx)"
+	<ffiSite>
+	| ffiResult |
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cublasDscal' (i64 i32 f64 u64 i32) i64))
+		tryInvoke5: handle with: n with: alpha with: x with: incx.
+	self check: ffiResult in: 'cublasDscal' allowing: #().
+	^ffiResult
+!
+cublasCsscal: handle n: n alpha: alpha x: x incx: incx
+	"cublasStatus_t cublasCsscal_v2(cublasHandle_t handle, int n, const float* alpha, cuComplex* x, int incx)"
+	<ffiSite>
+	| ffiResult |
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cublasCsscal' (i64 i32 f32 u64 i32) i64))
+		tryInvoke5: handle with: n with: alpha with: x with: incx.
+	self check: ffiResult in: 'cublasCsscal' allowing: #().
+	^ffiResult
+!
+cublasZdscal: handle n: n alpha: alpha x: x incx: incx
+	"cublasStatus_t cublasZdscal_v2(cublasHandle_t handle, int n, const double* alpha, cuDoubleComplex* x, int incx)"
+	<ffiSite>
+	| ffiResult |
+	ffiResult := (self ffiSite: #(call 'vm:core' 'cuda_cublasZdscal' (i64 i32 f64 u64 i32) i64))
+		tryInvoke5: handle with: n with: alpha with: x with: incx.
+	self check: ffiResult in: 'cublasZdscal' allowing: #().
 	^ffiResult
 ! !

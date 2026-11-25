@@ -128,6 +128,40 @@ int cudalib_device_ok(uint64_t p, uint64_t bytes) {
     return i >= 0 && bytes <= allocations[i].size - (p - allocations[i].base);
 }
 
+int cudalib_device_span(uint64_t p, int64_t n, uint64_t size) {
+    uint64_t bytes;
+    if (n < 0 || __builtin_mul_overflow((uint64_t)n, size, &bytes)) return 0;
+    return cudalib_device_ok(p, bytes);
+}
+
+int64_t cudalib_dtype_bytes(int64_t n, int64_t dataType) {
+    /* library_types.h: CUDA_R_32F 0, CUDA_R_64F 1, CUDA_C_32F 4, CUDA_C_64F 5 */
+    int64_t size = dataType == 0 ? 4 : dataType == 1 || dataType == 4 ? 8 : dataType == 5 ? 16 : -1, r;
+    if (n < 0 || size < 0 || __builtin_mul_overflow(n, size, &r)) return -1;
+    return r;
+}
+
+int64_t cudalib_fft_tag(int64_t type, int64_t outer, int64_t last, int64_t batch) {
+    /* cufft.h: CUFFT_R2C 0x2a, C2R 0x2c, C2C 0x29, D2Z 0x6a, Z2D 0x6c, Z2Z 0x69 */
+    const int64_t limit = (int64_t)1 << 28;
+    if (type != 0x2a && type != 0x2c && type != 0x29 && type != 0x6a && type != 0x6c && type != 0x69) return -1;
+    if (outer < 1 || last < 1 || batch < 1 || outer >= limit || last >= limit || batch >= limit) return -1;
+    int64_t n = outer * last, half = outer * (last / 2 + 1);
+    if (n >= limit || n * batch >= limit || half * batch >= limit) return -1;
+    return type << 56 | (half * batch) << 28 | n * batch;
+}
+
+int64_t cudalib_fft_many_tag(int64_t type, int64_t rank, const int32_t *dims, int64_t batch) {
+    int64_t outer = 1;
+    if (rank < 1 || rank > 3) return -1;
+    for (int64_t i = 0; i < rank - 1; i++) {
+        if (dims[i] < 1) return -1;
+        outer *= dims[i];
+        if (outer >= ((int64_t)1 << 28)) return -1;
+    }
+    return cudalib_fft_tag(type, outer, dims[rank - 1], batch);
+}
+
 void cudalib_device_drop(uint64_t p) {
     int i = find(p);
     if (i < 0 || allocations[i].base != p) return;
