@@ -6,6 +6,12 @@ docs/nv-kernels.md): no CUDA, no Vulkan, no OpenGL. It is a `SoftwareGPU` (docs/
 work replaced, so the device protocol, handles, errors and the Renderer-only shader rule are the same, and the pixels are
 too: the kernels are bit-exact with PlatformRaster.
 
+Its kernels are launched by one of two backends with one protocol: where NVIDIA's CUDA userspace is (libcuda and the
+runtime: hosted with the driver, the appliance with the CUDA root), `NvCudaDevice` and `NvCudaCompute` (System-CUDA:
+`cuModuleLoadData`, `cuLaunchKernel`, pinned host memory, in the context and stream cuBLAS uses); elsewhere the RM
+client below. `SAMALTAK_NV_COMPUTE=rm` or `cuda` chooses; `make test-nv` runs the tests, the replay and the World on
+both. docs/cuda.md (NvCompute and libcuda) has the comparison and the numbers. What follows is the RM path.
+
     vm/build/samaltak build/samaltak.image --gpu nv          # or SAMALTAK_GPU=nv: the World on the GB10
     vm/build/samaltak build/samaltak.image --gpu software    # the same, on a SoftwareGPU (the CPU)
     make test-nv                                             # NvComputeGPUTest, replays, the World under Xvfb

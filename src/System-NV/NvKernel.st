@@ -1,5 +1,5 @@
 Object subclass: #NvKernel
-	instanceVariableNames: 'name code registerCount frameSize minStackSize sharedSize maxThreads parameters parameterOffset parameterSize constantBanks relocations exitOffsets smVersion bankRelocations globals'
+	instanceVariableNames: 'name code registerCount frameSize minStackSize sharedSize maxThreads parameters parameterOffset parameterSize constantBanks relocations exitOffsets smVersion bankRelocations globals cubin'
 	classVariableNames: ''
 	package: 'System-NV'!
 
@@ -9,7 +9,8 @@ NvKernel comment: 'I am one kernel (a __global__ function) of a cubin, as NvCubi
 - parameters: (ordinal offset size) triples in ordinal order, offsets in the parameter area; parameterOffset is where that area starts in constant bank 0 (after the driver''s part, 16r380 on sm_120 and sm_121), parameterSize its size;
 - constantBanks: bank index -> ByteArray of initial contents: 0 is the kernel''s own (the driver''s part, then the parameters), others (3: __constant__ data) are shared by the cubin''s kernels;
 - smVersion: the SM the cubin is for (121 for sm_121);
-- globals: data section name -> its initial bytes (.nv.global.init: libdevice''s tables), and bankRelocations: (bank offset section value type), the 64-bit addresses into them the constant banks hold (type 2, R_CUDA_64): NvCompute puts the data in GPU memory and writes the addresses.'!
+- globals: data section name -> its initial bytes (.nv.global.init: libdevice''s tables), and bankRelocations: (bank offset section value type), the 64-bit addresses into them the constant banks hold (type 2, R_CUDA_64): NvCompute puts the data in GPU memory and writes the addresses;
+- cubin: the bytes of the cubin I am from, which NvCudaCompute (System-CUDA) gives the CUDA driver to load.'!
 
 !NvKernel methodsFor: 'accessing'!
 name
@@ -62,6 +63,13 @@ globals
 !
 smVersion
 	^smVersion
+!
+cubin
+	"The cubin's bytes (an ELF file), nil if I was made otherwise."
+	^cubin
+!
+cubin: aByteArray
+	cubin := aByteArray
 !
 printOn: aStream
 	aStream nextPutAll: 'NvKernel('; nextPutAll: name; nextPutAll: ', '; print: code size; nextPutAll: ' bytes, ';

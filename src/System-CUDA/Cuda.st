@@ -1,5 +1,5 @@
 Object subclass: #Cuda
-	instanceVariableNames: 'session blas rng'
+	instanceVariableNames: 'session blas rng device compute kernels'
 	classVariableNames: 'Default'
 	package: 'System-CUDA'!
 
@@ -30,6 +30,17 @@ blas
 !
 rng
 	^self default rng
+!
+compute
+	"This session's NvCudaCompute: kernels launched on the stream cuBLAS and cuRAND use, so they and CudaArrays work together in order."
+	^self default compute
+!
+kernelNamed: aString source: cudaSource
+	"The kernel aString (extern ""C"") of the CUDA C++ cudaSource, compiled by NVRTC for this device (once a session per source): an NvKernel for Cuda compute.
+
+	k := Cuda kernelNamed: 'scale' source: 'extern ""C"" __global__ void scale(float *a, float s, int n) { int i = blockIdx.x * blockDim.x + threadIdx.x; if (i < n) a[i] *= s; }'.
+	Cuda compute run: k grid: 4 block: 256 arguments: {aCudaArray. 2.0. 1000}"
+	^self default kernelNamed: aString source: cudaSource
 !
 synchronize
 	"Wait until the device has done all work queued so far."
@@ -91,4 +102,19 @@ blas
 rng
 	"This session's cuRAND generator (the default pseudo-random one)."
 	^rng ifNil: [rng := CurandAPI curandCreateGenerator: (CurandAPI constant: 'CURAND_RNG_PSEUDO_DEFAULT')]
+!
+compute
+	"This session's NvCudaCompute (on an NvCudaDevice of its own; made on first use)."
+	^compute ifNil: [
+		device := NvCudaDevice open.
+		compute := device newCompute]
+!
+kernelNamed: aString source: cudaSource
+	| key |
+	kernels isNil ifTrue: [kernels := Dictionary new].
+	key := aString -> cudaSource.
+	^kernels at: key ifAbsent: [| r |
+		r := NvRtc compile: cudaSource options: (Array with: '-arch=', self compute device arch with: '-std=c++17').
+		r first isNil ifTrue: [^self error: 'NVRTC: ', r last].
+		kernels at: key put: ((NvCubin on: r first) kernelNamed: aString)]
 ! !

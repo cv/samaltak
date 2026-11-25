@@ -237,11 +237,13 @@ test-ffi-display: $(TEST_IMAGE)
 # System-NV on a real NVIDIA GPU (hosted Linux, /dev/nvidiactl; the GB10): not part of make test, which runs where
 # there is none. Fails, saying so, without a GPU. NvGpuMeasure reports launch latency and copy bandwidth. Then the
 # raster kernels (gpu/nv, docs/nv-kernels.md) on the GPU against PlatformRaster (tests/nv/run.sh: needs the driver,
-# not nvcc).
+# not nvcc). NvComputeGPU's tests, the replay and the World run on both its backends: libcuda (where it loads, the
+# default) and System-NV's RM client (SAMALTAK_NV_COMPUTE=rm).
 # cuOpt is no CUDA toolkit library: its wheel's lib64 (docs/cuda.md), where it is installed, adds CuOptGpuTest.
 CUOPT_LIB ?= $(wildcard $(HOME)/.local/share/samaltak-cuopt/venv/lib/python3.12/site-packages/libcuopt_mathopt/lib64)
 test-nv: $(TEST_IMAGE)
-	SAMALTAK_CUDA_LIBS=$(CUOPT_LIB) tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvComputeGPUTest NvFragmentShaderTest CudaGpuTest $(if $(CUOPT_LIB),CuOptGpuTest)
+	SAMALTAK_CUDA_LIBS=$(CUOPT_LIB) tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvCudaComputeTest NvComputeGPUTest NvFragmentShaderTest CudaGpuTest $(if $(CUOPT_LIB),CuOptGpuTest)
+	SAMALTAK_NV_COMPUTE=rm tests/st_suite.sh $(OUT)/samaltak.image -- NvComputeGPUTest NvFragmentShaderTest
 	tests/rerun.sh nv-kernels tests/nv/run.sh $(OUT)
 # test-tools's parts run at once too (TEST_TOOLS_JOBS, all by default; 1: one after another), the longest first, each
 # holding a test slot and, with SAMALTAK_TEST_XVFB=1 (tests/stages.sh), on an Xvfb of its own (tests/with-display).

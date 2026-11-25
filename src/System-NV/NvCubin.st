@@ -49,6 +49,7 @@ kernelNamed: aString
 	symbolIndex := symbols findFirst: [:s | (s at: 1) = aString].
 	kernel := NvKernel new setName: aString code: text data.
 	kernel smVersion: self smVersion.
+	kernel cubin: bytes.
 	self info: '.nv.info' do: [:attr :value |
 		"Function attributes: (symbol index, value)."
 		((value isKindOf: ByteArray) and: [value size >= 8 and: [(value uint32At: 1) = (symbolIndex - 1)]]) ifTrue: [

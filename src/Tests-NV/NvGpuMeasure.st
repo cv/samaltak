@@ -5,7 +5,8 @@ Object subclass: #NvGpuMeasure
 
 NvGpuMeasure comment: 'I measure System-NV on a real NVIDIA GPU (needs one; make test-nv does not run me, call report):
 
-	NvGpuMeasure report     "a String: fence round trip, launch latency, launches per second, copy bandwidth"
+	NvGpuMeasure report     "a String: fence round trip, launch latency, launches per second, copy bandwidth, for each backend"
+	NvGpuMeasure reportOn: NvCudaDevice     "one: NvDevice (System-NV''s RM client) or NvCudaDevice (libcuda)"
 
 - fence round trip: a semaphore release submitted and waited for, the channel otherwise idle;
 - launch latency: launch one block of fill and wait for it, one at a time;
@@ -19,7 +20,13 @@ best: n of: aBlock
 	^((1 to: n) collect: [:i | Time microsecondsToRun: aBlock]) inject: SmallInteger maxVal into: [:a :b | a min: b]
 !
 report
-	^NvDevice during: [:gpu | | compute cubin fill copy m src dst n fence launch rate bytes copyUs |
+	"Both backends, where they open: System-NV's RM client, then libcuda."
+	^String streamContents: [:s |
+		{NvDevice. NvCudaDevice} do: [:c |
+			s nextPutAll: ([self reportOn: c] on: Error do: [:e | c name, ': ', e messageText]); cr]]
+!
+reportOn: aDeviceClass
+	^aDeviceClass during: [:gpu | | compute cubin fill copy m src dst n fence launch rate bytes copyUs |
 		cubin := NvTestKernels cubin.
 		fill := cubin kernelNamed: 'fill'.
 		copy := cubin kernelNamed: 'copy16'.
@@ -37,7 +44,7 @@ report
 		copyUs := self best: 5 of: [compute run: copy grid: n // 256 block: 256 arguments: (Array with: dst gpuAddress with: src gpuAddress with: n)].
 		((dst bytesAt: bytes - 256 count: 256) = (ByteArray withAll: (0 to: 255))) ifFalse: [^'copy16 copied wrong bytes'].
 		String streamContents: [:s |
-			s nextPutAll: 'GPU SM version 16r'; nextPutAll: (gpu smVersion printString: 16); nextPutAll: ', ';
+			s nextPutAll: aDeviceClass name; nextPutAll: ': GPU SM version 16r'; nextPutAll: (gpu smVersion printString: 16); nextPutAll: ', ';
 				print: gpu smCount; nextPutAll: ' SMs'; cr.
 			s nextPutAll: 'fence round trip: '; print: fence rounded; nextPutAll: ' us'; cr.
 			s nextPutAll: 'launch + wait: '; print: launch rounded; nextPutAll: ' us'; cr.
