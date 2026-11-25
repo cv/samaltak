@@ -1,5 +1,5 @@
 Object subclass: #Renderer
-	instanceVariableNames: 'device pipeline nearestSampler linearSampler vertexBuffer bufferOffset commandBuffer white uniforms sourceGeneration pipelineVersion'
+	instanceVariableNames: 'device pipeline nearestSampler linearSampler vertexBuffer bufferOffset commandBuffer white uniforms sourceGeneration pipelineVersion lock'
 	classVariableNames: 'Default SourceGeneration ShaderErrorHandler'
 	package: 'Graphics-Canvas'!
 
@@ -69,7 +69,13 @@ render: aDisplayList on: aSurface clear: aColorOrNil
 	cmd submitWithFence wait
 !
 render: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer
-	"Encode a render pass drawing aDisplayList into aTexture (a GPUTexture of format rgba8). aColorOrNil clears first; nil keeps the contents."
+	"Encode a render pass drawing aDisplayList into aTexture (a GPUTexture of format rgba8). aColorOrNil clears first; nil keeps the contents. One Process at a time: the uniforms, the vertex buffer's ring and the command buffer are shared, and the Compositor (priority 70) may wake in the middle of another Process's encoding (a Surface's render:clear:) and leave its own width and height in the uniforms that Process pushes next."
+	^self lock critical: [self encode: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer]
+!
+lock
+	^lock ifNil: [lock := Mutex new]
+!
+encode: aDisplayList into: aTexture clear: aColorOrNil commandBuffer: aCommandBuffer
 	| byteCount offset textures pass w h tx ty |
 	sourceGeneration = SourceGeneration ifFalse: [self updatePipeline].
 	aCommandBuffer == commandBuffer ifFalse: [
