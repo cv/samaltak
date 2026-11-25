@@ -271,6 +271,7 @@ typedef bool (*prim_try_guard)(oop);
 #define FFI_OWNED_LIMIT 16
 #define FFI_PLATFORM_BASE 32
 #define FFI_PLATFORM_EXEC 1542
+#define FFI_SIGNATURE_BYTES 8
 #define FFI_STUB_BYTES 256
 #define FFI_STUB_LIMIT 1024
 #define FFI_STUB_TABLE_SIZE 4096
@@ -1855,7 +1856,7 @@ void remember(oop o);
 void scavenge(void);
 void walk_old_space(void (*fn)(uint64_t, void *), void *data);
 void walk_young_space(void (*fn)(uint64_t, void *), void *data);
-int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signature, uint64_t *target_out);
+int32_t ffi_approved_platform(const char *approved_name, const uint8_t *signature, uint64_t *target_out);
 uint64_t ffi_target(int32_t id);
 void platform_interface_init(void);
 void platform_interface_poll(void);
@@ -2492,7 +2493,7 @@ void platform_windows_shutdown(void);
 bool platform_windows_size(int32_t win, int *w, int *h);
 bool video_init(void);
 bool video_inited(void);
-int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signature, uint64_t *target_out);
+int32_t ffi_approved_platform(const char *approved_name, const uint8_t *signature, uint64_t *target_out);
 uint64_t ffi_target(int32_t id);
 void platform_interface_init(void);
 void platform_interface_poll(void);

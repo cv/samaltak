@@ -3,7 +3,7 @@ Object subclass: #TApprovedFFI
 	classVariableNames: ''
 	package: 'VM-Translator'!
 
-TApprovedFFI comment: 'I validate a declared downcall against its Lowtalk prototype. Only the defining module emits its dispatch; core never names SDL functions. Nonzero tags packed in nibbles encode the exact arity and signature.'!
+TApprovedFFI comment: 'I validate a declared downcall against its Lowtalk prototype. Only the defining module emits its dispatch; core never names SDL functions. The signature is the bytes of the nonzero argument tags, then the result tag: as a NUL-terminated C string it encodes the exact arity and signature.'!
 
 !TApprovedFFI class methodsFor: 'collecting'!
 fromFunctions: functions
@@ -75,8 +75,7 @@ setFunction: f spec: spec
 		slot := f declaredTypeOf: (parameters at: i).
 		accepted := choices includes: slot.
 		accepted ifFalse: [self fail: 'argument tag does not match explicit native type: ' , (parameters at: i)]].
-	signature := tags inject: 0 into: [:sig :tag | (sig bitShift: 4) + tag].
-	signature := (signature bitShift: 4) + result
+	signature := (tags , (Array with: result)) asByteArray
 !
 scalarType: tag
 	tag = 12 ifTrue: [^'int64_t'].
@@ -124,13 +123,15 @@ printLookup: cFunction rows: rows on: s
 printCheckWith: args on: s
 	| nullable |
 	testOnly ifTrue: [s nextPutAll: '#ifdef SAMALTAK_FFI_TEST_EXPORTS'; lf].
-	nullable := (signature bitAnd: 15) = 12.
+	nullable := signature last = 12.
 	s nextPutAll: '    if ('.
 	nullable ifTrue: [s nextPut: $(].
-	s nextPutAll: args second; nextPutAll: ' == '; print: signature.
+	self printSignature: signature is: args second on: s.
 	"Tag 12 changes boxing, not the ABI. Keep the exact signed signature for older images."
 	nullable ifTrue: [
-		s nextPutAll: ' || '; nextPutAll: args second; nextPutAll: ' == '; print: signature - 9; nextPut: $)].
+		s nextPutAll: ' || '.
+		self printSignature: (signature copy at: signature size put: 3; yourself) is: args second on: s.
+		s nextPut: $)].
 	s nextPutAll: ' && strcmp('; nextPutAll: args first; nextPutAll: ', ';
 		nextPutAll: (CConst value: name type: nil) cString; nextPutAll: ') == 0) {'; lf;
 		nextPutAll: '        *'; nextPutAll: args third; nextPutAll: ' = (uint64_t) '; nextPutAll: native cName; nextPut: $;; lf.
@@ -138,4 +139,10 @@ printCheckWith: args on: s
 	s nextPutAll: '        return '; print: id; nextPut: $;; lf;
 		nextPutAll: '    }'; lf.
 	testOnly ifTrue: [s nextPutAll: '#endif'; lf]
+!
+printSignature: bytes is: argument on: s
+	"Compare the dispatch's NUL-terminated tag string with bytes, each an octal escape."
+	s nextPutAll: 'strcmp((const char *) '; nextPutAll: argument; nextPutAll: ', "'.
+	bytes do: [:b | s nextPut: $\. b printOn: s base: 8 nDigits: 3].
+	s nextPutAll: '") == 0'
 ! !

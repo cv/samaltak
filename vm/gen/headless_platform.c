@@ -3,7 +3,7 @@
 #include "samaltak.h"
 
 /* HeadlessPlatform>>ffiApprovedPlatform:signature:into: */
-int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signature, uint64_t *target_out)
+int32_t ffi_approved_platform(const char *approved_name, const uint8_t *signature, uint64_t *target_out)
 {
     return 0;
 }
