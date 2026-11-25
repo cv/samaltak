@@ -53,6 +53,7 @@ setUp
 tearDown
 	super tearDown.
 	Smalltalk removeKey: #DebugTestResult ifAbsent: [nil].
+	Smalltalk removeKey: #DebugTestLog ifAbsent: [nil].
 	DebuggingTestSubject restoreSources.
 	(Integer includesSelector: #zork) ifTrue: [Integer removeSelector: #zork]
 ! !
@@ -161,7 +162,7 @@ testRestart
 	self assert: (self textOf: session) equals: 'self abs'.
 	self assert: (self temp: 'a' of: session) isNil.
 	self assert: (self temp: 'anInteger' of: session) equals: 18.
-	self assert: (Breakpoint all first hits) equals: 1.
+	self assert: (self ownBreakpoints first hits) equals: 1.
 	session proceed.
 	self waitUntilTerminated: session process.
 	self assert: self result equals: 6
@@ -204,7 +205,7 @@ testEditAndContinue
 	self assert: session interruptedContext method == method.
 	self assert: session interruptedContext sender selector equals: #compute.
 	self assert: (self textOf: session) equals: '^21'.
-	self assert: Breakpoint all isEmpty.
+	self assert: self ownBreakpoints isEmpty.
 	session proceed.
 	self waitUntilTerminated: session process.
 	self assert: self result equals: 42.
@@ -215,7 +216,7 @@ testEditAndContinueInSender
 	(Breakpoint on: DebuggingTestSubject selector: #helper) yourself.
 	self fork: [Smalltalk at: #DebugTestResult put: DebuggingTestSubject new callsCompute].
 	session := self waitForSession.
-	Breakpoint removeAll.
+	self removeBreakpoints.
 	compute := session stack at: 2.
 	self assert: compute selector equals: #compute.
 	method := session recompile: 'compute

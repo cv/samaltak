@@ -15,7 +15,6 @@ setUp
 !
 tearDown
 	Transcript removeListener: listener; echo: echo.
-	Breakpoint processFilter: nil.
 	super tearDown
 ! !
 
@@ -125,7 +124,7 @@ testObjectBreakpointAnyMessage
 	session := self waitForSession.
 	self assert: session interruptedContext receiver == p.
 	self assert: session interruptedContext selector equals: #+.
-	Breakpoint removeAll.
+	self removeBreakpoints.
 	session proceed.
 	self waitUntilTerminated: process.
 	self assert: result equals: 4 @ 5
@@ -138,7 +137,7 @@ testObjectBreakpointOnPrimitiveMethod
 	session := self waitForSession.
 	self assert: (session interruptedContext receiver) == array.
 	self assert: session interruptedContext selector equals: #at:put:.
-	Breakpoint removeAll.
+	self removeBreakpoints.
 	session proceed.
 	self waitUntilTerminated: process.
 	self assert: result equals: #two
@@ -230,8 +229,8 @@ testAllHits
 	a := Breakpoint on: Integer selector: #gcd: log: '1'.
 	b := Breakpoint on: Integer selector: #lcm: log: '2'.
 	(4 gcd: 2) + (4 lcm: 6).
-	self assert: (Breakpoint allHits collect: [:each | each value]) asArray equals: #(2 1).
-	self assert: (Breakpoint allHits collect: [:each | each key]) asArray equals: {a. b}
+	self assert: ((Breakpoint allHits select: [:each | self ownBreakpoints includes: each key]) collect: [:each | each value]) asArray equals: #(2 1).
+	self assert: ((Breakpoint allHits select: [:each | self ownBreakpoints includes: each key]) collect: [:each | each key]) asArray equals: {a. b}
 !
 testChangeNotification
 	| seen block |

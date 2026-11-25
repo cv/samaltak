@@ -271,7 +271,7 @@ testMethodMenuBreaksInAWindowsProcess
 	 "accepting keeps the scope"
 	 self in: window do: [browser code accept].
 	 self assert: (Breakpoint forClass: ToolsTestFixture selector: #answer) scope equals: #all]
-		ensure: [Breakpoint removeAll]
+		ensure: [self removeBreakpoints]
 !
 testAcceptShowsAccepted
 	"⌘S on an edit: the status says accepted at once, not unaccepted edits."
@@ -290,7 +290,7 @@ testAcceptKeepsABreakpoint
 	[self in: window do: [browser code accept].
 	 self assert: (Breakpoint forClass: ToolsTestFixture selector: #answer) notNil.
 	 self assert: (Breakpoint ignoreDuring: [ToolsTestFixture new answer]) equals: 42]
-		ensure: [Breakpoint removeAll]
+		ensure: [self removeBreakpoints]
 !
 testSyntaxErrorIsMarkedInline
 	| errors |

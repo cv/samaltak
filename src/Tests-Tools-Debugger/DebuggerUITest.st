@@ -394,9 +394,10 @@ testDoesNotUnderstandCreateAcceptProceed
 	self waitFor: [(self textOf: ws) includesSubstring: '3 zork 300'] description: 'the workspace to print 300'
 !
 testWatchpointUnwatchProceed
-	| ws iw dw d point before |
+	| ws iw dw d point before watchpoints |
 	before := Transcript contents size.
-	cleanups add: [Watchpoint all do: [:each | (each object isKindOf: Point) ifTrue: [each unwatch]]].
+	watchpoints := Watchpoint all.
+	cleanups add: [Watchpoint all do: [:each | (watchpoints includes: each) ifFalse: [each unwatch]]].
 	ws := self openWorkspace: 'p := 3 @ 4
 [5 timesRepeat: [p x: p x + 1. Transcript show: p printString; cr]] forkNamed: ''mover'''.
 	(Smalltalk at: #Inspector ifAbsent: [nil]) notNil
@@ -413,8 +414,8 @@ testWatchpointUnwatchProceed
 			self evaluateLine: 1 in: ws with: 'Meta+d'.
 			self waitFor: [(ws content bindings at: #p ifAbsent: [nil]) notNil] description: 'p'.
 			Watchpoint on: (ws content bindings at: #p) value instVarNamed: 'x'].
-	self waitFor: [Watchpoint all anySatisfy: [:each | each object = (3 @ 4)]] description: 'the watchpoint'.
-	point := (Watchpoint all detect: [:each | each object = (3 @ 4)]) object.
+	self waitFor: [Watchpoint all anySatisfy: [:each | (watchpoints includes: each) not and: [each object = (3 @ 4)]]] description: 'the watchpoint'.
+	point := (Watchpoint all detect: [:each | (watchpoints includes: each) not and: [each object = (3 @ 4)]]) object.
 	self assert: point isReadOnlyObject.
 	self evaluateLine: 2 in: ws with: 'Meta+d'.
 	dw := self waitForWindowOf: Debugger.
