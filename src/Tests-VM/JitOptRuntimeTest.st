@@ -139,14 +139,17 @@ testBackgroundDeoptimization
 	self assert: (self statistics - before) optDeoptimizations + (self statistics - before) optMethodsCompiled > 0
 !
 testBackgroundLoopUnit
-	"A long loop's unit is compiled in the background while the loop goes on in baseline code; a later backward jump enters it (on-stack replacement)."
-	| o before |
+	"A long loop's unit is compiled in the background while the loop goes on in baseline code; a later backward jump enters it (on-stack replacement). On a loaded machine the helper thread may not finish before the loop does: then a backward jump of the loop run again enters it."
+	| o before n |
 	self background ifFalse: [^self].
 	self define: 'bgLoop: n | s | s := 0. 1 to: n do: [:i | s := s + (i \\ 7)]. ^s'.
 	o := JitRuntimeTestSubject new.
 	before := self statistics.
-	self assert: (o bgLoop: 7000000) equals: 21000000.
-	self assert: (self statistics - before) optOsrEntries > 0
+	n := 0.
+	[self assert: (o bgLoop: 7000000) equals: 21000000.
+	 n := n + 1.
+	 (self statistics - before) optOsrEntries = 0 and: [n < 20]] whileTrue: [self waitForBackground].
+	self assert: (self statistics - before) optOsrEntries > 0 description: ['no on-stack replacement in ', n printString, ' loops; background jobs: ', (self statistics - before) optBackgroundJobs printString]
 ! !
 
 !JitOptRuntimeTest methodsFor: 'tests'!

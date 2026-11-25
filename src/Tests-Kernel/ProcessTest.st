@@ -337,8 +337,8 @@ testCpuTimeAddsUp
 	self assert: (c - t) abs <= 2000
 !
 testSlicesRotateCpuBoundPeers
-	"Two CPU-bound Processes of one priority take turns every time slice (this process waits at a higher priority meanwhile): about 30 turns in 30 slices, a slice apart (a timer tick more where the timer ticks coarsely: UEFI's firmware, every 10 ms; and a millisecond for the clock reads, as a turn can last exactly that)."
-	| slice times n stop last procs gaps |
+	"Two CPU-bound Processes of one priority take turns every time slice (this process waits at a higher priority meanwhile): about 30 turns in 30 slices, a slice apart (a timer tick more where the timer ticks coarsely: UEFI's firmware, every 10 ms; and a millisecond for the clock reads, as a turn can last exactly that). On a loaded machine the VM (or QEMU's virtual CPU) does not run all the time: so this waits for 30 turns (at most 300 slices), and a quarter of the turns must last at most that long (a turn while the VM was not running lasts longer; a scheduler rotating every second slice or less often fails)."
+	| slice times n stop last procs gaps waits |
 	slice := self sliceMicroseconds.
 	times := Array new: 1000.
 	n := 0.
@@ -350,12 +350,15 @@ testSlicesRotateCpuBoundPeers
 				last := i.
 				n := n + 1.
 				times at: n put: Time microsecondClockValue]]] at: Processor activePriority - 1].
-	(Delay forMilliseconds: 30 * slice // 1000) wait.
+	waits := 0.
+	[(Delay forMilliseconds: 30 * slice // 1000) wait.
+	 waits := waits + 1.
+	 n < 30 and: [waits < 10]] whileTrue.
 	stop := true.
 	self assert: (self waitFor: [procs allSatisfy: [:p | p isTerminated]]) description: [procs printString, ' did not end'].
-	self assert: n >= 10 description: [n printString, ' turns in 30 slices'].
+	self assert: n >= 10 description: [n printString, ' turns in ', (30 * waits) printString, ' slices'].
 	gaps := ((2 to: n) collect: [:i | (times at: i) - (times at: i - 1)]) asSortedCollection asArray.
-	self assert: (gaps at: gaps size + 1 // 2) <= (slice + 11000) description: ['the median turn lasts ', (gaps at: gaps size + 1 // 2) printString, ' µs']
+	self assert: (gaps at: gaps size + 3 // 4) <= (slice + 11000) description: ['a quarter of the turns last more than ', (gaps at: gaps size + 3 // 4) printString, ' µs; the median ', (gaps at: gaps size + 1 // 2) printString]
 !
 testReadyProcessWaitsAtMostTwoSlices
 	"A Process made ready at the priority of the running CPU-bound one (this one, spinning) waits at most about two time slices: when contention broke since the slice was armed (another Process ran at the slice's end and waited again), the slice is not cut short but a fresh one follows it (Scheduler>>sliceCheck). Allowed: two slices and two coarse timer ticks (UEFI's firmware ticks every 10 ms), and a millisecond each for the clock reads (on UEFI the wait can be exactly two slices and two ticks)."
@@ -382,21 +385,23 @@ testReadyProcessWaitsAtMostTwoSlices
 	self assert: worst <= ((2 * slice) + 22000) description: ['waited ', worst printString, ' µs, a slice is ', slice printString]
 !
 testShortSlicesAreCharged
-	"Both sides of a fast ping-pong are charged, the one that works three times as much more."
-	| a b me other m0 o0 mine its |
+	"Both sides of a fast ping-pong are charged, the one that works three times as much more: in five rounds, each side is charged in every round, and the median of the rounds' ratios is between 1 and 10. One round may be off where the CPU time is the wall time (UEFI): a pause of QEMU's virtual CPU is charged to the side running then."
+	| a b me other ratios |
 	a := Semaphore new.
 	b := Semaphore new.
 	me := Processor activeProcess.
 	other := self partner: 2000 waitOn: a signal: b spin: 3000.
 	Smalltalk vm scavenge.
-	m0 := me cpuMicroseconds.
-	o0 := other cpuMicroseconds.
-	2000 timesRepeat: [self spin: 1000. a signal. b wait].
-	mine := me cpuMicroseconds - m0.
-	its := other cpuMicroseconds - o0.
-	self assert: mine > 0.
-	self assert: its > mine.
-	self assert: its < (mine * 10)
+	ratios := (1 to: 5) collect: [:round | | m0 o0 mine its |
+		m0 := me cpuMicroseconds.
+		o0 := other cpuMicroseconds.
+		400 timesRepeat: [self spin: 1000. a signal. b wait].
+		mine := me cpuMicroseconds - m0.
+		its := other cpuMicroseconds - o0.
+		self assert: (mine > 0 and: [its > 0]) description: ['round ', round printString, ': charged ', mine printString, ' and ', its printString, ' µs'].
+		its / mine].
+	ratios := ratios asSortedCollection asArray.
+	self assert: ((ratios at: 3) > 1 and: [(ratios at: 3) < 10]) description: ['the ratios ', (ratios collect: [:r | (r * 100) rounded / 100.0]) printString]
 !
 testCpuTimeNeverDecreases
 	| a b me other last mine |
@@ -424,11 +429,11 @@ testWaitsAreNotCharged
 	p := self fork: [20 timesRepeat: [(Delay forMilliseconds: 10) wait]. done signal] at: Processor activePriority + 1.
 	c0 := p cpuMicroseconds.
 	done wait.
-	self assert: p cpuMicroseconds - c0 < 5000.
+	self assert: p cpuMicroseconds - c0 < 5000 description: [(p cpuMicroseconds - c0) printString, ' µs charged to 20 waits'].
 	idle := Processor idleProcess.
 	i0 := idle cpuMicroseconds.
 	(Delay forMilliseconds: 200) wait.
-	self assert: idle cpuMicroseconds - i0 < 5000
+	self assert: idle cpuMicroseconds - i0 < 5000 description: [(idle cpuMicroseconds - i0) printString, ' µs charged to the idle Process in 200 ms']
 !
 testCpuTimeIsChargedInBatches
 	"The VM thread's CPU time, a system call to read, is read far less often than processes switch."

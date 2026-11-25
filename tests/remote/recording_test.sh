@@ -37,9 +37,10 @@ $CTL advance 1000 >/dev/null
 TERMINAL=$($CTL snapshot --depth 1 | grep '^window' | grep Terminal | sed -E 's/.*(@w[0-9]+).*/\1/')
 if [ -n "$TERMINAL" ]; then pass "a query is served while the clock stands still"; else fail "no Terminal in the snapshot"; fi
 
+# the clock before the Enter that starts the job: read after it, a loaded machine has the job running already
 $CTL --settle 0 type "$TERMINAL.terminal" 'sleep 1; echo PACED-$((1+1))' --delay 0 >/dev/null
-$CTL --settle 0 key Enter "$TERMINAL.terminal" >/dev/null
 d=$(micros)
+$CTL --settle 0 key Enter "$TERMINAL.terminal" >/dev/null
 $CTL wait PACED-2 15000 >/dev/null
 e=$(micros)
 if [ $((e - d)) -ge 900000 ]; then pass "a program outside the image paces the clock to real time"; else fail "the 1 s job took $((e - d)) us of the clock"; fi
