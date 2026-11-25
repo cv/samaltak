@@ -239,7 +239,7 @@ test-ffi-display: $(TEST_IMAGE)
 # raster kernels (gpu/nv, docs/nv-kernels.md) on the GPU against PlatformRaster (tests/nv/run.sh: needs the driver,
 # not nvcc).
 test-nv: $(TEST_IMAGE)
-	tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvComputeGPUTest NvFragmentShaderTest
+	tests/st_suite.sh $(OUT)/samaltak.image -- NvGpuTest NvComputeGPUTest NvFragmentShaderTest CudaGpuTest
 	tests/rerun.sh nv-kernels tests/nv/run.sh $(OUT)
 # test-tools's parts run at once too (TEST_TOOLS_JOBS, all by default; 1: one after another), the longest first, each
 # holding a test slot and, with SAMALTAK_TEST_XVFB=1 (tests/stages.sh), on an Xvfb of its own (tests/with-display).
