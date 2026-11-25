@@ -2,8 +2,8 @@
 
 **Status: archived** (cv/samaltak#20: the operator's
 [decision](https://github.com/cv/samaltak/issues/20#issuecomment-7128396274)). The DGX Spark runs Samaltak as a minimal
-Linux appliance (docs/linux-appliance.md): `nvidia.ko` boots GSP and is the RM, and System-NV (Phase A, RM ioctls:
-docs/nv-rm.md), NvComputeGPU and the NV shaders run as hosted. Phase B's code was removed from main: the probe
+Linux appliance (docs/linux-appliance.md): `nvidia.ko` boots GSP and is the RM, and NvComputeGPU and the NV shaders run as hosted (on libcuda
+since Phase A, System-NV's RM ioctls, was archived too: docs/nv-rm.md, tag `archive/nv-rm`). Phase B's code was removed from main: the probe
 (`NvProbe`, `USB_DIAG=nv`), the transport's GSP side (`NvGspTransport`), the GSP boot, the struct layouts, the fake
 GSP and GB10, `VfioPciDevice` with `tools/nv-vfio.sh`, and the day-one runbook (docs/nv-dayone.md). All of it is
 preserved at the tag `archive/uefi-bare-metal`; the classes, tools and sections named below refer to that tag. This

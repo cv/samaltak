@@ -1,16 +1,12 @@
 # NvComputeGPU: the World on the GB10 without a graphics driver
 
-`NvComputeGPU` (package Graphics-NV, layer 1) is a GPU device for Graphics-GPU that renders on an NVIDIA GPU through
-nothing but the image's own RM client (System-NV, docs/nv-rm.md) and the raster kernels (`NvRasterKernels`,
-docs/nv-kernels.md): no CUDA, no Vulkan, no OpenGL. It is a `SoftwareGPU` (docs/uefi.md) with the memory and the pixel
-work replaced, so the device protocol, handles, errors and the Renderer-only shader rule are the same, and the pixels are
-too: the kernels are bit-exact with PlatformRaster.
-
-Its kernels are launched by one of two backends with one protocol: where NVIDIA's CUDA userspace is (libcuda and the
-runtime: hosted with the driver, the appliance with the CUDA root), `NvCudaDevice` and `NvCudaCompute` (System-CUDA:
-`cuModuleLoadData`, `cuLaunchKernel`, pinned host memory, in the context and stream cuBLAS uses); elsewhere the RM
-client below. `SAMALTAK_NV_COMPUTE=rm` or `cuda` chooses; `make test-nv` runs the tests, the replay and the World on
-both. docs/cuda.md (NvCompute and libcuda) has the comparison and the numbers. What follows is the RM path.
+`NvComputeGPU` (package Graphics-NV, layer 1) is a GPU device for Graphics-GPU that renders on an NVIDIA GPU with the
+raster kernels (`NvRasterKernels`, docs/nv-kernels.md), launched through NVIDIA's CUDA userspace (libcuda: `NvCudaDevice`
+and `NvCudaCompute`, System-CUDA, docs/nv.md): no Vulkan, no OpenGL. It is a `SoftwareGPU` (docs/uefi.md) with the
+memory and the pixel work replaced, so the device protocol, handles, errors and the Renderer-only shader rule are the
+same, and the pixels are too: the kernels are bit-exact with PlatformRaster. Its memory is CUDA's pinned host memory and
+its launches are on the CUDA runtime's context and default stream, the ones cuBLAS and `CudaArray` use. libcuda is its
+only backend: an RM-ioctl one (System-NV's own RM client) was removed (docs/nv-rm.md, archived).
 
     vm/build/samaltak build/samaltak.image --gpu nv          # or SAMALTAK_GPU=nv: the World on the GB10
     vm/build/samaltak build/samaltak.image --gpu software    # the same, on a SoftwareGPU (the CPU)
@@ -20,28 +16,31 @@ both. docs/cuda.md (NvCompute and libcuda) has the comparison and the numbers. W
 
 `GPUPlatform chooseBackends` (on first use after the image starts) reads `--gpu NAME`, else the environment's
 `SAMALTAK_GPU`: `nv` is an NvComputeGPU, `software` a SoftwareGPU, nothing the default (SDL_GPU where the VM has
-windows, a SoftwareGPU on the firmware's display on UEFI). The windows and events stay the platform's. Where the device
-cannot be made (no Graphics-NV, no `/dev/nvidiactl`, `NvDevice open` fails) the default is used and stderr says
-`Samaltak: --gpu: no NVIDIA GPU here: the default GPU instead`; an unknown name likewise.
+windows, a SoftwareGPU on the firmware's display on UEFI or on the appliance's KMS screen). The windows and events stay
+the platform's. Where the device cannot be made (no Graphics-NV; no CUDA userspace: libcuda, the CUDA runtime and a
+device, `NvComputeGPU isAvailable`; `NvCudaDevice open` fails) the default is used, without an error, and stderr says
+why and what instead: `Samaltak: --gpu: nv: no CUDA userspace (libcuda and the CUDA runtime, with a device): software
+rendering instead` on the appliance's screen (the Spark without its CUDA root), `...: the default GPU instead` hosted;
+an unknown name likewise.
 
 ## How
 
 | | SoftwareGPU | NvComputeGPU |
 | --- | --- | --- |
-| textures, buffers, back buffers | `Machine allocate:` | `NvMemory` (system memory mapped for both; SoftwareGPU keeps its CPU address): textures in the GPU's L2, buffers and back buffers not |
+| textures, buffers, back buffers | `Machine allocate:` | `NvCudaMemory` (`cudaMallocHost`: one address for the CPU and the GPU; SoftwareGPU keeps it) |
 | clear | `rasterFill` | `raster_fill` |
 | draw | `rasterDraw` | batched: a target's consecutive draws as one `raster_batch_prims` and one `raster_batch_tiles` |
 | blit | `rasterBlit` | `raster_blit` |
 | uploads, downloads | CPU copies | the same CPU copies, after waiting for the launches that use that memory |
-| fences | done when made | the channel's fence values; elapsed from the GPU's clock |
+| fences | done when made | the stream's fence values; elapsed from the GPU's clock |
 | present | the display gets the back buffer's address | the same, once the GPU drew it |
 
 SoftwareGPU's 'memory and pixels' methods are the seam (`allocate:`, `free:`, `touch:`, `fill:...`,
-`draw:buffer:offset:first:count:`, `blit:...`, `present:`). Launches are queued in call order on one compute channel
-and run while the CPU encodes on; every launch ends with a semaphore release with wait-for-idle, so they run one after
-another (`raster_batch_tiles` reads what `raster_batch_prims` wrote, later launches see earlier ones). Each memory
-remembers the fence of the last launch that used it; the CPU waits for it before writing (uploads), reading (downloads,
-present) or freeing it, and nowhere else.
+`draw:buffer:offset:first:count:`, `blit:...`, `present:`). Launches are queued in call order on the default stream
+(`cuLaunchKernel`, the cubin loaded once by `cuModuleLoadData`) and run while the CPU encodes on, one after another
+(`raster_batch_tiles` reads what `raster_batch_prims` wrote, later launches see earlier ones). Each memory remembers
+the fence of the last launch that used it; the CPU waits for it before writing (uploads), reading (downloads, present)
+or freeing it, and nowhere else.
 
 **Batches.** A draw does not launch: its RasterDrawParams (the pass's state, the vertices' address) join the batch of
 its target. The batch goes out when anything else comes (a draw into another target, a clear, a blit, a CPU access, a
@@ -52,55 +51,32 @@ target; a tile skips each 256 slots none of whose chunks' bounding boxes meets i
 applies each with its own draw's blend, texture and sampler). A pixel sees the
 draws in order, so the pixels are the same as draw by draw (docs/nv-kernels.md). A layer is two launches, not two a draw.
 
-**Memory and the L2.** On the GB10 the GPU's L2 is not coherent with the CPU for system memory: memory allocated
-`gpuCached` (`NvDevice allocate:gpuCached:`) is fast for kernels, but the CPU does not see their writes until the L2
-writes its dirty lines back, nor do kernels see the CPU's writes while the L2 holds older lines (all memory cached, the
-channel hangs: the GPU reads stale QMDs). NvComputeGPU caches what kernels use most and the CPU touches least: textures
-(layer surfaces, glyph atlases, images) and the draws' scratch. Buffers (vertices, uniforms, a batch's params), written by
-the CPU for nearly every draw, and back buffers, which the CPU reads every frame, stay uncached. It keeps them in step
-as UVM does on an integrated GPU (uvm_blackwell_host.c): after a launch the L2 may hold dirty lines, so before the CPU
-reads or writes cached memory (a download, an upload, freeing) the channel runs sysmembar, L2_FLUSH_DIRTY, sysmembar
-(`NvChannel>>flushL2`) and the CPU waits for it; after the CPU wrote cached memory (an upload, a new allocation's
-zeroes) the next launch is preceded by the flush and an L2_SYSMEM_NCOH_INVALIDATE (`flushAndInvalidateL2`).
-`NvComputeGPUTest>>testTheL2AndTheCPUAgree` fails without either.
+**Memory.** CUDA keeps pinned host memory coherent between the CPU and the GPU on the GB10: what a kernel wrote is
+there once its fence is reached, what the CPU wrote before a launch the kernel sees. NvComputeGPU still marks textures
+and the draws' scratch as memory the GPU may cache (`allocate:gpuCached:`, a hint CUDA does not need) and still calls
+the compute's L2 flushes around CPU access to them (`flushL2`, `flushAndInvalidateL2`: nothing on libcuda, but
+`writeBackL2` waits for the stream once); what the RM backend needed for its non-coherent L2, left to simplify.
+`NvComputeGPUTest>>testTheL2AndTheCPUAgree` checks uploads over pixels a kernel read and downloads of what kernels wrote.
 
-**Fences** keep the channel's value of the last launch when submitted; `fenceElapsed:` is the GPU's time for the command
-buffer: before its first clear, draw or blit and after its last, a semaphore release with RELEASE_TIMESTAMP writes the
-GPU's clock (ns) into a ring of 256 slots (`NvChannel>>timestamp:payload:`); the fence is done once its end stamp is
-there. `shaderLanguage` is `'raster'`: not software, so the Compositor composes
-continuously as on SDL_GPU. FragmentShaders (ShaderViews, Claude's Robot) run as CUDA kernels made from their GLSL,
-precompiled or compiled in the image by NVRTC (docs/nv-shaders.md).
+**Fences** keep the stream's value of the last launch when submitted (a word the stream writes, `cuStreamWriteValue64`,
+when a fence is first waited for or asked about; waits poll by the real clock, asking the stream now and then whether a
+kernel faulted). `fenceElapsed:` is the GPU's time for the command buffer: before its first clear, draw or blit and
+after its last, a one-thread kernel writes the GPU's clock (`%globaltimer`, ns) into a ring of 256 slots
+(`timestamp:payload:`); the fence is done once its end stamp is there. `shaderLanguage` is `'raster'`: not software,
+so the Compositor composes continuously as on SDL_GPU. FragmentShaders (ShaderViews, Claude's Robot) run as CUDA
+kernels made from their GLSL, precompiled or compiled in the image by NVRTC (docs/nv-shaders.md).
 
 **Presenting.** The device presents the BGRA8 back buffer from its CPU address on its display
 (`presentWindow:pixels:width:height:`). Hosted that is a `HostFramePresenter` (Graphics-GPU): it uploads the frame from
 that address (`gpuUploadTexture` takes an Integer address too) into a BGRA8 texture of an SDL_GPU device of its own and
 blits that onto the window's swapchain: 0.33 ms for the upload, about 3 ms for SDL's acquire, blit and present to the X
-server (what SDL_GPU's own frames pay too). On
-UEFI it would be `FirmwareDisplay` (FirmwareScreen draws the frame into the GOP framebuffer, as for a SoftwareGPU),
-unchanged, if System-NV ever ran there (it does not: docs/nv.md, Phase B): nothing in NvComputeGPU is hosted-only but NvDevice.
+server (what SDL_GPU's own frames pay too). On the appliance it is a `KmsDisplay` (the image's KMS screen: the frame
+copied into a dumb buffer, docs/linux-appliance.md).
 
-**Launch path** (System-NV, `NvCompute>>launch:grid:block:parameters:`): the QMD and constant bank 0 templates of the
-kernel are copied and patched at offsets found once (grid, block, bank 0's address, the parameter struct), and a
-pushbuffer made once is submitted with the QMD's address and the fence value patched in (`NvChannel>>submitBytes:fenceAt:`):
-about 1.2 µs of CPU and 3 µs of GPU a launch (the GPU's, with the wait-for-idle). The shader caches are invalidated when
-a kernel's code is uploaded, not at each launch, and launches raise no interrupt (waits poll). `NvCubin` now gives a
-kernel its own constant banks (`.nv.constant2.raster_tiles`: raster_tiles' jump table, bound as bank 2).
-
-**Fences and wraps.** A fence value used to be taken before the pushbuffer was started over (or the ring drained),
-whose own fence then came first: the semaphore went back (drain N + 1, then launch N), and a wait for N returned while
-launch N had not run; the memory it used could be freed under it. About one World start in three stalled for the 5 s
-timeout near fence 1430 (the 64 KB pushbuffer wraps every 1500 or so launches). `NvChannel>>makeRoomFor:` now wraps
-and drains first (`testFencesAcrossWrapsAndDrains`); no stall in 25 starts since. Waits poll by the real clock
-(`Time utcMicroseconds`: on the recording clock the image's clock stands still during a frame); a timeout says the
-error notifier's status. `Machine barrier` is `dmb osh` on arm64 (Linux's dma_mb: the devices' domain), no longer
-`__sync_synchronize`'s `dmb ish`.
-
-**Stack frames.** A kernel's stack starts 16r240 bytes below the top of a thread's local window and grows down into its
-frame, so a thread's local memory must be 16r240 plus the frame. NvCompute gave every kernel 16r240: a kernel with a
-frame wrote past it (`raster_batch_tiles` with 24 bytes of spills hung; `local1k`, 1 KB, got 3000 wrong sums of 3000).
-NvCompute now sizes the QMD's local memory per kernel and grows the channel's when a kernel needs more
-(`localMemoryPerThread:`, `NvGpuTest>>testLocalMemory`). `raster_batch_tiles` stays at `__maxnreg__(128)`: no spills
-is faster.
+**History.** The RM backend's launch path (QMDs and constant bank 0 patched per launch, a pushbuffer made once), its
+fixes (fences across pushbuffer wraps, local memory sized per kernel's stack frame) and its L2 handling are in
+docs/nv-rm.md and at the tag `archive/nv-rm`. On libcuda the driver sizes a kernel's local memory and places its
+constant banks; `NvCudaComputeTest>>testLocalMemory` and `testConstantBank` check it.
 
 ## Tests
 
@@ -108,7 +84,7 @@ is faster.
 
 - `NvComputeGPUTest`: every SoftwareGPUTest (coverage, blends, patterns, lines, blits, regions, swapchain, handles, the
   Renderer through GPUPlatform) on an NvComputeGPU.
-- `NvGpuTest>>testFencesAcrossWrapsAndDrains`, `NvComputeGPUTest>>testFenceElapsedIsTheGPUsTime`.
+- `NvCudaComputeTest` (the launches, fences and memory below NvComputeGPU), `NvComputeGPUTest>>testFenceElapsedIsTheGPUsTime`.
 - `replay fuzzbatch`: 20000 cases of 1 to 40 random draws (every path, blend, format, sampler, texture, scissor and
   viewport of the fuzz) into one target as one batch, against the C reference applying them one after another.
 - `tests/nv/replay.st`: the World's first frames recorded at 1920x1080 by a SoftwareGPURecorder replayed through the gpu
@@ -126,6 +102,9 @@ test-core needs no GPU: `GPUPlatformTest` (the choice, with a stand-in for the N
 SoftwareGPUTest on the refactored SoftwareGPU.
 
 ## Numbers
+
+Measured on the RM backend this device had then (docs/nv-rm.md, archived); on libcuda a frame of about 30 launches is
+5-10 % slower, all of it GPU time (docs/cuda.md has those numbers).
 
 On the GB10 (DGX Spark), the World of the Tools at 1920x1080 under Xvfb, hosted; SDL_GPU on NVIDIA's Vulkan driver
 (`VK_DRIVER_FILES=.../nvidia_icd.json`). Composite: the Compositor's whole-screen composite (desk, the windows' layers

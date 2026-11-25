@@ -4,7 +4,7 @@ The pixel work of the software GPU (`PlatformRaster`, the raster primitives behi
 kernels for the NVIDIA GB10 (Blackwell, sm_121): the Renderer's uber-shader on a draw's vertices (every mode: solid,
 glyphs, images, halftone, stripes, lines; quads and triangles; the three blends), fills, blits and copies. They produce
 the same bytes as the C reference (`vm/gen/platform_raster.c`) compiled without floating-point contraction, as the UEFI VM
-is. A launcher needs only the cubin and this ABI: no CUDA libraries (Phase A: the image's RM client, System-NV).
+is. A launcher needs only the cubin and this ABI: libcuda's `cuModuleLoadData` and `cuLaunchKernel` (the image's NvCudaCompute, tests/nv/replay.cpp), no CUDA runtime or toolkit.
 
     gpu/nv/raster.cu        the kernels                gpu/nv/raster_abi.h      their parameter structs (the ABI)
     tools/nv-kernels.py     build (nvcc), check, extract, abi
@@ -29,7 +29,7 @@ contraction.
 ## Kernels
 
 Each takes one struct by value (`raster_abi.h`); in the cubin the parameters are in constant bank 0 at 0x380 (the ABI's
-`paramOffset`), `paramBytes` long. No kernel uses local memory (frame and stack sizes 0; NvCompute gives a kernel with a frame the local memory it needs,
+`paramOffset`), `paramBytes` long. No kernel uses local memory (frame and stack sizes 0; the CUDA driver gives a kernel with a frame the local memory it needs,
 docs/nv-gpu.md; `raster_batch_tiles` is held to 128 registers so it does not spill), globals or device-side calls;
 `raster_tiles` has 40 bytes of constants the compiler placed in constant bank 2 (`.nv.constant2.raster_tiles`, the
 ABI's `constantBank2`: bind them as bank 2 when launching it). Every kernel loops over its work with grid strides, so any
@@ -102,7 +102,7 @@ swapchain) takes about 0.55 ms of GPU time, against 3.2 ms for the C reference o
 window's layer costs about 20 µs a draw, mostly the two launches' fixed cost (a pass of 180 small draws: 4 ms), which
 batching a pass's draws into one launch pair would remove.
 
-`NvComputeGPU` (docs/nv-gpu.md) launches them from the image through System-NV, as Graphics-GPU's device (`--gpu nv`).
+`NvComputeGPU` (docs/nv-gpu.md) launches them from the image through libcuda (NvCudaCompute), as Graphics-GPU's device (`--gpu nv`).
 
 The checks that need no GPU run in test-core: `NvRasterKernelsTest` (the cubin decodes to what was checked in, the ABI
 is consistent, params:with: lays out a struct) and `SoftwareGPURecorderTest`.

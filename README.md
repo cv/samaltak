@@ -44,16 +44,16 @@ For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smallta
 - [FFI and the fork's primitives](docs/ffi-fork.md) — which kernels could be typed exports, and why the keep/retire split stands
 - `docs/apps.md` — applications as Linux windows, run from source (AppWorld, Application, OmarchyTheme, apps/Weather)
 - `docs/uefi.md` — the VM as a UEFI application (QEMU, other machines, firmware exploration; the Spark uses the appliance)
-- `docs/linux-appliance.md` — how the DGX Spark runs Samaltak: the hosted VM on a minimal Linux (Ubuntu's NVIDIA kernel, busybox), the World on the image's own KMS screen and evdev input, NvComputeGPU on nvidia.ko, a USB stick (UKI) and an installer next to DGX OS, the first-boot checklist
+- `docs/linux-appliance.md` — how the DGX Spark runs Samaltak: the hosted VM on a minimal Linux (Ubuntu's NVIDIA kernel, busybox), the World on the image's own KMS screen and evdev input, NvComputeGPU on libcuda (the CUDA root), a USB stick (UKI) and an installer next to DGX OS, the first-boot checklist
 - `docs/remote.md` — the control service's token: samaltak-ctl open and connect, a bare-metal machine from another one; the remote display (VNC): starting it, connecting from Screen Sharing and TigerVNC, security, measurements against QEMU's VNC
-- `docs/nv-gpu.md` — NvComputeGPU (`--gpu nv`): the World rendered on the NVIDIA GB10 by the raster kernels through System-NV, presented through SDL_GPU; tests and frame times
+- `docs/nv-gpu.md` — NvComputeGPU (`--gpu nv`): the World rendered on the NVIDIA GB10 by the raster kernels through libcuda, presented through SDL_GPU or the appliance's KMS screen; tests and frame times
 - `docs/nv-kernels.md` — the Renderer's raster work as CUDA kernels for the NVIDIA GB10, their ABI, make test-nv
 - `docs/nv-shaders.md` — fragment shaders on the GB10: the image's GLSL front end (Graphics-Shaders) to CUDA, NVRTC in the VM for live edits, precompiled shaders, licensing
 - `docs/crypto.md` — hashes, MACs, ciphers and randomness in Smalltalk (System-Crypto)
 - `docs/agent.md` — the in-image coding agent: conversations, tools, the OpenAI and Anthropic Messages providers, API keys from the host
 - `docs/github.md` — source changes as GitHub branches, commits and pull requests through the REST API (GitHubClient, SourceFiler's GitHub store)
-- `docs/nv-rm.md` — System-NV: compute kernels on an NVIDIA GPU (the GB10) through the open kernel module's RM ioctls, from Smalltalk
+- `docs/nv-rm.md` — archived: System-NV's former RM path, compute kernels on the GB10 through the open kernel module's RM ioctls without NVIDIA's userspace, and the RM ABI it used (tag `archive/nv-rm`)
 - `docs/cuda.md` — NVIDIA's CUDA libraries from Smalltalk: bindings generated from NVIDIA's headers, device arrays, cuBLAS, cuRAND, cuOpt, numbers, the appliance's CUDA root
-- `docs/nv.md` — the NVIDIA GB10 through the open kernel module's RM ioctls, without NVIDIA's libraries: objects, structs, memory, channels, QMDs, cubins (`tools/nv-probe.py` runs it)
+- `docs/nv.md` — the NVIDIA GB10 from Smalltalk: libcuda the only backend, the compute protocol (NvCudaDevice, NvCudaMemory, NvCudaCompute), cubins for sm_121, what uses them
 - `docs/nv-gsp.md` — archived: how the open kernel module boots GB10's GSP through SEC2 and talks to GSP-RM (firmware, register sequence, RPC queues), the research for #20's dropped GSP boot from UEFI (the Spark uses the appliance; the code is at tag `archive/uefi-bare-metal`)
 - `prototypes/` — the HTML prototypes the UI started from

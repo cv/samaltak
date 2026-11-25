@@ -2,15 +2,15 @@
 
 A `FragmentShader` (Graphics-Canvas: `ShaderView`, Claude's Robot's `JugglerStage`) runs on an `NvComputeGPU`
 (docs/nv-gpu.md) as a CUDA kernel, made from the shader's GLSL by the image's own front end and compiled for the GB10
-(sm_121) either at build time (the shipped shaders) or in the image by NVIDIA's NVRTC, so shaders can be edited live. No
-CUDA driver library is involved: System-NV launches the cubin through the kernel module's RM (docs/nv-rm.md).
+(sm_121) either at build time (the shipped shaders) or in the image by NVIDIA's NVRTC, so shaders can be edited live. The
+cubin is launched through libcuda (NvCudaCompute, docs/nv.md), on the stream NvComputeGPU's raster kernels use.
 
     GLSL (FragmentShader's prelude + the source)
       → GlslShader (Graphics-Shaders: preprocess, parse, type-check; ShaderErrors at line:column)
       → GlslCudaWriter (CUDA C++: GLSL's types and built-ins in namespace gl, the kernel gl_fragment)
       → key: SHA-256 of that CUDA
       → cubin: this session's cache, else NvPrecompiledShaders (make nv-shaders), else NVRTC now (NvRtc → core_nvrtc_*)
-      → NvCubin / NvCompute: launched over the FragmentShader's texture, a thread a pixel
+      → NvCubin / NvCudaCompute: launched over the FragmentShader's texture, a thread a pixel
 
 ## The front end (Graphics-Shaders)
 
@@ -61,7 +61,7 @@ its arena (uncached GPU memory, a ring) instead.
 
 The writer keeps the shader's functions functions (`__noinline__`, `GlslCudaWriter keepsCalls`): for the Robot's
 shader that is a third of ptxas's time and 40 % less per frame than inlining everything (169 registers instead of 208,
-NVRTC at -O3; 128 for the precompiled cubin). Their frames and calls use the local memory NvCompute sizes per kernel.
+NVRTC at -O3; 128 for the precompiled cubin). Their frames and calls use the local memory the CUDA driver sizes per kernel.
 
 ## Compiling: NVRTC behind dlopen
 
@@ -105,7 +105,7 @@ builds the new one; the World keeps its frame rate meanwhile. A source that does
 to `Renderer reportShaderError:` (the toast of UI-Windows: `Shader not rebuilt ...: 866:1: error: expected ; before
 '}'`) and the old pipeline stays. The first source of a FragmentShader compiles at once (there is nothing to draw
 before it). A kernel's GPU memory (code, banks, data) goes when the last pipeline using it is released
-(`NvCompute>>forget:`).
+(`NvCudaCompute>>forget:` unloads its module).
 
 ## GPU side
 
@@ -115,10 +115,10 @@ ShaderError), its pipeline (one triangle over an RGBA8 target, unblended, no ver
 shaders and pipelines are the Renderer's, as before.
 
 NVRTC's code calls `sinf` and friends, whose large-argument paths read libdevice's tables (`__cudart_i2opi_f`) in
-`.nv.global.init` through a 64-bit address in constant bank 4 (`.rela.nv.constant4`, R_CUDA_64). NvCubin now reads a
-kernel's constant-bank relocations and its data sections (`NvKernel>>bankRelocations`, `globals`); NvCompute puts the
-data in GPU memory of the kernel's own and writes the addresses into the bank before uploading it.
-Relocations in the code itself (`.rela.text.<kernel>`) are still refused; none of these kernels has any.
+`.nv.global.init` through a 64-bit address in constant bank 4 (`.rela.nv.constant4`, R_CUDA_64). NvCubin reads a
+kernel's constant-bank relocations and its data sections (`NvKernel>>bankRelocations`, `globals`); the CUDA driver
+places the data and writes the addresses when it loads the cubin (the RM backend, archived in docs/nv-rm.md, did it
+itself).
 
 ## Numbers
 

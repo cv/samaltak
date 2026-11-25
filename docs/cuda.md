@@ -2,8 +2,8 @@
 
 Samaltak calls NVIDIA's CUDA libraries — the runtime, the driver API, cuBLAS, cuRAND, cuSOLVER, cuFFT and cuOpt
 so far; cuSPARSE next — through approved FFI exports generated from NVIDIA's own headers. They use NVIDIA's CUDA
-userspace (libcudart, libcuda), not System-NV's RM ioctls (docs/nv.md); where they are, NvComputeGPU's kernels (the
-World's rendering) run on them too (NvCompute and libcuda, below), else on the RM ioctls. This
+userspace (libcudart, libcuda), the only GPU backend (docs/nv.md): NvComputeGPU's kernels (the World's rendering) run
+on it too (NvCompute and libcuda, below), and where it is not the World renders in software. This
 was a spike on the DGX Spark (GB10, CUDA 13.0, driver 580.178.04); the result is solid enough to keep.
 
 ```smalltalk
@@ -304,7 +304,7 @@ Each is a `lib` block and a few `fn` lines in the spec; what they need beyond th
   pointer-array role); complex factorizations (the legacy `C`/`Z` functions; the 64-bit API takes complex types
   already).
 - **cuFFT, more**: 3-D transforms are bound (`cufftPlanMany`, rank up to 3) but not wrapped; advanced layouts
-  (`inembed`, strides) would need the tag to describe them; callbacks are device code (NvCompute's NVRTC).
+  (`inembed`, strides) would need the tag to describe them; callbacks are device code (NvRtc's).
 - **cuRAND**: bound (uniform and normal, float and double); quasi-random generators need
   `curandSetQuasiRandomGeneratorDimensions`, one line. Normal generation wants an even count.
 - **cuSPARSE** (generic API): descriptors (`cusparseCreateCsr`, `cusparseCreateDnVec`) are handles made from device
@@ -373,22 +373,17 @@ false`) in test-core; `CudaShowcaseGpuTest` and `GpuToolsGpuTest` in `make test-
 
 ## NvCompute and libcuda
 
-Where NVIDIA's CUDA userspace is (hosted with the driver, the appliance with the CUDA root below), NvCompute's kernels
-run on libcuda; System-NV's RM path stays for machines without it, and for the GPU knowledge it documents (docs/nv.md).
-`NvComputeGPU class>>backend` chooses: `SAMALTAK_NV_COMPUTE` (`cuda`, `rm`) if set, else libcuda where it and the
-runtime load and see a device, else RM. Both backends have one protocol, so NvComputeGPU and the NV fragment shaders
-run unchanged above them:
+NvComputeGPU's kernels (the World's rendering), the NV fragment shaders and `Cuda compute` launch on libcuda, the only
+GPU backend (docs/nv.md has the protocol): `NvCudaDevice` (the runtime's primary context on device 0), `NvCudaMemory`
+(`cudaMallocHost`, one address for both, a CUDA allocation the VM knows), `NvCudaCompute` (`cuModuleLoadData` once a
+cubin, `cuLaunchKernel` with the parameter area as one buffer; fences a word the stream writes with
+`cuStreamWriteValue64`, written when a fence is first asked about; timestamps a one-thread PTX kernel writing
+`%globaltimer`, compiled by the driver once, 18 ms). Where libcuda is not, `NvComputeGPU isAvailable` is false and
+`--gpu nv` renders in software, saying why. Until cv/samaltak#20's decision System-NV's own RM client was a second
+backend with the same protocol (`SAMALTAK_NV_COMPUTE=rm`); it is archived (docs/nv-rm.md, tag `archive/nv-rm`), and
+the numbers below compare the two as they were.
 
-| | RM (System-NV) | libcuda (System-CUDA) |
-| --- | --- | --- |
-| device | `NvDevice`: its own RM client, VA space, channel | `NvCudaDevice`: the runtime's primary context on device 0 |
-| memory | `NvMemory`: RM system memory mapped for both | `NvCudaMemory`: `cudaMallocHost`, one address for both, a CUDA allocation the VM knows |
-| launch | `NvCompute`: QMD and constant bank 0 built per launch | `NvCudaCompute`: `cuModuleLoadData` once a cubin, `cuLaunchKernel` with the parameter area as one buffer |
-| fences | semaphore releases on the channel | `cuStreamWriteValue64` of a word the CPU polls, written when a fence is first asked about |
-| timestamps | timestamp releases | a one-thread PTX kernel writing `%globaltimer` (compiled by the driver once, 18 ms) |
-| L2 flushes | host MEM_OPs | nothing: CUDA keeps the CPU coherent |
-
-The cubins are the same: the precompiled raster kernels (`NvRasterKernels`), NVRTC's shaders, the test kernels;
+The cubins: the precompiled raster kernels (`NvRasterKernels`), NVRTC's shaders, the test kernels;
 `NvKernel>>cubin` keeps the bytes the driver loads. Everything is on the default stream of the runtime's primary
 context, the one cuBLAS, cuRAND and `CudaArray` use: a kernel and a cuBLAS call on the same memory are ordered on the
 device, no host copy, no wait between. `Cuda compute` is the session's `NvCudaCompute`, `Cuda kernelNamed:source:`
@@ -410,12 +405,12 @@ the driver reads it; `cuModuleGetFunction`'s function handles remember their mod
 `cuModuleUnload` (`free:CUfunction`); `cuLaunchKernel`'s `extra` is a ByteArray (role `params`); `CUstream` is the
 runtime's `cudaStream_t` handle type (`alias`), so one stream id serves both libraries; `cudaMallocHost`'s memory is
 a live allocation like `cudaMalloc`'s. Not checked, as in C: the addresses a kernel's parameters hold and what its code
-does with them (the RM path's kernels reach only what is mapped in its VA space; libcuda's, on the GB10, the process).
+does with them (on the GB10 a kernel reaches the whole process).
 
 Numbers (GB10, `--jit opt`, `NvGpuMeasure report`; then the World on the appliance's screen path, `SAMALTAK_GPU=nv`
 `SAMALTAK_SCREEN=memory:1920x1080` under Xvfb, medians of 40 frames, two runs each):
 
-| | RM | libcuda |
+| | RM (archived) | libcuda |
 | --- | --- | --- |
 | fence round trip | 6 µs | 4 µs |
 | launch one block and wait | 7 µs | 7 µs (C: 5.2 µs with `cuStreamSynchronize`) |
@@ -427,7 +422,8 @@ Numbers (GB10, `--jit opt`, `NvGpuMeasure report`; then the World on the applian
 
 A launch costs the same either way; a frame of about 30 launches is 5-10 % slower on libcuda, all of it GPU time
 between the stamps: RM's textures are cached in the L2 without coherence (flushed and invalidated by hand), CUDA's
-pinned memory is coherent with the CPU. Interop between the RM path and CUDA stays where it was: host copies.
+pinned memory is coherent with the CPU. What libcuda gives instead: one backend, the CUDA libraries' stream and memory
+shared with the World's kernels, and no dependence on the RM ABI of one driver version.
 
 ## The World with the cu* libraries: the Linux appliance (the Spark)
 
@@ -436,7 +432,8 @@ libraries, so the demos above run on bare metal with nothing of DGX OS but its d
 was (it boots the World in 1-2 s and is what the UKI verifies) and one read-only squashfs, the **CUDA root**, is
 mounted at `/opt/cuda` beside it.
 
-    make linux-appliance-cuda          # OUT/linux-appliance/samaltak-cuda-13.squashfs (needs LINUX_GPU=nvidia's modules once)
+    make linux-appliance LINUX_GPU=nvidia   # the Spark's appliance, then its CUDA root: OUT/linux-appliance/samaltak-cuda-13.squashfs
+    make linux-appliance-cuda          # the CUDA root again, for the nvidia root in OUT (refuses QEMU's variants)
     make linux-appliance-cuda-test     # QEMU, no GPU: mounted, the libraries load, "no device" as CudaErrors, the VM goes on
     make linux-appliance-cuda-check    # this machine's GPU: the appliance's root + the squashfs by chroot (sudo), the GPU tests
     make linux-appliance-usb           # the stick carries it as a third partition when it is there
