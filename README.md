@@ -1,4 +1,4 @@
-# <img src="icons/samaltak.svg" width="48" align="center" alt=""> Samaltak
+# <img src="icons/samaltak.svg" width="48" align="absmiddle" alt=""> Samaltak
 
 A Smalltalk system with green threads and a GPU-composited UI (SDL3 + SDL_GPU on Metal or Vulkan), written entirely in Smalltalk and built from the text sources in `src/`: the compiler, class library, fonts, renderer, window system, browser, debugger, profiler, agent and remote control, and the VM itself. The VM and its platform layer are written in Lowtalk, a subset of Smalltalk (docs/lowtalk.md): run as Smalltalk it is a simulator you can debug in the image; translated to C (`vm/gen/`) it is the VM.
 
