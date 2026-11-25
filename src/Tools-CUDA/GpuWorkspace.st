@@ -64,12 +64,12 @@ CudaComparison sgemm: 4096
 CudaComparison gemm: 512 type: #float64
 
 "Matrices live in device memory; ⌘I on a, b or c: their values and a heat map"
-a := CudaMatrix uniformRows: 1000 cols: 1000
-b := CudaMatrix uniformRows: 1000 cols: 1000
-c := a * b
+a := CudaMatrix uniformRows: 1000 cols: 1000.
+b := CudaMatrix uniformRows: 1000 cols: 1000.
+c := a * b.
 (c at: 1 at: 1) - ((1 to: 1000) inject: 0 into: [:sum :k | sum + ((a at: 1 at: k) * (b at: k at: 1))])
 (c rows: 1 to: 3) collect: [:row | row first: 4]
-m := CudaMatrix rows: 2 cols: 3 values: #(1 2 3 4 5 6)
+m := CudaMatrix rows: 2 cols: 3 values: #(1 2 3 4 5 6).
 (m * (CudaMatrix rows: 3 cols: 2 values: #(1 0 0 1 1 1))) asRows
 '
 !
@@ -77,7 +77,7 @@ randSnippets
 	^'
 "cuRAND: random numbers made on the device; cuBLAS reduces them there"
 CudaComparison uniform: 10000000
-r := CudaArray uniform: 1000000 type: #float32
+r := CudaArray uniform: 1000000 type: #float32.
 r norm / 1000000 sqrt    "about 1 / 3 sqrt = 0.577"
 CudaComparison norm: 10000000
 '
