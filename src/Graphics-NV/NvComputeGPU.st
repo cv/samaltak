@@ -1,5 +1,5 @@
 SoftwareGPU subclass: #NvComputeGPU
-	instanceVariableNames: 'gpu compute kernels memories fences lastFence scratch starts batch batchStarts batchSlots batchTarget batchClip batchUsed arena arenaOffset stamps stampCount recent blocks cached gpuDirty l2Stale fragmentUniforms shaderKernels launchCount spans gpuSpan waitCount'
+	instanceVariableNames: 'gpu compute kernels memories fences lastFence scratch starts batch batchStarts batchSlots batchTarget batchClip batchUsed arena arenaOffset stamps stampCount recent blocks cached gpuDirty l2Stale fragmentUniforms shaderKernels launchCount spans gpuSpan ranges batchRanges waitCount'
 	classVariableNames: ''
 	package: 'Graphics-NV'!
 
@@ -24,6 +24,7 @@ setDisplay: aDisplay
 	fences := Dictionary new.
 	starts := Dictionary new.
 	lastFence := launchCount := gpuSpan := waitCount := 0.
+	ranges := Dictionary new.
 	self resetBatch.
 	gpu := self class openDevice.
 	stampCount := 0.
@@ -90,6 +91,7 @@ close
 		memories := Dictionary new.
 		cached := Set new.
 		fences := Dictionary new.
+		ranges := Dictionary new.
 		shaderKernels := Dictionary new.
 		fragmentUniforms := Dictionary new]
 ! !
@@ -320,13 +322,14 @@ resetBatch
 	batchStarts := OrderedCollection new.
 	batchSlots := 0.
 	batchTarget := batchClip := nil.
-	batchUsed := Set new
+	batchUsed := Set new.
+	batchRanges := OrderedCollection new
 !
 flush
 	"Launch the batched draws: raster_batch_prims, raster_batch_tiles over the union of their clips."
-	| draws startsOf slots target clip used n bytes at p base |
+	| draws startsOf slots target clip used read n bytes at p base |
 	batch isEmpty ifTrue: [^self].
-	draws := batch. startsOf := batchStarts. slots := batchSlots. target := batchTarget. clip := batchClip. used := batchUsed.
+	draws := batch. startsOf := batchStarts. slots := batchSlots. target := batchTarget. clip := batchClip. used := batchUsed. read := batchRanges.
 	self resetBatch.
 	clip isNil ifTrue: [^self].
 	n := draws size.
@@ -348,7 +351,8 @@ flush
 	used := used asArray, (Array with: target with: scratch cpuAddress with: arena cpuAddress).
 	self launch: 'raster_batch_prims' grid: slots + NvRasterKernels batchChunk - 1 // NvRasterKernels batchChunk parameters: p using: used.
 	self launch: 'raster_batch_tiles' grid: ((clip at: 3) - (clip at: 1) + 15 // 16) * ((clip at: 4) - (clip at: 2) + 15 // 16)
-		parameters: p using: used
+		parameters: p using: used.
+	read do: [:r | (ranges at: r first ifAbsentPut: [OrderedCollection new]) add: (Array with: (r at: 2) with: (r at: 3) with: lastFence)]
 !
 arenaFor: byteCount
 	"Where in the arena (GPU memory for batches' draws, used as a ring) byteCount bytes go; when it starts over, the GPU must be done with what it held."
@@ -356,7 +360,7 @@ arenaFor: byteCount
 	(arena isNil or: [arena size < byteCount]) ifTrue: [
 		arena isNil ifFalse: [self free: arena cpuAddress].
 		arena := nil.
-		arena := memories at: (self allocateBuffer: (byteCount * 2 max: 16r100000)).
+		arena := memories at: (self allocateBuffer: (byteCount * 2 max: 16r400000)).
 		arenaOffset := 0].
 	arenaOffset + byteCount > arena size ifTrue: [
 		self touch: arena cpuAddress.
@@ -405,14 +409,42 @@ touch: address
 	"The CPU is about to read or write the memory at address: wait for the launches that use it (the batched draws launched first), and if the GPU caches it, have the L2 write what kernels wrote back (the CPU reads it, or would be overwritten by it later)."
 	| f |
 	self flush.
-	f := fences removeKey: address ifAbsent: [nil].
-	f isNil ifFalse: [self wait: f].
+	f := fences removeKey: address ifAbsent: [0].
+	(ranges removeKey: address ifAbsent: [#()]) do: [:r | f := f max: (r at: 3)].
+	f > 0 ifTrue: [self wait: f].
 	((cached includes: address) and: [gpuDirty]) ifTrue: [self writeBackL2]
+!
+touch: address from: start to: stop
+	"The CPU is about to write bytes start to stop - 1 of the buffer at address (uncached): wait only for the draws that read them, batched or launched, not for every launch that used the buffer: the Renderer writes each list into its own range of its vertex ring while the GPU still draws the earlier ones."
+	| f list |
+	(batchRanges anySatisfy: [:r | r first = address and: [(r at: 2) < stop and: [start < (r at: 3)]]]) ifTrue: [self flush].
+	f := fences removeKey: address ifAbsent: [0].
+	list := ranges at: address ifAbsent: [nil].
+	list isNil ifFalse: [
+		list := list reject: [:r |
+			((r at: 1) < stop and: [start < (r at: 2)])
+				ifTrue: [f := f max: (r at: 3). true]
+				ifFalse: [false]].
+		list size > 64 ifTrue: [| done |
+			done := compute channel completedValue.
+			list := list reject: [:r | (r at: 3) <= done]].
+		list isEmpty ifTrue: [ranges removeKey: address] ifFalse: [ranges at: address put: list]].
+	f > 0 ifTrue: [self wait: f]
 !
 wait: aFence
 	"Wait until the launch whose fence is aFence has run."
 	waitCount := waitCount + 1.
 	compute wait: aFence
+!
+uploadBuffer: buffer bytes: bytes count: byteCount offset: dstOffset
+	"SoftwareGPU's, but the CPU waits only for the draws reading the range it writes (touch:from:to:)."
+	| b |
+	b := self at: buffer kind: #buffer for: 'gpuUploadBuffer'.
+	(byteCount between: 0 and: (self byteSizeOf: bytes)) ifFalse: [^self fail: 'gpuUploadBuffer' because: 'bad byte count'].
+	byteCount = 0 ifTrue: [^self].
+	(dstOffset >= 0 and: [dstOffset + byteCount <= b size]) ifFalse: [^self fail: 'gpuUploadBuffer' because: 'upload out of buffer bounds'].
+	self touch: b address from: dstOffset to: dstOffset + byteCount.
+	Machine copy: byteCount from: bytes at: 0 to: b address at: dstOffset
 !
 writeBackL2
 	"Wait until the L2 has written every dirty line back (NvChannel>>flushL2 and a fence)."
@@ -422,12 +454,30 @@ writeBackL2
 	ch wait: ch fence.
 	gpuDirty := false
 !
-uploadTexture: t bytes: bytes x: x y: y width: w height: h bytesPerRow: bytesPerRow
-	"The CPU wrote it: the L2 drops its lines before the next launch."
-	| r |
-	r := super uploadTexture: t bytes: bytes x: x y: y width: w height: h bytesPerRow: bytesPerRow.
-	l2Stale := true.
-	^r
+uploadTexture: texture bytes: bytes x: x y: y width: w height: h bytesPerRow: bytesPerRow
+	"Up to 256 KB go through the arena: the CPU copies the rows there and raster_copy writes them into the texture in launch order, as SDL_GPU's copy pass does, so the CPU waits for no launch still drawing with the texture (a glyph atlas taking a glyph, a Form changed between two draws of it). Larger ones wait for those launches and copy (SoftwareGPU's), and the L2 drops its lines before the next launch."
+	| t bpp n at p r |
+	t := self at: texture kind: #texture for: 'gpuUploadTexture'.
+	bpp := self bytesPerPixel: t format.
+	n := w * h * bpp.
+	(n <= 262144 and: [h <= 65535 and: [x >= 0 and: [y >= 0 and: [w > 0 and: [h > 0 and: [x + w <= t width and: [y + h <= t height
+		and: [bytesPerRow >= (w * bpp) and: [(self byteSizeOf: bytes) >= ((h - 1) * bytesPerRow + (w * bpp))]]]]]]]]])
+		ifFalse: [
+			r := super uploadTexture: texture bytes: bytes x: x y: y width: w height: h bytesPerRow: bytesPerRow.
+			l2Stale := true.
+			^r].
+	self flush.
+	at := self arenaFor: n.
+	SoftwareRaster copy: arena cpuAddress + at stride: w * bpp from: bytes stride: bytesPerRow width: w height: h bytesPerPixel: bpp mode: 0.
+	p := ByteArray new: (NvRasterKernels sizeOf: #RasterCopyParams).
+	self put: (self gpuAddress: t address) + ((y * t width + x) * bpp) at: 0 in: p.
+	self put: t width * bpp at: 8 in: p.
+	self put: arena gpuAddress + at at: 16 in: p.
+	self put: w * bpp at: 24 in: p.
+	self put: w at: 32 in: p.
+	self put: h at: 40 in: p.
+	self put: bpp at: 48 in: p.
+	self launch: 'raster_copy' grid: (Array with: w + 255 // 256 with: h) parameters: p using: (Array with: t address with: arena cpuAddress)
 !
 fill: address count: n bytesPerPixel: bpp value: anInteger
 	| p |
@@ -470,7 +520,7 @@ draw: st buffer: aBuffer offset: byteOffset first: first count: count
 	batch add: p.
 	batchStarts add: batchSlots.
 	batchSlots := batchSlots + slots.
-	batchUsed add: aBuffer address.
+	batchRanges add: (Array with: aBuffer address with: first * 40 + byteOffset with: first + count * 40 + byteOffset).
 	texture = 0 ifFalse: [batchUsed add: texture].
 	"The scissor within the target holds the draw's clip; the batch's tiles cover the union."
 	x0 := (st at: 6) max: 0.
