@@ -1,6 +1,6 @@
 Object subclass: #CudaArray
 	instanceVariableNames: 'address count type session'
-	classVariableNames: ''
+	classVariableNames: 'Arrays'
 	package: 'System-CUDA'!
 
 CudaArray comment: 'I am an array of count numbers in the CUDA device''s memory (cudaMalloc), of type #float32 or #float64, #complex64 or #complex128 (interleaved pairs of float32 or float64, as cuFFT and cuBLAS keep complex numbers: my values are Complex), or #int32 / #int64 (pivots and devInfo for cuSOLVER). withAll: copies Smalltalk numbers to the device, asArray copies them back; fillUniform fills me on the device (cuRAND); norm, + and - run there (cuBLAS); fft and ifft transform me there (cuFFT: a real array''s fft is its half spectrum, n // 2 + 1 Complex values; ifftReal: n is the inverse). My printString says my type, size and first values, as the Inspector shows. release frees my memory at once; otherwise it is freed when I am collected (CudaReleaser). A CudaArray of an earlier VM session (a restored snapshot) holds nothing: isAlive is false.
@@ -51,6 +51,23 @@ complexTypeOf: aSymbol
 	aSymbol == #float32 ifTrue: [^#complex64].
 	aSymbol == #float64 ifTrue: [^#complex128].
 	^aSymbol
+! !
+
+!CudaArray class methodsFor: 'live arrays'!
+remember: anArray
+	"Keep anArray, weakly, for liveArrays."
+	| slot |
+	Arrays isNil ifTrue: [Arrays := WeakArray new: 64].
+	slot := (1 to: Arrays size) detect: [:i | | each | each := Arrays at: i. each isNil or: [each isAlive not]] ifNone: [nil].
+	slot isNil ifTrue: [
+		slot := Arrays size + 1.
+		Arrays := (WeakArray new: Arrays size * 2) replaceFrom: 1 to: Arrays size with: Arrays startingAt: 1; yourself].
+	Arrays at: slot put: anArray
+!
+liveArrays
+	"The CudaArrays (and CudaMatrices) of this VM session that hold device memory, as the GPU Monitor lists them."
+	Arrays isNil ifTrue: [^#()].
+	^(Arrays select: [:each | each notNil and: [each isAlive]]) asArray
 ! !
 
 !CudaArray class methodsFor: 'converting'!
@@ -108,7 +125,8 @@ setCount: anInteger type: aSymbol
 	type := aSymbol.
 	address := CudaTrace hostOperation: 'cudaMalloc' detail: [self describe] during: [CudaRuntimeAPI cudaMalloc: (self byteSize max: 8)].
 	session := CudaLibraryAPI session.
-	WeakRegistry default add: self executor: (CudaReleaser kind: #memory value: address session: session)
+	WeakRegistry default add: self executor: (CudaReleaser kind: #memory value: address session: session).
+	self class remember: self
 ! !
 
 !CudaArray methodsFor: 'accessing'!
@@ -370,6 +388,13 @@ release
 	WeakRegistry default remove: self
 ! !
 
+!CudaArray methodsFor: 'inspecting'!
+inspectorExtraFields
+	"What an Inspector shows of me besides my variables: name -> a block of me (evaluated at each refresh: copies from the device)."
+	^{'device' -> [:a | a isAlive ifTrue: [a describe , ' at 16r' , (a address printString: 16)] ifFalse: ['released']].
+		'first values' -> [:a | a isAlive ifTrue: [CudaTrace quietly: [a first: 64]] ifFalse: [#()]]}
+! !
+
 !CudaArray methodsFor: 'printing'!
 describe
 	"float32[1000] (4 KB), as the GPU Monitor lists me."
@@ -385,7 +410,7 @@ printOn: aStream
 	aStream nextPutAll: 'a '; nextPutAll: self class name; space; nextPutAll: type; nextPutAll: self shapeString.
 	self isAlive ifFalse: [^aStream nextPutAll: ' (released)'].
 	aStream nextPutAll: ' ('; nextPutAll: self sizeString; nextPutAll: ') '.
-	[self printValuesOn: aStream] on: Error do: [:e | aStream nextPutAll: '(unreadable: '; nextPutAll: e messageText; nextPut: $)]
+	[CudaTrace quietly: [self printValuesOn: aStream]] on: Error do: [:e | aStream nextPutAll: '(unreadable: '; nextPutAll: e messageText; nextPut: $)]
 !
 printValue: v on: aStream
 	"4 decimals; a Complex as 1.0000+2.0000i."

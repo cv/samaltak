@@ -25,8 +25,8 @@ setObject: anObject bindings: aDictionaryOrNil
 	fields items: (InspectorField fieldsOf: anObject).
 	valueView := ToolTextEditor new name: 'value'; title: 'value'; readOnly: true; highlighting: false; yourself.
 	valueHeader := PaneHeader title: 'Value' right: (self className: anObject).
-	top := (anObject isKindOf: Form)
-		ifTrue: [self pixelRowOn: anObject]
+	top := (self pixelFormOf: anObject) notNil
+		ifTrue: [self pixelRowOn: (self pixelFormOf: anObject)]
 		ifFalse: [
 			(Row with: (Array
 				with: ((self pane: fields title: 'Fields') flex: 0.8)
@@ -48,6 +48,12 @@ minimumWindowExtent
 ! !
 
 !Inspector methodsFor: 'pixels'!
+pixelFormOf: anObject
+	"The picture I show of anObject: a Form itself, or what it answers to inspectorForm (a CudaMatrix's heat map); nil for none."
+	(anObject isKindOf: Form) ifTrue: [^anObject].
+	(anObject respondsTo: #inspectorForm) ifFalse: [^nil].
+	^[anObject inspectorForm] on: Error do: [:e | e return: nil]
+!
 pixelRowOn: aForm
 	"Fields over the value on the left, the pixels on the right."
 	pixelView := PixelView new name: 'pixels'; form: aForm; yourself.

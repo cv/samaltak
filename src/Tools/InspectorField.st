@@ -3,7 +3,7 @@ Object subclass: #InspectorField
 	classVariableNames: ''
 	package: 'Tools'!
 
-InspectorField comment: 'I am one row of an Inspector: self, class, a named instance variable (#ivar, key = its index), an indexed slot (#index, key = the index) or a dictionary key (#key). I fetch my value from the inspected object every time, so the inspector shows the object as it is now.'!
+InspectorField comment: 'I am one row of an Inspector: self, class, a named instance variable (#ivar, key = its index), an indexed slot (#index, key = the index), a dictionary key (#key) or a value the object computes for its inspectors (#computed, key = a block of the object: inspectorExtraFields, e.g. a CudaArray''s values copied from the device). I fetch my value from the inspected object every time, so the inspector shows the object as it is now.'!
 
 !InspectorField methodsFor: 'accessing'!
 setName: aString kind: aSymbol key: anObject
@@ -32,6 +32,7 @@ valueIn: anObject
 	kind == #ivar ifTrue: [^anObject instVarAt: key].
 	kind == #index ifTrue: [^(anObject isKindOf: OrderedCollection) ifTrue: [anObject at: key] ifFalse: [anObject basicAt: key]].
 	kind == #key ifTrue: [^anObject at: key ifAbsent: [nil]].
+	kind == #computed ifTrue: [^key value: anObject].
 	^nil
 !
 printOn: aStream
@@ -54,6 +55,8 @@ fieldsOf: anObject
 			do: [:k | fields add: (self name: k printString kind: #key key: k)].
 		^fields asArray].
 	cls allInstVarNames doWithIndex: [:ivar :i | fields add: (self name: ivar kind: #ivar key: i)].
+	(anObject respondsTo: #inspectorExtraFields) ifTrue: [
+		anObject inspectorExtraFields do: [:each | fields add: (self name: each key kind: #computed key: each value)]].
 	(anObject isKindOf: OrderedCollection) ifTrue: [
 		1 to: (anObject size min: 500) do: [:i | fields add: (self name: i printString kind: #index key: i)].
 		^fields asArray].

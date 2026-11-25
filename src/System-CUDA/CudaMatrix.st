@@ -314,6 +314,12 @@ ifftRealRows: c
 	^self ifftReal: {c} batch: rows
 ! !
 
+!CudaMatrix methodsFor: 'inspecting'!
+inspectorExtraFields
+	"Besides an array's: the top left corner, up to 8 x 8."
+	^super inspectorExtraFields , {'top left' -> [:m | (m isAlive and: [m rows > 0]) ifTrue: [CudaTrace quietly: [(m rows: 1 to: (m rows min: 8)) collect: [:row | row first: (m cols min: 8)]]] ifFalse: [#()]]}
+! !
+
 !CudaMatrix methodsFor: 'printing'!
 shapeString
 	rows isNil ifTrue: [^super shapeString].
