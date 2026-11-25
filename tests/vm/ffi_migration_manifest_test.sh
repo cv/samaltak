@@ -72,7 +72,7 @@ reject counted-borrow-result "migration|migration_readonly|bytesWithLength(bytes
 reject missing-sync-contract "migration|migration_readonly|i32(bytesWithLength)|$LIB"
 reject unrecognized-sync-contract "migration|migration_readonly|i32(bytesWithLength)|syncWrite|$LIB"
 reject scalar-with-sync-contract "migration|migration_calls|i32()|syncBorrow|$LIB"
-reject excess-expanded-slots "migration|migration_readonly|i32(bytesWithLength,bytesWithLength,bytesWithLength,u64)|syncBorrow|$LIB"
+reject excess-expanded-slots "migration|migration_readonly|i32(bytesWithLength,bytesWithLength,bytesWithLength,bytesWithLength,bytesWithLength,bytesWithLength,bytesWithLength,bytesWithLength,u64)|syncBorrow|$LIB"
 reject platform-namespace "platform|migration_step|i32(i32)|$LIB"
 reject builtin-core-namespace "vm:core|migration_step|i32(i32)|$LIB"
 reject integer-magnitude-argument "migration|migration_readonly|i32(integerMagnitude)|syncBorrow|$LIB"

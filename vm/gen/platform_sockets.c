@@ -47,6 +47,19 @@ int32_t platform_sockets_accept(int32_t s, bool *would_block)
     return wrap(c);
 }
 
+#if defined(__x86_64__)
+/* PlatformSockets>>add:kind:pointer: */
+int32_t platform_sockets_add(int fd, int kind, void *ptr)
+{
+    int32_t h;
+    h = reserve_descriptor(kind, ptr);
+    if (h != 0) {
+        install_descriptor(fd, h);
+    }
+    return h;
+}
+
+#else
 /* PlatformSockets>>add:kind:pointer: */
 int32_t add(int fd, int kind, void *ptr)
 {
@@ -58,6 +71,7 @@ int32_t add(int fd, int kind, void *ptr)
     return h;
 }
 
+#endif
 /* PlatformSockets>>anyArmed */
 bool any_armed(void)
 {
@@ -618,6 +632,20 @@ ssize_t platform_sockets_send(int32_t s, const void *buf, uint64_t n)
     return platform_sockets_write(s, PF_FD_SOCKET, buf, n);
 }
 
+#if defined(__x86_64__)
+/* PlatformSockets>>wrap: */
+static int32_t wrap(int fd)
+{
+    int32_t h;
+    socket_opened(fd);
+    h = platform_sockets_add(fd, PF_FD_SOCKET, NULL);
+    if (h == 0) {
+        close(fd);
+    }
+    return h;
+}
+
+#else
 /* PlatformSockets>>wrap: */
 static int32_t wrap(int fd)
 {
@@ -630,6 +658,7 @@ static int32_t wrap(int fd)
     return h;
 }
 
+#endif
 /* PlatformSockets>>write:kind:bytes:count: */
 static ssize_t platform_sockets_write(int32_t h, int kind, const void *buf, uint64_t n)
 {

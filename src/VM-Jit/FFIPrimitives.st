@@ -1,6 +1,6 @@
 VMPrimitiveModule subclass: #FFIPrimitives
 	instanceVariableNames: 'ffiStubs runtimeNative bigint mathNames mathSignatures platformNames platformSignatures bindingSession bindingCount bindingOwners bindingEntries bindingUntryable bindingArities bindingResultTags bindingSerial bindingSerials boundSites boundSiteCount boundSiteTrace boundTraceCounts ownedRows ownedReserved ownedSession ownedSerial'
-	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_PLATFORM_EXEC FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED FFI_BOUND_SITE_LIMIT FFI_OWNED_LIMIT FFI_OWNED_BYTE_LIMIT FFI_SIGNATURE_BYTES'
+	classVariableNames: 'FFI_MEMCMP FFI_PLATFORM_BASE FFI_PLATFORM_EXEC FFI_DYNAMIC FFI_BINDING_LIMIT FFI_BOUND_REJECTED FFI_BOUND_SITE_LIMIT FFI_OWNED_LIMIT FFI_OWNED_BYTE_LIMIT FFI_SLOT_LIMIT FFI_SIGNATURE_BYTES'
 	package: 'VM-Jit'!
 
 FFIPrimitives comment: 'Prepare resolves an approved symbol and exact signature to a process-local wrapper. A bound send uses a session-tagged index checked against a VM-managed weak receiver reference. Saved images rebind from the symbolic descriptor. Native code must not reenter the VM or retain borrowed memory.'!
@@ -35,7 +35,9 @@ initialize
 	FFI_BOUND_REJECTED := 1.
 	FFI_OWNED_LIMIT := 16.
 	FFI_OWNED_BYTE_LIMIT := 67108864.
-	FFI_SIGNATURE_BYTES := 8 "six argument tags, the result tag, NUL"
+	"Native C slots of a prepared call: a slice or magnitude takes two."
+	FFI_SLOT_LIMIT := 16.
+	FFI_SIGNATURE_BYTES := FFI_SLOT_LIMIT + 2 "the argument tags, the result tag, NUL"
 ! !
 
 !FFIPrimitives methodsFor: 'bound primitives'!
@@ -325,7 +327,7 @@ prepareEntry: descriptor into: arity result: resultOut untryable: untryable stat
 	((self isImmutable: libraryOop) and: [(self isImmutable: symbolOop) and: [
 		self isImmutable: tagOop]]) ifFalse: [^0].
 	count := self byteCount: tagOop.
-	count > 6 ifTrue: [^0].
+	count > FFI_SLOT_LIMIT ifTrue: [^0].
 	n := count asInt32.
 	((self intVal: resultOop) < 1 or: [(self intVal: resultOop) > 15]) ifTrue: [^0].
 	result := (self intVal: resultOop) asInt32.
@@ -335,15 +337,16 @@ prepareEntry: descriptor into: arity result: resultOut untryable: untryable stat
 	libLen := self copyName: libraryOop into: library.
 	symLen := self copyName: symbolOop into: symbol.
 	(libLen = 0 or: [symLen = 0]) ifTrue: [^0].
-	tags := self local: 'uint8_t[6]'.
+	tags := self local: 'uint8_t[FFI_SLOT_LIMIT]'.
 	libc memcpy: tags from: (self bytesOf: tagOop) size: count.
 	slots := n.
 	0 to: n - 1 do: [:i |
 		((tags at: i) >= 8) ifTrue: [slots := slots + 1]].
-	slots > 6 ifTrue: [^0].
+	slots > FFI_SLOT_LIMIT ifTrue: [^0].
 	staticOnly ifTrue: [
-		"The static table contains only core wrappers, never a platform exec."
+		"The static table contains only core wrappers, never a platform exec, of at most six packed nibbles."
 		(libc strcmp: (self cCoerce: library to: 'const char *') with: 'vm:core') ~= 0 ifTrue: [^0].
+		n > 6 ifTrue: [^0].
 		signature := 0 asUInt32.
 		0 to: n - 1 do: [:i |
 			tag := tags at: i.
@@ -502,6 +505,8 @@ resolve: library length: libLen symbol: symbol length: symLen types: tags count:
 		signature at: i put: t.
 		sig := ((sig asUInt64 << 4) bitOr: t asUInt64) asUInt32].
 	sig := ((sig asUInt64 << 4) bitOr: result asUInt64) asUInt32.
+	"Nibbles hold six argument tags; no fixed row is longer."
+	n > 6 ifTrue: [sig := 0 asUInt32].
 	signature at: n put: result asUInt8.
 	signature at: n + 1 put: 0.
 	(libc strcmp: lib with: 'libm') = 0 ifTrue: [

@@ -1794,7 +1794,7 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_ou
     uint8_t *symbol;
     size_t lib_len;
     size_t sym_len;
-    uint8_t local_3[6];
+    uint8_t local_3[16];
     uint8_t *tags;
     int32_t i;
     int64_t signature;
@@ -1818,7 +1818,7 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_ou
         return 0;
     }
     count = 8 * (uint64_t)(uint32_t)*(uint64_t *)tag_oop - (uint64_t)((int32_t)(((*(uint64_t *)tag_oop) >> H_FMT_SHIFT) & H_FMT_MASK) - F_BYTES);
-    if (count > 6) {
+    if (count > FFI_SLOT_LIMIT) {
         return 0;
     }
     n = (int32_t)count;
@@ -1847,11 +1847,14 @@ static uint64_t prepare_entry(oop descriptor, int32_t *arity, int32_t *result_ou
             slots = slots + 1;
         }
     }
-    if (slots > 6) {
+    if (slots > FFI_SLOT_LIMIT) {
         return 0;
     }
     if (static_only) {
         if (strcmp((const char *)library, "vm:core") != 0) {
+            return 0;
+        }
+        if (n > 6) {
             return 0;
         }
         signature = 0U;
@@ -2038,7 +2041,7 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
     const char *name;
     const char *lib;
     int64_t sig;
-    uint8_t local[8];
+    uint8_t local[18];
     uint8_t *signature;
     bool has_pointer;
     bool has_vetted_argument;
@@ -2087,6 +2090,9 @@ static int32_t ffi_primitives_resolve(const uint8_t *library, size_t lib_len, co
         sig = (uint32_t)((((uint64_t)sig) << 4) | ((uint64_t)t));
     }
     sig = (uint32_t)((((uint64_t)sig) << 4) | ((uint64_t)result));
+    if (n > 6) {
+        sig = 0U;
+    }
     signature[n] = (uint8_t)result;
     signature[n + 1] = 0;
     if (strcmp(lib, "libm") == 0) {

@@ -56,6 +56,56 @@ tryInvoke6: a with: b with: c with: d with: e with: f
 	<primitive: 'ffiBoundInvoke'>
 	self prepare ifFalse: [^false].
 	^self retryInvoke6: a with: b with: c with: d with: e with: f
+!
+tryInvoke7: a with: b with: c with: d with: e with: f with: g
+	<primitive: 'ffiBoundInvoke'>
+	self prepare ifFalse: [^false].
+	^self retryInvoke7: a with: b with: c with: d with: e with: f with: g
+!
+tryInvoke8: a with: b with: c with: d with: e with: f with: g with: h
+	<primitive: 'ffiBoundInvoke'>
+	self prepare ifFalse: [^false].
+	^self retryInvoke8: a with: b with: c with: d with: e with: f with: g with: h
+!
+tryInvoke9: a with: b with: c with: d with: e with: f with: g with: h with: i
+	<primitive: 'ffiBoundInvoke'>
+	self prepare ifFalse: [^false].
+	^self retryInvoke9: a with: b with: c with: d with: e with: f with: g with: h with: i
+!
+tryInvoke10: a with: b with: c with: d with: e with: f with: g with: h with: i with: j
+	<primitive: 'ffiBoundInvoke'>
+	self prepare ifFalse: [^false].
+	^self retryInvoke10: a with: b with: c with: d with: e with: f with: g with: h with: i with: j
+!
+tryInvoke11: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k
+	<primitive: 'ffiBoundInvoke'>
+	self prepare ifFalse: [^false].
+	^self retryInvoke11: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k
+!
+tryInvoke12: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k with: l
+	<primitive: 'ffiBoundInvoke'>
+	self prepare ifFalse: [^false].
+	^self retryInvoke12: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k with: l
+!
+tryInvoke13: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k with: l with: m
+	<primitive: 'ffiBoundInvoke'>
+	self prepare ifFalse: [^false].
+	^self retryInvoke13: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k with: l with: m
+!
+tryInvoke14: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k with: l with: m with: n
+	<primitive: 'ffiBoundInvoke'>
+	self prepare ifFalse: [^false].
+	^self retryInvoke14: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k with: l with: m with: n
+!
+tryInvoke15: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k with: l with: m with: n with: o
+	<primitive: 'ffiBoundInvoke'>
+	self prepare ifFalse: [^false].
+	^self retryInvoke15: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k with: l with: m with: n with: o
+!
+tryInvoke16: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k with: l with: m with: n with: o with: p
+	<primitive: 'ffiBoundInvoke'>
+	self prepare ifFalse: [^false].
+	^self retryInvoke16: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k with: l with: m with: n with: o with: p
 ! !
 
 !FFIBinding methodsFor: 'private'!
@@ -101,6 +151,46 @@ retryInvoke5: a with: b with: c with: d with: e
 	^false
 !
 retryInvoke6: a with: b with: c with: d with: e with: f
+	<primitive: 'ffiBoundInvoke'>
+	^false
+!
+retryInvoke7: a with: b with: c with: d with: e with: f with: g
+	<primitive: 'ffiBoundInvoke'>
+	^false
+!
+retryInvoke8: a with: b with: c with: d with: e with: f with: g with: h
+	<primitive: 'ffiBoundInvoke'>
+	^false
+!
+retryInvoke9: a with: b with: c with: d with: e with: f with: g with: h with: i
+	<primitive: 'ffiBoundInvoke'>
+	^false
+!
+retryInvoke10: a with: b with: c with: d with: e with: f with: g with: h with: i with: j
+	<primitive: 'ffiBoundInvoke'>
+	^false
+!
+retryInvoke11: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k
+	<primitive: 'ffiBoundInvoke'>
+	^false
+!
+retryInvoke12: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k with: l
+	<primitive: 'ffiBoundInvoke'>
+	^false
+!
+retryInvoke13: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k with: l with: m
+	<primitive: 'ffiBoundInvoke'>
+	^false
+!
+retryInvoke14: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k with: l with: m with: n
+	<primitive: 'ffiBoundInvoke'>
+	^false
+!
+retryInvoke15: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k with: l with: m with: n with: o
+	<primitive: 'ffiBoundInvoke'>
+	^false
+!
+retryInvoke16: a with: b with: c with: d with: e with: f with: g with: h with: i with: j with: k with: l with: m with: n with: o with: p
 	<primitive: 'ffiBoundInvoke'>
 	^false
 ! !

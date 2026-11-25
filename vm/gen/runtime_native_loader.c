@@ -411,7 +411,7 @@ exit_argument_tag:;
             contexts = contexts + 1;
         }
         slots = slots + (tag == 8 ? 2 : 1);
-        if (slots > NATIVE_GRANT_ARITY_MAX) {
+        if (slots > (notification ? NATIVE_NOTIFY_ARITY_MAX : NATIVE_GRANT_ARITY_MAX)) {
             return -1;
         }
         row->types[n] = (uint8_t)tag;

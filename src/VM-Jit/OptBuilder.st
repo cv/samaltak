@@ -1610,7 +1610,7 @@ sendSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 	(runtime flag: runtime inlineFlag)
 		ifTrue: [(self inlineSend: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r) ifTrue: [^-1]]
 		ifFalse: [
-			((runtime flag: runtime ffiSiteFlag) and: [kind = 0 and: [argc <= 6 and: [self genericBoundFFICall: sel argc: argc pc: pc act: a rcvSlot: r]]]) ifTrue: [^-1]].
+			((runtime flag: runtime ffiSiteFlag) and: [kind = 0 and: [argc <= 16 and: [self genericBoundFFICall: sel argc: argc pc: pc act: a rcvSlot: r]]]) ifTrue: [^-1]].
 	^self callSelector: sel argc: argc kind: kind special: k pc: pc act: a rcvSlot: r
 !
 genericBoundFFICall: sel argc: argc pc: pc act: a rcvSlot: r
@@ -1732,7 +1732,7 @@ monomorphicSend: sel to: rcv class: cls argc: argc kind: kind pc: pc act: a rcvS
 	cls = memory clsContext ifTrue: [^false].
 	m := interpreter lookupMethod: cls selector: sel.
 	m = 0 ifTrue: [^false].
-	((runtime flag: runtime ffiSiteFlag) and: [kind = 0 and: [argc <= 6 and: [
+	((runtime flag: runtime ffiSiteFlag) and: [kind = 0 and: [argc <= 16 and: [
 		self boundFFICall: m selector: sel receiver: rcv class: cls argc: argc pc: pc act: a rcvSlot: r]]]) ifTrue: [^true].
 	v := s >= 0 ifTrue: [self guard: rcv class: cls state: s] ifFalse: [rcv].
 	^self sendResolved: m selector: sel to: v class: cls argc: argc kind: kind pc: pc act: a rcvSlot: r

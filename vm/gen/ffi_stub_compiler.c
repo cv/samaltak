@@ -4,7 +4,8 @@
 
 static uint32_t published_count;
 static uint64_t stub_entries[4096];
-static uint32_t stub_keys[4096];
+static uint64_t stub_keys[4096];
+static uint64_t stub_keys_high[4096];
 static uint64_t stub_targets[4096];
 static uint32_t wrapped_count;
 
@@ -14,7 +15,7 @@ static uint32_t encode_text_x64(uint8_t *start, uint64_t target, uint64_t prepar
 static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_t *types, int32_t n, int32_t result, int32_t operation);
 static uint32_t encode_x64(uint8_t *start, uint64_t target, uint8_t *types, int32_t n, int32_t result);
 #else
-static int32_t arm64_restore_wrapped_gp(int32_t gp_save, int32_t fp_save, int32_t fp_base, int32_t local_bytes, bool has_args, int32_t start, uint32_t *buf);
+static int32_t arm64_restore_wrapped_gp(int32_t gp_save, int32_t gp_base, int32_t fp_save, int32_t fp_base, int32_t local_bytes, bool has_args, int32_t start, uint32_t *buf);
 static void arm64_wrapped_branch(uint32_t opcode, int32_t site, int32_t dest, uint32_t mask, uint32_t *buf);
 static int32_t arm64_wrapped_call(uint64_t address, int32_t j, uint32_t *buf);
 static int32_t arm64_wrapped_transfer(uint64_t address, bool tail, int32_t j, uint32_t *buf);
@@ -22,23 +23,27 @@ static uint32_t encode_arm64(uint32_t *buf, uint64_t target, uint8_t *types, int
 static uint32_t encode_text_arm64(uint32_t *buf, uint64_t target, uint64_t prepare, uint64_t finish, bool owned);
 static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8_t *types, int32_t n, int32_t result, int32_t operation);
 #endif
-static uint32_t stub_slot_for(uint64_t target, uint32_t key);
+static int32_t layout_lanes(const uint8_t *types, int32_t n, int32_t gp_max, int32_t fp_max, bool packed, int32_t *lane_stack, int32_t *totals);
+static uint32_t stub_slot_for(uint64_t target, uint64_t key, uint64_t key_high);
 #if defined(__x86_64__)
-static uint8_t *x64_restore_wrapped_stack_at(uint8_t *p);
+static uint8_t *x64_adjust_stack(int32_t bytes, bool add, uint8_t *p);
+static uint8_t *x64_lea(int32_t reg, int32_t offset, uint8_t *p);
+static uint8_t *x64_restore_wrapped_stack(int32_t bytes, uint8_t *p);
+static uint8_t *x64_rsp(uint64_t opcode, int32_t count, int32_t reg, int32_t offset, uint8_t *p);
 static uint8_t *x64_wrapped_call(uint64_t target, uint8_t *p);
 static int32_t ffi_stub_compiler_x64_wrapped_gp(int32_t lane);
 static uint8_t *ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(int32_t reg, int32_t offset, bool restore, uint8_t *p);
 static uint8_t *x64_wrapped_inline_result(int32_t result, uint8_t *p, uint8_t **slow);
 static uint8_t *x64_wrapped_jcc(int32_t condition, uint8_t *p);
 static void x64_wrapped_patch(uint8_t *next, uint8_t *target);
-static uint8_t *x64_wrapped_spill_gp(int32_t gp, int32_t fp, bool restore, uint8_t *p);
+static uint8_t *x64_wrapped_spill_gp(int32_t gp, int32_t fp, int32_t base, bool restore, uint8_t *p);
 static uint8_t *x64_wrapped_transfer(uint64_t target, bool tail, uint8_t *p);
 static uint8_t *x64_wrapped_xmm(int32_t lane, int32_t offset, bool restore, uint8_t *p);
 #endif
 
 #if !defined(__x86_64__)
-/* FFIStubCompiler>>arm64RestoreWrappedGP:fp:offset:bytes:hasArgs:at:into: */
-static int32_t arm64_restore_wrapped_gp(int32_t gp_save, int32_t fp_save, int32_t fp_base, int32_t local_bytes, bool has_args, int32_t start, uint32_t *buf)
+/* FFIStubCompiler>>arm64RestoreWrappedGP:at:fp:offset:bytes:hasArgs:at:into: */
+static int32_t arm64_restore_wrapped_gp(int32_t gp_save, int32_t gp_base, int32_t fp_save, int32_t fp_base, int32_t local_bytes, bool has_args, int32_t start, uint32_t *buf)
 {
     int32_t j;
     int32_t i;
@@ -46,7 +51,7 @@ static int32_t arm64_restore_wrapped_gp(int32_t gp_save, int32_t fp_save, int32_
     j = start;
     if (has_args) {
         for (i = 0; i <= gp_save - 1; i++) {
-            buf[j] = 0xF94003F3LL + (2 + i) * 1024 + i;
+            buf[j] = 0xF94003F3LL + (gp_base / 8 + i) * 1024 + i;
             j = j + 1;
         }
         for (i_2 = 0; i_2 <= fp_save - 1; i_2++) {
@@ -115,6 +120,7 @@ uint64_t downcall(uint64_t target, uint8_t *types, int32_t n, int32_t result)
     uint8_t *p;
     uint32_t size;
     uint64_t entry;
+    uint64_t key_2;
     if ((target == 0) || ((n < 0) || ((n > 6) || ((result < 1) || (result > 7))))) {
         return 0;
     }
@@ -132,7 +138,7 @@ uint64_t downcall(uint64_t target, uint8_t *types, int32_t n, int32_t result)
         }
         key = (uint32_t)((((uint64_t)key) << 3) | tag);
     }
-    slot = stub_slot_for(target, key);
+    slot = stub_slot_for(target, (uint64_t)key, 0);
     if (stub_entries[slot] != 0) {
         return stub_entries[slot];
     }
@@ -145,8 +151,10 @@ uint64_t downcall(uint64_t target, uint8_t *types, int32_t n, int32_t result)
     size = encode_x64(p, target, types, n, result);
     entry = publish_code(p, size);
     if (entry != 0) {
+        key_2 = (uint64_t)key;
         stub_targets[slot] = target;
-        stub_keys[slot] = key;
+        stub_keys[slot] = key_2;
+        stub_keys_high[slot] = 0;
         stub_entries[slot] = entry;
     }
     return entry;
@@ -165,6 +173,7 @@ uint64_t downcall(uint64_t target, uint8_t *types, int32_t n, int32_t result)
     uint8_t *p;
     uint32_t size;
     uint64_t entry;
+    uint64_t key_2;
     if ((target == 0) || ((n < 0) || ((n > 6) || ((result < 1) || (result > 7))))) {
         return 0;
     }
@@ -182,7 +191,7 @@ uint64_t downcall(uint64_t target, uint8_t *types, int32_t n, int32_t result)
         }
         key = (uint32_t)((((uint64_t)key) << 3) | tag);
     }
-    slot = stub_slot_for(target, key);
+    slot = stub_slot_for(target, (uint64_t)key, 0);
     if (stub_entries[slot] != 0) {
         return stub_entries[slot];
     }
@@ -195,8 +204,10 @@ uint64_t downcall(uint64_t target, uint8_t *types, int32_t n, int32_t result)
     size = encode_arm64(buf, target, types, n, result);
     entry = publish_code(p, size);
     if (entry != 0) {
+        key_2 = (uint64_t)key;
         stub_targets[slot] = target;
-        stub_keys[slot] = key;
+        stub_keys[slot] = key_2;
+        stub_keys_high[slot] = 0;
         stub_entries[slot] = entry;
     }
     return entry;
@@ -306,55 +317,58 @@ static uint32_t encode_text_arm64(uint32_t *buf, uint64_t target, uint64_t prepa
 static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8_t *types, int32_t n, int32_t result, int32_t operation)
 {
     int32_t j;
+    int32_t gp_regs;
+    int32_t fp_regs;
+    int32_t gp_base;
     uint64_t helper;
     uint32_t rejection;
     int32_t result_done;
-    int64_t gp;
-    int64_t fp;
-    int64_t gp32;
-    int32_t i;
-    uint8_t tag;
-    int64_t gp_save;
-    int64_t fp_base;
-    int64_t fp_save;
-    int64_t local_bytes;
-    int64_t integer_out;
-    int64_t i_2;
-    int64_t i_3;
+    int32_t scratch;
+    int32_t off;
     int32_t local[16];
+    int32_t *lane_stack;
+    int32_t local_2[2];
+    int32_t *totals;
+    int32_t gp_save;
+    int32_t fp_base;
+    int32_t fp_save;
+    int32_t local_bytes;
+    int32_t integer_out;
+    int32_t i;
+    int32_t i_2;
+    int32_t local_3[40];
     int32_t *reject_sites;
     int64_t fail_count;
-    int32_t i_4;
+    int64_t gp;
+    int64_t fp;
+    int64_t lane;
+    int64_t gp32;
+    int32_t i_3;
+    uint8_t tag;
     int64_t reg;
     int32_t slow;
     int32_t ok;
     int bound;
-    int64_t i_5;
-    int64_t i_6;
+    int32_t i_4;
+    int32_t i_5;
     int32_t epilogue;
     int32_t reject;
-    int64_t i_7;
-    gp = 0;
-    fp = 0;
-    gp32 = 0U;
-    for (i = 0; i <= n - 1; i++) {
-        tag = types[i];
-        if (tag == 6) {
-            fp = fp + 1;
-        } else {
-            if (tag <= 2) {
-                gp32 = gp32 | (1LL << gp);
-            }
-            gp = gp + ((tag >= 8) && (tag <= 10) ? 2 : 1);
-        }
-    }
-    gp_save = gp + 1;
+    int64_t i_6;
+    memset(&local, 0, sizeof local);
+    lane_stack = local;
+    memset(&local_2, 0, sizeof local_2);
+    totals = local_2;
+    scratch = layout_lanes(types, n, 8, 8, packs_stack_arguments(), lane_stack, totals);
+    gp_regs = totals[0] < 8 ? totals[0] : 8;
+    fp_regs = totals[1] < 8 ? totals[1] : 8;
+    gp_save = gp_regs + 1;
     if (operation == 1) {
         gp_save = gp_save + 2;
     }
-    fp_base = 16 + gp_save * 8;
-    fp_save = fp;
-    local_bytes = (fp_base + fp_save * 8 + 15) & -16LL;
+    gp_base = scratch + 16;
+    fp_base = gp_base + gp_save * 8;
+    fp_save = fp_regs;
+    local_bytes = (fp_base + fp_save * 8 + 15) & -16;
     integer_out = local_bytes;
     if (result == 11) {
         local_bytes = local_bytes + (int32_t)((sizeof(big_integer_native_result) + 15) & 18446744073709551600ULL);
@@ -366,31 +380,34 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
     if (n > 0) {
         buf[j] = 0xD10003FFLL + local_bytes * 1024;
         j = j + 1;
-        for (i_2 = 0; i_2 <= gp_save - 1; i_2++) {
-            buf[j] = 0xF90003F3LL + (2 + i_2) * 1024 + i_2;
+        for (i = 0; i <= gp_save - 1; i++) {
+            buf[j] = 0xF90003F3LL + (gp_base / 8 + i) * 1024 + i;
             j = j + 1;
         }
-        for (i_3 = 0; i_3 <= fp_save - 1; i_3++) {
-            buf[j] = 0xFD0003E8LL + (fp_base / 8 + i_3) * 1024 + i_3;
+        for (i_2 = 0; i_2 <= fp_save - 1; i_2++) {
+            buf[j] = 0xFD0003E8LL + (fp_base / 8 + i_2) * 1024 + i_2;
             j = j + 1;
         }
         buf[j] = 0xAA0003F3LL;
         j = j + 1;
     }
-    memset(&local, 0, sizeof local);
-    reject_sites = local;
+    memset(&local_3, 0, sizeof local_3);
+    reject_sites = local_3;
     fail_count = 0;
     gp = 0;
     fp = 0;
-    for (i_4 = 0; i_4 <= n - 1; i_4++) {
-        tag = types[i_4];
+    lane = 0;
+    gp32 = 0U;
+    for (i_3 = 0; i_3 <= n - 1; i_3++) {
+        tag = types[i_3];
         helper = wrapped_argument_helper(tag);
         if (helper == 0) {
             return 0;
         }
-        buf[j] = 0xF9400260LL + i_4 * 1024;
+        off = lane_stack[lane];
+        buf[j] = 0xF9400260LL + i_3 * 1024;
         j = j + 1;
-        reg = 20 + gp;
+        reg = off < 0 ? 20 + gp : 10;
         if (tag <= 4) {
             slow = j;
             buf[j + 1] = 0x9341FC00LL + reg;
@@ -414,10 +431,10 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
             j = j + 1;
             arm64_wrapped_branch(0x36000000, slow, j, 0x3FFF, buf);
         }
-        buf[j] = 0x910003E1LL;
+        buf[j] = 0x910003E1LL + ((tag == 6) && (off >= 0) ? off : scratch) * 1024;
         j = j + 1;
         if ((tag == 5) || ((tag >= 8) && (tag <= 10))) {
-            buf[j] = 0x910023E2LL;
+            buf[j] = 0x910003E2LL + (scratch + 8) * 1024;
             j = j + 1;
         }
         j = arm64_wrapped_call(helper, j, buf);
@@ -426,24 +443,44 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
         fail_count = fail_count + 1;
         j = j + 1;
         if (tag == 6) {
-            buf[j] = 0xFD4003E8LL + fp;
-            j = j + 1;
+            if (off < 0) {
+                buf[j] = 0xFD4003E8LL + fp + scratch / 8 * 1024;
+                j = j + 1;
+            }
             fp = fp + 1;
+            lane = lane + 1;
         } else {
-            buf[j] = (tag <= 2 ? 0xB94003E0LL : 0xF94003E0LL) + reg;
+            buf[j] = (tag <= 2 ? 0xB94003E0LL + scratch / 4 * 1024 : 0xF94003E0LL + scratch / 8 * 1024) + reg;
             j = j + 1;
-            gp = gp + 1;
-            if ((tag >= 8) && (tag <= 10)) {
-                buf[j] = 0xF94007E0LL + reg + 1;
-                j = j + 1;
-                gp = gp + 1;
-            }
-            if (tag == 5) {
-                buf[j] = 0xF94007F7LL + i_4;
-                j = j + 1;
-            }
             if (tag <= 4) {
                 arm64_wrapped_branch(0x14000000, ok, j, 0x3FFFFFF, buf);
+            }
+            if (off < 0) {
+                if (tag <= 2) {
+                    gp32 = gp32 | (1LL << gp);
+                }
+            } else {
+                buf[j] = tag <= 2 ? 0xB90003EALL + off / 4 * 1024 : 0xF90003EALL + off / 8 * 1024;
+                j = j + 1;
+            }
+            gp = gp + 1;
+            lane = lane + 1;
+            if ((tag >= 8) && (tag <= 10)) {
+                off = lane_stack[lane];
+                if (off < 0) {
+                    buf[j] = 0xF94003E0LL + (20 + gp) + (scratch + 8) / 8 * 1024;
+                    j = j + 1;
+                } else {
+                    buf[j] = 0xF94003EALL + (scratch + 8) / 8 * 1024;
+                    buf[j + 1] = 0xF90003EALL + off / 8 * 1024;
+                    j = j + 2;
+                }
+                gp = gp + 1;
+                lane = lane + 1;
+            }
+            if (tag == 5) {
+                buf[j] = 0xF94003F7LL + i_3 + (scratch + 8) / 8 * 1024;
+                j = j + 1;
             }
         }
     }
@@ -456,13 +493,13 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
             j = j + 2;
         }
     }
-    for (i_5 = 0; i_5 <= gp - 1; i_5++) {
-        reg = 20 + i_5;
-        buf[j] = ((gp32 & (1LL << i_5)) != 0 ? 0x2A0003E0 : 0xAA0003E0LL) + reg * 65536 + i_5;
+    for (i_4 = 0; i_4 <= gp_regs - 1; i_4++) {
+        reg = 20 + i_4;
+        buf[j] = ((gp32 & (1LL << i_4)) != 0 ? 0x2A0003E0 : 0xAA0003E0LL) + reg * 65536 + i_4;
         j = j + 1;
     }
-    for (i_6 = 0; i_6 <= fp - 1; i_6++) {
-        buf[j] = 0x1E604100 + i_6 * 32 + i_6;
+    for (i_5 = 0; i_5 <= fp_regs - 1; i_5++) {
+        buf[j] = 0x1E604100 + i_5 * 32 + i_5;
         j = j + 1;
     }
     if (result == 11) {
@@ -516,14 +553,14 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
         arm64_wrapped_branch(0x14000000, result_done, epilogue, 0x3FFFFFF, buf);
     }
     if ((result == 6) || (result == 7)) {
-        j = arm64_restore_wrapped_gp((int32_t)gp_save, (int32_t)fp_save, (int32_t)fp_base, (int32_t)local_bytes, n > 0, j, buf);
+        j = arm64_restore_wrapped_gp(gp_save, gp_base, fp_save, fp_base, local_bytes, n > 0, j, buf);
         j = arm64_wrapped_transfer(helper, true, j, buf);
         if (fail_count == 0) {
             return (uint32_t)j * 4;
         }
         epilogue = j;
     }
-    j = arm64_restore_wrapped_gp((int32_t)gp_save, (int32_t)fp_save, (int32_t)fp_base, (int32_t)local_bytes, n > 0, j, buf);
+    j = arm64_restore_wrapped_gp(gp_save, gp_base, fp_save, fp_base, local_bytes, n > 0, j, buf);
     buf[j] = 0xD65F03C0LL;
     j = j + 1;
     if (fail_count > 0) {
@@ -531,8 +568,8 @@ static uint32_t encode_wrapped_arm64(uint32_t *buf, uint64_t target, const uint8
         buf[j] = 0xAA1F03E0LL;
         arm64_wrapped_branch(0x14000000, j + 1, epilogue, 0x3FFFFFF, buf);
         j = j + 2;
-        for (i_7 = 0; i_7 <= fail_count - 1; i_7++) {
-            slow = reject_sites[i_7];
+        for (i_6 = 0; i_6 <= fail_count - 1; i_6++) {
+            slow = reject_sites[i_6];
             rejection = buf[slow];
             arm64_wrapped_branch(rejection, slow, reject, (uint32_t)((rejection >> 24) == 0x54 ? 0x7FFFF : 0x3FFF), buf);
         }
@@ -591,11 +628,22 @@ static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_
 {
     int32_t gp;
     int32_t fp;
-    uint32_t local[14];
+    int32_t gp_live;
+    int32_t fp_live;
+    int32_t homes;
+    int32_t outs;
+    int32_t integer_out;
+    int32_t frame;
+    int32_t off;
+    uint32_t local[40];
     uint32_t *fail_sites;
+    int32_t local_2[16];
+    int32_t *lane_stack;
+    int32_t local_3[2];
+    int32_t *totals;
     int64_t failed;
+    int64_t lane;
     uint8_t *p;
-    uint64_t stack_bytes;
     int32_t i;
     uint8_t tag;
     uint64_t helper;
@@ -604,7 +652,7 @@ static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_
     int32_t reg;
     int rex;
     int i_2;
-    uint8_t *local_2;
+    uint8_t *local_4;
     uint8_t **wide_result_slow;
     bool tail;
     uint8_t *epilogue;
@@ -612,23 +660,33 @@ static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_
     int64_t i_3;
     memset(&local, 0, sizeof local);
     fail_sites = local;
+    memset(&local_2, 0, sizeof local_2);
+    lane_stack = local_2;
+    memset(&local_3, 0, sizeof local_3);
+    totals = local_3;
+    homes = layout_lanes(types, n, 6, 8, false, lane_stack, totals);
+    gp_live = totals[0] < 6 ? totals[0] : 6;
+    fp_live = totals[1] < 8 ? totals[1] : 8;
+    outs = homes + ((gp_live + fp_live) * 8 < 48 ? 48 : ((gp_live + fp_live) * 8 + 15) & -16);
+    integer_out = outs + 32;
+    frame = integer_out;
+    if (result == 11) {
+        frame = frame + (int32_t)((sizeof(big_integer_native_result) + 15) & 18446744073709551600ULL);
+    }
     failed = 0;
     gp = 0;
     fp = 0;
+    lane = 0;
     p = emit_x64(92642345881587ULL, 6, start);
-    stack_bytes = 80 + (uint64_t)((sizeof(big_integer_native_result) + 15) & 18446744073709551600ULL);
-    if (result == 11) {
-        p = emit_x64((stack_bytes << 24) | 0xEC8148, 7, p);
-        p = emit_x64(16550217ULL, 3, p);
-    } else {
-        p = emit_x64(71082642114380616ULL, 7, p);
-    }
+    p = x64_adjust_stack(frame, false, p);
+    p = emit_x64(16550217ULL, 3, p);
     for (i = 0; i <= n - 1; i++) {
         tag = types[i];
         helper = wrapped_argument_helper(tag);
         if (helper == 0) {
             return 0;
         }
+        off = lane_stack[lane];
         p = emit_x64(608471881ULL + (((uint64_t)i) << 35), 5, p);
         done = p;
         if (tag <= 4) {
@@ -655,83 +713,94 @@ static uint32_t encode_wrapped_x64(uint8_t *start, uint64_t target, const uint8_
             x64_wrapped_patch(slow, done);
             p = done;
         }
-        p = x64_wrapped_spill_gp(gp, fp, false, p);
-        p = emit_x64(3469025763142371656ULL, 8, p);
+        p = x64_wrapped_spill_gp(gp < 6 ? gp : 6, fp < 8 ? fp : 8, homes, false, p);
+        p = emit_x64(13076808ULL, 3, p);
+        p = x64_lea(6, (tag == 6) && (off >= 0) ? off : outs, p);
         if ((tag == 5) || ((tag >= 8) && (tag <= 10))) {
-            p = emit_x64(241127689544ULL, 5, p);
+            p = x64_lea(2, outs + 8, p);
         }
         p = x64_wrapped_call(helper, p);
         p = emit_x64(49284ULL, 2, p);
         p = x64_wrapped_jcc(4, p);
         fail_sites[failed] = (uint32_t)(p - start);
         failed = failed + 1;
-        p = x64_wrapped_spill_gp(gp, fp, true, p);
+        p = x64_wrapped_spill_gp(gp < 6 ? gp : 6, fp < 8 ? fp : 8, homes, true, p);
         if (tag == 6) {
-            p = x64_wrapped_xmm(fp, 48, true, p);
+            if (off < 0) {
+                p = x64_wrapped_xmm(fp, outs, true, p);
+            }
             fp = fp + 1;
+            lane = lane + 1;
         } else {
             if (tag <= 2) {
-                p = emit_x64(807683211ULL, 4, p);
+                p = x64_rsp(139ULL, 1, 0, outs, p);
             } else {
-                p = emit_x64(206766902088ULL, 5, p);
+                p = ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(0, outs, true, p);
             }
             if (tag <= 4) {
                 x64_wrapped_patch(done, p);
             }
-            reg = ffi_stub_compiler_x64_wrapped_gp(gp);
-            rex = (tag <= 2 ? 0x40 : 0x48) + (reg >> 3);
-            p = emit_x64(12617984ULL + (uint64_t)rex + (((uint64_t)(reg & 7)) << 16), 3, p);
+            if (off < 0) {
+                reg = ffi_stub_compiler_x64_wrapped_gp(gp);
+                rex = (tag <= 2 ? 0x40 : 0x48) + (reg >> 3);
+                p = emit_x64(12617984ULL + (uint64_t)rex + (((uint64_t)(reg & 7)) << 16), 3, p);
+            } else {
+                p = ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(0, off, false, p);
+            }
             gp = gp + 1;
+            lane = lane + 1;
             if ((tag >= 8) && (tag <= 10)) {
-                p = ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(ffi_stub_compiler_x64_wrapped_gp(gp), 56, true, p);
+                off = lane_stack[lane];
+                if (off < 0) {
+                    p = ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(ffi_stub_compiler_x64_wrapped_gp(gp), outs + 8, true, p);
+                } else {
+                    p = ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(0, outs + 8, true, p);
+                    p = ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(0, off, false, p);
+                }
                 gp = gp + 1;
+                lane = lane + 1;
             }
             if (tag == 5) {
-                p = ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(10, 56, true, p);
-                p = ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(10, 64 + i * 8, false, p);
+                p = ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(10, outs + 8, true, p);
+                p = ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(10, outs + 16 + i * 8, false, p);
             }
         }
     }
     if (operation == 1) {
         for (i_2 = 0; i_2 <= 1; i_2++) {
-            p = emit_x64(275487406920ULL + (((uint64_t)i_2) << 35), 5, p);
+            p = x64_rsp(15176ULL, 2, 2, outs + 16 + i_2 * 8, p);
             p = x64_wrapped_jcc(7, p);
             fail_sites[failed] = (uint32_t)(p - start);
             failed = failed + 1;
         }
     }
     if (result == 11) {
-        p = emit_x64(344205856076ULL, 5, p);
+        p = x64_lea(8, integer_out, p);
     }
     p = x64_wrapped_call(target, p);
-    memset(&local_2, 0, sizeof local_2);
-    wide_result_slow = &local_2;
+    memset(&local_4, 0, sizeof local_4);
+    wide_result_slow = &local_4;
     *wide_result_slow = (uint8_t *)NULL;
     tail = (result == 6) || (result == 7);
     if (result == 11) {
-        p = emit_x64(344209526088ULL, 5, p);
+        p = x64_lea(7, integer_out, p);
         p = x64_wrapped_call(wrapped_result_helper(result), p);
     } else if (!tail) {
         p = x64_wrapped_inline_result(result, p, wide_result_slow);
     }
     epilogue = p;
-    if (result == 11) {
-        p = emit_x64((stack_bytes << 24) | 0xC48148, 7, p);
-        p = emit_x64(23617ULL, 2, p);
-    } else {
-        p = x64_restore_wrapped_stack_at(p);
-    }
+    p = x64_restore_wrapped_stack(frame, p);
     p = tail ? x64_wrapped_transfer(wrapped_result_helper(result), true, p) : emit_x64(195ULL, 1, p);
     if (*wide_result_slow != NULL) {
         x64_wrapped_patch(*wide_result_slow, p);
-        p = x64_restore_wrapped_stack_at(p);
+        p = x64_restore_wrapped_stack(frame, p);
         p = x64_wrapped_transfer(wrapped_result_helper(result), true, p);
     }
     if (failed > 0) {
         rejected = p;
         p = emit_x64(49201ULL, 2, p);
         if (tail) {
-            p = x64_restore_wrapped_stack_at(p);
+            p = x64_restore_wrapped_stack(frame, p);
             p = emit_x64(195ULL, 1, p);
         } else {
             p = emit_x64(233ULL, 5, p);
@@ -804,12 +873,13 @@ static uint32_t encode_x64(uint8_t *start, uint64_t target, uint8_t *types, int3
 uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int32_t n, int32_t result, int32_t operation)
 {
     bool text;
-    uint32_t key;
+    uint64_t key;
+    uint64_t key_high;
     int32_t lanes;
     int32_t i;
     uint8_t tag;
     uint32_t slot;
-    uint32_t local[512];
+    uint32_t local[1024];
     uint32_t *buf;
     uint8_t *p;
     uint8_t tag_2;
@@ -818,7 +888,7 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     uint64_t finish;
     uint32_t size;
     uint64_t entry;
-    if ((target == 0) || ((n < 0) || (n > 6))) {
+    if ((target == 0) || ((n < 0) || (n > FFI_WRAPPED_LANES))) {
         return 0;
     }
     if (!(((result >= 1) && ((result <= 7) && (result != 5))) || ((result == 11) || ((result == 12) || (result == 15))))) {
@@ -846,7 +916,8 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     } else if (!(operation == 0)) {
         return 0;
     }
-    key = (uint32_t)result;
+    key = (uint64_t)result;
+    key_high = 0ULL;
     lanes = n;
     for (i = 0; i <= n - 1; i++) {
         tag = types[i];
@@ -856,13 +927,17 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
         if (text || ((tag >= 8) && (tag <= 10))) {
             lanes = lanes + 1;
         }
-        key = (uint32_t)((((uint64_t)key) << 4) | tag);
+        if (i < 11) {
+            key = key | (((uint64_t)tag) << (5 * (i + 1)));
+        } else {
+            key_high = key_high | (((uint64_t)tag) << (5 * (i - 11)));
+        }
     }
-    if (lanes > 6) {
+    if (lanes > FFI_WRAPPED_LANES) {
         return 0;
     }
-    key = (uint32_t)(key | (((uint64_t)operation) << 28) | 0x80000000LL);
-    slot = stub_slot_for(target, key);
+    key = key | (((uint64_t)operation) << 62) | 9223372036854775808ULL;
+    slot = stub_slot_for(target, key, key_high);
     if (stub_entries[slot] != 0) {
         return stub_entries[slot];
     }
@@ -899,6 +974,7 @@ exit_text_result_helper:;
         wrapped_count = wrapped_count + 1;
         stub_targets[slot] = target;
         stub_keys[slot] = key;
+        stub_keys_high[slot] = key_high;
         stub_entries[slot] = entry;
     }
     return entry;
@@ -909,12 +985,13 @@ exit_text_result_helper:;
 uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int32_t n, int32_t result, int32_t operation)
 {
     bool text;
-    uint32_t key;
+    uint64_t key;
+    uint64_t key_high;
     int32_t lanes;
     int32_t i;
     uint8_t tag;
     uint32_t slot;
-    uint32_t local[512];
+    uint32_t local[1024];
     uint32_t *buf;
     uint8_t *p;
     uint8_t tag_2;
@@ -923,7 +1000,7 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     uint64_t finish;
     uint32_t size;
     uint64_t entry;
-    if ((target == 0) || ((n < 0) || (n > 6))) {
+    if ((target == 0) || ((n < 0) || (n > FFI_WRAPPED_LANES))) {
         return 0;
     }
     if (!(((result >= 1) && ((result <= 7) && (result != 5))) || ((result == 11) || ((result == 12) || (result == 15))))) {
@@ -951,7 +1028,8 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
     } else if (!(operation == 0)) {
         return 0;
     }
-    key = (uint32_t)result;
+    key = (uint64_t)result;
+    key_high = 0ULL;
     lanes = n;
     for (i = 0; i <= n - 1; i++) {
         tag = types[i];
@@ -961,13 +1039,17 @@ uint64_t ffi_stub_compiler_entry_for(uint64_t target, const uint8_t *types, int3
         if (text || ((tag >= 8) && (tag <= 10))) {
             lanes = lanes + 1;
         }
-        key = (uint32_t)((((uint64_t)key) << 4) | tag);
+        if (i < 11) {
+            key = key | (((uint64_t)tag) << (5 * (i + 1)));
+        } else {
+            key_high = key_high | (((uint64_t)tag) << (5 * (i - 11)));
+        }
     }
-    if (lanes > 6) {
+    if (lanes > FFI_WRAPPED_LANES) {
         return 0;
     }
-    key = (uint32_t)(key | (((uint64_t)operation) << 28) | 0x80000000LL);
-    slot = stub_slot_for(target, key);
+    key = key | (((uint64_t)operation) << 62) | 9223372036854775808ULL;
+    slot = stub_slot_for(target, key, key_high);
     if (stub_entries[slot] != 0) {
         return stub_entries[slot];
     }
@@ -1004,12 +1086,56 @@ exit_text_result_helper:;
         wrapped_count = wrapped_count + 1;
         stub_targets[slot] = target;
         stub_keys[slot] = key;
+        stub_keys_high[slot] = key_high;
         stub_entries[slot] = entry;
     }
     return entry;
 }
 
 #endif
+/* FFIStubCompiler>>layoutLanes:count:gp:fp:packed:into:totals: */
+static int32_t layout_lanes(const uint8_t *types, int32_t n, int32_t gp_max, int32_t fp_max, bool packed, int32_t *lane_stack, int32_t *totals)
+{
+    int32_t stack;
+    int32_t size;
+    int64_t gp;
+    int64_t fp;
+    int64_t lane;
+    int32_t i;
+    uint8_t tag;
+    bool float_;
+    int width;
+    int k;
+    gp = 0;
+    fp = 0;
+    lane = 0;
+    stack = 0;
+    for (i = 0; i <= n - 1; i++) {
+        tag = types[i];
+        float_ = tag == 6;
+        width = (tag >= 8) && (tag <= 10) ? 2 : 1;
+        for (k = 1; k <= width; k++) {
+            if (float_ ? fp < fp_max : gp < gp_max) {
+                lane_stack[lane] = -1;
+            } else {
+                size = packed && (tag <= 2) ? 4 : 8;
+                stack = (stack + size - 1) & (~(size - 1));
+                lane_stack[lane] = stack;
+                stack = stack + size;
+            }
+            if (float_) {
+                fp = fp + 1;
+            } else {
+                gp = gp + 1;
+            }
+            lane = lane + 1;
+        }
+    }
+    totals[0] = gp;
+    totals[1] = fp;
+    return (stack + 15) & -16;
+}
+
 /* FFIStubCompiler>>publishCode:size: */
 uint64_t publish_code(const uint8_t *bytes, uint32_t size)
 {
@@ -1030,16 +1156,16 @@ uint64_t ffi_stub_compiler_static_core_entry(const char *name, uint32_t signatur
     return ffi_stub_memory_static_core_entry(name, signature);
 }
 
-/* FFIStubCompiler>>stubSlotFor:key: */
-static uint32_t stub_slot_for(uint64_t target, uint32_t key)
+/* FFIStubCompiler>>stubSlotFor:key:high: */
+static uint32_t stub_slot_for(uint64_t target, uint64_t key, uint64_t key_high)
 {
     uint64_t hash;
     uint32_t slot;
     hash = (target >> 4) ^ ((target >> 17) ^ (target >> 32));
-    hash = hash ^ (key ^ (key >> 12));
+    hash = hash ^ (key ^ ((key >> 12) ^ ((key >> 37) ^ (key_high ^ (key_high >> 19)))));
     slot = (uint32_t)(hash & 4095);
     while (stub_entries[slot] != 0) {
-        if ((stub_targets[slot] == target) && (stub_keys[slot] == key)) {
+        if ((stub_targets[slot] == target) && ((stub_keys[slot] == key) && (stub_keys_high[slot] == key_high))) {
             return slot;
         }
         slot = (slot + 1) & 4095;
@@ -1048,10 +1174,42 @@ static uint32_t stub_slot_for(uint64_t target, uint32_t key)
 }
 
 #if defined(__x86_64__)
-/* FFIStubCompiler>>x64RestoreWrappedStackAt: */
-static uint8_t *x64_restore_wrapped_stack_at(uint8_t *p)
+/* FFIStubCompiler>>x64AdjustStack:add:at: */
+static uint8_t *x64_adjust_stack(int32_t bytes, bool add, uint8_t *p)
 {
-    return emit_x64(101435597685576ULL, 6, p);
+    if (bytes < 128) {
+        return emit_x64((uint64_t)(add ? 0xC48348 : 0xEC8348) + (((uint64_t)bytes) << 24), 4, p);
+    }
+    return emit_x64((uint64_t)(add ? 0xC48148 : 0xEC8148) + (((uint64_t)bytes) << 24), 7, p);
+}
+
+#endif
+#if defined(__x86_64__)
+/* FFIStubCompiler>>x64Lea:offset:at: */
+static uint8_t *x64_lea(int32_t reg, int32_t offset, uint8_t *p)
+{
+    return x64_rsp(36168ULL + (uint64_t)((reg & 8) >> 1), 2, reg, offset, p);
+}
+
+#endif
+#if defined(__x86_64__)
+/* FFIStubCompiler>>x64RestoreWrappedStack:at: */
+static uint8_t *x64_restore_wrapped_stack(int32_t bytes, uint8_t *p)
+{
+    return emit_x64(23617ULL, 2, x64_adjust_stack(bytes, true, p));
+}
+
+#endif
+#if defined(__x86_64__)
+/* FFIStubCompiler>>x64Rsp:count:reg:offset:at: */
+static uint8_t *x64_rsp(uint64_t opcode, int32_t count, int32_t reg, int32_t offset, uint8_t *p)
+{
+    uint8_t *q;
+    q = emit_x64(opcode, count, p);
+    if (offset < 128) {
+        return emit_x64(9284ULL + (((uint64_t)(reg & 7)) << 3) + (((uint64_t)offset) << 16), 3, q);
+    }
+    return emit_x64(9348ULL + (((uint64_t)(reg & 7)) << 3) + (((uint64_t)offset) << 16), 6, q);
 }
 
 #endif
@@ -1077,11 +1235,9 @@ static uint8_t *ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(int32_t reg, 
 {
     int32_t rex;
     int opcode;
-    int32_t modrm;
     rex = 0x48 + ((reg & 8) >> 1);
     opcode = restore ? 0x8B : 0x89;
-    modrm = 0x44 + (reg & 7) * 8;
-    return emit_x64(603979776ULL + (uint64_t)rex + (((uint64_t)opcode) << 8) + (((uint64_t)modrm) << 16) + (((uint64_t)offset) << 32), 5, p);
+    return x64_rsp((uint64_t)rex + (((uint64_t)opcode) << 8), 2, reg, offset, p);
 }
 
 #endif
@@ -1129,18 +1285,18 @@ static void x64_wrapped_patch(uint8_t *next, uint8_t *target)
 
 #endif
 #if defined(__x86_64__)
-/* FFIStubCompiler>>x64WrappedSpillGP:fp:restore:at: */
-static uint8_t *x64_wrapped_spill_gp(int32_t gp, int32_t fp, bool restore, uint8_t *p)
+/* FFIStubCompiler>>x64WrappedSpillGP:fp:base:restore:at: */
+static uint8_t *x64_wrapped_spill_gp(int32_t gp, int32_t fp, int32_t base, bool restore, uint8_t *p)
 {
     uint8_t *q;
     int32_t i;
     int32_t i_2;
     q = p;
     for (i = 0; i <= gp - 1; i++) {
-        q = ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(ffi_stub_compiler_x64_wrapped_gp(i), i * 8, restore, q);
+        q = ffi_stub_compiler_x64_wrapped_gp_offset_restore_at(ffi_stub_compiler_x64_wrapped_gp(i), base + i * 8, restore, q);
     }
     for (i_2 = 0; i_2 <= fp - 1; i_2++) {
-        q = x64_wrapped_xmm(i_2, (gp + i_2) * 8, restore, q);
+        q = x64_wrapped_xmm(i_2, base + (gp + i_2) * 8, restore, q);
     }
     return q;
 }
@@ -1162,10 +1318,8 @@ static uint8_t *x64_wrapped_transfer(uint64_t target, bool tail, uint8_t *p)
 static uint8_t *x64_wrapped_xmm(int32_t lane, int32_t offset, bool restore, uint8_t *p)
 {
     int opcode;
-    int32_t modrm;
     opcode = restore ? 0x10 : 0x11;
-    modrm = 0x44 + lane * 8;
-    return emit_x64(154618826738ULL + (((uint64_t)opcode) << 16) + (((uint64_t)modrm) << 24) + (((uint64_t)offset) << 40), 6, p);
+    return x64_rsp(4082ULL + (((uint64_t)opcode) << 16), 3, lane, offset, p);
 }
 
 #endif

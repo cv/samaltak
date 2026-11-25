@@ -7,7 +7,7 @@ FFI comment: 'I bind descriptors for registered native exports. A downcall descr
 
 	(FFI bind: #(call ''libm'' ''sqrt'' (f64) f64)) invoke: #(9.0).
 
-Scalar types are i32, u32, i64, u64 and f64. Use void only for a result (answers nil). For an approved export, nonNegativeI64 returns nil for a negative int64_t result or the exact Integer otherwise. For a launcher grant, bytesWithLength takes one read-only slice {aByteArray. oneBasedOffset. length} and passes a pointer and the validated length in two of at most six C slots. For vetted built-in exports only, writableBytesWithLength takes the same slice shape but requires a mutable ByteArray and lets the target write inside the slice until return. For memcmp, use (byteSlice byteSlice u64); the comparison count may not exceed either slice length. No argument or result is a native address. Unknown exports, mismatched signatures and rejected arguments signal FFIError. Notification descriptors start with #notification; FFINotification handles their schema.'!
+Scalar types are i32, u32, i64, u64 and f64. Use void only for a result (answers nil). For an approved export, nonNegativeI64 returns nil for a negative int64_t result or the exact Integer otherwise. For a launcher grant, bytesWithLength takes one read-only slice {aByteArray. oneBasedOffset. length} and passes a pointer and the validated length in two of at most sixteen C slots. For vetted built-in exports only, writableBytesWithLength takes the same slice shape but requires a mutable ByteArray and lets the target write inside the slice until return. For memcmp, use (byteSlice byteSlice u64); the comparison count may not exceed either slice length. No argument or result is a native address. Unknown exports, mismatched signatures and rejected arguments signal FFIError. Notification descriptors start with #notification; FFINotification handles their schema.'!
 
 !FFI class methodsFor: 'binding'!
 bind: aDescriptor
@@ -47,8 +47,8 @@ newCallBinding: aDescriptor
 	symbol := self copyName: (aDescriptor at: 3).
 	types := aDescriptor at: 4.
 	result := aDescriptor at: 5.
-	(types class == Array and: [types size <= 6]) ifFalse: [
-		^FFIError signal: 'FFI argument types must be an Array of up to six Symbols'].
+	(types class == Array and: [types size <= 16]) ifFalse: [
+		^FFIError signal: 'FFI argument types must be an Array of up to sixteen Symbols'].
 	tags := ByteArray new: types size.
 	slots := types size.
 	1 to: types size do: [:i |
@@ -57,7 +57,7 @@ newCallBinding: aDescriptor
 		(#(7 11 12 15) includes: tag) ifTrue: [^FFIError signal: 'Result-only FFI type used as an argument'].
 		(tag >= 8) ifTrue: [slots := slots + 1].
 		tags at: i put: tag].
-	slots > 6 ifTrue: [^FFIError signal: 'FFI argument types occupy more than six C slots'].
+	slots > 16 ifTrue: [^FFIError signal: 'FFI argument types occupy more than sixteen C slots'].
 	resultTag := self typeTag: result.
 	(#(5 8 9 10 13 14) includes: resultTag) ifTrue: [^FFIError signal: 'Borrowed types are only FFI argument types'].
 	(resultTag = 11 and: [types ~= #(integerMagnitude integerMagnitude) or: [library ~= 'vm:core']]) ifTrue: [

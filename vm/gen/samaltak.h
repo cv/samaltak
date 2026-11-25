@@ -271,11 +271,13 @@ typedef bool (*prim_try_guard)(oop);
 #define FFI_OWNED_LIMIT 16
 #define FFI_PLATFORM_BASE 32
 #define FFI_PLATFORM_EXEC 1542
-#define FFI_SIGNATURE_BYTES 8
+#define FFI_SIGNATURE_BYTES 18
+#define FFI_SLOT_LIMIT 16
 #define FFI_STUB_BYTES 256
 #define FFI_STUB_LIMIT 1024
 #define FFI_STUB_TABLE_SIZE 4096
-#define FFI_WRAPPED_BYTES 2048
+#define FFI_WRAPPED_BYTES 4096
+#define FFI_WRAPPED_LANES 16
 #define FFI_WRAPPED_LIMIT 1024
 #define F_BYTES 16
 #define F_EMPTY 0
@@ -388,11 +390,12 @@ typedef bool (*prim_try_guard)(oop);
 #define MIN_BUDGET 67108864
 #define MSG_ARGS 1
 #define MSG_SELECTOR 0
-#define NATIVE_GRANT_ARITY_MAX 6
+#define NATIVE_GRANT_ARITY_MAX 16
 #define NATIVE_GRANT_BUFFER_SIZE 4097
 #define NATIVE_GRANT_BYTES 4096
 #define NATIVE_GRANT_LIMIT 32
 #define NATIVE_GRANT_NAME_MAX 127
+#define NATIVE_NOTIFY_ARITY_MAX 6
 #define NATIVE_NOTIFY_CONTEXT 250
 #define NATIVE_NOTIFY_I32 250
 #define NATIVE_NOTIFY_VOID 251
@@ -1229,13 +1232,13 @@ struct runtime_native_grant {
     const char *path;
     size_t library_size;
     size_t symbol_size;
-    uint8_t types[6];
+    uint8_t types[16];
     int32_t arity;
     int32_t result_type;
     void *target;
     const char *unregister_name;
 };
-_Static_assert(sizeof(runtime_native_grant) == 72, "the simulator lays out RuntimeNativeGrant as C does");
+_Static_assert(sizeof(runtime_native_grant) == 80, "the simulator lays out RuntimeNativeGrant as C does");
 
 #ifndef SAMALTAK_NO_PLATFORM
 struct ffi_vsync_subscription {
@@ -2241,6 +2244,7 @@ char *banner(void);
 int main(int n, char **v);
 #ifdef __APPLE__
 bool can_map_ffi_stubs(void);
+bool packs_stack_arguments(void);
 uint64_t publish_ffi_stub(const uint8_t *bytes, uint32_t size);
 uint64_t ffi_stub_memory_static_core_entry(const char *name, uint32_t signature);
 void begin_writing(void);
@@ -2255,6 +2259,7 @@ int64_t thread_cycles(void);
 #endif
 #ifdef __linux__
 bool can_map_ffi_stubs(void);
+bool packs_stack_arguments(void);
 uint64_t publish_ffi_stub(const uint8_t *bytes, uint32_t size);
 uint64_t ffi_stub_memory_static_core_entry(const char *name, uint32_t signature);
 void begin_writing(void);
@@ -2427,7 +2432,11 @@ void platform_raster_copy(uint8_t *dst, int64_t dst_stride, uint8_t *src, int64_
 void platform_raster_fill(uint8_t *pixels, int64_t n, int bpp, uint32_t v);
 void rasterize(raster_state *st, uint8_t *base, int64_t first, int64_t count);
 int32_t platform_sockets_accept(int32_t s, bool *would_block);
+#if defined(__x86_64__)
+int32_t platform_sockets_add(int fd, int kind, void *ptr);
+#else
 int32_t add(int fd, int kind, void *ptr);
+#endif
 bool any_armed(void);
 void arm_read(int32_t h);
 void arm_write(int32_t h, bool armed);

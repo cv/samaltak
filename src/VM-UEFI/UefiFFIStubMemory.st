@@ -21,6 +21,10 @@ canMapFFIStubs
 	<export>
 	^false
 !
+packsStackArguments
+	<export>
+	^false
+!
 publishFFIStub: bytes size: size
 	<export>
 	^0

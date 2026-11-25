@@ -10,6 +10,12 @@ bool can_map_ffi_stubs(void)
     return true;
 }
 
+/* LinuxFFIStubMemory>>packsStackArguments */
+bool packs_stack_arguments(void)
+{
+    return false;
+}
+
 /* LinuxFFIStubMemory>>publishFFIStub:size: */
 uint64_t publish_ffi_stub(const uint8_t *bytes, uint32_t size)
 {
