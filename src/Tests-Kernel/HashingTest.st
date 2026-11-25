@@ -272,10 +272,13 @@ testStrings
 	self assertSpread: s
 !
 testIdentityHashes
-	| s |
+	"Identity hashes are a generator's, so the largest displacement is chance: of 12000 sets of 10000 new objects (linear probing at a load of 0.44) one in 500 had an element more than 32 slots from its home, the worst 51; the average, about 0.43, is what a hash that clusters would raise."
+	| s displacements |
 	s := IdentitySet new.
 	10000 timesRepeat: [s add: Object new].
-	self assertSpread: s
+	displacements := self displacementsOf: s.
+	self assert: displacements first <= 2.
+	self assert: displacements last <= 96
 !
 testFloats
 	| rnd s |
@@ -322,9 +325,12 @@ check: aClass with: aRandom keys: keys operations: n
 				isDictionary ifTrue: [c removeKey: k ifAbsent: [nil]] ifFalse: [c remove: k ifAbsent: [nil]].
 				present at: i put: false].
 		self assert: c size = (present count: [:each | each]).
+		"includesKey: and at:, not at:ifAbsent: [nil]: a closure for each key of each check, 20 KB an operation, made it 20 s under the GC verifier (--eden 1)"
 		keys doWithIndex: [:each :j |
 			isDictionary
-				ifTrue: [self assert: (c at: each ifAbsent: [nil]) = ((present at: j) ifTrue: [each negated] ifFalse: [nil])]
+				ifTrue: [
+					self assert: (c includesKey: each) = (present at: j).
+					(present at: j) ifTrue: [self assert: (c at: each) = each negated]]
 				ifFalse: [self assert: (c includes: each) = (present at: j)]]]
 !
 displacementsOf: aHashedCollection

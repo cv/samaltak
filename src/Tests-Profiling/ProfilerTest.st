@@ -58,6 +58,13 @@ sleep: milliseconds untilSamples: n
 	self sleep: milliseconds.
 	[Profiler default cpuSampleCount - n0 < n and: [Time millisecondClockValue - t < 10000]] whileTrue: [self sleep: 10]
 !
+processNamesOf: samples
+	"The names of the samples' Processes, each once with its count."
+	| bag |
+	bag := Bag new.
+	samples do: [:s | bag add: (s process ifNil: ['nil'] ifNotNil: [:p | p name ifNil: ['?']])].
+	^String streamContents: [:w | bag asSet do: [:n | w nextPutAll: n; nextPut: $×; print: (bag occurrencesOf: n); space]]
+!
 stopWorkers
 	workers do: [:p | p terminate].
 	workers := OrderedCollection new
@@ -481,7 +488,8 @@ testTreesConsistent
 	self assert: ((profile samples groupBy: #process) at: procNode process) size = procNode weight
 !
 testRangeFiltering
-	| t0 mid t1 profile early late a b both |
+	"The workers' shares are of the samples that are not of the Processes that wake to poll for samples (this one, the timer Process): on a loaded machine the poll wakes many times, and a sample due at a wakeup is the timer Process's."
+	| t0 mid t1 profile early late a b both pollers earlyRun lateRun |
 	t0 := Time microsecondClockValue.
 	a := self fork: #factorialLoop named: 'first'.
 	self sleep: 150 untilSamples: 50.
@@ -499,8 +507,11 @@ testRangeFiltering
 	self assert: (late samples allSatisfy: [:s | s time > mid]).
 	self assert: early samples size >= 50 description: [early samples size printString, ' samples before mid'].
 	self assert: late samples size >= 50 description: [late samples size printString, ' samples after mid'].
-	self assert: (early samplesFor: a) size * 100 / early samples size >= 85 description: [(early samplesFor: a) size printString, ' of ', early samples size printString, ' samples before mid are the first worker''s'].
-	self assert: (late samplesFor: b) size * 100 / late samples size >= 85 description: [(late samplesFor: b) size printString, ' of ', late samples size printString, ' samples after mid are the second worker''s'].
+	pollers := Array with: Processor activeProcess with: Delay timerProcess.
+	earlyRun := early samples reject: [:s | pollers includes: s process].
+	lateRun := late samples reject: [:s | pollers includes: s process].
+	self assert: (early samplesFor: a) size * 100 / earlyRun size >= 85 description: [(early samplesFor: a) size printString, ' of ', earlyRun size printString, ' samples before mid (', early samples size printString, ' with the polls'') are the first worker''s; the others: ', (self processNamesOf: (earlyRun reject: [:s | s process == a]))].
+	self assert: (late samplesFor: b) size * 100 / lateRun size >= 85 description: [(late samplesFor: b) size printString, ' of ', lateRun size printString, ' samples after mid (', late samples size printString, ' with the polls'') are the second worker''s; the others: ', (self processNamesOf: (lateRun reject: [:s | s process == b]))].
 	self assert: (early samplesFor: b) isEmpty.
 	both := profile for: a.
 	self assert: both process == a.

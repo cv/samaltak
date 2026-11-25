@@ -29,6 +29,13 @@ whileStopped: aBlock
 		done signal]] forkAt: Processor userInterruptPriority.
 	done wait
 !
+workUntilClockPasses: microseconds
+	"Spin until the clock passes microseconds, or 10 s of real time passed; answer the clock. A fixed amount of work would not do: the clock does not pass a deadline (the next frame, a Delay) until an interrupt check handles it, and the work done meanwhile is not counted. Those checks come with the Ticker's poll, on UEFI only at the firmware's timer tick (10 ms), later under load."
+	| real |
+	real := Time utcMicroseconds.
+	[Time microsecondClockValue > microseconds or: [Time utcMicroseconds - real > 10000000]] whileFalse: [self spin: 1000000].
+	^Time microsecondClockValue
+!
 spin: n
 	| x |
 	x := 0.
@@ -59,8 +66,7 @@ testWorkMovesTheClock
 	| t0 |
 	self start.
 	t0 := Time microsecondClockValue.
-	self spin: 30000000.
-	self assert: Time microsecondClockValue - t0 > 1000
+	self assert: (self workUntilClockPasses: t0 + 1000) - t0 > 1000
 !
 testAFrameIsSignaledPerTickOnTheMillisecondGrid
 	| origin |
@@ -88,8 +94,7 @@ testStandsStillWhenStopped
 		self spin: 30000000.
 		t1 := Time microsecondClockValue].
 	self assert: t1 equals: t0.
-	self spin: 30000000.
-	self assert: Time microsecondClockValue > t0
+	self assert: (self workUntilClockPasses: t0) > t0
 !
 testOnlyControlProcessesRunWhileStopped
 	"A Process below the control server's priority (50) waits for the clock; one at 50 runs, and the clock stands still."

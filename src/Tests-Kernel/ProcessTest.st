@@ -337,7 +337,7 @@ testCpuTimeAddsUp
 	self assert: (c - t) abs <= 2000
 !
 testSlicesRotateCpuBoundPeers
-	"Two CPU-bound Processes of one priority take turns every time slice (this process waits at a higher priority meanwhile): about 30 turns in 30 slices, a slice apart (a timer tick more where the timer ticks coarsely: UEFI's firmware, every 10 ms)."
+	"Two CPU-bound Processes of one priority take turns every time slice (this process waits at a higher priority meanwhile): about 30 turns in 30 slices, a slice apart (a timer tick more where the timer ticks coarsely: UEFI's firmware, every 10 ms; and a millisecond for the clock reads, as a turn can last exactly that)."
 	| slice times n stop last procs gaps |
 	slice := self sliceMicroseconds.
 	times := Array new: 1000.
@@ -355,10 +355,10 @@ testSlicesRotateCpuBoundPeers
 	self assert: (self waitFor: [procs allSatisfy: [:p | p isTerminated]]) description: [procs printString, ' did not end'].
 	self assert: n >= 10 description: [n printString, ' turns in 30 slices'].
 	gaps := ((2 to: n) collect: [:i | (times at: i) - (times at: i - 1)]) asSortedCollection asArray.
-	self assert: (gaps at: gaps size + 1 // 2) <= (slice + 10000) description: ['the median turn lasts ', (gaps at: gaps size + 1 // 2) printString, ' µs']
+	self assert: (gaps at: gaps size + 1 // 2) <= (slice + 11000) description: ['the median turn lasts ', (gaps at: gaps size + 1 // 2) printString, ' µs']
 !
 testReadyProcessWaitsAtMostTwoSlices
-	"A Process made ready at the priority of the running CPU-bound one (this one, spinning) waits at most about two time slices: when contention broke since the slice was armed (another Process ran at the slice's end and waited again), the slice is not cut short but a fresh one follows it (Scheduler>>sliceCheck). Allowed: two slices and two coarse timer ticks (UEFI's firmware ticks every 10 ms)."
+	"A Process made ready at the priority of the running CPU-bound one (this one, spinning) waits at most about two time slices: when contention broke since the slice was armed (another Process ran at the slice's end and waited again), the slice is not cut short but a fresh one follows it (Scheduler>>sliceCheck). Allowed: two slices and two coarse timer ticks (UEFI's firmware ticks every 10 ms), and a millisecond each for the clock reads (on UEFI the wait can be exactly two slices and two ticks)."
 	| slice pri s bRan before b worst cRan ready t0 |
 	slice := self sliceMicroseconds.
 	pri := Processor activePriority.
@@ -379,7 +379,7 @@ testReadyProcessWaitsAtMostTwoSlices
 		self deny: cRan isNil description: 'the Process made ready did not run'.
 		worst := worst max: cRan - ready].
 	b terminate.
-	self assert: worst <= ((2 * slice) + 20000) description: ['waited ', worst printString, ' µs, a slice is ', slice printString]
+	self assert: worst <= ((2 * slice) + 22000) description: ['waited ', worst printString, ' µs, a slice is ', slice printString]
 !
 testShortSlicesAreCharged
 	"Both sides of a fast ping-pong are charged, the one that works three times as much more."
