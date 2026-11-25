@@ -22,7 +22,7 @@ uint32_t opt_fb_vals[16384];
 bool opt_full;
 int32_t opt_node_count;
 opt_node opt_nodes[16384];
-static int32_t opt_operand_count;
+int32_t opt_operand_count;
 int32_t opt_operands[131072];
 int32_t opt_osr_entry;
 uint64_t opt_osr_floats;

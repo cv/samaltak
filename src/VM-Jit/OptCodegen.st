@@ -1,5 +1,5 @@
 OptModule subclass: #OptCodegen
-	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgRawBase cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgFlagsLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgRespecLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced ffi'
+	instanceVariableNames: 'cgHeldSlot cgHeldReg cgHeldCount cgScanPc cgBinds ir passes regalloc cgCodeStart cgBcSize cgValidSlots cgEntryPc cgSlotTop cgRawBase cgMaxOut cgNeed cgExitPlainLabel cgExitSyncLabel cgDeoptLabel cgReturnLabel cgHeaderLabel cgFlagsLabel cgChecksLabel cgBodyLabel cgInterruptLabel cgBarrierLabel cgDeoptReturnLabel cgStackFullLabel cgRespecLabel cgOuts cgOutCount cgPoolOops cgPoolLabels cgPoolCount cgMetaWords cgMetaCount cgSpOffsets cgSpCount cgMoveSrc cgMoveDst cgMoveLoc cgMoveCount cgRootAct cgLastPc cgLastAct builder cgDeps cgDepCount cgSunk cgSunkCount cgSunkFields cgSunkFieldCount cgChainActs cgChainCount cgDoubles cgSiteBl cgSiteLit cgSiteInfo cgSiteIndex cgSiteSel cgSiteCount cgRetOff cgRetIndex cgRetArgc cgRetCount cgOrder cgPlaced ffi'
 	classVariableNames: 'CG_MAX_META CG_MAX_MOVES CG_MAX_OUT CG_MAX_POOL CG_MAX_RETS CG_MAX_HELD CG_MAX_SITES CG_MAX_SP OUT_ARRAY OUT_BARRIER OUT_BOTTOM OUT_DEOPT OUT_INTERRUPT OUT_LAZY OUT_NOTMADE OUT_UNBOX OUT_BOX OUT_RESUME OUT_SENT OUT_SITE OUT_STACK OUT_WIDOW OUT_BOUND_FILL OUT_RESPEC'
 	package: 'VM-Jit'!
 
@@ -20,7 +20,7 @@ declarations
 		(cgMetaWords 'int32_t[CG_MAX_META]') (cgMetaCount int32_t) (cgSpOffsets 'int32_t[CG_MAX_SP]') (cgSpCount int32_t)
 		(cgMoveSrc 'int32_t[CG_MAX_MOVES]') (cgMoveDst 'int32_t[CG_MAX_MOVES]') (cgMoveLoc 'int32_t[CG_MAX_MOVES]') (cgMoveCount int32_t) (cgRootAct int32_t) (cgLastPc int32_t) (cgLastAct int32_t) (cgHeldSlot 'int32_t[CG_MAX_HELD]') (cgHeldReg 'int32_t[CG_MAX_HELD]') (cgHeldCount int32_t) (cgScanPc uint64_t) (cgBinds int32_t)
 		(builder OptBuilder) (cgDeps 'int32_t[256]') (cgDepCount int32_t)
-		(cgSunk 'int32_t[64]') (cgSunkCount int32_t) (cgDoubles bool) (cgChainActs 'int32_t[512]') (cgChainCount int32_t)
+		(cgSunk 'int32_t[64]') (cgSunkCount int32_t) (cgSunkFields 'int32_t[1024]') (cgSunkFieldCount int32_t) (cgDoubles bool) (cgChainActs 'int32_t[512]') (cgChainCount int32_t)
 		(cgSiteBl 'uint32_t[CG_MAX_SITES]') (cgSiteLit 'int32_t[CG_MAX_SITES]') (cgSiteInfo 'uint32_t[CG_MAX_SITES]') (cgSiteIndex 'int32_t[CG_MAX_SITES]') (cgSiteSel 'int32_t[CG_MAX_SITES]') (cgSiteCount int32_t)
 		(cgRetOff 'uint32_t[CG_MAX_RETS]') (cgRetIndex 'int32_t[CG_MAX_RETS]') (cgRetArgc 'int32_t[CG_MAX_RETS]') (cgRetCount int32_t)
 		(cgOrder 'int32_t[OPT_MAX_BLOCKS]') (cgPlaced 'uint8_t[OPT_MAX_BLOCKS]') (ffi FFIPrimitives))
@@ -2931,7 +2931,7 @@ recordCall: n
 recordState: s kind: kind node: n inSlots: inSlots
 	"Safepoint record: kind, metadata offset in the table; [kind, send pc, send info, selector, nacts, then per activation from the outermost: method, closure, receiver, pc, depth, locations]."
 	<function>
-	| k chain nchain t st nd |
+	| k chain nchain t st nd q loc |
 	k := self newSafepoint.
 	k < CG_MAX_SP ifTrue: [cgMetaWords at: CG_MAX_META - 1 - k put: cgMetaCount].
 	nd := ir node: n.
@@ -2966,16 +2966,34 @@ recordState: s kind: kind node: n inSlots: inSlots
 		self meta: st pc.
 		self meta: st depth.
 		0 to: st depth - 1 do: [:j | self meta: (self locOf: (ir operand: st vals + 1 + j) inSlots: inSlots)]].
-	"closures that were never made: the activation that makes them (its index above), startpc, arguments, temps, frame size"
+	"where the fields of the objects never made are (the objects they name join the list)"
+	cgSunkFieldCount := 0.
+	q := 0.
+	[q < cgSunkCount] whileTrue: [
+		nd := ir node: (cgSunk at: q).
+		nd op asInt32 = O_VOBJ ifTrue: [
+			0 to: nd nargs asInt32 - 1 do: [:i |
+				loc := self locOf: (ir operand: nd args + i) inSlots: inSlots.
+				cgSunkFieldCount < 1024 ifTrue: [cgSunkFields at: cgSunkFieldCount put: loc asInt32] ifFalse: [asm fail: ASM_ERR_FULL].
+				cgSunkFieldCount := cgSunkFieldCount + 1]].
+		q := q + 1].
+	"closures that were never made: the activation that makes them (its index above), startpc, arguments, temps, frame size; objects never made (escape analysis): -1, their class's pool index, their fields' count"
 	self meta: cgSunkCount.
 	0 to: cgSunkCount - 1 do: [:j |
 		nd := ir node: (cgSunk at: j).
+		nd op asInt32 = O_VOBJ ifTrue: [
+			self meta: -1.
+			self meta: (self poolIndexOf: nd tcls).
+			self meta: nd nargs asInt32] ifFalse: [
 		t := -1.
 		0 to: nchain - 1 do: [:i | (cgChainActs at: i) = (nd aux2 >> 32) asInt32 ifTrue: [t := i asInt32]].
 		t < 0 ifTrue: [asm fail: ASM_ERR_OPERAND].
 		self meta: t.
 		self meta: nd aux asInt32.
-		self meta: (nd aux2 bitAnd: 16rFFFFFF) asInt32].
+		self meta: (nd aux2 bitAnd: 16rFFFFFF) asInt32]].
+	"then the objects' fields, in their order"
+	self meta: (cgSunkFieldCount min: 1024).
+	0 to: (cgSunkFieldCount min: 1024) - 1 do: [:j | self meta: (cgSunkFields at: j)].
 	^k
 !
 closureLocOf: v inSlots: inSlots
@@ -2985,7 +3003,10 @@ closureLocOf: v inSlots: inSlots
 !
 sunkIndexOf: v
 	"v's entry in this record's closures that were never made."
-	0 to: cgSunkCount - 1 do: [:j | (cgSunk at: j) = v ifTrue: [^j]].
+	0 to: cgSunkCount - 1 do: [:j |
+		(cgSunk at: j) = v ifTrue: [^j].
+		"one object for every O_VOBJ of one allocation"
+		((ir node: v) op asInt32 = O_VOBJ and: [(ir node: (cgSunk at: j)) op asInt32 = O_VOBJ and: [(ir node: (cgSunk at: j)) aux = (ir node: v) aux]]) ifTrue: [^j]].
 	cgSunkCount >= 64 ifTrue: [
 		asm fail: ASM_ERR_FULL.
 		^0].
@@ -3002,7 +3023,7 @@ locOf: v inSlots: inSlots
 		nd slot >= 0 ifTrue: [^(nd slot asInt64 << 3) bitOr: LOC_RAW].
 		asm fail: ASM_ERR_OPERAND.
 		^0].
-	nd op asInt32 = O_CLOSURE ifTrue: [^((self sunkIndexOf: v) asInt64 << 3) bitOr: LOC_SUNK].
+	(nd op asInt32 = O_CLOSURE or: [nd op asInt32 = O_VOBJ]) ifTrue: [^((self sunkIndexOf: v) asInt64 << 3) bitOr: LOC_SUNK].
 	nd op asInt32 = O_HOMESLOT ifTrue: [^(nd aux << 3) bitOr: LOC_SLOT].
 	nd op asInt32 = O_CONST ifTrue: [
 		c := nd aux asUInt64.

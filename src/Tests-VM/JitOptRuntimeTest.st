@@ -1910,3 +1910,54 @@ testFarOutOfLinePaths
 	self assert: (o far: big) equals: (self farSum: big).
 	self assert: (o far: arr) equals: (self farSum: arr)
 ! !
+
+!JitOptRuntimeTest methodsFor: 'tests: escape analysis'!
+testObjectsThatDoNotEscapeAreNotMade
+	"Escape analysis: a Point made and read in the unit, and one before a loop that stores into it on every turn (its fields phis of the loop), is not allocated; one that a phi merges is (it escapes). The answers are the interpreter's, and the loop of the first allocates nothing."
+	| o before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'escSum: n | s | s := 0. 1 to: n do: [:i | | p | p := i @ (i + 1). s := s + p x + p y]. ^s'.
+	self define: 'escRun: n | p | p := 0 @ 0. 1 to: n do: [:i | p := (p x + i) @ (p y - i)]. ^p x - p y'.
+	self define: 'escLoop: n | p | p := 0 @ 0. 1 to: n do: [:i | p setX: p x + i setY: p y - i]. ^p x - p y'.
+	self define: 'escBranch: n | p | p := n @ 1. n > 5 ifTrue: [p setX: p x * 2 setY: 0]. ^p x + p y'.
+	o := JitRuntimeTestSubject new.
+	1 to: 3 do: [:k | o escSum: 2000. o escRun: 2000. o escLoop: 2000. 1 to: 2000 do: [:i | o escBranch: i \\ 10]].
+	self assert: (o escSum: 100) equals: 10200.
+	self assert: (o escRun: 100) equals: 10100.
+	self assert: (o escLoop: 100) equals: 10100.
+	self assert: (o escBranch: 3) equals: 4.
+	self assert: (o escBranch: 7) equals: 14.
+	#(#escSum: #escLoop: #escBranch:) do: [:each |
+		self assert: ((JitRuntimeTestSubject >> each) jitCode: #opt) notNil description: [each , ' is not compiled by the optimizer']].
+	before := self statistics.
+	self assert: (o escSum: 100000) equals: 10000200000.
+	self stressed ifFalse: [self assert: (self statistics - before) bytesAllocated < 100000]
+!
+testObjectsNotMadeAtDeoptimization
+	"A guard fails while an object escape analysis did not make is live (in straight code, in a loop that stores into it): deoptimization makes it with its fields' values there, and the interpreter goes on with it."
+	| o |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'escDeopt: x | p | p := x @ 3. ^(p x + 1) + (p y * 2)'.
+	self define: 'escDeopt: n by: d | p | p := 0 @ 0. 1 to: n do: [:i | p setX: p x + d setY: p y + 1]. ^p x + p y'.
+	o := JitRuntimeTestSubject new.
+	1 to: 3000 do: [:i | o escDeopt: i. o escDeopt: 20 by: 2].
+	self assert: (o escDeopt: 5) equals: 12.
+	self assert: (o escDeopt: 2.5) equals: 9.5.
+	self assert: (o escDeopt: 100 by: 2) equals: 300.
+	self assert: (o escDeopt: 100 by: 0.5) equals: 150.0.
+	self assert: (o escDeopt: 100 by: 1 / 2) equals: 150
+!
+testObjectsNotMadeInFramesMadeContexts
+	"A frame whose objects escape analysis did not make becomes Contexts (thisContext in a method it calls, a scavenge before): the objects are made, with their fields (objects themselves), and what the frame does next sees them."
+	| o r |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'escTemp: i Smalltalk vm scavenge. ^thisContext sender tempAt: i'.
+	self define: 'escPeek: x | p r | p := Point x: (Array with: x) y: x + 1. r := self escTemp: 2. ^{(p x at: 1) + p y. r}'.
+	o := JitRuntimeTestSubject new.
+	1 to: 3000 do: [:i | o escPeek: i].
+	r := o escPeek: 7.
+	self assert: (r at: 1) equals: 15.
+	self assert: (r at: 2) class equals: Point.
+	self assert: (r at: 2) x equals: #(7).
+	self assert: (r at: 2) y equals: 8
+! !

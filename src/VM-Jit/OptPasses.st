@@ -1,5 +1,5 @@
 OptModule subclass: #OptPasses
-	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter psMemEnd psMemMark psMemKill psCounted psAffine psTPhi psTLo psTHi psTCount psRLo psRHi psILo psIHi psCHi psCStep psCHead psCLimit psCCond psLoopK psLoopConst psLoopCap'
+	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter psMemEnd psMemMark psMemKill psCounted psAffine psTPhi psTLo psTHi psTCount psRLo psRHi psILo psIHi psCHi psCStep psCHead psCLimit psCCond psLoopK psLoopConst psLoopCap psEscOf psEscNode psEscGone psEscCount psEscPos psEscEnd psEscCur psEscClone psEscStamp psEscVersion psEscVobj psEscPhi psEscPhiField psEscPhiCount psEscNil psEscEntry psEscEstStates psEscEstOps psEscReplaced'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -14,7 +14,9 @@ declarations
 		(psHeads 'int32_t[4096]') (psChain 'int32_t[OPT_MAX_NODES]') (psUnboxOff bool) (psUnboxed bool)
 		(psTwin 'int32_t[OPT_MAX_NODES]') (psLoopOuter 'int32_t[OPT_MAX_BLOCKS]') (psMemEnd 'int32_t[OPT_MAX_BLOCKS]') (psMemMark 'int32_t[OPT_MAX_BLOCKS]') (psMemKill 'uint8_t[OPT_MAX_BLOCKS]') (psCounted 'int64_t[4]') (psAffine 'int64_t[8]')
 		(psTPhi 'int32_t[16]') (psTLo 'int64_t[16]') (psTHi 'int64_t[16]') (psTCount int32_t) (psRLo int64_t) (psRHi int64_t) (psILo int64_t) (psIHi int64_t)
-		(psCHi int64_t) (psCStep int64_t) (psCHead bool) (psCLimit int32_t) (psCCond int32_t) (psLoopK 'int64_t[OPT_MAX_BLOCKS]') (psLoopConst 'int32_t[OPT_MAX_BLOCKS]') (psLoopCap 'uint8_t[OPT_MAX_BLOCKS]'))
+		(psCHi int64_t) (psCStep int64_t) (psCHead bool) (psCLimit int32_t) (psCCond int32_t) (psLoopK 'int64_t[OPT_MAX_BLOCKS]') (psLoopConst 'int32_t[OPT_MAX_BLOCKS]') (psLoopCap 'uint8_t[OPT_MAX_BLOCKS]') (psEscOf 'int32_t[OPT_MAX_NODES]') (psEscNode 'int32_t[64]') (psEscGone 'uint8_t[64]') (psEscCount int32_t) (psEscPos 'int32_t[OPT_MAX_NODES]') (psEscEnd 'int32_t[32768]') (psEscCur 'int32_t[16]')
+		(psEscClone 'int32_t[OPT_MAX_STATES]') (psEscStamp 'int32_t[OPT_MAX_STATES]') (psEscVersion int32_t) (psEscVobj int32_t) (psEscPhi 'int32_t[16384]') (psEscPhiField 'int32_t[16384]') (psEscPhiCount int32_t)
+		(psEscNil int32_t) (psEscEntry int32_t) (psEscEstStates 'int64_t[64]') (psEscEstOps 'int64_t[64]') (psEscReplaced int32_t))
 ! !
 
 !OptPasses methodsFor: 'accessing'!
@@ -41,6 +43,11 @@ cleanup: entry
 	self removeUnreachable.
 	self simplifyPhis.
 	self resolveOperands.
+	"objects that do not escape: not made, their fields values (phis where ways meet)"
+	((runtime flag: runtime escapeFlag) and: [self scalarReplace: entry]) ifTrue: [
+		self simplifyPhis.
+		self resolveOperands].
+	ir full ifTrue: [^self].
 	self typePhis.
 	self foldIntTests ifTrue: [
 		self computeOrder: entry.
@@ -410,7 +417,15 @@ unboxStates
 		0 to: st depth do: [:i |
 			v := ir operand: st vals + i.
 			(v >= 0 and: [(ir node: v) op asInt32 = O_BOXF and: [(ir node: v) block >= 0 and: [(psWorkList at: v) = 0]]]) ifTrue: [
-				ir operand: st vals + i put: (ir resolve: (ir node: v) a)]]]
+				ir operand: st vals + i put: (ir resolve: (ir node: v) a)]]].
+	"and the fields of the objects never made"
+	0 to: ir nodeCount - 1 do: [:n |
+		nd := ir node: n.
+		nd op asInt32 = O_VOBJ ifTrue: [
+			0 to: nd nargs asInt32 - 1 do: [:i |
+				v := ir operand: nd args + i.
+				(v >= 0 and: [(ir node: v) op asInt32 = O_BOXF and: [(ir node: v) block >= 0 and: [(psWorkList at: v) = 0]]]) ifTrue: [
+					ir operand: nd args + i put: (ir resolve: (ir node: v) a)]]]]
 !
 isFrameNumber: v
 	"v is a loop unit's parameter, a frame slot that held a number when the unit was compiled."
@@ -2087,6 +2102,7 @@ state: s enteredFrom: k of: h
 	0 to: st depth do: [:i |
 		v := ir operand: st vals + i.
 		(v >= 0 and: [(ir node: v) op asInt32 = O_PHI and: [(ir node: v) block = h]]) ifTrue: [v := ir operand: (ir node: v) args + k].
+		(v >= 0 and: [(ir node: v) op asInt32 = O_VOBJ]) ifTrue: [v := self vobj: v enteredFrom: k of: h].
 		ir operand: vals + i put: v].
 	ns parent: (self state: st parent enteredFrom: k of: h).
 	^n
@@ -2235,7 +2251,7 @@ useState: s
 	t := s.
 	[t >= 0] whileTrue: [
 		st := ir state: t.
-		0 to: st depth do: [:i | self use: (ir operand: st vals + i)].
+		0 to: st depth do: [:i | self useValue: (ir operand: st vals + i)].
 		t := st parent]
 !
 removeDead
@@ -2260,4 +2276,355 @@ isFloatPure: nd
 	| op |
 	op := nd op asInt32.
 	^op = O_BOXF or: [op = O_FCMP or: [op = O_BOTHINT or: [op = O_FSQRT or: [op = O_LOADSLOT or: [op = O_FARITH and: [nd aux ~= 9]]]]]]
+! !
+
+!OptPasses methodsFor: 'escape analysis'!
+scalarReplace: entry
+	"Escape analysis and scalar replacement (docs/jit.md, Escape analysis): an object that basicNew makes (fixed fields, up to 16) whose every use is a load or a store of one of its fields (not a store of it anywhere), or a frame state after it, is not made. A load is the value stored there last on the way (nil before any store; a phi where ways with different values meet), the stores go, and the frame states that name it name an O_VOBJ of its fields' values at their point instead, which deoptimization makes. Answer whether any was not made."
+	<function>
+	| any |
+	psEscCount := 0.
+	psEscReplaced := 0.
+	psEscEntry := entry.
+	0 to: ir nodeCount - 1 do: [:n |
+		psEscOf at: n put: -1.
+		(psEscCount < 64 and: [self isVirtualizable: n]) ifTrue: [
+			psEscOf at: n put: psEscCount.
+			psEscNode at: psEscCount put: n.
+			psEscGone at: psEscCount put: 0.
+			psEscEstStates at: psEscCount put: 0.
+			psEscEstOps at: psEscCount put: 0.
+			psEscCount := psEscCount + 1]].
+	psEscCount = 0 ifTrue: [^false].
+	self foldGuardsOfAllocations.
+	self resolveOperands.
+	self dominators: entry.
+	self escPositions.
+	self findEscapes.
+	any := false.
+	psEscVersion := 0.
+	psEscNil := -1.
+	0 to: ir stateCount - 1 do: [:s | psEscStamp at: s put: 0].
+	0 to: psEscCount - 1 do: [:c |
+		((psEscGone at: c) = 0 and: [self roomFor: c]) ifTrue: [
+			self virtualize: c.
+			ir full ifTrue: [^false].
+			any := true]].
+	^any
+!
+replacedCount
+	"How many allocations scalarReplace: left out of the unit."
+	^psEscReplaced
+!
+isVirtualizable: n
+	"n is a basicNew in eden of an object with fixed fields only, at most 16."
+	| nd |
+	nd := ir node: n.
+	^nd block >= 0 and: [nd op asInt32 = O_SEND and: [(nd flags bitAnd: NF_ALLOC) ~= 0 and: [nd nargs asInt32 = 1 and: [nd fwd < 0 and: [((nd c bitAnd: 255) = F_FIXED or: [(nd c bitAnd: 255) = F_EMPTY]) and: [(nd c >> 8) <= 16]]]]]]
+!
+fieldsOf: c
+	^((ir node: (psEscNode at: c)) c >> 8) asInt32
+!
+foldGuardsOfAllocations
+	"A class guard of an allocation of that class passes: it is the allocation."
+	| nd x |
+	0 to: ir nodeCount - 1 do: [:n |
+		nd := ir node: n.
+		(nd block >= 0 and: [nd op asInt32 = O_GUARDCLASS and: [nd a >= 0 and: [(psEscOf at: (ir resolve: nd a)) >= 0]]]) ifTrue: [
+			x := ir node: (ir resolve: nd a).
+			nd aux asUInt64 = x tcls ifTrue: [
+				nd fwd: (ir resolve: nd a).
+				ir unlink: n]]]
+!
+escPositions
+	"psEscPos: each node's place in its block."
+	| p n |
+	0 to: ir blockCount - 1 do: [:b |
+		p := 0.
+		n := (ir block: b) first.
+		[n >= 0] whileTrue: [
+			psEscPos at: n put: p.
+			p := p + 1.
+			n := (ir node: n) next]]
+!
+isAfter: c block: b pos: p
+	"Position p of block b (-1: its start) comes after allocation c on every way there."
+	| a ab |
+	a := psEscNode at: c.
+	ab := (ir node: a) block.
+	b = ab ifTrue: [^p > (psEscPos at: a)].
+	^(ir block: b) rpo >= 0 and: [self dominates: ab block: b]
+!
+findEscapes
+	"An allocation escapes where anything but a load or store of one of its fields (not a store of it), or a frame state after it, names it. Also how many states and operands its states' copies may take (roomFor:)."
+	<function>
+	| nd op k |
+	0 to: ir nodeCount - 1 do: [:n |
+		nd := ir node: n.
+		nd block >= 0 ifTrue: [
+			op := nd op asInt32.
+			nd a >= 0 ifTrue: [
+				k := psEscOf at: (ir resolve: nd a).
+				(k >= 0 and: [((op = O_LOADFIELD or: [op = O_STOREFIELD]) and: [nd aux >= 0 and: [nd aux < (self fieldsOf: k)]]) not]) ifTrue: [psEscGone at: k put: 1]].
+			nd b >= 0 ifTrue: [self escapes: nd b].
+			(nd c >= 0 and: [op ~= O_SEND]) ifTrue: [self escapes: nd c].
+			0 to: nd nargs asInt32 - 1 do: [:i | self escapes: (ir operand: nd args + i)].
+			nd state >= 0 ifTrue: [self escapesIn: nd state block: nd block pos: (psEscPos at: n)]]].
+	0 to: ir blockCount - 1 do: [:b |
+		((ir block: b) rpo >= 0 and: [(ir block: b) entryState >= 0]) ifTrue: [self escapesIn: (ir block: b) entryState block: b pos: -1]]
+!
+escapes: v
+	| k |
+	v < 0 ifTrue: [^self].
+	k := psEscOf at: (ir resolve: v).
+	k >= 0 ifTrue: [psEscGone at: k put: 1]
+!
+escapesIn: s block: b pos: p
+	"State s (and its parents) at position p of block b: an allocation it names must come before."
+	<function>
+	| t st v k ops len |
+	t := s.
+	ops := 0.
+	len := 0.
+	[t >= 0] whileTrue: [
+		st := ir state: t.
+		len := len + 1.
+		ops := ops + st depth + 1.
+		t := st parent].
+	t := s.
+	[t >= 0] whileTrue: [
+		st := ir state: t.
+		0 to: st depth do: [:i |
+			v := ir operand: st vals + i.
+			v >= 0 ifTrue: [
+				k := psEscOf at: (ir resolve: v).
+				k >= 0 ifTrue: [
+					(self isAfter: k block: b pos: p) ifFalse: [psEscGone at: k put: 1].
+					psEscEstStates at: k put: (psEscEstStates at: k) + len.
+					psEscEstOps at: k put: (psEscEstOps at: k) + ops]]].
+		t := st parent]
+!
+roomFor: c
+	"The IR's arrays have room for what virtualize: c may add: copies of the states that name it, its objects, phis of its fields where ways meet after it."
+	| a ab merges nf |
+	a := psEscNode at: c.
+	ab := (ir node: a) block.
+	nf := self fieldsOf: c.
+	merges := 0.
+	0 to: ir blockCount - 1 do: [:b |
+		((ir block: b) rpo >= 0 and: [b ~= ab and: [(ir block: b) npreds > 1 and: [self dominates: ab block: b]]]) ifTrue: [merges := merges + (ir block: b) npreds]].
+	merges * nf > 16000 ifTrue: [^false].
+	ir stateCount + (psEscEstStates at: c) + 64 > OPT_MAX_STATES ifTrue: [^false].
+	ir nodeCount + (psEscEstStates at: c) + (merges * nf) + 64 > OPT_MAX_NODES ifTrue: [^false].
+	^ir operandCount + (psEscEstOps at: c) + ((psEscEstStates at: c) * nf) + (merges * nf) + 1024 <= OPT_MAX_OPERANDS
+!
+virtualize: c
+	"Allocation c's fields as values (scalarReplace:): over the blocks it dominates in order, a load is the value its field has there, a store goes, the frame states that name it name its O_VOBJ of the values at their point; phis where ways meet (their operands filled once every block is done: around loops)."
+	<function>
+	| a ab nf b n next |
+	a := psEscNode at: c.
+	ab := (ir node: a) block.
+	nf := self fieldsOf: c.
+	psEscVersion := psEscVersion + 1.
+	psEscVobj := -1.
+	psEscPhiCount := 0.
+	(ir block: ab) rpo to: psOrderCount - 1 do: [:i |
+		b := psOrder at: i.
+		(b = ab or: [self dominates: ab block: b]) ifTrue: [
+			b = ab
+				ifTrue: [
+					0 to: nf - 1 do: [:f | psEscCur at: f put: self nilValue].
+					n := (ir node: a) next]
+				ifFalse: [
+					self startOf: b candidate: c.
+					(ir block: b) entryState >= 0 ifTrue: [(ir block: b) entryState: (self virtualState: (ir block: b) entryState candidate: c)].
+					n := (ir block: b) first].
+			[n >= 0] whileTrue: [
+				next := (ir node: n) next.
+				self virtualize: n candidate: c.
+				n := next].
+			0 to: nf - 1 do: [:f | psEscEnd at: b * 16 + f put: (psEscCur at: f)]]].
+	0 to: psEscPhiCount - 1 do: [:j |
+		n := psEscPhi at: j.
+		b := (ir node: n) block.
+		0 to: (ir block: b) npreds - 1 do: [:k |
+			ir operand: (ir node: n) args + k put: (psEscEnd at: (ir pred: k of: b) * 16 + (psEscPhiField at: j))]].
+	(ir node: a) flags: ((ir node: a) flags bitOr: NF_DEAD).
+	ir unlink: a.
+	psEscReplaced := psEscReplaced + 1
+!
+startOf: b candidate: c
+	"psEscCur: allocation c's fields where block b starts: what its predecessors end with, a phi where they differ or a loop comes around."
+	| bl nf back same v p e |
+	bl := ir block: b.
+	nf := self fieldsOf: c.
+	back := false.
+	e := bl preds.
+	[e >= 0] whileTrue: [
+		(ir block: (ir edge: e) from) rpo >= bl rpo ifTrue: [back := true].
+		e := (ir edge: e) next].
+	0 to: nf - 1 do: [:f |
+		v := -1.
+		same := true.
+		e := bl preds.
+		[e >= 0] whileTrue: [
+			p := (ir edge: e) from.
+			(ir block: p) rpo < bl rpo ifTrue: [
+				v < 0
+					ifTrue: [v := psEscEnd at: p * 16 + f]
+					ifFalse: [(psEscEnd at: p * 16 + f) = v ifFalse: [same := false]]].
+			e := (ir edge: e) next].
+		(back or: [same not]) ifTrue: [v := self phiFor: f in: b candidate: c].
+		psEscCur at: f put: v].
+	"the object frame states name changes with its fields"
+	psEscVobj >= 0 ifTrue: [
+		0 to: nf - 1 do: [:f | (ir operand: (ir node: psEscVobj) args + f) = (psEscCur at: f) ifFalse: [psEscVobj := -1]].
+		psEscVobj < 0 ifTrue: [psEscVersion := psEscVersion + 1]]
+!
+phiFor: f in: b candidate: c
+	"A phi of allocation c's field f at the start of block b (its operands come later)."
+	| n nd args a |
+	a := ir node: (psEscNode at: c).
+	n := ir newNode: O_PHI rep: R_OOP.
+	ir full ifTrue: [^n].
+	args := ir allocOperands: (ir block: b) npreds.
+	ir full ifTrue: [^n].
+	nd := ir node: n.
+	nd args: args.
+	nd nargs: (ir block: b) npreds asUInt16.
+	nd bcact: a bcact.
+	nd bcpc: a bcpc.
+	ir prepend: n to: b.
+	psEscPhiCount < 16384
+		ifTrue: [
+			psEscPhi at: psEscPhiCount put: n.
+			psEscPhiField at: psEscPhiCount put: f.
+			psEscPhiCount := psEscPhiCount + 1]
+		ifFalse: [ir fail].
+	^n
+!
+virtualize: n candidate: c
+	"Node n after allocation c: a store into c goes, a load of c is the value there, a frame state that names c names its object."
+	| nd op a |
+	nd := ir node: n.
+	op := nd op asInt32.
+	a := psEscNode at: c.
+	(op = O_STOREFIELD and: [(ir resolve: nd a) = a]) ifTrue: [
+		psEscCur at: nd aux put: (ir resolve: nd b).
+		psEscVobj := -1.
+		psEscVersion := psEscVersion + 1.
+		nd flags: (nd flags bitOr: NF_DEAD).
+		ir unlink: n.
+		^self].
+	(op = O_LOADFIELD and: [(ir resolve: nd a) = a]) ifTrue: [
+		nd fwd: (psEscCur at: nd aux).
+		ir unlink: n.
+		^self].
+	nd state >= 0 ifTrue: [nd state: (self virtualState: nd state candidate: c)]
+!
+virtualState: s candidate: c
+	"State s with its parents where allocation c's fields are psEscCur: itself if none names c, else a copy that names c's object (one per state while the fields stay as they are)."
+	<function>
+	<returns: 'int32_t'>
+	| st p names ns vals v a |
+	s < 0 ifTrue: [^s].
+	(psEscStamp at: s) = psEscVersion ifTrue: [^psEscClone at: s].
+	st := ir state: s.
+	a := psEscNode at: c.
+	p := self virtualState: st parent candidate: c.
+	names := p ~= st parent.
+	0 to: st depth do: [:i | (ir resolve: (ir operand: st vals + i)) = a ifTrue: [names := true]].
+	names ifFalse: [
+		psEscStamp at: s put: psEscVersion.
+		psEscClone at: s put: s.
+		^s].
+	ns := ir newState.
+	ir full ifTrue: [^s].
+	vals := ir allocOperands: st depth + 1.
+	ir full ifTrue: [^s].
+	(ir state: ns) act: st act.
+	(ir state: ns) pc: st pc.
+	(ir state: ns) depth: st depth.
+	(ir state: ns) flags: st flags.
+	(ir state: ns) vals: vals.
+	(ir state: ns) parent: p.
+	0 to: st depth do: [:i |
+		v := ir resolve: (ir operand: st vals + i).
+		v = a ifTrue: [v := self vobjOf: c].
+		ir operand: vals + i put: v].
+	psEscStamp at: ns put: 0.
+	psEscStamp at: s put: psEscVersion.
+	psEscClone at: s put: ns.
+	^ns
+!
+vobjOf: c
+	"Allocation c as frame states name it where its fields are psEscCur: an O_VOBJ (in no block)."
+	| n nd args nf a |
+	psEscVobj >= 0 ifTrue: [^psEscVobj].
+	a := ir node: (psEscNode at: c).
+	nf := self fieldsOf: c.
+	n := ir newNode: O_VOBJ rep: R_OOP.
+	ir full ifTrue: [^n].
+	args := ir allocOperands: nf.
+	ir full ifTrue: [^n].
+	nd := ir node: n.
+	nd args: args.
+	nd nargs: nf asUInt16.
+	nd aux: (psEscNode at: c) asInt64.
+	nd tcls: a tcls.
+	nd tkind: T_OBJ.
+	nd bcact: a bcact.
+	nd bcpc: a bcpc.
+	0 to: nf - 1 do: [:f | ir operand: args + f put: (psEscCur at: f)].
+	psEscVobj := n.
+	^n
+!
+nilValue
+	"nil, a constant in the entry block: an object's fields before any store."
+	| n nd |
+	psEscNil >= 0 ifTrue: [^psEscNil].
+	n := ir newNode: O_CONST rep: R_OOP.
+	ir full ifTrue: [^n].
+	nd := ir node: n.
+	nd aux: memory nilOop asInt64.
+	nd flags: NF_PURE.
+	nd tkind: T_NIL.
+	ir insert: n before: (ir block: psEscEntry) last.
+	psEscNil := n.
+	^n
+!
+useValue: v
+	"A frame state's value v (countUses); an object never made: its fields' values too."
+	<function>
+	| nd |
+	self use: v.
+	v < 0 ifTrue: [^self].
+	nd := ir node: v.
+	nd op asInt32 = O_VOBJ ifTrue: [0 to: nd nargs asInt32 - 1 do: [:i | self useValue: (ir operand: nd args + i)]]
+!
+vobj: v enteredFrom: k of: h
+	"Object v (an O_VOBJ) as it is where loop h is entered from its predecessor k: its fields that are h's phis what they take from there."
+	| nd n args w changed |
+	nd := ir node: v.
+	changed := false.
+	0 to: nd nargs asInt32 - 1 do: [:i |
+		w := ir operand: nd args + i.
+		(w >= 0 and: [(ir node: w) op asInt32 = O_PHI and: [(ir node: w) block = h]]) ifTrue: [changed := true]].
+	changed ifFalse: [^v].
+	n := ir newNode: O_VOBJ rep: R_OOP.
+	ir full ifTrue: [^v].
+	args := ir allocOperands: nd nargs asInt32.
+	ir full ifTrue: [^v].
+	(ir node: n) args: args.
+	(ir node: n) nargs: nd nargs.
+	(ir node: n) aux: nd aux.
+	(ir node: n) tcls: nd tcls.
+	(ir node: n) tkind: nd tkind.
+	(ir node: n) bcact: nd bcact.
+	(ir node: n) bcpc: nd bcpc.
+	0 to: nd nargs asInt32 - 1 do: [:i |
+		w := ir operand: nd args + i.
+		(w >= 0 and: [(ir node: w) op asInt32 = O_PHI and: [(ir node: w) block = h]]) ifTrue: [w := ir operand: (ir node: w) args + k].
+		ir operand: args + i put: w].
+	^n
 ! !

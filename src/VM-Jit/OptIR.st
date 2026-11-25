@@ -117,6 +117,9 @@ operands
 nodeCount
 	^optNodeCount
 !
+operandCount
+	^optOperandCount
+!
 blockCount
 	^optBlockCount
 !

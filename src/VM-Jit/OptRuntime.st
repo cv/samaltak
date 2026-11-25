@@ -1,5 +1,5 @@
 OptModule subclass: #OptRuntime
-	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtFloatVal rtFloatLoc rtFloatBits rtFloatCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtVariantCount rtFailed rtTrace rtTraceSends rtStamp rtStatSends rtUnitFrame rtUnitSignature rtSigCtx rtSigCount threads rtBgThread rtBgState rtBgOk rtBgUnboxed rtBgWorkerUs rtBgInstalling rtBgHold rtBgStale rtBgGcStale rtBgFlushed rtBgYoung rtBgMethod rtBgLower rtBgPrev rtBgStart rtBgOsr rtBgDepth rtBgSignature rtBgStamp rtBgKey rtBgRedoKey rtStatBgJobs rtStatBgDiscarded rtStatBgUs rtStatBgDeferred'
+	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkFirst rtSunkSelf rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtFloatVal rtFloatLoc rtFloatBits rtFloatCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtVariantCount rtFailed rtTrace rtTraceSends rtStamp rtStatSends rtUnitFrame rtUnitSignature rtSigCtx rtSigCount threads rtBgThread rtBgState rtBgOk rtBgUnboxed rtBgWorkerUs rtBgInstalling rtBgHold rtBgStale rtBgGcStale rtBgFlushed rtBgYoung rtBgMethod rtBgLower rtBgPrev rtBgStart rtBgOsr rtBgDepth rtBgSignature rtBgStamp rtBgKey rtBgRedoKey rtStatBgJobs rtStatBgDiscarded rtStatBgUs rtStatBgDeferred'
 	classVariableNames: 'BG_DONE BG_IDLE BG_MIN_NODES BG_QUEUED OPT_MAX_UNITS OPT_MAX_VARIANT_UNITS OPT_MAX_VARIANTS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
 	package: 'VM-Jit'!
 
@@ -17,7 +17,7 @@ declarations
 		(rtStatOptCompiled uint64_t) (rtStatOptFailed uint64_t) (rtStatOptBytecodes uint64_t) (rtStatOptUs uint64_t) (rtStatOptBytes uint64_t)
 		(rtStatDeopts uint64_t) (rtStatOptOsr uint64_t) (rtStatInvalidations uint64_t)
 		(rtAll 'JitMethod *[OPT_MAX_HEADERS]') (rtAllCount int32_t)
-		(rtSunkAct 'int32_t[64]') (rtSunkStart 'int32_t[64]') (rtSunkInfo 'int32_t[64]') (rtSunkOrder 'int32_t[64]') (rtSunkCount int32_t)
+		(rtSunkAct 'int32_t[64]') (rtSunkStart 'int32_t[64]') (rtSunkInfo 'int32_t[64]') (rtSunkOrder 'int32_t[64]') (rtSunkCount int32_t) (rtSunkFirst 'int32_t[64]') (rtSunkSelf 'int32_t[64]')
 		(rtSunkUseVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseId 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseCount int32_t)
 		(rtFloatVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtFloatLoc 'int32_t[OPT_MAX_DEOPT_VALS]') (rtFloatBits 'uint64_t[OPT_MAX_DEOPT_VALS]') (rtFloatCount int32_t) (rtWritten int32_t)
 		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtVariantCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]') (rtTrace bool) (rtTraceSends bool) (rtStamp uint32_t) (rtStatSends uint64_t) (rtUnitFrame 'Frame *') (rtUnitSignature uint32_t) (rtSigCtx 'oop[8]') (rtSigCount int32_t)
@@ -715,8 +715,8 @@ compile: m
 	"the analysis the runtime reads afterwards is m's"
 	analysis analyze: m.
 	ok ifFalse: [rtStatOptFailed := rtStatOptFailed + 1].
-	trace ifTrue: [libc fprintf: libc stderr format: 'opt: %s
-' with: (ok ifTrue: ['ok'] ifFalse: ['failed'])].
+	trace ifTrue: [libc fprintf: libc stderr format: 'opt: %s, %d allocations not made
+' with: (ok ifTrue: ['ok'] ifFalse: ['failed']) with: passes replacedCount].
 	^ok
 !
 buildAndAllocate: m trace: trace
@@ -1188,10 +1188,12 @@ deoptFrame: f index: k regs: regs mode: mode
 		self writeFrames: fi from: f fp].
 	0 to: rtSunkCount - 1 do: [:j |
 		sunk := rtSunkOrder at: j.
-		g := interpreter frames + fi + (rtSunkAct at: sunk).
-		interpreter marry: g.
-		self makeSunk: sunk outer: g ctx.
-		self writeFrames: fi from: (interpreter frames + fi) fp].
+		(rtSunkAct at: sunk) >= 0 ifTrue: [
+			g := interpreter frames + fi + (rtSunkAct at: sunk).
+			interpreter marry: g.
+			self makeSunk: sunk outer: g ctx.
+			self writeFrames: fi from: (interpreter frames + fi) fp]].
+	(self makeObjects: h) ifTrue: [self writeFrames: fi from: (interpreter frames + fi) fp].
 	rtDeoptCount := 0.
 	^1
 !
@@ -1219,6 +1221,28 @@ writeFrames: fi from: fp0
 	rtWritten := rtActCount.
 	interpreter nframes: fi + rtActCount.
 	interpreter cstackUsed: (fp + (rtActDepth at: rtActCount - 1) - interpreter cstackBase) asUInt64
+!
+makeObjects: h
+	"Make the objects h's code never made (escape analysis: OptPasses>>scalarReplace:), every value that was one becoming it, then fill their fields from deoptVals (a field that was such an object or a closure never made is it by now); answer whether there were any. Allocating may collect: the frames are valid, deoptVals are roots."
+	<function>
+	<var: #h type: 'JitMethod *'>
+	| any cls o n |
+	any := false.
+	0 to: rtSunkCount - 1 do: [:s |
+		((rtSunkAct at: s) < 0 and: [rtDeoptCount < OPT_MAX_DEOPT_VALS]) ifTrue: [
+			any := true.
+			cls := self poolAt: (rtSunkStart at: s) of: h.
+			n := rtSunkInfo at: s.
+			o := memory allocObj: cls format: (n = 0 ifTrue: [F_EMPTY] ifFalse: [F_FIXED]) slots: n asUInt32.
+			rtSunkSelf at: s put: rtDeoptCount.
+			self push: o.
+			0 to: rtSunkUseCount - 1 do: [:i | (rtSunkUseId at: i) = s ifTrue: [rtDeoptVals at: (rtSunkUseVal at: i) put: o]]]].
+	any ifFalse: [^false].
+	0 to: rtSunkCount - 1 do: [:s |
+		(rtSunkAct at: s) < 0 ifTrue: [
+			o := rtDeoptVals at: (rtSunkSelf at: s).
+			0 to: (rtSunkInfo at: s) - 1 do: [:i | self storeRef: o at: i put: (rtDeoptVals at: (rtSunkFirst at: s) + i)]]].
+	^true
 !
 makeSunk: s outer: ctx
 	"Make the closure of sunk entry s, its outerContext ctx; every value that was it becomes it."
@@ -1289,7 +1313,7 @@ profileActsOf: f into: meths pcs: pcs at: start max: max
 decode: h index: k frame: f regs: regs mode: mode
 	"Read safepoint k's record into the activation arrays, the values into deoptVals (GC roots), the closures never made into the sunk arrays (in the order of the activations that make them), the doubles that are no SmallFloat64s into the float arrays (nil in deoptVals until boxFloats). mode 1 pushes the send's receiver and arguments (and goes back to the send), 2 its result."
 	<function>
-	| rec p nacts d base sendPc argc op bcs ns t |
+	| rec p nacts d base sendPc argc op bcs ns t q fq |
 	rec := self recordOf: h index: k.
 	sendPc := rec at: 1.
 	argc := ((rec at: 2) bitAnd: 255) asInt32.
@@ -1300,6 +1324,17 @@ decode: h index: k frame: f regs: regs mode: mode
 	rtFloatCount := 0.
 	rtWritten := 0.
 	rtActCount := nacts.
+	"the fields of the objects never made first (the innermost activation's values come last: mode 1 and 2 extend them)"
+	q := 5.
+	0 to: nacts - 1 do: [:j | q := q + 5 + (rec at: q + 4)].
+	ns := rec at: q.
+	fq := q + 2 + (3 * ns).
+	0 to: ns - 1 do: [:j |
+		(rec at: q + 1 + (3 * j)) < 0 ifTrue: [
+			rtSunkFirst at: j put: rtDeoptCount.
+			0 to: (rec at: q + 3 + (3 * j)) - 1 do: [:i |
+				self value: (rec at: fq) h: h frame: f regs: regs.
+				fq := fq + 1]]].
 	0 to: nacts - 1 do: [:j |
 		rtActMethod at: j put: (self poolAt: (rec at: p) of: h).
 		rtActClosure at: j put: ((rec at: p + 1) < 0 ifTrue: [-1] ifFalse: [self value: (rec at: p + 1) h: h frame: f regs: regs]).
@@ -1447,7 +1482,8 @@ materialize: f
 		self push: ctx].
 	0 to: rtSunkCount - 1 do: [:j |
 		sunk := rtSunkOrder at: j.
-		self makeSunk: sunk outer: (rtDeoptVals at: first + (rtSunkAct at: sunk))].
+		(rtSunkAct at: sunk) >= 0 ifTrue: [self makeSunk: sunk outer: (rtDeoptVals at: first + (rtSunkAct at: sunk))]].
+	self makeObjects: h.
 	0 to: rtActCount - 1 do: [:i |
 		c := rtDeoptVals at: first + i.
 		s := self slotsOf: c.

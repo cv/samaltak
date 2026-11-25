@@ -345,6 +345,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define JIT_FLAG_COLD 8388608
 #define JIT_FLAG_DEOPT 524288
 #define JIT_FLAG_EAGER 262144
+#define JIT_FLAG_ESCAPE 67108864
 #define JIT_FLAG_FFI_SITE 16777216
 #define JIT_FLAG_FLOAT 2048
 #define JIT_FLAG_FUSE 2
@@ -352,7 +353,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define JIT_FLAG_HOIST 1048576
 #define JIT_FLAG_IC 16
 #define JIT_FLAG_INLINE 16384
-#define JIT_FLAG_LAST 33554432
+#define JIT_FLAG_LAST 67108864
 #define JIT_FLAG_LIVE 2097152
 #define JIT_FLAG_MEGA 64
 #define JIT_FLAG_NOTES 8
@@ -564,7 +565,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define O_ISHIFT 36
 #define O_ISUB 10
 #define O_IXOR 37
-#define O_LAST 54
+#define O_LAST 55
 #define O_LOADFIELD 4
 #define O_LOADSLOT 40
 #define O_MKARRAY 43
@@ -584,6 +585,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define O_STRCMP 54
 #define O_STRHASH 49
 #define O_UNBOXF 28
+#define O_VOBJ 55
 #define PF_BLEND_ALPHA 1
 #define PF_BLEND_NONE 0
 #define PF_BLEND_PREMULTIPLIED 2
@@ -1712,6 +1714,7 @@ extern uint32_t opt_fb_vals[16384];
 extern bool opt_full;
 extern int32_t opt_node_count;
 extern opt_node opt_nodes[16384];
+extern int32_t opt_operand_count;
 extern int32_t opt_operands[131072];
 extern int32_t opt_osr_entry;
 extern uint64_t opt_osr_floats;
@@ -1721,6 +1724,7 @@ extern int32_t opt_osr_state;
 extern int32_t opt_snap_nodes;
 extern int32_t opt_state_count;
 extern opt_state opt_states[16384];
+extern int32_t ps_esc_replaced;
 #if defined(__x86_64__)
 extern int32_t ps_loop_outer[2048];
 #endif

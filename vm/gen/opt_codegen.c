@@ -62,6 +62,8 @@ static int32_t cg_sp_offsets[4096];
 static int32_t cg_stack_full_label;
 static int32_t cg_sunk[64];
 static int32_t cg_sunk_count;
+static int32_t cg_sunk_field_count;
+static int32_t cg_sunk_fields[1024];
 static int32_t cg_valid_slots;
 
 static void catch_up(void);
@@ -110538,6 +110540,8 @@ static int32_t record_state(int32_t s, int32_t kind, int32_t n, bool in_slots)
     opt_node *nd_2;
     int32_t r_sunk_index_of;
     int32_t j;
+    int32_t n_2;
+    int32_t n_3;
     uint64_t c;
     int64_t v_2;
     int64_t w_5;
@@ -110559,6 +110563,8 @@ static int32_t record_state(int32_t s, int32_t kind, int32_t n, bool in_slots)
     opt_node *nd_3;
     int32_t r_sunk_index_of_2;
     int32_t j_2;
+    int32_t n_4;
+    int32_t n_5;
     uint64_t c_2;
     int64_t v_5;
     int64_t w_8;
@@ -110568,6 +110574,8 @@ static int32_t record_state(int32_t s, int32_t kind, int32_t n, bool in_slots)
     opt_node *nd_4;
     int32_t r_sunk_index_of_3;
     int32_t j_3;
+    int32_t n_6;
+    int32_t n_7;
     uint64_t c_3;
     int64_t w_9;
     int32_t w_10;
@@ -110579,13 +110587,33 @@ static int32_t record_state(int32_t s, int32_t kind, int32_t n, bool in_slots)
     opt_node *nd_5;
     int32_t r_sunk_index_of_4;
     int32_t j_5;
+    int32_t n_8;
+    int32_t n_9;
     uint64_t c_4;
     int64_t w_12;
+    int64_t q;
+    int32_t n_10;
+    int32_t i_5;
+    int32_t i_6;
+    int32_t v_8;
+    int64_t r_loc_of_5;
+    opt_node *nd_6;
+    int32_t r_sunk_index_of_5;
     int32_t j_6;
-    int32_t n_2;
-    int64_t i_5;
+    int32_t n_11;
+    int32_t n_12;
+    uint64_t c_5;
+    int64_t loc;
+    int32_t j_7;
+    int32_t n_13;
     int32_t w_13;
     int32_t w_14;
+    int64_t i_7;
+    int32_t w_15;
+    int32_t w_16;
+    int32_t w_17;
+    int32_t j_8;
+    int32_t w_18;
     k = ({
     k_2 = cg_sp_count;
     if (cg_sp_count < CG_MAX_SP) {
@@ -110644,10 +110672,18 @@ static int32_t record_state(int32_t s, int32_t kind, int32_t n, bool in_slots)
         r_loc_of = 0;
         goto exit_loc_of;
     }
-    if ((int32_t)nd_2->op == O_CLOSURE) {
+    if (((int32_t)nd_2->op == O_CLOSURE) || ((int32_t)nd_2->op == O_VOBJ)) {
         r_loc_of = (((int64_t)({
     for (j = 0; j <= cg_sunk_count - 1; j++) {
         if (cg_sunk[j] == v) {
+            r_sunk_index_of = j;
+            goto exit_sunk_index_of;
+        }
+        if (((int32_t)(opt_nodes + v)->op == O_VOBJ) && ({
+    n_2 = cg_sunk[j];
+    ((int32_t)(opt_nodes + n_2)->op == O_VOBJ) && ({
+    n_3 = cg_sunk[j];
+    (opt_nodes + n_3)->aux == (opt_nodes + v)->aux; }); })) {
             r_sunk_index_of = j;
             goto exit_sunk_index_of;
         }
@@ -110766,10 +110802,18 @@ exit_loc_of:;
         r_loc_of_2 = 0;
         goto exit_loc_of_2;
     }
-    if ((int32_t)nd_3->op == O_CLOSURE) {
+    if (((int32_t)nd_3->op == O_CLOSURE) || ((int32_t)nd_3->op == O_VOBJ)) {
         r_loc_of_2 = (((int64_t)({
     for (j_2 = 0; j_2 <= cg_sunk_count - 1; j_2++) {
         if (cg_sunk[j_2] == v_4) {
+            r_sunk_index_of_2 = j_2;
+            goto exit_sunk_index_of_2;
+        }
+        if (((int32_t)(opt_nodes + v_4)->op == O_VOBJ) && ({
+    n_4 = cg_sunk[j_2];
+    ((int32_t)(opt_nodes + n_4)->op == O_VOBJ) && ({
+    n_5 = cg_sunk[j_2];
+    (opt_nodes + n_5)->aux == (opt_nodes + v_4)->aux; }); })) {
             r_sunk_index_of_2 = j_2;
             goto exit_sunk_index_of_2;
         }
@@ -110844,10 +110888,18 @@ exit_closure_loc_of:;
         r_loc_of_3 = 0;
         goto exit_loc_of_3;
     }
-    if ((int32_t)nd_4->op == O_CLOSURE) {
+    if (((int32_t)nd_4->op == O_CLOSURE) || ((int32_t)nd_4->op == O_VOBJ)) {
         r_loc_of_3 = (((int64_t)({
     for (j_3 = 0; j_3 <= cg_sunk_count - 1; j_3++) {
         if (cg_sunk[j_3] == v_6) {
+            r_sunk_index_of_3 = j_3;
+            goto exit_sunk_index_of_3;
+        }
+        if (((int32_t)(opt_nodes + v_6)->op == O_VOBJ) && ({
+    n_6 = cg_sunk[j_3];
+    ((int32_t)(opt_nodes + n_6)->op == O_VOBJ) && ({
+    n_7 = cg_sunk[j_3];
+    (opt_nodes + n_7)->aux == (opt_nodes + v_6)->aux; }); })) {
             r_sunk_index_of_3 = j_3;
             goto exit_sunk_index_of_3;
         }
@@ -110927,10 +110979,18 @@ exit_loc_of_3:;
         r_loc_of_4 = 0;
         goto exit_loc_of_4;
     }
-    if ((int32_t)nd_5->op == O_CLOSURE) {
+    if (((int32_t)nd_5->op == O_CLOSURE) || ((int32_t)nd_5->op == O_VOBJ)) {
         r_loc_of_4 = (((int64_t)({
     for (j_5 = 0; j_5 <= cg_sunk_count - 1; j_5++) {
         if (cg_sunk[j_5] == v_7) {
+            r_sunk_index_of_4 = j_5;
+            goto exit_sunk_index_of_4;
+        }
+        if (((int32_t)(opt_nodes + v_7)->op == O_VOBJ) && ({
+    n_8 = cg_sunk[j_5];
+    ((int32_t)(opt_nodes + n_8)->op == O_VOBJ) && ({
+    n_9 = cg_sunk[j_5];
+    (opt_nodes + n_9)->aux == (opt_nodes + v_7)->aux; }); })) {
             r_sunk_index_of_4 = j_5;
             goto exit_sunk_index_of_4;
         }
@@ -110982,36 +111042,158 @@ exit_loc_of_4:;
             cg_meta_count = cg_meta_count + 1;
         }
     }
+    cg_sunk_field_count = 0;
+    q = 0;
+    while (q < cg_sunk_count) {
+        n_10 = cg_sunk[q];
+        nd = opt_nodes + n_10;
+        if ((int32_t)nd->op == O_VOBJ) {
+            for (i_5 = 0; i_5 <= (int32_t)nd->nargs - 1; i_5++) {
+                i_6 = nd->args + i_5;
+                v_8 = opt_operands[i_6];
+                loc = ({
+    nd_6 = opt_nodes + v_8;
+    if ((int32_t)nd_6->rep == R_DBL) {
+        if ((!in_slots) && (nd_6->reg >= 0)) {
+            r_loc_of_5 = (((int64_t)nd_6->reg - D0) << 3) | LOC_DREG;
+            goto exit_loc_of_5;
+        }
+        if (nd_6->slot >= 0) {
+            r_loc_of_5 = (((int64_t)nd_6->slot) << 3) | LOC_RAW;
+            goto exit_loc_of_5;
+        }
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_OPERAND;
+        }
+        r_loc_of_5 = 0;
+        goto exit_loc_of_5;
+    }
+    if (((int32_t)nd_6->op == O_CLOSURE) || ((int32_t)nd_6->op == O_VOBJ)) {
+        r_loc_of_5 = (((int64_t)({
+    for (j_6 = 0; j_6 <= cg_sunk_count - 1; j_6++) {
+        if (cg_sunk[j_6] == v_8) {
+            r_sunk_index_of_5 = j_6;
+            goto exit_sunk_index_of_5;
+        }
+        if (((int32_t)(opt_nodes + v_8)->op == O_VOBJ) && ({
+    n_11 = cg_sunk[j_6];
+    ((int32_t)(opt_nodes + n_11)->op == O_VOBJ) && ({
+    n_12 = cg_sunk[j_6];
+    (opt_nodes + n_12)->aux == (opt_nodes + v_8)->aux; }); })) {
+            r_sunk_index_of_5 = j_6;
+            goto exit_sunk_index_of_5;
+        }
+    }
+    if (cg_sunk_count >= 64) {
+        if (asm_error == ASM_OK) {
+            asm_error = ASM_ERR_FULL;
+        }
+        r_sunk_index_of_5 = 0;
+        goto exit_sunk_index_of_5;
+    }
+    cg_sunk[cg_sunk_count] = v_8;
+    cg_sunk_count = cg_sunk_count + 1;
+    r_sunk_index_of_5 = cg_sunk_count - 1;
+exit_sunk_index_of_5:;
+    r_sunk_index_of_5; })) << 3) | LOC_SUNK;
+        goto exit_loc_of_5;
+    }
+    if ((int32_t)nd_6->op == O_HOMESLOT) {
+        r_loc_of_5 = (nd_6->aux << 3) | LOC_SLOT;
+        goto exit_loc_of_5;
+    }
+    if ((int32_t)nd_6->op == O_CONST) {
+        c_5 = (uint64_t)nd_6->aux;
+        if (((c_5 & 1) != 0) && (((((int64_t)c_5) >> 1) >= -134217728) && ((((int64_t)c_5) >> 1) <= 0x7FFFFFF))) {
+            r_loc_of_5 = (((int64_t)c_5) >> 1 << 3) | LOC_SMI;
+            goto exit_loc_of_5;
+        }
+        r_loc_of_5 = (((int64_t)pool_index_of(c_5)) << 3) | LOC_CONST;
+        goto exit_loc_of_5;
+    }
+    if ((!in_slots) && (nd_6->reg >= 0)) {
+        r_loc_of_5 = (((int64_t)nd_6->reg) << 3) | LOC_REG;
+        goto exit_loc_of_5;
+    }
+    if (nd_6->slot >= 0) {
+        r_loc_of_5 = (((int64_t)nd_6->slot) << 3) | LOC_SLOT;
+        goto exit_loc_of_5;
+    }
+    if (asm_error == ASM_OK) {
+        asm_error = ASM_ERR_OPERAND;
+    }
+    r_loc_of_5 = 0;
+exit_loc_of_5:;
+    r_loc_of_5; });
+                if (cg_sunk_field_count < 1024) {
+                    cg_sunk_fields[cg_sunk_field_count] = (int32_t)loc;
+                } else if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_FULL;
+                }
+                cg_sunk_field_count = cg_sunk_field_count + 1;
+            }
+        }
+        q = q + 1;
+    }
     if (cg_meta_count < CG_MAX_META) {
         cg_meta_words[cg_meta_count] = cg_sunk_count;
     }
     cg_meta_count = cg_meta_count + 1;
-    for (j_6 = 0; j_6 <= cg_sunk_count - 1; j_6++) {
-        n_2 = cg_sunk[j_6];
-        nd = opt_nodes + n_2;
-        t = -1;
-        for (i_5 = 0; i_5 <= nchain - 1; i_5++) {
-            if (cg_chain_acts[i_5] == (int32_t)(nd->aux2 >> 32)) {
-                t = (int32_t)i_5;
+    for (j_7 = 0; j_7 <= cg_sunk_count - 1; j_7++) {
+        n_13 = cg_sunk[j_7];
+        nd = opt_nodes + n_13;
+        if ((int32_t)nd->op == O_VOBJ) {
+            if (cg_meta_count < CG_MAX_META) {
+                cg_meta_words[cg_meta_count] = -1;
             }
-        }
-        if (t < 0) {
-            if (asm_error == ASM_OK) {
-                asm_error = ASM_ERR_OPERAND;
+            cg_meta_count = cg_meta_count + 1;
+            w_13 = pool_index_of(nd->tcls);
+            if (cg_meta_count < CG_MAX_META) {
+                cg_meta_words[cg_meta_count] = w_13;
             }
+            cg_meta_count = cg_meta_count + 1;
+            w_14 = (int32_t)nd->nargs;
+            if (cg_meta_count < CG_MAX_META) {
+                cg_meta_words[cg_meta_count] = w_14;
+            }
+            cg_meta_count = cg_meta_count + 1;
+        } else {
+            t = -1;
+            for (i_7 = 0; i_7 <= nchain - 1; i_7++) {
+                if (cg_chain_acts[i_7] == (int32_t)(nd->aux2 >> 32)) {
+                    t = (int32_t)i_7;
+                }
+            }
+            if (t < 0) {
+                if (asm_error == ASM_OK) {
+                    asm_error = ASM_ERR_OPERAND;
+                }
+            }
+            if (cg_meta_count < CG_MAX_META) {
+                cg_meta_words[cg_meta_count] = t;
+            }
+            cg_meta_count = cg_meta_count + 1;
+            w_15 = (int32_t)nd->aux;
+            if (cg_meta_count < CG_MAX_META) {
+                cg_meta_words[cg_meta_count] = w_15;
+            }
+            cg_meta_count = cg_meta_count + 1;
+            w_16 = (int32_t)(nd->aux2 & 0xFFFFFF);
+            if (cg_meta_count < CG_MAX_META) {
+                cg_meta_words[cg_meta_count] = w_16;
+            }
+            cg_meta_count = cg_meta_count + 1;
         }
+    }
+    w_17 = cg_sunk_field_count < 1024 ? cg_sunk_field_count : 1024;
+    if (cg_meta_count < CG_MAX_META) {
+        cg_meta_words[cg_meta_count] = w_17;
+    }
+    cg_meta_count = cg_meta_count + 1;
+    for (j_8 = 0; j_8 <= (cg_sunk_field_count < 1024 ? cg_sunk_field_count : 1024) - 1; j_8++) {
+        w_18 = cg_sunk_fields[j_8];
         if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = t;
-        }
-        cg_meta_count = cg_meta_count + 1;
-        w_13 = (int32_t)nd->aux;
-        if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = w_13;
-        }
-        cg_meta_count = cg_meta_count + 1;
-        w_14 = (int32_t)(nd->aux2 & 0xFFFFFF);
-        if (cg_meta_count < CG_MAX_META) {
-            cg_meta_words[cg_meta_count] = w_14;
+            cg_meta_words[cg_meta_count] = w_18;
         }
         cg_meta_count = cg_meta_count + 1;
     }

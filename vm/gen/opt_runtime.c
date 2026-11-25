@@ -60,8 +60,10 @@ uint64_t rt_stat_opt_us;
 uint64_t rt_stat_sends;
 static int32_t rt_sunk_act[64];
 static int32_t rt_sunk_count;
+static int32_t rt_sunk_first[64];
 static int32_t rt_sunk_info[64];
 static int32_t rt_sunk_order[64];
+static int32_t rt_sunk_self[64];
 static int32_t rt_sunk_start[64];
 static int32_t rt_sunk_use_count;
 static int32_t rt_sunk_use_id[8192];
@@ -87,6 +89,7 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
 static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode);
 static int64_t frame_size_of(oop m, oop c);
 static bool front_end(oop m);
+static bool make_objects(jit_method *h);
 static void make_sunk(int32_t s, oop ctx);
 static uint64_t mix(uint64_t h0, oop c, int32_t i, int d, oop fc);
 static jit_method *optimize(oop m, jit_method *h);
@@ -635,7 +638,7 @@ bool opt_runtime_compile(oop m)
         rt_stat_opt_failed = rt_stat_opt_failed + 1;
     }
     if (trace) {
-        fprintf(stderr, "opt: %s\n", ok ? "ok" : "failed");
+        fprintf(stderr, "opt: %s, %d allocations not made\n", ok ? "ok" : "failed", ps_esc_replaced);
     }
     return ok;
 }
@@ -648,63 +651,78 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
     int32_t argc;
     int32_t nacts;
     int64_t p;
+    int64_t q;
     int32_t j;
+    int32_t ns;
+    int64_t fq;
+    int32_t j_2;
     int32_t i;
     int32_t loc;
-    int32_t r_value;
     int32_t kind;
     int64_t payload;
     oop v;
     uint64_t b;
-    int32_t r_double_;
     oop v_2;
     uint32_t e;
     oop b_2;
-    int32_t r_double__2;
     oop v_3;
     uint32_t e_2;
-    int32_t v_4;
-    oop v_5;
+    int32_t j_3;
+    int32_t i_2;
     int32_t loc_2;
-    int32_t r_value_2;
+    int32_t r_value;
     int32_t kind_2;
     int64_t payload_2;
-    oop v_6;
+    oop v_4;
     uint64_t b_3;
-    int32_t r_double__3;
-    oop v_7;
+    int32_t r_double_;
+    oop v_5;
     uint32_t e_3;
     oop b_4;
-    int32_t r_double__4;
-    oop v_8;
+    int32_t r_double__2;
+    oop v_6;
     uint32_t e_4;
-    int32_t d;
-    int32_t i_2;
+    int32_t v_7;
+    oop v_8;
     int32_t loc_3;
+    int32_t r_value_2;
     int32_t kind_3;
     int64_t payload_3;
     oop v_9;
     uint64_t b_5;
+    int32_t r_double__3;
     oop v_10;
     uint32_t e_5;
     oop b_6;
+    int32_t r_double__4;
     oop v_11;
     uint32_t e_6;
-    int32_t ns;
-    int32_t j_2;
-    int32_t j_3;
+    int32_t d;
+    int32_t i_3;
+    int32_t loc_4;
+    int32_t kind_4;
+    int64_t payload_4;
+    oop v_12;
+    uint64_t b_7;
+    oop v_13;
+    uint32_t e_7;
+    oop b_8;
+    oop v_14;
+    uint32_t e_8;
+    int32_t j_4;
+    int32_t j_5;
     int32_t t;
     oop *base;
-    oop v_12;
+    oop v_15;
     oop m;
     uint64_t o;
     uint8_t *bcs;
     uint8_t op;
-    oop v_13;
-    int32_t i_3;
-    oop v_14;
+    oop v_16;
     int32_t i_4;
-    oop v_15;
+    oop v_17;
+    int32_t i_5;
+    oop v_18;
     rec = h->meta + h->sp_table[k];
     send_pc = rec[1];
     argc = rec[2] & 255;
@@ -715,163 +733,158 @@ static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode)
     rt_float_count = 0;
     rt_written = 0;
     rt_act_count = nacts;
+    q = 5;
     for (j = 0; j <= nacts - 1; j++) {
-        i = rec[p];
-        rt_act_method[j] = ((oop *)(h->code_start + h->pool_offset))[i];
-        rt_act_closure[j] = ({
-    if (rec[p + 1] < 0) {
-        v_4 = -1;
-    } else {
-        loc = rec[p + 1];
-        v_4 = ({
-    kind = loc & 7;
-    payload = ((int64_t)loc) >> 3;
-    v = nil_oop;
-    if (kind == LOC_SLOT) {
-        v = f->fp[payload];
+        q = q + 5 + rec[q + 4];
     }
-    if (kind == LOC_REG) {
-        v = regs[payload];
-    }
-    if (kind == LOC_CONST) {
-        v = ((oop *)(h->code_start + h->pool_offset))[payload];
-    }
-    if (kind == LOC_SMI) {
-        v = (uint64_t)((payload << 1) | 1);
-    }
-    if (kind == LOC_DREG) {
-        b = regs[32 + payload];
-        r_value = ({
-    v_2 = nil_oop;
-    e = (uint32_t)((b >> 52) & 0x7FF);
-    if ((b << 1) == 0) {
-        v_2 = (b >> 63 << 3) | 4;
-    } else if ((e > 896) && (e < 1151)) {
-        v_2 = ((((b << 1) | (b >> 63)) - 8070450532247928832LL) << 3) | 4;
-    }
-    if ((v_2 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
-        rt_float_val[rt_float_count] = rt_deopt_count;
-        rt_float_loc[rt_float_count] = loc;
-        rt_float_bits[rt_float_count] = b;
-        rt_float_count = rt_float_count + 1;
-    }
-    if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v_2;
-        rt_deopt_count = rt_deopt_count + 1;
-    }
-    r_double_ = rt_deopt_count - 1;
-    r_double_; });
-        goto exit_value;
-    }
-    if (kind == LOC_RAW) {
-        b_2 = f->fp[payload];
-        r_value = ({
-    v_3 = nil_oop;
-    e_2 = (uint32_t)((b_2 >> 52) & 0x7FF);
-    if ((uint64_t)(b_2 << 1) == 0) {
-        v_3 = (b_2 >> 63 << 3) | 4;
-    } else if ((e_2 > 896) && (e_2 < 1151)) {
-        v_3 = (((((uint64_t)(b_2 << 1)) | (b_2 >> 63)) - 8070450532247928832LL) << 3) | 4;
-    }
-    if ((v_3 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
-        rt_float_val[rt_float_count] = rt_deopt_count;
-        rt_float_loc[rt_float_count] = loc;
-        rt_float_bits[rt_float_count] = b_2;
-        rt_float_count = rt_float_count + 1;
-    }
-    if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v_3;
-        rt_deopt_count = rt_deopt_count + 1;
-    }
-    r_double__2 = rt_deopt_count - 1;
-    r_double__2; });
-        goto exit_value;
-    }
-    if ((kind == LOC_SUNK) && (rt_sunk_use_count < OPT_MAX_DEOPT_VALS)) {
-        rt_sunk_use_val[rt_sunk_use_count] = rt_deopt_count;
-        rt_sunk_use_id[rt_sunk_use_count] = (int32_t)payload;
-        rt_sunk_use_count = rt_sunk_use_count + 1;
-    }
-    if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v;
-        rt_deopt_count = rt_deopt_count + 1;
-    }
-    r_value = rt_deopt_count - 1;
-exit_value:;
-    r_value; });
-    }
-    v_4; });
-        if (rec[p + 1] == -2) {
-            v_5 = f->closure;
-            if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                rt_deopt_vals[rt_deopt_count] = v_5;
-                rt_deopt_count = rt_deopt_count + 1;
+    ns = rec[q];
+    fq = q + 2 + 3 * ns;
+    for (j_2 = 0; j_2 <= ns - 1; j_2++) {
+        if (rec[q + 1 + 3 * j_2] < 0) {
+            rt_sunk_first[j_2] = rt_deopt_count;
+            for (i = 0; i <= rec[q + 3 + 3 * j_2] - 1; i++) {
+                loc = rec[fq];
+                kind = loc & 7;
+                payload = ((int64_t)loc) >> 3;
+                v = nil_oop;
+                if (kind == LOC_SLOT) {
+                    v = f->fp[payload];
+                }
+                if (kind == LOC_REG) {
+                    v = regs[payload];
+                }
+                if (kind == LOC_CONST) {
+                    v = ((oop *)(h->code_start + h->pool_offset))[payload];
+                }
+                if (kind == LOC_SMI) {
+                    v = (uint64_t)((payload << 1) | 1);
+                }
+                if (kind == LOC_DREG) {
+                    b = regs[32 + payload];
+                    v_2 = nil_oop;
+                    e = (uint32_t)((b >> 52) & 0x7FF);
+                    if ((b << 1) == 0) {
+                        v_2 = (b >> 63 << 3) | 4;
+                    } else if ((e > 896) && (e < 1151)) {
+                        v_2 = ((((b << 1) | (b >> 63)) - 8070450532247928832LL) << 3) | 4;
+                    }
+                    if ((v_2 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+                        rt_float_val[rt_float_count] = rt_deopt_count;
+                        rt_float_loc[rt_float_count] = loc;
+                        rt_float_bits[rt_float_count] = b;
+                        rt_float_count = rt_float_count + 1;
+                    }
+                    if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+                        rt_deopt_vals[rt_deopt_count] = v_2;
+                        rt_deopt_count = rt_deopt_count + 1;
+                    }
+                    goto exit_value;
+                }
+                if (kind == LOC_RAW) {
+                    b_2 = f->fp[payload];
+                    v_3 = nil_oop;
+                    e_2 = (uint32_t)((b_2 >> 52) & 0x7FF);
+                    if ((uint64_t)(b_2 << 1) == 0) {
+                        v_3 = (b_2 >> 63 << 3) | 4;
+                    } else if ((e_2 > 896) && (e_2 < 1151)) {
+                        v_3 = (((((uint64_t)(b_2 << 1)) | (b_2 >> 63)) - 8070450532247928832LL) << 3) | 4;
+                    }
+                    if ((v_3 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+                        rt_float_val[rt_float_count] = rt_deopt_count;
+                        rt_float_loc[rt_float_count] = loc;
+                        rt_float_bits[rt_float_count] = b_2;
+                        rt_float_count = rt_float_count + 1;
+                    }
+                    if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+                        rt_deopt_vals[rt_deopt_count] = v_3;
+                        rt_deopt_count = rt_deopt_count + 1;
+                    }
+                    goto exit_value;
+                }
+                if ((kind == LOC_SUNK) && (rt_sunk_use_count < OPT_MAX_DEOPT_VALS)) {
+                    rt_sunk_use_val[rt_sunk_use_count] = rt_deopt_count;
+                    rt_sunk_use_id[rt_sunk_use_count] = (int32_t)payload;
+                    rt_sunk_use_count = rt_sunk_use_count + 1;
+                }
+                if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+                    rt_deopt_vals[rt_deopt_count] = v;
+                    rt_deopt_count = rt_deopt_count + 1;
+                }
+            exit_value:;
+                fq = fq + 1;
             }
-            rt_act_closure[j] = rt_deopt_count - 1;
         }
-        loc_2 = rec[p + 2];
-        rt_act_rcv[j] = ({
+    }
+    for (j_3 = 0; j_3 <= nacts - 1; j_3++) {
+        i_2 = rec[p];
+        rt_act_method[j_3] = ((oop *)(h->code_start + h->pool_offset))[i_2];
+        rt_act_closure[j_3] = ({
+    if (rec[p + 1] < 0) {
+        v_7 = -1;
+    } else {
+        loc_2 = rec[p + 1];
+        v_7 = ({
     kind_2 = loc_2 & 7;
     payload_2 = ((int64_t)loc_2) >> 3;
-    v_6 = nil_oop;
+    v_4 = nil_oop;
     if (kind_2 == LOC_SLOT) {
-        v_6 = f->fp[payload_2];
+        v_4 = f->fp[payload_2];
     }
     if (kind_2 == LOC_REG) {
-        v_6 = regs[payload_2];
+        v_4 = regs[payload_2];
     }
     if (kind_2 == LOC_CONST) {
-        v_6 = ((oop *)(h->code_start + h->pool_offset))[payload_2];
+        v_4 = ((oop *)(h->code_start + h->pool_offset))[payload_2];
     }
     if (kind_2 == LOC_SMI) {
-        v_6 = (uint64_t)((payload_2 << 1) | 1);
+        v_4 = (uint64_t)((payload_2 << 1) | 1);
     }
     if (kind_2 == LOC_DREG) {
         b_3 = regs[32 + payload_2];
-        r_value_2 = ({
-    v_7 = nil_oop;
+        r_value = ({
+    v_5 = nil_oop;
     e_3 = (uint32_t)((b_3 >> 52) & 0x7FF);
     if ((b_3 << 1) == 0) {
-        v_7 = (b_3 >> 63 << 3) | 4;
+        v_5 = (b_3 >> 63 << 3) | 4;
     } else if ((e_3 > 896) && (e_3 < 1151)) {
-        v_7 = ((((b_3 << 1) | (b_3 >> 63)) - 8070450532247928832LL) << 3) | 4;
+        v_5 = ((((b_3 << 1) | (b_3 >> 63)) - 8070450532247928832LL) << 3) | 4;
     }
-    if ((v_7 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+    if ((v_5 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
         rt_float_val[rt_float_count] = rt_deopt_count;
         rt_float_loc[rt_float_count] = loc_2;
         rt_float_bits[rt_float_count] = b_3;
         rt_float_count = rt_float_count + 1;
     }
     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v_7;
+        rt_deopt_vals[rt_deopt_count] = v_5;
         rt_deopt_count = rt_deopt_count + 1;
     }
-    r_double__3 = rt_deopt_count - 1;
-    r_double__3; });
+    r_double_ = rt_deopt_count - 1;
+    r_double_; });
         goto exit_value_2;
     }
     if (kind_2 == LOC_RAW) {
         b_4 = f->fp[payload_2];
-        r_value_2 = ({
-    v_8 = nil_oop;
+        r_value = ({
+    v_6 = nil_oop;
     e_4 = (uint32_t)((b_4 >> 52) & 0x7FF);
     if ((uint64_t)(b_4 << 1) == 0) {
-        v_8 = (b_4 >> 63 << 3) | 4;
+        v_6 = (b_4 >> 63 << 3) | 4;
     } else if ((e_4 > 896) && (e_4 < 1151)) {
-        v_8 = (((((uint64_t)(b_4 << 1)) | (b_4 >> 63)) - 8070450532247928832LL) << 3) | 4;
+        v_6 = (((((uint64_t)(b_4 << 1)) | (b_4 >> 63)) - 8070450532247928832LL) << 3) | 4;
     }
-    if ((v_8 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+    if ((v_6 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
         rt_float_val[rt_float_count] = rt_deopt_count;
         rt_float_loc[rt_float_count] = loc_2;
         rt_float_bits[rt_float_count] = b_4;
         rt_float_count = rt_float_count + 1;
     }
     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v_8;
+        rt_deopt_vals[rt_deopt_count] = v_6;
         rt_deopt_count = rt_deopt_count + 1;
     }
-    r_double__4 = rt_deopt_count - 1;
-    r_double__4; });
+    r_double__2 = rt_deopt_count - 1;
+    r_double__2; });
         goto exit_value_2;
     }
     if ((kind_2 == LOC_SUNK) && (rt_sunk_use_count < OPT_MAX_DEOPT_VALS)) {
@@ -880,101 +893,188 @@ exit_value:;
         rt_sunk_use_count = rt_sunk_use_count + 1;
     }
     if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-        rt_deopt_vals[rt_deopt_count] = v_6;
+        rt_deopt_vals[rt_deopt_count] = v_4;
+        rt_deopt_count = rt_deopt_count + 1;
+    }
+    r_value = rt_deopt_count - 1;
+exit_value_2:;
+    r_value; });
+    }
+    v_7; });
+        if (rec[p + 1] == -2) {
+            v_8 = f->closure;
+            if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+                rt_deopt_vals[rt_deopt_count] = v_8;
+                rt_deopt_count = rt_deopt_count + 1;
+            }
+            rt_act_closure[j_3] = rt_deopt_count - 1;
+        }
+        loc_3 = rec[p + 2];
+        rt_act_rcv[j_3] = ({
+    kind_3 = loc_3 & 7;
+    payload_3 = ((int64_t)loc_3) >> 3;
+    v_9 = nil_oop;
+    if (kind_3 == LOC_SLOT) {
+        v_9 = f->fp[payload_3];
+    }
+    if (kind_3 == LOC_REG) {
+        v_9 = regs[payload_3];
+    }
+    if (kind_3 == LOC_CONST) {
+        v_9 = ((oop *)(h->code_start + h->pool_offset))[payload_3];
+    }
+    if (kind_3 == LOC_SMI) {
+        v_9 = (uint64_t)((payload_3 << 1) | 1);
+    }
+    if (kind_3 == LOC_DREG) {
+        b_5 = regs[32 + payload_3];
+        r_value_2 = ({
+    v_10 = nil_oop;
+    e_5 = (uint32_t)((b_5 >> 52) & 0x7FF);
+    if ((b_5 << 1) == 0) {
+        v_10 = (b_5 >> 63 << 3) | 4;
+    } else if ((e_5 > 896) && (e_5 < 1151)) {
+        v_10 = ((((b_5 << 1) | (b_5 >> 63)) - 8070450532247928832LL) << 3) | 4;
+    }
+    if ((v_10 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+        rt_float_val[rt_float_count] = rt_deopt_count;
+        rt_float_loc[rt_float_count] = loc_3;
+        rt_float_bits[rt_float_count] = b_5;
+        rt_float_count = rt_float_count + 1;
+    }
+    if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+        rt_deopt_vals[rt_deopt_count] = v_10;
+        rt_deopt_count = rt_deopt_count + 1;
+    }
+    r_double__3 = rt_deopt_count - 1;
+    r_double__3; });
+        goto exit_value_3;
+    }
+    if (kind_3 == LOC_RAW) {
+        b_6 = f->fp[payload_3];
+        r_value_2 = ({
+    v_11 = nil_oop;
+    e_6 = (uint32_t)((b_6 >> 52) & 0x7FF);
+    if ((uint64_t)(b_6 << 1) == 0) {
+        v_11 = (b_6 >> 63 << 3) | 4;
+    } else if ((e_6 > 896) && (e_6 < 1151)) {
+        v_11 = (((((uint64_t)(b_6 << 1)) | (b_6 >> 63)) - 8070450532247928832LL) << 3) | 4;
+    }
+    if ((v_11 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+        rt_float_val[rt_float_count] = rt_deopt_count;
+        rt_float_loc[rt_float_count] = loc_3;
+        rt_float_bits[rt_float_count] = b_6;
+        rt_float_count = rt_float_count + 1;
+    }
+    if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+        rt_deopt_vals[rt_deopt_count] = v_11;
+        rt_deopt_count = rt_deopt_count + 1;
+    }
+    r_double__4 = rt_deopt_count - 1;
+    r_double__4; });
+        goto exit_value_3;
+    }
+    if ((kind_3 == LOC_SUNK) && (rt_sunk_use_count < OPT_MAX_DEOPT_VALS)) {
+        rt_sunk_use_val[rt_sunk_use_count] = rt_deopt_count;
+        rt_sunk_use_id[rt_sunk_use_count] = (int32_t)payload_3;
+        rt_sunk_use_count = rt_sunk_use_count + 1;
+    }
+    if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+        rt_deopt_vals[rt_deopt_count] = v_9;
         rt_deopt_count = rt_deopt_count + 1;
     }
     r_value_2 = rt_deopt_count - 1;
-exit_value_2:;
+exit_value_3:;
     r_value_2; });
-        rt_act_pc[j] = rec[p + 3];
+        rt_act_pc[j_3] = rec[p + 3];
         d = rec[p + 4];
-        rt_act_depth[j] = d;
-        rt_act_vals[j] = rt_deopt_count;
-        for (i_2 = 0; i_2 <= d - 1; i_2++) {
-            loc_3 = rec[p + 5 + i_2];
-            kind_3 = loc_3 & 7;
-            payload_3 = ((int64_t)loc_3) >> 3;
-            v_9 = nil_oop;
-            if (kind_3 == LOC_SLOT) {
-                v_9 = f->fp[payload_3];
+        rt_act_depth[j_3] = d;
+        rt_act_vals[j_3] = rt_deopt_count;
+        for (i_3 = 0; i_3 <= d - 1; i_3++) {
+            loc_4 = rec[p + 5 + i_3];
+            kind_4 = loc_4 & 7;
+            payload_4 = ((int64_t)loc_4) >> 3;
+            v_12 = nil_oop;
+            if (kind_4 == LOC_SLOT) {
+                v_12 = f->fp[payload_4];
             }
-            if (kind_3 == LOC_REG) {
-                v_9 = regs[payload_3];
+            if (kind_4 == LOC_REG) {
+                v_12 = regs[payload_4];
             }
-            if (kind_3 == LOC_CONST) {
-                v_9 = ((oop *)(h->code_start + h->pool_offset))[payload_3];
+            if (kind_4 == LOC_CONST) {
+                v_12 = ((oop *)(h->code_start + h->pool_offset))[payload_4];
             }
-            if (kind_3 == LOC_SMI) {
-                v_9 = (uint64_t)((payload_3 << 1) | 1);
+            if (kind_4 == LOC_SMI) {
+                v_12 = (uint64_t)((payload_4 << 1) | 1);
             }
-            if (kind_3 == LOC_DREG) {
-                b_5 = regs[32 + payload_3];
-                v_10 = nil_oop;
-                e_5 = (uint32_t)((b_5 >> 52) & 0x7FF);
-                if ((b_5 << 1) == 0) {
-                    v_10 = (b_5 >> 63 << 3) | 4;
-                } else if ((e_5 > 896) && (e_5 < 1151)) {
-                    v_10 = ((((b_5 << 1) | (b_5 >> 63)) - 8070450532247928832LL) << 3) | 4;
+            if (kind_4 == LOC_DREG) {
+                b_7 = regs[32 + payload_4];
+                v_13 = nil_oop;
+                e_7 = (uint32_t)((b_7 >> 52) & 0x7FF);
+                if ((b_7 << 1) == 0) {
+                    v_13 = (b_7 >> 63 << 3) | 4;
+                } else if ((e_7 > 896) && (e_7 < 1151)) {
+                    v_13 = ((((b_7 << 1) | (b_7 >> 63)) - 8070450532247928832LL) << 3) | 4;
                 }
-                if ((v_10 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+                if ((v_13 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
                     rt_float_val[rt_float_count] = rt_deopt_count;
-                    rt_float_loc[rt_float_count] = loc_3;
-                    rt_float_bits[rt_float_count] = b_5;
+                    rt_float_loc[rt_float_count] = loc_4;
+                    rt_float_bits[rt_float_count] = b_7;
                     rt_float_count = rt_float_count + 1;
                 }
                 if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                    rt_deopt_vals[rt_deopt_count] = v_10;
+                    rt_deopt_vals[rt_deopt_count] = v_13;
                     rt_deopt_count = rt_deopt_count + 1;
                 }
-                goto exit_value_3;
+                goto exit_value_4;
             }
-            if (kind_3 == LOC_RAW) {
-                b_6 = f->fp[payload_3];
-                v_11 = nil_oop;
-                e_6 = (uint32_t)((b_6 >> 52) & 0x7FF);
-                if ((uint64_t)(b_6 << 1) == 0) {
-                    v_11 = (b_6 >> 63 << 3) | 4;
-                } else if ((e_6 > 896) && (e_6 < 1151)) {
-                    v_11 = (((((uint64_t)(b_6 << 1)) | (b_6 >> 63)) - 8070450532247928832LL) << 3) | 4;
+            if (kind_4 == LOC_RAW) {
+                b_8 = f->fp[payload_4];
+                v_14 = nil_oop;
+                e_8 = (uint32_t)((b_8 >> 52) & 0x7FF);
+                if ((uint64_t)(b_8 << 1) == 0) {
+                    v_14 = (b_8 >> 63 << 3) | 4;
+                } else if ((e_8 > 896) && (e_8 < 1151)) {
+                    v_14 = (((((uint64_t)(b_8 << 1)) | (b_8 >> 63)) - 8070450532247928832LL) << 3) | 4;
                 }
-                if ((v_11 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
+                if ((v_14 == nil_oop) && ((rt_float_count < OPT_MAX_DEOPT_VALS) && (rt_deopt_count < OPT_MAX_DEOPT_VALS))) {
                     rt_float_val[rt_float_count] = rt_deopt_count;
-                    rt_float_loc[rt_float_count] = loc_3;
-                    rt_float_bits[rt_float_count] = b_6;
+                    rt_float_loc[rt_float_count] = loc_4;
+                    rt_float_bits[rt_float_count] = b_8;
                     rt_float_count = rt_float_count + 1;
                 }
                 if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                    rt_deopt_vals[rt_deopt_count] = v_11;
+                    rt_deopt_vals[rt_deopt_count] = v_14;
                     rt_deopt_count = rt_deopt_count + 1;
                 }
-                goto exit_value_3;
+                goto exit_value_4;
             }
-            if ((kind_3 == LOC_SUNK) && (rt_sunk_use_count < OPT_MAX_DEOPT_VALS)) {
+            if ((kind_4 == LOC_SUNK) && (rt_sunk_use_count < OPT_MAX_DEOPT_VALS)) {
                 rt_sunk_use_val[rt_sunk_use_count] = rt_deopt_count;
-                rt_sunk_use_id[rt_sunk_use_count] = (int32_t)payload_3;
+                rt_sunk_use_id[rt_sunk_use_count] = (int32_t)payload_4;
                 rt_sunk_use_count = rt_sunk_use_count + 1;
             }
             if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                rt_deopt_vals[rt_deopt_count] = v_9;
+                rt_deopt_vals[rt_deopt_count] = v_12;
                 rt_deopt_count = rt_deopt_count + 1;
             }
-        exit_value_3:;
+        exit_value_4:;
         }
         p = p + 5 + d;
     }
     ns = rec[p];
     p = p + 1;
     rt_sunk_count = ns;
-    for (j_2 = 0; j_2 <= ns - 1; j_2++) {
-        rt_sunk_act[j_2] = rec[p];
-        rt_sunk_start[j_2] = rec[p + 1];
-        rt_sunk_info[j_2] = rec[p + 2];
-        rt_sunk_order[j_2] = j_2;
+    for (j_4 = 0; j_4 <= ns - 1; j_4++) {
+        rt_sunk_act[j_4] = rec[p];
+        rt_sunk_start[j_4] = rec[p + 1];
+        rt_sunk_info[j_4] = rec[p + 2];
+        rt_sunk_order[j_4] = j_4;
         p = p + 3;
     }
-    for (j_3 = 1; j_3 <= ns - 1; j_3++) {
-        t = rt_sunk_order[j_3];
-        d = j_3 - 1;
+    for (j_5 = 1; j_5 <= ns - 1; j_5++) {
+        t = rt_sunk_order[j_5];
+        d = j_5 - 1;
         while ((d >= 0) && (rt_sunk_act[rt_sunk_order[d]] > rt_sunk_act[t])) {
             rt_sunk_order[d + 1] = rt_sunk_order[d];
             d = d - 1;
@@ -983,9 +1083,9 @@ exit_value_2:;
     }
     base = f->fp + (int64_t)h->slots;
     if (mode == 2) {
-        v_12 = base[0];
+        v_15 = base[0];
         if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-            rt_deopt_vals[rt_deopt_count] = v_12;
+            rt_deopt_vals[rt_deopt_count] = v_15;
             rt_deopt_count = rt_deopt_count + 1;
         }
         rt_act_depth[nacts - 1] = rt_act_depth[nacts - 1] + 1;
@@ -996,24 +1096,24 @@ exit_value_2:;
         bcs = (uint8_t *)(o + 16);
         op = bcs[send_pc];
         if (!(((op >= 0x97) && (op < 0xA0)) || ((op >= 0xF0) && (op < 0xFC)))) {
-            v_13 = base[0];
+            v_16 = base[0];
             if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                rt_deopt_vals[rt_deopt_count] = v_13;
+                rt_deopt_vals[rt_deopt_count] = v_16;
                 rt_deopt_count = rt_deopt_count + 1;
             }
             if ((rec[2] & SI_PERFORMED) != 0) {
-                i_3 = rec[3];
-                v_14 = ((oop *)(h->code_start + h->pool_offset))[i_3];
+                i_4 = rec[3];
+                v_17 = ((oop *)(h->code_start + h->pool_offset))[i_4];
                 if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                    rt_deopt_vals[rt_deopt_count] = v_14;
+                    rt_deopt_vals[rt_deopt_count] = v_17;
                     rt_deopt_count = rt_deopt_count + 1;
                 }
                 rt_act_depth[nacts - 1] = rt_act_depth[nacts - 1] + 1;
             }
-            for (i_4 = 1; i_4 <= argc; i_4++) {
-                v_15 = base[i_4];
+            for (i_5 = 1; i_5 <= argc; i_5++) {
+                v_18 = base[i_5];
                 if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
-                    rt_deopt_vals[rt_deopt_count] = v_15;
+                    rt_deopt_vals[rt_deopt_count] = v_18;
                     rt_deopt_count = rt_deopt_count + 1;
                 }
             }
@@ -1069,6 +1169,18 @@ static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode)
     uint64_t o_6;
     int32_t n_5;
     uint64_t n_6;
+    oop *fp0_4;
+    oop *fp_4;
+    int32_t i_5;
+    frame *g_5;
+    oop m_4;
+    int32_t d_4;
+    int32_t s_4;
+    oop cl_4;
+    uint64_t o_7;
+    uint64_t o_8;
+    int32_t n_7;
+    uint64_t n_8;
     h = (jit_method *)f->code;
     rt_stat_deopts = rt_stat_deopts + 1;
     if (state_block->stress <= 0) {
@@ -1163,42 +1275,79 @@ static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode)
     }
     for (j_2 = 0; j_2 <= rt_sunk_count - 1; j_2++) {
         sunk = rt_sunk_order[j_2];
-        g = frames + fi + rt_sunk_act[sunk];
-        marry(g);
-        make_sunk(sunk, g->ctx);
-        fp0_3 = (frames + fi)->fp;
-        fp_3 = fp0_3;
-        for (i_4 = 0; i_4 <= rt_act_count - 1; i_4++) {
-            g_4 = frames + (fi + i_4);
-            m_3 = rt_act_method[i_4];
-            d_3 = rt_act_depth[i_4];
-            if (i_4 > 0) {
-                fp_3 = fp_3 + rt_act_depth[i_4 - 1] + 1;
+        if (rt_sunk_act[sunk] >= 0) {
+            g = frames + fi + rt_sunk_act[sunk];
+            marry(g);
+            make_sunk(sunk, g->ctx);
+            fp0_3 = (frames + fi)->fp;
+            fp_3 = fp0_3;
+            for (i_4 = 0; i_4 <= rt_act_count - 1; i_4++) {
+                g_4 = frames + (fi + i_4);
+                m_3 = rt_act_method[i_4];
+                d_3 = rt_act_depth[i_4];
+                if (i_4 > 0) {
+                    fp_3 = fp_3 + rt_act_depth[i_4 - 1] + 1;
+                }
+                fp_3[-1] = rt_deopt_vals[rt_act_rcv[i_4]];
+                for (s_3 = 0; s_3 <= d_3 - 1; s_3++) {
+                    fp_3[s_3] = rt_deopt_vals[rt_act_vals[i_4] + s_3];
+                }
+                cl_3 = rt_act_closure[i_4] >= 0 ? rt_deopt_vals[rt_act_closure[i_4]] : nil_oop;
+                if ((i_4 >= rt_written) && (i_4 > 0)) {
+                    g_4->ctx = nil_oop;
+                }
+                g_4->method = m_3;
+                g_4->closure = cl_3;
+                g_4->code = jit_runtime_block_code_for(m_3);
+                g_4->fp = fp_3;
+                o_5 = *(uint64_t *)(m_3 + 16 + 24);
+                g_4->ip = (uint8_t *)(o_5 + 16) + rt_act_pc[i_4];
+                g_4->pc = rt_act_pc[i_4];
+                o_6 = *(uint64_t *)(m_3 + 16 + 16);
+                g_4->lits = (oop *)(o_6 + 16);
+                g_4->sp = d_3;
             }
-            fp_3[-1] = rt_deopt_vals[rt_act_rcv[i_4]];
-            for (s_3 = 0; s_3 <= d_3 - 1; s_3++) {
-                fp_3[s_3] = rt_deopt_vals[rt_act_vals[i_4] + s_3];
+            rt_written = rt_act_count;
+            n_5 = fi + rt_act_count;
+            nframes = n_5;
+            n_6 = (uint64_t)(fp_3 + rt_act_depth[rt_act_count - 1] - cstack);
+            cstack_used = n_6;
+        }
+    }
+    if (make_objects(h)) {
+        fp0_4 = (frames + fi)->fp;
+        fp_4 = fp0_4;
+        for (i_5 = 0; i_5 <= rt_act_count - 1; i_5++) {
+            g_5 = frames + (fi + i_5);
+            m_4 = rt_act_method[i_5];
+            d_4 = rt_act_depth[i_5];
+            if (i_5 > 0) {
+                fp_4 = fp_4 + rt_act_depth[i_5 - 1] + 1;
             }
-            cl_3 = rt_act_closure[i_4] >= 0 ? rt_deopt_vals[rt_act_closure[i_4]] : nil_oop;
-            if ((i_4 >= rt_written) && (i_4 > 0)) {
-                g_4->ctx = nil_oop;
+            fp_4[-1] = rt_deopt_vals[rt_act_rcv[i_5]];
+            for (s_4 = 0; s_4 <= d_4 - 1; s_4++) {
+                fp_4[s_4] = rt_deopt_vals[rt_act_vals[i_5] + s_4];
             }
-            g_4->method = m_3;
-            g_4->closure = cl_3;
-            g_4->code = jit_runtime_block_code_for(m_3);
-            g_4->fp = fp_3;
-            o_5 = *(uint64_t *)(m_3 + 16 + 24);
-            g_4->ip = (uint8_t *)(o_5 + 16) + rt_act_pc[i_4];
-            g_4->pc = rt_act_pc[i_4];
-            o_6 = *(uint64_t *)(m_3 + 16 + 16);
-            g_4->lits = (oop *)(o_6 + 16);
-            g_4->sp = d_3;
+            cl_4 = rt_act_closure[i_5] >= 0 ? rt_deopt_vals[rt_act_closure[i_5]] : nil_oop;
+            if ((i_5 >= rt_written) && (i_5 > 0)) {
+                g_5->ctx = nil_oop;
+            }
+            g_5->method = m_4;
+            g_5->closure = cl_4;
+            g_5->code = jit_runtime_block_code_for(m_4);
+            g_5->fp = fp_4;
+            o_7 = *(uint64_t *)(m_4 + 16 + 24);
+            g_5->ip = (uint8_t *)(o_7 + 16) + rt_act_pc[i_5];
+            g_5->pc = rt_act_pc[i_5];
+            o_8 = *(uint64_t *)(m_4 + 16 + 16);
+            g_5->lits = (oop *)(o_8 + 16);
+            g_5->sp = d_4;
         }
         rt_written = rt_act_count;
-        n_5 = fi + rt_act_count;
-        nframes = n_5;
-        n_6 = (uint64_t)(fp_3 + rt_act_depth[rt_act_count - 1] - cstack);
-        cstack_used = n_6;
+        n_7 = fi + rt_act_count;
+        nframes = n_7;
+        n_8 = (uint64_t)(fp_4 + rt_act_depth[rt_act_count - 1] - cstack);
+        cstack_used = n_8;
     }
     rt_deopt_count = 0;
     return 1;
@@ -1941,6 +2090,57 @@ oop opt_runtime_make_array(frame *f, uint64_t n)
     return new_array((uint32_t)n, f->fp + ((int64_t)f->sp - (int64_t)n));
 }
 
+/* OptRuntime>>makeObjects: */
+static bool make_objects(jit_method *h)
+{
+    bool any;
+    int32_t s;
+    int32_t i;
+    oop cls;
+    int32_t n;
+    uint64_t o;
+    int32_t i_2;
+    int32_t s_2;
+    int32_t i_3;
+    oop v;
+    any = false;
+    for (s = 0; s <= rt_sunk_count - 1; s++) {
+        if ((rt_sunk_act[s] < 0) && (rt_deopt_count < OPT_MAX_DEOPT_VALS)) {
+            any = true;
+            i = rt_sunk_start[s];
+            cls = ((oop *)(h->code_start + h->pool_offset))[i];
+            n = rt_sunk_info[s];
+            o = alloc_obj(cls, n == 0 ? F_EMPTY : F_FIXED, (uint32_t)n);
+            rt_sunk_self[s] = rt_deopt_count;
+            if (rt_deopt_count < OPT_MAX_DEOPT_VALS) {
+                rt_deopt_vals[rt_deopt_count] = o;
+                rt_deopt_count = rt_deopt_count + 1;
+            }
+            for (i_2 = 0; i_2 <= rt_sunk_use_count - 1; i_2++) {
+                if (rt_sunk_use_id[i_2] == s) {
+                    rt_deopt_vals[rt_sunk_use_val[i_2]] = o;
+                }
+            }
+        }
+    }
+    if (!any) {
+        return false;
+    }
+    for (s_2 = 0; s_2 <= rt_sunk_count - 1; s_2++) {
+        if (rt_sunk_act[s_2] < 0) {
+            o = rt_deopt_vals[rt_sunk_self[s_2]];
+            for (i_3 = 0; i_3 <= rt_sunk_info[s_2] - 1; i_3++) {
+                v = rt_deopt_vals[rt_sunk_first[s_2] + i_3];
+                *(uint64_t *)(o + 16 + 8 * i_3) = v;
+                if (((v & 7) == 0) && (((uint64_t)(v - young_lo) < young_hi - young_lo) && ((!(o - young_lo < young_hi - young_lo)) && (((*(uint64_t *)o) & H_REMEMBERED) == 0)))) {
+                    remember(o);
+                }
+            }
+        }
+    }
+    return true;
+}
+
 /* OptRuntime>>makeSunk:outer: */
 static void make_sunk(int32_t s, oop ctx)
 {
@@ -2107,8 +2307,11 @@ exit_frame_size_of_act:;
     }
     for (j_2 = 0; j_2 <= rt_sunk_count - 1; j_2++) {
         sunk = rt_sunk_order[j_2];
-        make_sunk(sunk, rt_deopt_vals[first + rt_sunk_act[sunk]]);
+        if (rt_sunk_act[sunk] >= 0) {
+            make_sunk(sunk, rt_deopt_vals[first + rt_sunk_act[sunk]]);
+        }
     }
+    make_objects(h);
     for (i_5 = 0; i_5 <= rt_act_count - 1; i_5++) {
         c = rt_deopt_vals[first + i_5];
         s = (oop *)(c + 16);

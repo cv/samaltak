@@ -199,10 +199,7 @@ recordSafepointLiveness
 					st := ir state: s.
 					0 to: st depth + 1 do: [:j |
 						sv := j <= st depth ifTrue: [ir operand: st vals + j] ifFalse: [self closureOfState: st].
-						((self isValue: sv) and: [(self isSet: sv in: set) not and: [raSafeListCount < RA_MAX_SAFELIST]]) ifTrue: [
-							self set: sv in: set.
-							raSafeList at: raSafeListCount put: sv.
-							raSafeListCount := raSafeListCount + 1]].
+						self safeValue: sv in: set].
 					s := st parent].
 				nd nlive: raSafeListCount - nd live.
 				"what crosses it: 1, a call (not an interrupt check nor an Array the runtime makes) 2 too"
@@ -212,6 +209,36 @@ recordSafepointLiveness
 			nd op asInt32 ~= O_PHI ifTrue: [self usesOf: n into: set].
 			n := nd prev]].
 	^raSafeListCount < RA_MAX_SAFELIST
+!
+safeValue: sv in: set
+	"Frame state value sv is live after a safepoint (recordSafepointLiveness); an object never made (O_VOBJ): its fields' values."
+	<function>
+	| nd |
+	((self isValue: sv) and: [(self isSet: sv in: set) not and: [raSafeListCount < RA_MAX_SAFELIST]]) ifTrue: [
+		self set: sv in: set.
+		raSafeList at: raSafeListCount put: sv.
+		raSafeListCount := raSafeListCount + 1].
+	sv < 0 ifTrue: [^self].
+	nd := ir node: sv.
+	nd op asInt32 = O_VOBJ ifTrue: [0 to: nd nargs asInt32 - 1 do: [:i | self safeValue: (ir operand: nd args + i) in: set]]
+!
+setStateValue: v in: set
+	"A frame state's value v is live; an object never made (O_VOBJ): its fields' values."
+	<function>
+	| nd |
+	self set: v in: set.
+	v < 0 ifTrue: [^self].
+	nd := ir node: v.
+	nd op asInt32 = O_VOBJ ifTrue: [0 to: nd nargs asInt32 - 1 do: [:i | self setStateValue: (ir operand: nd args + i) in: set]]
+!
+extendStateValue: v to: pos
+	"A frame state's value v lives to pos; an object never made (O_VOBJ): its fields' values."
+	<function>
+	| nd |
+	self extend: v to: pos.
+	v < 0 ifTrue: [^self].
+	nd := ir node: v.
+	nd op asInt32 = O_VOBJ ifTrue: [0 to: nd nargs asInt32 - 1 do: [:i | self extendStateValue: (ir operand: nd args + i) to: pos]]
 !
 safeLiveAt: i
 	^raSafeList at: i
@@ -234,7 +261,7 @@ usesOf: n into: set
 	s := nd state.
 	[s >= 0] whileTrue: [
 		st := ir state: s.
-		0 to: st depth do: [:i | self set: (ir operand: st vals + i) in: set].
+		0 to: st depth do: [:i | self setStateValue: (ir operand: st vals + i) in: set].
 		self set: (self closureOfState: st) in: set.
 		s := st parent]
 !
@@ -317,7 +344,7 @@ buildIntervals
 					s := nd state.
 					[s >= 0] whileTrue: [
 						st := ir state: s.
-						0 to: st depth do: [:j | self extend: (ir operand: st vals + j) to: after].
+						0 to: st depth do: [:j | self extendStateValue: (ir operand: st vals + j) to: after].
 						self extend: (self closureOfState: st) to: after.
 						s := st parent]].
 			n := nd next]]

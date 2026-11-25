@@ -1,6 +1,6 @@
 VMCoreModule subclass: #JitRuntime
 	instanceVariableNames: 'stubs baseline brt cache asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending releasePending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned perfMap jitDump jitDumpIndex ffi'
-	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BG JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_COLD JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_LIVE JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR JIT_FLAG_FFI_SITE JIT_FLAG_RESPEC'
+	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BG JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_COLD JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_LIVE JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR JIT_FLAG_FFI_SITE JIT_FLAG_RESPEC JIT_FLAG_ESCAPE'
 	package: 'VM-Jit'!
 
 JitRuntime comment: 'The runtime every compiler''s machine code runs on (docs/jit.md, Shared runtime): configuration (--jit, --jit-threshold, --jit-osr, --jit-flags, --jit-cache), the compiled methods (JitMethod headers in the code cache, found by the method''s identity hash; their methods are GC roots, young ones listed for scavenges), the interpreter''s hooks (activated:, resume:, backJump:), the functions machine code calls (interrupt:, interruptAtEntry:, closure:, makeArray:, widow:, writeBarrier:value:), code cache flushes, statistics.
@@ -55,7 +55,9 @@ initialize
 	JIT_FLAG_FFI_SITE := 16777216.
 	"loops of optimized code that call closures passed in move to their variants for them (OptRuntime>>respecialize:)"
 	JIT_FLAG_RESPEC := 33554432.
-	JIT_FLAG_LAST := JIT_FLAG_RESPEC.
+	"objects that do not escape optimized code are not allocated (OptPasses>>scalarReplace:)"
+	JIT_FLAG_ESCAPE := 67108864.
+	JIT_FLAG_LAST := JIT_FLAG_ESCAPE.
 	JIT_TABLE_SIZE := 65536.
 	JIT_MAX_YOUNG := 4096.
 	JIT_MAX_MAP := 32768.
@@ -159,6 +161,9 @@ deoptFlag
 !
 respecFlag
 	^JIT_FLAG_RESPEC
+!
+escapeFlag
+	^JIT_FLAG_ESCAPE
 !
 bgFlag
 	^JIT_FLAG_BG
@@ -295,6 +300,7 @@ flagNamed: name length: n
 	(self is: name length: n named: 'bg') ifTrue: [^JIT_FLAG_BG].
 	(self is: name length: n named: 'cold') ifTrue: [^JIT_FLAG_COLD].
 	(self is: name length: n named: 'respec') ifTrue: [^JIT_FLAG_RESPEC].
+	(self is: name length: n named: 'escape') ifTrue: [^JIT_FLAG_ESCAPE].
 	^0
 !
 is: s length: n named: name
@@ -327,6 +333,7 @@ flagName: bit
 	bit = JIT_FLAG_BG ifTrue: [^'bg'].
 	bit = JIT_FLAG_COLD ifTrue: [^'cold'].
 	bit = JIT_FLAG_RESPEC ifTrue: [^'respec'].
+	bit = JIT_FLAG_ESCAPE ifTrue: [^'escape'].
 	^'deopt'
 !
 lastFlag
