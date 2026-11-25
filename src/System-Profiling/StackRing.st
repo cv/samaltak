@@ -5,7 +5,7 @@ Object subclass: #StackRing
 
 StackRing comment: 'I am the profiler''s sample store: a ring of variable-length records in one preallocated ByteArray, each a complete sample with its stack stored inline, so recording never allocates and nothing is ever evicted but the oldest records. A record (little-endian, at any byte offset):
 
-	byte 0     flags: 1 idle, 2 truncated stack, 4 process unknown, 8 innermost frame just activated, 16 allocation sample
+	byte 0     flags: 1 idle, 2 truncated stack, 4 process unknown, 8 innermost frame just activated, 16 allocation sample; bits 5-7 of an allocation sample: s, it stands for 2 ** s sampling intervals (the VM samples more sparsely at high allocation rates)
 	byte 1     n, the number of frames (at most depth)
 	bytes 2-3  process slot (0: none)
 	bytes 4-7  low 32 bits of the microsecond clock
@@ -363,7 +363,9 @@ decodeAt: o serial: k frames: aFrameTable
 		flags: (flags bitAnd: 15)
 		stack: stack.
 	extra = 0 ifFalse: [
-		sample setAllocatedClass: (self keyOf: (data uint32At: o + 9)) size: (data uint32At: o + 13)].
+		sample setAllocatedClass: (self keyOf: (data uint32At: o + 9)) size: (data uint32At: o + 13).
+		"in sampling intervals (Profiler>>samplesFrom:kind:weight:do: makes it bytes)"
+		flags >= 32 ifTrue: [sample weight: 1 << (flags bitShift: -5)]].
 	k < first ifTrue: [
 		self forgetDecoded.
 		^nil].

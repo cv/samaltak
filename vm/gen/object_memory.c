@@ -66,7 +66,7 @@ uint64_t alloc_obj(oop cls, int32_t fmt, uint32_t n)
     bytes = 16 + 8 * (uint64_t)n;
     if (bytes > large_object_bytes) {
         if (alloc_sample_interval > 0) {
-            alloc_sample_hit(cls, bytes);
+            alloc_sample_large_hit(cls, bytes);
         }
         return object_memory_alloc_old_format_slots(cls, fmt, n);
     }
@@ -128,7 +128,7 @@ uint64_t alloc_obj_try(oop cls, int32_t fmt, uint64_t n)
         return alloc_obj(cls, fmt, (uint32_t)n);
     }
     if (alloc_sample_interval > 0) {
-        alloc_sample_hit(cls, bytes);
+        alloc_sample_large_hit(cls, bytes);
     }
     return alloc_old_try(cls, fmt, (uint32_t)n);
 }
@@ -203,6 +203,17 @@ static uint64_t object_memory_alloc_old_format_slots_limit(oop cls, int32_t fmt,
 static uint64_t alloc_old_try(oop cls, int32_t fmt, uint32_t n)
 {
     return object_memory_alloc_old_format_slots_limit(cls, fmt, n, max_heap_bytes - heap_reserve);
+}
+
+/* ObjectMemory>>allocSampleIntervalChangedBy: */
+void alloc_sample_interval_changed_by(int64_t delta)
+{
+    int64_t c;
+    int64_t n;
+    c = alloc_sample_countdown - (int64_t)(eden_box[0] - sample_mark) + delta;
+    n = c < 1 ? 1 : c;
+    alloc_sample_countdown = n;
+    reset_alloc_limit();
 }
 
 /* ObjectMemory>>allocSlots:count: */

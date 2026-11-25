@@ -20,11 +20,17 @@ static inline __UINT64_TYPE__ samaltak_cycles(void)
 }
 #include "samaltak.h"
 
+static int64_t alloc_rate_count;
+static int64_t alloc_rate_start_us;
+static int64_t alloc_sample_base;
 oop alloc_sample_class;
 int64_t alloc_sample_countdown;
 int64_t alloc_sample_interval;
+static bool alloc_sample_large;
+static int64_t alloc_sample_max_rate;
 static bool alloc_sample_pending;
 int32_t alloc_sample_sema;
+static int64_t alloc_sample_shift;
 int64_t alloc_sample_size;
 bool alloc_sample_unread;
 static int64_t frame_fps;
@@ -50,6 +56,7 @@ static bool sample_cpu;
 static int64_t sample_cpu_since;
 static int64_t sample_depth;
 static bool sample_drain_due;
+static int64_t sample_drain_ticks = 64LL;
 static uint64_t sample_last_epoch;
 static oop sample_last_meths[255];
 static int64_t sample_last_n;
@@ -57,6 +64,8 @@ static int64_t sample_last_pcs[255];
 static oop sample_meths[255];
 static int64_t sample_pcs[255];
 static bool sample_share;
+static bool sample_stats;
+static int64_t sample_stats_since;
 static int64_t sampler_interval_us;
 static int64_t sampler_next_us;
 static int32_t sampler_sema;
@@ -70,8 +79,8 @@ static int64_t slice_start_tk;
 static int64_t slice_us;
 static int64_t start_us;
 uint64_t stat_process_switches;
-uint64_t stat_reconciles;
-uint64_t stat_timer_arms;
+static uint64_t stat_reconciles;
+static uint64_t stat_timer_arms;
 static int64_t tick_armed_deadline = 9223372036854775807LL;
 static int64_t tick_armed_poll;
 static atomic_bool tick_deadline_fired;
@@ -92,6 +101,7 @@ static bool work_clock_running;
 static int64_t work_clock_us;
 static bool work_clock_uses_cycles;
 
+static void adapt_alloc_sampling(int64_t now);
 static void add_first_link(oop link, uint64_t list);
 static void add_last_link(oop link, oop list);
 static void idle_wait(void);
@@ -101,6 +111,7 @@ static int64_t raw_now_ns(void);
 static int64_t raw_now_us(void);
 static int64_t reconcile(void);
 static bool record_sample(bool is_alloc, int64_t now);
+static int64_t record_stats_into(oop buf, int64_t fill, int64_t cap, int64_t now);
 static oop remove_first_link(oop list);
 static void signal_index(int32_t index);
 static void slice_check(void);
@@ -117,6 +128,42 @@ uint64_t active_process(void)
     oop o;
     o = object_memory_special(SO_PROCESSOR);
     return *(uint64_t *)(o + 16 + 8);
+}
+
+/* Scheduler>>adaptAllocSampling: */
+static void adapt_alloc_sampling(int64_t now)
+{
+    int64_t elapsed;
+    int64_t rate;
+    int64_t s;
+    int64_t old;
+    if (alloc_sample_max_rate <= 0) {
+        return;
+    }
+    alloc_rate_count = alloc_rate_count + 1;
+    elapsed = now - alloc_rate_start_us;
+    if ((elapsed < ALLOC_RATE_WINDOW_US) && (alloc_rate_count * 1000000 < alloc_sample_max_rate * ALLOC_RATE_WINDOW_US)) {
+        return;
+    }
+    rate = alloc_rate_count * 1000000 / (elapsed < 1 ? 1 : elapsed);
+    s = alloc_sample_shift;
+    while ((rate > alloc_sample_max_rate) && (s < ALLOC_SHIFT_MAX)) {
+        rate = rate / 2;
+        s = s + 1;
+    }
+    while ((s > 0) && (rate * 3 < alloc_sample_max_rate)) {
+        rate = rate * 2;
+        s = s - 1;
+    }
+    alloc_rate_start_us = now;
+    alloc_rate_count = 0;
+    if (s == alloc_sample_shift) {
+        return;
+    }
+    old = alloc_sample_interval;
+    alloc_sample_shift = s;
+    alloc_sample_interval = alloc_sample_base << s;
+    alloc_sample_interval_changed_by(alloc_sample_interval - old);
 }
 
 /* Scheduler>>addFirstLink:to: */
@@ -179,9 +226,29 @@ void alloc_sample_hit(oop a_class, uint64_t bytes)
 {
     alloc_sample_class = a_class;
     alloc_sample_size = (int64_t)bytes;
+    alloc_sample_large = false;
     alloc_sample_pending = true;
     alloc_sample_unread = true;
     request_interrupt_check();
+}
+
+/* Scheduler>>allocSampleLargeHit:bytes: */
+void alloc_sample_large_hit(oop a_class, uint64_t bytes)
+{
+    alloc_sample_hit(a_class, bytes);
+    alloc_sample_large = true;
+}
+
+/* Scheduler>>allocSamplingEvery:maxRate: */
+void alloc_sampling_every(int64_t bytes, int64_t per_second)
+{
+    alloc_sample_base = bytes;
+    alloc_sample_interval = bytes;
+    alloc_sample_shift = 0;
+    alloc_sample_max_rate = per_second < 0 ? 0 : per_second;
+    alloc_rate_start_us = now_us();
+    alloc_rate_count = 0;
+    alloc_sample_large = false;
 }
 
 /* Scheduler>>handleInterrupts */
@@ -727,6 +794,7 @@ static bool record_sample(bool is_alloc, int64_t now)
     int64_t n;
     int64_t k;
     int64_t flags;
+    int64_t shift;
     oop proc;
     int64_t r;
     int64_t m;
@@ -747,6 +815,7 @@ static bool record_sample(bool is_alloc, int64_t now)
     int64_t i_7;
     int64_t v_8;
     uint64_t v_9;
+    int64_t start;
     uint64_t v_10;
     buf = ({
     if (sample_buf_index < 1) {
@@ -781,6 +850,7 @@ exit_sample_buffer:;
     n = 0;
     k = 0;
     flags = 0;
+    shift = 0;
     proc = nil_oop;
     if (in_idle) {
         flags = 4;
@@ -799,6 +869,8 @@ exit_sample_buffer:;
     }
     if (is_alloc) {
         flags = flags | 16;
+        shift = alloc_sample_large ? 0 : alloc_sample_shift;
+        adapt_alloc_sampling(now);
     }
     if (sample_share && (sample_last_epoch == gc_epoch)) {
         m = n < sample_last_n ? n : sample_last_n;
@@ -810,7 +882,7 @@ exit_sample_buffer:;
     if (fill + len > cap) {
         return true;
     }
-    v = n | (flags << 8) | (k << 16);
+    v = n | (flags << 8) | (k << 16) | (shift << 24);
     v_2 = (uint64_t)((v << 1) | 1);
     *(uint64_t *)(buf + 16 + 8 * fill) = v_2;
     if (((v_2 & 7) == 0) && ((v_2 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
@@ -859,25 +931,84 @@ exit_sample_buffer:;
     }
     sample_last_n = n;
     sample_last_epoch = gc_epoch;
-    if ((fill * 4 <= cap * 3) && ((fill + len) * 4 > cap * 3)) {
+    start = fill;
+    fill = fill + len;
+    if (!is_alloc) {
+        sample_cpu_since = sample_cpu_since + 1;
+        if (sample_cpu_since >= sample_drain_ticks) {
+            sample_drain_due = true;
+        }
+        if (sample_stats) {
+            sample_stats_since = sample_stats_since + 1;
+            if (sample_stats_since >= SAMPLE_STATS_TICKS) {
+                sample_stats_since = 0;
+                fill = record_stats_into(buf, fill, cap, now);
+            }
+        }
+    }
+    if ((start * 4 <= cap * 3) && (fill * 4 > cap * 3)) {
         sample_drain_due = true;
     }
-    fill = fill + len;
     v_10 = (uint64_t)((fill << 1) | 1);
     *(uint64_t *)(buf + 16 + 0) = v_10;
     if (((v_10 & 7) == 0) && ((v_10 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
         remember(buf);
     }
-    if (!is_alloc) {
-        sample_cpu_since = sample_cpu_since + 1;
-        if (sample_cpu_since >= SAMPLE_DRAIN_TICKS) {
-            sample_drain_due = true;
-        }
-    }
     if (sample_drain_due) {
         sample_cpu_since = 0;
     }
     return true;
+}
+
+/* Scheduler>>recordStatsInto:at:cap:time: */
+static int64_t record_stats_into(oop buf, int64_t fill, int64_t cap, int64_t now)
+{
+    int64_t local[51];
+    int64_t *v;
+    int64_t i;
+    int64_t i_2;
+    uint64_t v_2;
+    int64_t i_3;
+    int64_t i_4;
+    int i_5;
+    int64_t i_6;
+    int64_t v_3;
+    uint64_t v_4;
+    if (fill + 5 + VM_STATS > cap) {
+        return fill;
+    }
+    memset(&local, 0, sizeof local);
+    v = local;
+    vm_stats_into(v);
+    *(uint64_t *)(buf + 16 + 8 * fill) = 16487ULL;
+    i = fill + 1;
+    *(uint64_t *)(buf + 16 + 8 * i) = nil_oop;
+    if (((nil_oop & 7) == 0) && (((uint64_t)(nil_oop - young_lo) < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+        remember(buf);
+    }
+    i_2 = fill + 2;
+    v_2 = (uint64_t)((now << 1) | 1);
+    *(uint64_t *)(buf + 16 + 8 * i_2) = v_2;
+    if (((v_2 & 7) == 0) && ((v_2 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+        remember(buf);
+    }
+    i_3 = fill + 3;
+    *(uint64_t *)(buf + 16 + 8 * i_3) = nil_oop;
+    if (((nil_oop & 7) == 0) && (((uint64_t)(nil_oop - young_lo) < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+        remember(buf);
+    }
+    i_4 = fill + 4;
+    *(uint64_t *)(buf + 16 + 8 * i_4) = 1ULL;
+    for (i_5 = 0; i_5 <= 50; i_5++) {
+        i_6 = fill + 5 + i_5;
+        v_3 = v[i_5];
+        v_4 = (uint64_t)((v_3 << 1) | 1);
+        *(uint64_t *)(buf + 16 + 8 * i_6) = v_4;
+        if (((v_4 & 7) == 0) && ((v_4 - young_lo < young_hi - young_lo) && ((!((uint64_t)(buf - young_lo) < young_hi - young_lo)) && (((*(uint64_t *)buf) & H_REMEMBERED) == 0)))) {
+            remember(buf);
+        }
+    }
+    return fill + 5 + VM_STATS;
 }
 
 /* Scheduler>>relinquish: */
@@ -1164,6 +1295,14 @@ void sampler_buffer(int64_t index, int64_t depth, bool cpu, bool share)
     sample_depth = depth < 1 ? 1 : depth > 255 ? 255 : depth;
     sample_cpu_since = 0;
     sample_drain_due = false;
+}
+
+/* Scheduler>>samplerStats: */
+void sampler_stats(bool a_boolean)
+{
+    sample_stats = a_boolean;
+    sample_stats_since = 0;
+    sample_drain_ticks = a_boolean ? SAMPLE_DRAIN_TICKS_STATS : SAMPLE_DRAIN_TICKS;
 }
 
 /* Scheduler>>semaphoreSignal: */
@@ -1513,6 +1652,54 @@ static void transfer_to_highest(void)
         }
         idle_wait();
     }
+}
+
+/* Scheduler>>vmStatsInto: */
+void vm_stats_into(int64_t *v)
+{
+    int i;
+    int i_2;
+    int i_3;
+    v[0] = (int64_t)stat_scavenges;
+    v[1] = (int64_t)stat_full_gcs;
+    v[2] = (int64_t)stat_scavenge_us;
+    v[3] = (int64_t)stat_full_us;
+    v[4] = (int64_t)(old_top - old_lo);
+    v[5] = (int64_t)old_budget;
+    v[6] = (int64_t)(eden_hi - eden_lo);
+    v[7] = (int64_t)(stat_allocated + (eden_box[0] - eden_lo));
+    v[8] = (int64_t)remset_count;
+    v[9] = (int64_t)stat_process_switches;
+    v[10] = (int64_t)stat_tenured;
+    v[11] = (int64_t)stat_weak_cleared;
+    v[12] = (int64_t)stat_materialized;
+    v[13] = (int64_t)stat_flushes;
+    v[14] = (int64_t)stat_compiled;
+    v[15] = (int64_t)stat_bytecodes;
+    v[16] = (int64_t)stat_compile_us;
+    v[17] = (int64_t)stat_code_bytes;
+    v[18] = (int64_t)stat_cache_flushes;
+    v[19] = (int64_t)stat_entries;
+    v[20] = (int64_t)stat_exits;
+    v[21] = (int64_t)stat_resumes;
+    v[22] = (int64_t)stat_osr;
+    v[23] = (int64_t)stat_failed;
+    for (i = 0; i <= 6; i++) {
+        v[24 + i] = (int64_t)baseline_stat((int32_t)i);
+    }
+    for (i_2 = 0; i_2 <= 8; i_2++) {
+        v[31 + i_2] = opt_stat((int32_t)i_2);
+    }
+    v[40] = (int64_t)tenure_age;
+    v[41] = (int64_t)max_heap_bytes;
+    v[42] = (int64_t)heap_reserve;
+    for (i_3 = 0; i_3 <= 3; i_3++) {
+        v[43 + i_3] = opt_stat(9 + (int32_t)i_3);
+    }
+    v[47] = (int64_t)stat_reconciles;
+    v[48] = (int64_t)stat_timer_arms;
+    v[49] = (int64_t)stat_survived;
+    v[50] = (int64_t)stat_scavenge_max_us;
 }
 
 /* Scheduler>>workClockCharge: */

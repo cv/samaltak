@@ -247,6 +247,11 @@ allocationSamplingEvery: bytes semaphoreIndex: index
 	<primitive: 'allocationSampling'>
 	^self primitiveFailed
 !
+allocationSamplingEvery: bytes semaphoreIndex: index maxPerSecond: rate
+	"As allocationSamplingEvery:semaphoreIndex:, the samples the VM records into the sample buffer kept at about rate a second at most (0: no bound): above it the interval doubles, up to 128 times bytes, and each record says which multiple of bytes it stands for (Scheduler>>allocSamplingEvery:maxRate:). A VM that predates it samples every bytes."
+	<primitive: 'allocationSampling'>
+	^self allocationSamplingEvery: bytes semaphoreIndex: index
+!
 samplerBufferIndex: index depth: maxDepth
 	^self samplerBufferIndex: index depth: maxDepth cpu: false
 !
@@ -254,6 +259,11 @@ samplerBufferIndex: index depth: maxDepth cpu: aBoolean
 	"Have the VM record allocation samples (with aBoolean CPU samples too) into the Array at index of the external objects (0: none), at most maxDepth frames each, where the sampled process runs: no switch to the sampling process per sample (Profiler>>drainBuffer). Answer false if the VM cannot."
 	<primitive: 'samplerBuffer'>
 	^false
+!
+samplerBufferIndex: index depth: maxDepth cpu: aBoolean share: shareBoolean stats: statsBoolean
+	"As samplerBufferIndex:depth:cpu:share:, and with statsBoolean (and aBoolean) the VM records its statistics too, every 64 CPU samples (Scheduler>>recordStatsInto:at:cap:time:), so that its reader need not come as often. Answer false if the VM cannot record samples so."
+	<primitive: 'samplerBuffer'>
+	^self samplerBufferIndex: index depth: maxDepth cpu: aBoolean share: shareBoolean
 !
 samplerBufferIndex: index depth: maxDepth cpu: aBoolean share: shareBoolean
 	"As samplerBufferIndex:depth:cpu:, and with shareBoolean each record leaves out the bottom frames that the previous record has too (Scheduler>>recordSample:at: has the format; a VM that predates it records them all, k 0). Answer false if the VM cannot."

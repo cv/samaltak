@@ -124,40 +124,7 @@ primVMStats
 	<vmPrimitive: 164 name: 'vmStats'>
 	| v a |
 	v := self local: 'int64_t[51]'.
-	v at: 0 put: gc statScavenges asInt64.
-	v at: 1 put: gc statFullGcs asInt64.
-	v at: 2 put: gc statScavengeUs asInt64.
-	v at: 3 put: gc statFullUs asInt64.
-	v at: 4 put: (gc oldTop - gc oldLo) asInt64.
-	v at: 5 put: gc oldBudget asInt64.
-	v at: 6 put: (gc edenHi - gc edenLo) asInt64.
-	v at: 7 put: (gc statAllocated + (gc edenTop - gc edenLo)) asInt64.
-	v at: 8 put: gc remsetCount asInt64.
-	v at: 9 put: scheduler statProcessSwitches asInt64.
-	v at: 10 put: gc statTenured asInt64.
-	v at: 11 put: gc statWeakCleared asInt64.
-	v at: 12 put: interpreter statMaterialized asInt64.
-	v at: 13 put: interpreter statFlushes asInt64.
-	v at: 14 put: jit statCompiled asInt64.
-	v at: 15 put: jit statBytecodes asInt64.
-	v at: 16 put: jit statCompileUs asInt64.
-	v at: 17 put: jit statCodeBytes asInt64.
-	v at: 18 put: jit statCacheFlushes asInt64.
-	v at: 19 put: jit statEntries asInt64.
-	v at: 20 put: jit statExits asInt64.
-	v at: 21 put: jit statResumes asInt64.
-	v at: 22 put: jit statOsr asInt64.
-	v at: 23 put: jit statFailed asInt64.
-	0 to: 6 do: [:i | v at: 24 + i put: (jit baselineStat: i asInt32) asInt64].
-	0 to: 8 do: [:i | v at: 31 + i put: (jit optStat: i asInt32)].
-	v at: 40 put: gc tenureAge asInt64.
-	v at: 41 put: gc maxHeapBytes asInt64.
-	v at: 42 put: gc heapReserve asInt64.
-	0 to: 3 do: [:i | v at: 43 + i put: (jit optStat: 9 + i asInt32)].
-	v at: 47 put: scheduler statReconciles asInt64.
-	v at: 48 put: scheduler statTimerArms asInt64.
-	v at: 49 put: gc statSurvived asInt64.
-	v at: 50 put: gc statScavengeMaxUs asInt64.
+	scheduler vmStatsInto: v.
 	a := memory allocObj: memory clsArray format: F_VAR slots: 51.
 	0 to: 50 do: [:i | (self slotsOf: a) at: i put: (self intOop: (v at: i))].
 	self answer: a

@@ -52,11 +52,13 @@ void prim_allocation_sampling(void)
     oop o;
     oop o_2;
     oop o_3;
-    int64_t n;
-    int64_t n_2;
     oop o_4;
-    int32_t n_3;
-    oop v;
+    int64_t n;
+    oop o_5;
+    int64_t v;
+    oop o_6;
+    int32_t n_2;
+    oop v_2;
     if ((prim_nargs < 2) || ({
     o = prim_base[1];
     (!((o & 1) != 0)) || ({
@@ -66,18 +68,31 @@ void prim_allocation_sampling(void)
         prim_error_code = -1;
         return;
     }
-    o_3 = prim_base[1];
-    n = ((int64_t)o_3) >> 1;
-    n_2 = n > 0 ? n : 0;
-    alloc_sample_interval = n_2;
+    if ((prim_nargs > 2) && ({
+    o_3 = prim_base[3];
+    !((o_3 & 1) != 0); })) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o_4 = prim_base[1];
+    n = ((int64_t)o_4) >> 1;
+    alloc_sampling_every(n > 0 ? n : 0, ({
+    if (prim_nargs > 2) {
+        o_5 = prim_base[3];
+        v = ((int64_t)o_5) >> 1;
+    } else {
+        v = 0;
+    }
+    v; }));
     alloc_sample_countdown = alloc_sample_interval;
-    o_4 = prim_base[2];
-    n_3 = (int32_t)(((int64_t)o_4) >> 1);
-    alloc_sample_sema = n_3;
+    o_6 = prim_base[2];
+    n_2 = (int32_t)(((int64_t)o_6) >> 1);
+    alloc_sample_sema = n_2;
     alloc_sample_unread = false;
     reset_alloc_limit();
-    v = prim_base[0];
-    prim_result = v;
+    v_2 = prim_base[0];
+    prim_result = v_2;
     prim_status = PS_OK;
 }
 
@@ -473,6 +488,7 @@ void prim_sampler_buffer(void)
     o_6 = prim_base[1];
     o_7 = prim_base[2];
     sampler_buffer(((int64_t)o_6) >> 1, ((int64_t)o_7) >> 1, (prim_nargs > 2) && (prim_base[3] == true_oop), (prim_nargs > 3) && (prim_base[4] == true_oop));
+    sampler_stats((prim_nargs > 4) && (prim_base[5] == true_oop));
     v = prim_base[0];
     prim_result = v;
     prim_status = PS_OK;

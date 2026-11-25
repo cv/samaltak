@@ -1,6 +1,6 @@
 VMCoreModule subclass: #Scheduler
-	instanceVariableNames: 'interruptPending lastPreempted lastPreemptedAtEntry allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs sliceStartTk windowStartTk windowStartNs windowCpuUs reconcileTk ledgerProcs ledgerTk ledgerN cycles statReconciles startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs sliceUs sliceDueUs slicePriority sliceExpired sliceBreaks sliceBreaksAtArm statTimerArms runHint sampleBufIndex sampleDepth sampleCpuSince sampleDrainDue sampleCpu sampleShare sampleLastMeths sampleLastPcs sampleLastN sampleLastEpoch sampleMeths samplePcs'
-	classVariableNames: 'LEDGER_SIZE RECONCILE_NS SAMPLE_DRAIN_TICKS TICK_DEADLINE TICK_POLL WORK_CLOCK_FLOOR WORK_CLOCK_POLL_US WORK_CYCLES_PER_US'
+	instanceVariableNames: 'interruptPending lastPreempted lastPreemptedAtEntry allocSampleClass allocSampleSize allocSampleInterval allocSampleCountdown allocSampleSema statProcessSwitches allocSamplePending inIdle preemptToFront allocSampleUnread samplerTickUnread timerMs samplerIntervalUs samplerNextUs sliceStartTk windowStartTk windowStartNs windowCpuUs reconcileTk ledgerProcs ledgerTk ledgerN cycles statReconciles startUs samplerSema pendingExt pendingExtN pendingExtCap tickIdle tickPollUs tickArmedPoll tickArmedDeadline tickDeadlineFired ticker workClockOn workClockRunning workClockPaced workClockUsesCycles workClockUs workClockCycles workClockRaw workClockHeld workClockHoldCycles workClockQuerying frameSema frameFps frameOriginUs frameIndex frameNextUs sliceUs sliceDueUs slicePriority sliceExpired sliceBreaks sliceBreaksAtArm statTimerArms runHint sampleBufIndex sampleDepth sampleCpuSince sampleDrainDue sampleCpu sampleShare sampleLastMeths sampleLastPcs sampleLastN sampleLastEpoch sampleMeths samplePcs allocSampleBase allocSampleShift allocSampleMaxRate allocRateStartUs allocRateCount allocSampleLarge sampleStats sampleStatsSince sampleDrainTicks'
+	classVariableNames: 'ALLOC_RATE_WINDOW_US ALLOC_SHIFT_MAX LEDGER_SIZE RECONCILE_NS SAMPLE_DRAIN_TICKS SAMPLE_DRAIN_TICKS_STATS SAMPLE_STATS_TICKS TICK_DEADLINE TICK_POLL WORK_CLOCK_FLOOR VM_STATS WORK_CLOCK_POLL_US WORK_CYCLES_PER_US'
 	package: 'VM-Core'!
 
 Scheduler comment: 'Process scheduler, semaphores and interrupts: the timer, the CPU and allocation samplers, external semaphore signals, time slices.
@@ -52,14 +52,23 @@ declarations
 		(sliceUs int64_t) (sliceDueUs int64_t) (slicePriority int64_t) (sliceExpired bool) (sliceBreaks uint64_t) (sliceBreaksAtArm uint64_t) (statTimerArms uint64_t)
 		(runHint int64_t 16r7FFFFFFFFFFFFFFF) (sampleBufIndex int64_t) (sampleDepth int64_t) (sampleCpuSince int64_t) (sampleDrainDue bool) (sampleCpu bool)
 		(sampleShare bool) (sampleLastMeths 'oop[255]') (sampleLastPcs 'int64_t[255]') (sampleLastN int64_t) (sampleLastEpoch uint64_t)
-		(sampleMeths 'oop[255]') (samplePcs 'int64_t[255]'))
+		(sampleMeths 'oop[255]') (samplePcs 'int64_t[255]')
+		(allocSampleBase int64_t) (allocSampleShift int64_t) (allocSampleMaxRate int64_t) (allocRateStartUs int64_t) (allocRateCount int64_t) (allocSampleLarge bool)
+		(sampleStats bool) (sampleStatsSince int64_t) (sampleDrainTicks int64_t 64))
 !
 initialize
 	"Charging: the ledger's entries (the size of ledgerProcs and ledgerTk), the longest window between two reads of the thread clock (ns)."
 	LEDGER_SIZE := 16.
 	RECONCILE_NS := 200000.
-	"Samples recorded into the sample buffer: its reader is woken after this many CPU samples at the latest."
+	"Samples recorded into the sample buffer: its reader is woken after this many CPU samples at the latest, or this many when the buffer gets the VM statistics too (every SAMPLE_STATS_TICKS CPU samples): each wakeup switches to the reader, which flushes the sampled Process's frames, so it comes about once a second then."
 	SAMPLE_DRAIN_TICKS := 64.
+	SAMPLE_DRAIN_TICKS_STATS := 1024.
+	SAMPLE_STATS_TICKS := 64.
+	"The counters vmStats answers (vmStatsInto:)."
+	VM_STATS := 51.
+	"Allocation sampling with a rate bound (allocSamplingEvery:maxRate:): the rate is measured over windows of this many µs; the interval grows to at most 2 ** ALLOC_SHIFT_MAX times the base."
+	ALLOC_RATE_WINDOW_US := 100000.
+	ALLOC_SHIFT_MAX := 7.
 	TICK_DEADLINE := 1.
 	TICK_POLL := 2.
 	"The work clock: its rate (a 3.3 GHz core), how often a running Smalltalk is checked against its deadlines (µs of real time), the lowest priority that runs while it stands still (the control server's)."
@@ -102,6 +111,10 @@ allocSampleCountdown
 !
 allocSampleCountdown: n
 	allocSampleCountdown := n
+!
+allocSampleShift
+	"The allocation sampling interval is allocSampleBase << allocSampleShift (allocSamplingEvery:maxRate:)."
+	^allocSampleShift
 !
 allocSampleSema: n
 	allocSampleSema := n
@@ -815,6 +828,106 @@ samplerBuffer: index depth: depth cpu: cpu share: share
 	sampleCpuSince := 0.
 	sampleDrainDue := false
 !
+samplerStats: aBoolean
+	"With aBoolean (and CPU samples recorded in place) a statistics record every SAMPLE_STATS_TICKS CPU samples (recordStatsInto:at:cap:time:), and the reader woken after SAMPLE_DRAIN_TICKS_STATS of them instead of SAMPLE_DRAIN_TICKS: it no longer comes for the statistics."
+	<function>
+	<var: #aBoolean type: 'bool'>
+	sampleStats := aBoolean.
+	sampleStatsSince := 0.
+	sampleDrainTicks := aBoolean ifTrue: [SAMPLE_DRAIN_TICKS_STATS] ifFalse: [SAMPLE_DRAIN_TICKS]
+!
+allocSamplingEvery: bytes maxRate: perSecond
+	"Sample an allocation every bytes (0: none); with perSecond > 0 the samples recorded into the sample buffer are kept at about perSecond at most: the interval doubles (up to ALLOC_SHIFT_MAX times) while more come, and halves again below a third of it (adaptAllocSampling:). Each record carries the shift of the interval it stands for."
+	<function>
+	<var: #bytes type: 'int64_t'>
+	<var: #perSecond type: 'int64_t'>
+	allocSampleBase := bytes.
+	allocSampleInterval := bytes.
+	allocSampleShift := 0.
+	allocSampleMaxRate := perSecond < 0 ifTrue: [0] ifFalse: [perSecond].
+	allocRateStartUs := self nowUs.
+	allocRateCount := 0.
+	allocSampleLarge := false
+!
+adaptAllocSampling: now
+	"After an allocation sample recorded at now: over each window of ALLOC_RATE_WINDOW_US (cut short when it has as many samples as a whole one may have: a burst), the interval doubles while the window's rate would be above allocSampleMaxRate, and halves while it would stay below a third of it. The bytes since the sample count toward the next one at the new interval (ObjectMemory>>allocSampleIntervalChangedBy:), so each sample stands for the interval it was armed with."
+	<function>
+	<var: #now type: 'int64_t'>
+	| elapsed rate s old |
+	allocSampleMaxRate <= 0 ifTrue: [^self].
+	allocRateCount := allocRateCount + 1.
+	elapsed := now - allocRateStartUs.
+	(elapsed < ALLOC_RATE_WINDOW_US and: [allocRateCount * 1000000 < (allocSampleMaxRate * ALLOC_RATE_WINDOW_US)]) ifTrue: [^self].
+	rate := allocRateCount * 1000000 quo: (elapsed < 1 ifTrue: [1] ifFalse: [elapsed]).
+	s := allocSampleShift.
+	[rate > allocSampleMaxRate and: [s < ALLOC_SHIFT_MAX]] whileTrue: [rate := rate quo: 2. s := s + 1].
+	[s > 0 and: [rate * 3 < allocSampleMaxRate]] whileTrue: [rate := rate * 2. s := s - 1].
+	allocRateStartUs := now.
+	allocRateCount := 0.
+	s = allocSampleShift ifTrue: [^self].
+	old := allocSampleInterval.
+	allocSampleShift := s.
+	allocSampleInterval := allocSampleBase << s.
+	memory allocSampleIntervalChangedBy: allocSampleInterval - old
+!
+vmStatsInto: v
+	"The VM_STATS counters vmStats answers (SystemPrimitives class comment), into v."
+	<function>
+	<var: #v type: 'int64_t *'>
+	v at: 0 put: gc statScavenges asInt64.
+	v at: 1 put: gc statFullGcs asInt64.
+	v at: 2 put: gc statScavengeUs asInt64.
+	v at: 3 put: gc statFullUs asInt64.
+	v at: 4 put: (gc oldTop - gc oldLo) asInt64.
+	v at: 5 put: gc oldBudget asInt64.
+	v at: 6 put: (gc edenHi - gc edenLo) asInt64.
+	v at: 7 put: (gc statAllocated + (gc edenTop - gc edenLo)) asInt64.
+	v at: 8 put: gc remsetCount asInt64.
+	v at: 9 put: statProcessSwitches asInt64.
+	v at: 10 put: gc statTenured asInt64.
+	v at: 11 put: gc statWeakCleared asInt64.
+	v at: 12 put: interpreter statMaterialized asInt64.
+	v at: 13 put: interpreter statFlushes asInt64.
+	v at: 14 put: jit statCompiled asInt64.
+	v at: 15 put: jit statBytecodes asInt64.
+	v at: 16 put: jit statCompileUs asInt64.
+	v at: 17 put: jit statCodeBytes asInt64.
+	v at: 18 put: jit statCacheFlushes asInt64.
+	v at: 19 put: jit statEntries asInt64.
+	v at: 20 put: jit statExits asInt64.
+	v at: 21 put: jit statResumes asInt64.
+	v at: 22 put: jit statOsr asInt64.
+	v at: 23 put: jit statFailed asInt64.
+	0 to: 6 do: [:i | v at: 24 + i put: (jit baselineStat: i asInt32) asInt64].
+	0 to: 8 do: [:i | v at: 31 + i put: (jit optStat: i asInt32)].
+	v at: 40 put: gc tenureAge asInt64.
+	v at: 41 put: gc maxHeapBytes asInt64.
+	v at: 42 put: gc heapReserve asInt64.
+	0 to: 3 do: [:i | v at: 43 + i put: (jit optStat: 9 + i asInt32)].
+	v at: 47 put: statReconciles asInt64.
+	v at: 48 put: statTimerArms asInt64.
+	v at: 49 put: gc statSurvived asInt64.
+	v at: 50 put: gc statScavengeMaxUs asInt64
+!
+recordStatsInto: buf at: fill cap: cap time: now
+	"A statistics record at fill of the sample buffer buf (cap slots): VM_STATS + (32 << 8), nil, now, nil, 0, then the VM_STATS counters (vmStatsInto:). Answer the slot after it, fill if it does not fit."
+	<function>
+	<var: #buf type: 'oop'>
+	<var: #fill type: 'int64_t'>
+	<var: #cap type: 'int64_t'>
+	<var: #now type: 'int64_t'>
+	| v |
+	fill + 5 + VM_STATS > cap ifTrue: [^fill].
+	v := self local: 'int64_t[51]'.
+	self vmStatsInto: v.
+	self storeRef: buf at: fill put: (self intOop: (VM_STATS bitOr: 32 << 8)).
+	self storeRef: buf at: fill + 1 put: memory nilOop.
+	self storeRef: buf at: fill + 2 put: (self intOop: now).
+	self storeRef: buf at: fill + 3 put: memory nilOop.
+	self storeRef: buf at: fill + 4 put: (self intOop: 0).
+	0 to: VM_STATS - 1 do: [:i | self storeRef: buf at: fill + 5 + i put: (self intOop: (v at: i))].
+	^fill + 5 + VM_STATS
+!
 sampleBuffer
 	"The Array samples go into (samplerBuffer:depth:), nil if there is none."
 	| ext buf |
@@ -827,11 +940,11 @@ sampleBuffer
 !
 recordSample: isAlloc at: now
 	"At an interrupt check (the frames canonical), at now (µs, nowUs): record a CPU sample (isAlloc false) or the pending allocation sample into the sample buffer, without a process switch: the active Process's stack is walked where it is (Interpreter>>profileStackInto:pcs:max:), frames are not flushed. Idle (no Process runs): no Process, flag 4. Answer false if there is no buffer (the caller signals the sampler's semaphore, as without one).
-	The buffer: slot 0 the next free slot (1 when empty), then records of 5 + 2n slots: n + (flags << 8) (2: truncated, 8: the top frame was just activated, 16: an allocation sample), the Process, the time, the allocated class and size (nil and 0 for a CPU sample), then n pairs of a method and its block's startpc (0: the method), outermost first. With sampleShare the first k of them, which the previous record written has too (no GC in between: the oops kept in sampleLastMeths are no roots, only compared), are left out: n + (flags << 8) + (k << 16), then only the n - k pairs after them, so a record of a stack that changed at the top only (most of them) is a few slots and costs its reader (Profiler>>drainBuffer, which rebuilds the stack) little. A record that does not fit is dropped. Its reader (Profiler>>drainBuffer) swaps in an empty buffer; it is woken (sampleDrainDue) when the buffer gets three quarters full and after SAMPLE_DRAIN_TICKS CPU samples."
+	The buffer: slot 0 the next free slot (1 when empty), then records of 5 + 2n slots: n + (flags << 8) + (shift << 24) (flags 2: truncated, 8: the top frame was just activated, 16: an allocation sample; shift: an allocation sample stands for allocSampleBase << shift bytes, allocSamplingEvery:maxRate:), the Process, the time, the allocated class and size (nil and 0 for a CPU sample), then n pairs of a method and its block's startpc (0: the method), outermost first. With sampleShare the first k of them, which the previous record written has too (no GC in between: the oops kept in sampleLastMeths are no roots, only compared), are left out: n + (flags << 8) + (k << 16), then only the n - k pairs after them, so a record of a stack that changed at the top only (most of them) is a few slots and costs its reader (Profiler>>drainBuffer, which rebuilds the stack) little. With sampleStats every SAMPLE_STATS_TICKS CPU samples are followed by a statistics record (recordStatsInto:at:cap:time:, flags 32). A record that does not fit is dropped. Its reader (Profiler>>drainBuffer) swaps in an empty buffer; it is woken (sampleDrainDue) when the buffer gets three quarters full and after sampleDrainTicks CPU samples."
 	<function>
 	<var: #isAlloc type: 'bool'>
 	<var: #now type: 'int64_t'>
-	| buf cap fill slot0 meths pcs r n k m flags len proc |
+	| buf cap fill start slot0 meths pcs r n k m flags len proc shift |
 	buf := self sampleBuffer.
 	buf = memory nilOop ifTrue: [^false].
 	cap := (self numSlots: buf) asInt64.
@@ -844,6 +957,7 @@ recordSample: isAlloc at: now
 	n := 0.
 	k := 0.
 	flags := 0.
+	shift := 0.
 	proc := memory nilOop.
 	inIdle
 		ifTrue: [flags := 4]
@@ -855,13 +969,17 @@ recordSample: isAlloc at: now
 				n := r bitAnd: 16rFFFF.
 				(r >> 16) ~= 0 ifTrue: [flags := 2]].
 			interpreter safepointAtEntry ifTrue: [flags := flags bitOr: 8]].
-	isAlloc ifTrue: [flags := flags bitOr: 16].
+	isAlloc ifTrue: [
+		flags := flags bitOr: 16.
+		"the interval armed at the sample before, which this one stands for (an object too large for eden is sampled each: the base)"
+		shift := allocSampleLarge ifTrue: [0] ifFalse: [allocSampleShift].
+		self adaptAllocSampling: now].
 	(sampleShare and: [sampleLastEpoch = gc gcEpoch]) ifTrue: [
 		m := n < sampleLastN ifTrue: [n] ifFalse: [sampleLastN].
 		[k < m and: [(sampleLastMeths at: k) = (meths at: n - 1 - k) and: [(sampleLastPcs at: k) = (pcs at: n - 1 - k)]]] whileTrue: [k := k + 1]].
 	len := 5 + (2 * (n - k)).
 	fill + len > cap ifTrue: [^true].
-	self storeRef: buf at: fill put: (self intOop: ((n bitOr: flags << 8) bitOr: k << 16)).
+	self storeRef: buf at: fill put: (self intOop: (((n bitOr: flags << 8) bitOr: k << 16) bitOr: shift << 24)).
 	self storeRef: buf at: fill + 1 put: proc.
 	self storeRef: buf at: fill + 2 put: (self intOop: now).
 	self storeRef: buf at: fill + 3 put: (isAlloc ifTrue: [allocSampleClass] ifFalse: [memory nilOop]).
@@ -873,13 +991,19 @@ recordSample: isAlloc at: now
 		sampleLastPcs at: j put: (pcs at: n - 1 - j)].
 	sampleLastN := n.
 	sampleLastEpoch := gc gcEpoch.
-	"woken once when three quarters are passed"
-	(fill * 4 <= (cap * 3) and: [(fill + len) * 4 > (cap * 3)]) ifTrue: [sampleDrainDue := true].
+	start := fill.
 	fill := fill + len.
-	self storeRef: buf at: 0 put: (self intOop: fill).
 	isAlloc ifFalse: [
 		sampleCpuSince := sampleCpuSince + 1.
-		sampleCpuSince >= SAMPLE_DRAIN_TICKS ifTrue: [sampleDrainDue := true]].
+		sampleCpuSince >= sampleDrainTicks ifTrue: [sampleDrainDue := true].
+		sampleStats ifTrue: [
+			sampleStatsSince := sampleStatsSince + 1.
+			sampleStatsSince >= SAMPLE_STATS_TICKS ifTrue: [
+				sampleStatsSince := 0.
+				fill := self recordStatsInto: buf at: fill cap: cap time: now]]].
+	"woken once when three quarters are passed"
+	(start * 4 <= (cap * 3) and: [fill * 4 > (cap * 3)]) ifTrue: [sampleDrainDue := true].
+	self storeRef: buf at: 0 put: (self intOop: fill).
 	sampleDrainDue ifTrue: [sampleCpuSince := 0].
 	^true
 !
@@ -887,9 +1011,16 @@ allocSampleHit: aClass bytes: bytes
 	<function>
 	allocSampleClass := aClass.
 	allocSampleSize := bytes asInt64.
+	allocSampleLarge := false.
 	allocSamplePending := true.
 	allocSampleUnread := true.
 	self requestInterruptCheck
+!
+allocSampleLargeHit: aClass bytes: bytes
+	"An object too large for eden: sampled each, not counted down (ObjectMemory>>allocObj:format:slots:), so it stands for the base interval."
+	<function>
+	self allocSampleHit: aClass bytes: bytes.
+	allocSampleLarge := true
 !
 relinquish: microseconds
 	<function>

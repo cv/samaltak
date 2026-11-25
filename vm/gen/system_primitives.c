@@ -181,58 +181,16 @@ void prim_vm_stats(void)
 {
     int64_t local[51];
     int64_t *v;
-    int i;
-    int i_2;
-    int i_3;
     uint64_t a;
-    int i_4;
+    int i;
     int64_t v_2;
     memset(&local, 0, sizeof local);
     v = local;
-    v[0] = (int64_t)stat_scavenges;
-    v[1] = (int64_t)stat_full_gcs;
-    v[2] = (int64_t)stat_scavenge_us;
-    v[3] = (int64_t)stat_full_us;
-    v[4] = (int64_t)(old_top - old_lo);
-    v[5] = (int64_t)old_budget;
-    v[6] = (int64_t)(eden_hi - eden_lo);
-    v[7] = (int64_t)(stat_allocated + (eden_box[0] - eden_lo));
-    v[8] = (int64_t)remset_count;
-    v[9] = (int64_t)stat_process_switches;
-    v[10] = (int64_t)stat_tenured;
-    v[11] = (int64_t)stat_weak_cleared;
-    v[12] = (int64_t)stat_materialized;
-    v[13] = (int64_t)stat_flushes;
-    v[14] = (int64_t)stat_compiled;
-    v[15] = (int64_t)stat_bytecodes;
-    v[16] = (int64_t)stat_compile_us;
-    v[17] = (int64_t)stat_code_bytes;
-    v[18] = (int64_t)stat_cache_flushes;
-    v[19] = (int64_t)stat_entries;
-    v[20] = (int64_t)stat_exits;
-    v[21] = (int64_t)stat_resumes;
-    v[22] = (int64_t)stat_osr;
-    v[23] = (int64_t)stat_failed;
-    for (i = 0; i <= 6; i++) {
-        v[24 + i] = (int64_t)baseline_stat((int32_t)i);
-    }
-    for (i_2 = 0; i_2 <= 8; i_2++) {
-        v[31 + i_2] = opt_stat((int32_t)i_2);
-    }
-    v[40] = (int64_t)tenure_age;
-    v[41] = (int64_t)max_heap_bytes;
-    v[42] = (int64_t)heap_reserve;
-    for (i_3 = 0; i_3 <= 3; i_3++) {
-        v[43 + i_3] = opt_stat(9 + (int32_t)i_3);
-    }
-    v[47] = (int64_t)stat_reconciles;
-    v[48] = (int64_t)stat_timer_arms;
-    v[49] = (int64_t)stat_survived;
-    v[50] = (int64_t)stat_scavenge_max_us;
+    vm_stats_into(v);
     a = alloc_obj(cls_array, F_VAR, 51);
-    for (i_4 = 0; i_4 <= 50; i_4++) {
-        v_2 = v[i_4];
-        ((oop *)(a + 16))[i_4] = (uint64_t)((v_2 << 1) | 1);
+    for (i = 0; i <= 50; i++) {
+        v_2 = v[i];
+        ((oop *)(a + 16))[i] = (uint64_t)((v_2 << 1) | 1);
     }
     prim_result = a;
     prim_status = PS_OK;
