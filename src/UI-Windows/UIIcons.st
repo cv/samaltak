@@ -3,7 +3,7 @@ Object subclass: #UIIcons
 	classVariableNames: 'Cache'
 	package: 'UI-Windows'!
 
-UIIcons comment: 'I rasterize the few vector shapes the window layer needs (the Blue Book arrow pointer, the brand orb) into Forms at the display scale, antialiased by 4×4 supersampling, and cache them per scale.'!
+UIIcons comment: 'I rasterize the few vector shapes the window layer needs (the Blue Book arrow pointer) into Forms at the display scale, antialiased by 4×4 supersampling, and cache them per scale.'!
 
 !UIIcons class methodsFor: 'icons'!
 arrowPointerScale: aNumber
@@ -18,27 +18,6 @@ arrowPointerScale: aNumber
 			d <= 0.6
 				ifTrue: [Color white]
 				ifFalse: [inside ifTrue: [Color black] ifFalse: [nil]]]]
-!
-orbScale: aNumber
-	"The brand mark: an ultramarine orb with a highlight, 16×16 points."
-	^self cached: #orb scale: aNumber ifAbsent: [
-		self form: 16 @ 16 scale: aNumber sampler: [:p |
-			| dx dy e hx hy h |
-			dx := (p x - 8) / 4.6.
-			dy := (p y - 6.4) / 5.2.
-			e := dx * dx + (dy * dy).
-			hx := (p x - 7.4) / 2.6.
-			hy := (p y - 4.6) / 2.6.
-			h := (hx * hx + (hy * hy)) sqrt.
-			e <= 1
-				ifTrue: [
-					(h between: 0.82 and: 1.0) & (p y < 4.6) & (p x < 8.6)
-						ifTrue: [Color ultramarine mixed: 0.6 with: Color white]
-						ifFalse: [Color ultramarine]]
-				ifFalse: [
-					((p x - 8.3 - ((p y - 11.6) * 0.25)) abs < 0.35 and: [p y between: 11.6 and: 14.5])
-						ifTrue: [(Color named: #ink3) alpha: 0.8]
-						ifFalse: [nil]]]]
 ! !
 
 !UIIcons class methodsFor: 'rasterizing'!

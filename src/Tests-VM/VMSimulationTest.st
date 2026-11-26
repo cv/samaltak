@@ -11,6 +11,25 @@ timeLimitMilliseconds
 ! !
 
 !VMSimulationTest methodsFor: 'tests'!
+testLazyIdentityHashHeader
+	| sim memory object header seed hash |
+	sim := VMSimulation modules: (VMModule vmModules select: [:c | c packageName ~= 'VM-Platform']).
+	memory := sim module: ObjectMemory.
+	memory memoryInit: 1024 * 1024 survivor: 0 maxHeap: 64 * 1024 * 1024.
+	seed := memory hashSeed.
+	object := memory allocObj: 0 format: VMConstants fBytes slots: 2.
+	self assert: memory hashSeed equals: seed.
+	header := (memory header: object) bitOr: (1 << 59).
+	self assert: ((header >> 37) bitAnd: 16r3FFFFF) equals: 0.
+	memory header: object put: header.
+	hash := memory hashOf: object.
+	self assert: (hash between: 1 and: 16r3FFFFF).
+	self assert: (memory header: object) equals: (header bitOr: (hash << 37)).
+	self deny: memory hashSeed equals: seed.
+	seed := memory hashSeed.
+	self assert: (memory hashOf: object) equals: hash.
+	self assert: memory hashSeed equals: seed
+!
 testRetiredPrimitivesAbsentInSimulation
 	| entries |
 	entries := (VMSimulation modules: VMModule vmModules) primitiveEntries.

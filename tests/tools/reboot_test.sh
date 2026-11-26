@@ -61,7 +61,7 @@ check "every window back" "$before" "$after"
 for w in $(echo "$after" | sed -n 's/^window \(@w[0-9]*\) .*/\1/p'); do
   echo "$before" | grep -q "^window $w " || $CTL snapshot "$w" | head -40 | sed 's/^/    /'
 done
-check "top bar shows it" 'topbar @top "reboot.image | Samaltak VM, rebooted"' "$($CTL snapshot --depth 0 | grep '^topbar' | sed 's/ compositor=.*//')"
+check "top bar shows the image (no banner since upstream's icon)" 'topbar @top "reboot.image"' "$($CTL snapshot --depth 0 | grep '^topbar' | sed 's/ compositor=.*//')"
 [ -x "$SCRATCH/build/vm/samaltak" ] && pass "binary beside the sources" || fail "no $SCRATCH/build/vm/samaltak"
 check "vm/gen untouched" "$gen" "$(cat vm/gen/* | cksum)"
 

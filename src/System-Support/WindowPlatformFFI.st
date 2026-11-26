@@ -1,6 +1,6 @@
 Object subclass: #WindowPlatformFFI
 	instanceVariableNames: ''
-	classVariableNames: 'OpenCall SizeCall PixelSizeCall TitleCall SetSizeCall OpacityCall FillRectsCall ClipboardGetCall ClipboardSetCall ClipboardDataCall NextEventCall InjectEventCall LastErrorCall HandleCountsCall DroppedCall'
+	classVariableNames: 'OpenCall SizeCall PixelSizeCall TitleCall SetSizeCall OpacityCall FillRectsCall IconCall ClipboardGetCall ClipboardSetCall ClipboardDataCall NextEventCall InjectEventCall LastErrorCall HandleCountsCall DroppedCall'
 	package: 'System-Support'!
 
 WindowPlatformFFI comment: 'Prepared private window/input bindings and their little-endian event codec. Only the hosted platform uses these bindings.'!
@@ -26,6 +26,9 @@ opacityCall
 !
 fillRectsCall
 	^FillRectsCall ifNil: [FillRectsCall := PlatformFFI bind: #(call 'platform' 'platform_windows_fill_rects' (i64 bytesWithLength) i32)]
+!
+iconCall
+	^IconCall ifNil: [IconCall := PlatformFFI bind: #(call 'platform' 'platform_windows_set_icon' (i64 bytesWithLength i64) i32)]
 !
 clipboardGetCall
 	^ClipboardGetCall ifNil: [ClipboardGetCall := PlatformFFI bind: #(call 'platform' 'platform_windows_clipboard_get' (writableBytesWithLength) i32)]

@@ -1,6 +1,6 @@
 Object subclass: #HostWindow
 	instanceVariableNames: 'handle session width height title flags'
-	classVariableNames: ''
+	classVariableNames: 'Icon IconWidth'
 	package: 'Graphics-GPU'!
 
 HostWindow comment: 'I am a native window of the host (SDL3; on UEFI the screen, FirmwareDisplay). I am opened on first use in each session, with the size and title I keep, so I survive image restarts like the GPU objects do. Sizes are in points; pixelExtent and scale give the backing store.'!
@@ -18,6 +18,8 @@ handle
 	(handle notNil and: [session == GPUDevice currentSession]) ifTrue: [^handle].
 	handle := GPUPlatform openWindow: width height: height title: title flags: flags.
 	session := GPUDevice currentSession.
+	"a desktop window (flag 8) is no application window: it has no icon"
+	(Icon notNil and: [(flags bitAnd: 8) = 0]) ifTrue: [GPUPlatform window: handle icon: Icon width: IconWidth].
 	^handle
 !
 isOpen
@@ -106,6 +108,19 @@ width: w height: h title: aString flags: anInteger
 windowId
 	"The id platform events carry in slot 8 (nil if I am not open)."
 	^self isOpen ifTrue: [handle] ifFalse: [nil]
+! !
+
+!HostWindow class methodsFor: 'icon'!
+icon
+	"The pixels every window but a desktop one opens with as its icon (RGBA bytes, not premultiplied, rows top to bottom; nil: the system's), iconWidth wide."
+	^Icon
+!
+iconWidth
+	^IconWidth
+!
+icon: aByteArray width: w
+	Icon := aByteArray.
+	IconWidth := w
 ! !
 
 !HostWindow class methodsFor: 'events'!

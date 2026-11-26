@@ -442,6 +442,33 @@ testSmallIntegersWhereLargeIntegersWere
 	deopts := (self statistics - before) optDeoptimizations.
 	self stressed ifFalse: [self assert: deopts < 4 description: [deopts printString, ' deoptimizations']]
 !
+testFloatMultiplyByTwo
+	"Both literal positions use an add on arm64 and a multiply on x86-64."
+	| o listing |
+	self define: 'doubleLeft: x ^2.0 * x'.
+	self define: 'doubleRight: x ^x * 2.0'.
+	o := JitRuntimeTestSubject new.
+	3 timesRepeat: [
+		self assert: (o doubleLeft: -1.25) equals: -2.5.
+		self assert: (o doubleRight: -1.25) equals: -2.5].
+	#(#doubleLeft: #doubleRight:) do: [:selector |
+		listing := (JitRuntimeTestSubject >> selector) machineCodeFor: #opt.
+		self isX64
+			ifTrue: [
+				self assert: (listing includesSubstring: 'mulsd').
+				self deny: (listing includesSubstring: self floatAdd)]
+			ifFalse: [
+				self assert: (listing includesSubstring: self floatAdd).
+				self deny: (listing includesSubstring: 'fmul')]].
+	self assert: (o doubleLeft: 0.0) asIEEEBits equals: 0.
+	self assert: (o doubleRight: 0.0) asIEEEBits equals: 0.
+	self assert: (o doubleLeft: -0.0) asIEEEBits equals: 16r8000000000000000.
+	self assert: (o doubleRight: -0.0) asIEEEBits equals: 16r8000000000000000.
+	self assert: (o doubleLeft: 1.0e308) equals: Float infinity.
+	self assert: (o doubleRight: 1.0e308) equals: Float infinity.
+	self assert: (o doubleLeft: -1.0e308) equals: Float negativeInfinity.
+	self assert: (o doubleRight: -1.0e308) equals: Float negativeInfinity
+!
 testBoxedFloatsInFloatArithmetic
 	"BoxedFloat64s (the infinities, NaN) are decoded as SmallFloat64s are: comparing them does not deoptimize (unless --jit-flags deopt makes it); NaN compares false."
 	| o a before deopts |
@@ -1093,6 +1120,163 @@ testCountedLoopsCheckNoOverflow
 		self assert: (o whileCount: 3000 from: 1) equals: 3000.
 		self assert: (o early: b from: 3 to: 20) equals: (early value: 3).
 		self assert: (o from: 0 add: b) equals: sum]
+!
+testAffineCountedLoopBounds
+	"Both offset reads, a strided store and a descending reverse read are unchecked. For an unaligned limit, only the last visited index matters."
+	| o bytes x y a filled seq expected note |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'mismatch: x at: i0 with: y at: j0 count: n 1 to: n do: [:i | (x at: i0 + i - 1) = (y at: j0 + i - 1) ifFalse: [^i]]. ^0'.
+	self define: 'strideFill: x to: n 1 to: n by: 3 do: [:i | x at: i + 2 put: i]. ^x'.
+	self define: 'descending: x to: n | s | s := 0. 11998 to: n by: -3 do: [:i | s := s + (x at: 12000 - i + 1)]. ^s'.
+	o := JitRuntimeTestSubject new.
+	bytes := ((1 to: 12000) collect: [:i | i \\ 251]) asByteArray.
+	x := (ByteArray new: 4) , bytes.
+	y := (ByteArray new: 8) , bytes.
+	a := Array new: 12000.
+	filled := Array new: 12000.
+	3 to: 12000 by: 3 do: [:i | filled at: i put: i - 2].
+	seq := (1 to: 11997) asArray.
+	expected := (3 to: 11997 by: 3) inject: 0 into: [:s :i | s + i].
+	4 timesRepeat: [
+		self assert: (o mismatch: x at: 5 with: y at: 9 count: 12000) equals: 0.
+		self assert: (o strideFill: a to: 11999) equals: filled.
+		self assert: (o descending: seq to: 2) equals: expected.
+		self assert: (o descending: #() to: 11999) equals: 0].
+	note := 'within bounds: checked once before the loop'.
+	self stressed ifFalse: [
+		self assert: ((self listingOf: #mismatch:at:with:at:count:) lines count: [:line | line includesSubstring: note]) equals: 2.
+		self assert: ((self listingOf: #strideFill:to:) includesSubstring: note).
+		self assert: ((self listingOf: #descending:to:) includesSubstring: note)].
+	y at: y size put: 255.
+	self assert: (o mismatch: x at: 5 with: y at: 9 count: 12000) equals: 12000.
+	self assert: (o mismatch: x at: 0 with: y at: 0 count: 0) equals: 0.
+	3 timesRepeat: [
+		self should: [o mismatch: x at: 0 with: y at: 9 count: 12000] raise: Error.
+		"The failed proof must resume before the first store."
+		a := Array new: 12000.
+		self should: [o strideFill: a to: 12001] raise: Error.
+		self assert: a equals: filled].
+	self stressed ifFalse: [self deny: ((self listingOf: #strideFill:to:) includesSubstring: note)].
+	self assert: (o strideFill: (Array new: 12000) to: 11999) equals: filled.
+	self assert: (o descending: seq to: 2.5) equals: expected
+!
+testAffineCountedLoopOverflowFallsBack
+	"The preheader distance can overflow even when the loop returns after three valid reads."
+	| o a expected base |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'window: x from: base to: n stopAt: k | start s | start := base + 1. s := 0. start to: n by: 3 do: [:i | s := s + (x at: i - base). i = k ifTrue: [^s]]. ^s'.
+	o := JitRuntimeTestSubject new.
+	a := (1 to: 12000) asArray.
+	expected := (1 to: 12000 by: 3) inject: 0 into: [:s :i | s + i].
+	4 timesRepeat: [self assert: (o window: a from: 0 to: 12000 stopAt: 0) equals: expected].
+	self stressed ifFalse: [
+		self assert: ((self listingOf: #window:from:to:stopAt:) includesSubstring: 'within bounds: checked once before the loop')].
+	base := SmallInteger minVal.
+	3 timesRepeat: [
+		self assert: (o window: a from: base to: SmallInteger maxVal stopAt: base + 7) equals: 12.
+		self assert: (o window: a from: 0 to: 12000 stopAt: 0) equals: expected]
+!
+
+testAffineIndexPrefixOverflowFallsBack
+	"The final index still fits, but bias + i at the second endpoint needs a LargeInteger."
+	| o x k before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	k := SmallInteger maxVal - 2.
+	self define: ('prefix: x bias: bias to: n | p s | p := s := 0. 1 to: n do: [:i | p := bias + i. s := s + (x at: p - ', k printString, ')]. ^{s. p}').
+	o := JitRuntimeTestSubject new.
+	x := #[11 17 23].
+	1200 timesRepeat: [self assert: (o prefix: x bias: k to: 2) equals: {28. SmallInteger maxVal}].
+	"affine indices take constants of at most 2^30 (OptPasses>>affine:of:times:depth:): this loop checks its index in the body"
+	self stressed ifFalse: [self deny: ((self listingOf: #prefix:bias:to:) includesSubstring: 'within bounds: checked once before the loop')].
+	before := self statistics.
+	4 timesRepeat: [self assert: (o prefix: x bias: k + 1 to: 2) equals: {40. SmallInteger maxVal + 1}].
+	self stressed ifFalse: [
+		self assert: (self statistics - before) optDeoptimizations > 0.
+		self deny: ((self listingOf: #prefix:bias:to:) includesSubstring: 'within bounds: checked once before the loop')].
+	self assert: (o prefix: x bias: k to: 2) equals: {28. SmallInteger maxVal}
+!
+testAffineIndexKeepsSharedLatchCheck
+	"The prefix and the loop's next counter have the same value number. Only the subtraction becomes unchecked."
+	| o x |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'shared: x to: n 1 to: n do: [:i | x at: i + 1 - 1 put: i]. ^x'.
+	o := JitRuntimeTestSubject new.
+	x := Array new: 60.
+	4 timesRepeat: [self assert: (o shared: x to: 60) equals: (1 to: 60) asArray].
+	"the index's sums are within bounds (OptPasses>>inBounds:), and so is the counter's next value"
+	self stressed ifFalse: [self assertAffineOverflowShapeOf: #shared:to: preheader: 1 body: 0]
+!
+testAffineIndexOverflowChecksWithSignedStrides
+	"The limits are unaligned: without rounding, each upper bound would exceed the array size."
+	| o x y |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'forward: x offset: offset to: n | s | s := 0. 1 to: n by: 3 do: [:i | s := s + (x at: i - offset + 2)]. ^s'.
+	self define: 'reverse: x offset: offset to: n | s | s := 0. 10 to: n by: -3 do: [:i | s := s + (x at: offset - i + 2)]. ^s'.
+	o := JitRuntimeTestSubject new.
+	x := (1 to: 10) asByteArray.
+	y := (1 to: 9) asByteArray.
+	4 timesRepeat: [
+		self assert: (o forward: x offset: -1 to: 9) equals: 21.
+		self assert: (o reverse: y offset: 11 to: 2) equals: 18].
+	self stressed ifFalse: [
+		self assertAffineOverflowShapeOf: #forward:offset:to: preheader: 7 body: 1.
+		self assertAffineOverflowShapeOf: #reverse:offset:to: preheader: 7 body: 2]
+!
+assertAffineOverflowShapeOf: selector preheader: expected body: body
+	"The last hoisted bounds guard separates endpoint arithmetic from the loop."
+	| listing opcode overflow preheader |
+	listing := self listingOf: selector.
+	self assert: (listing includesSubstring: 'within bounds: checked once before the loop').
+	opcode := self isX64 ifTrue: [' jo '] ifFalse: [' b.vs '].
+	overflow := preheader := 0.
+	listing lines do: [:line |
+		(line includesSubstring: opcode) ifTrue: [overflow := overflow + 1].
+		(line includesSubstring: 'once before the loop (its indexed accesses check no bounds)') ifTrue: [preheader := overflow]].
+	self assert: preheader equals: expected.
+	self assert: overflow - preheader equals: body
+!
+testUncheckedPointerLoadAddressing
+	"A bounds-hoisted Array scan uses the tagged index on arm64; x86 still untags it and uses its indexed memory operand."
+	| o a listing lines k |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'checksumTagged: x to: n | s | s := 0. 1 to: n do: [:i | s := s + (x at: i)]. ^s'.
+	self define: 'checkedTagged: x at: i ^x at: i'.
+	o := JitRuntimeTestSubject new.
+	a := (1 to: 20000) asArray.
+	4 timesRepeat: [
+		self assert: (o checksumTagged: a to: 20000) equals: 200010000.
+		self assert: (o checksumTagged: a to: 0) equals: 0.
+		self assert: (o checkedTagged: a at: 20000) equals: 20000].
+	self should: [o checkedTagged: a at: 20001] raise: Error.
+	self stressed ifTrue: [^self].
+	listing := self listingOf: #checksumTagged:to:.
+	lines := listing lines.
+	self isX64
+		ifTrue: [
+			self deny: (listing includesSubstring: 'address from tagged pointer index').
+			k := lines findFirst: [:line | line includesSubstring: 'within bounds: checked once before the loop'].
+			self assert: k > 0.
+			"The note may attach to an operand move before the shift; an untagged counter (OptPasses>>untagIntegers) needs none."
+			((lines at: k) includesSubstring: '*8+0x8]') ifFalse: [
+				((lines at: k) includesSubstring: 'sar ') ifFalse: [k := k + 1].
+				self assert: ((lines at: k) includesSubstring: 'sar ').
+				k := k + 1].
+			self assert: ((lines at: k) includesSubstring: '*8+0x8]')]
+		ifFalse: [
+			k := lines findFirst: [:line | line includesSubstring: 'address from tagged pointer index'].
+			k > 0
+				ifTrue: [
+					self assert: ((lines at: k) includesSubstring: 'add x17, ').
+					self assert: ((lines at: k) includesSubstring: ', lsl #2').
+					self assert: ((lines at: k + 1) includesSubstring: 'ldur x').
+					self assert: ((lines at: k + 1) includesSubstring: '[x17, #0x4]')]
+				ifFalse: [
+					"an untagged counter (OptPasses>>untagIntegers): one load, the index scaled"
+					k := lines findFirst: [:line | line includesSubstring: 'within bounds: checked once before the loop'].
+					self assert: k > 0.
+					self assert: ((lines at: k) includesSubstring: 'ldr x').
+					self assert: ((lines at: k) includesSubstring: ', lsl #3]')]].
+	self deny: ((self listingOf: #checkedTagged:at:) includesSubstring: 'address from tagged pointer index')
 !
 testOuterTempsOfAClosureInlinedInALoop
 	"A loop's unit that inlines a closure another frame made guards it once, where the loop is entered; an outer temp the loop only reads is loaded there, one it stores into is stored into each time, in the frame its Context is married to or in the Context (the adder's home method has returned): what follows the loop sees the stores. A method's first long loop runs in such a unit: one method for each case."

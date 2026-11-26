@@ -44,7 +44,7 @@ banner
 	| packages classes |
 	packages := Smalltalk packages size.
 	classes := Smalltalk allClasses size.
-	^'Samaltak 0.1 · Smalltalk-80', (String with: Character lf),
+	^'Samaltak 0.1 · Smalltalk', (String with: Character lf),
 		self imageName, ' · ', packages printString, ' packages · ', classes printString, ' classes · 6 layers', (String with: Character lf),
 		'green threads, preempted at safepoints', (String with: Character lf)
 !

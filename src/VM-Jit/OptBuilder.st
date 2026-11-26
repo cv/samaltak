@@ -1609,9 +1609,9 @@ floatArith: k x: x y: y pc: pc act: a rcvSlot: r
 			ifFalse: [self intArith: k x: (self cast: x class: memory clsSmallint) y: (self cast: y class: memory clsSmallint) pc: pc act: a rcvSlot: r].
 		self goto: merge.
 		obCurBlock := f].
-	(k = 8 and: [(self isTwo: x) or: [self isTwo: y]])
+	(k = 8 and: [asm isX64 not and: [(self isTwo: x) or: [self isTwo: y]]])
 		ifTrue: [
-			"2 * x is x + x, exactly (an addition is a cycle shorter than a multiplication)"
+			"On arm64, x + x gives the same result with a shorter dependency chain."
 			fx := self unboxFloat: ((self isTwo: x) ifTrue: [y] ifFalse: [x]) state: s.
 			fy := fx.
 			op := 0]
@@ -1630,7 +1630,7 @@ floatArith: k x: x y: y pc: pc act: a rcvSlot: r
 			(ir node: n) a: fx.
 			(ir node: n) b: fy.
 			(ir node: n) aux: op.
-			op = 9 ifTrue: [(ir node: n) state: s].
+			k = 9 ifTrue: [(ir node: n) state: s].
 			self push: (self boxFloat: n state: s) act: a depth: r].
 	merge >= 0 ifTrue: [
 		self goto: merge.
@@ -1642,8 +1642,7 @@ isTwo: v
 	| nd |
 	nd := ir node: (ir resolve: v).
 	nd op asInt32 = O_CONST ifFalse: [^false].
-	(nd aux asUInt64 = 5 or: [(nd aux asUInt64 bitAnd: 7) = 4 and: [(self constantDouble: nd aux asUInt64) = 16r4000000000000000]]) ifFalse: [^false].
-	^true
+	^nd aux asUInt64 = 5 or: [(nd aux asUInt64 bitAnd: 7) = 4 and: [(self constantDouble: nd aux asUInt64) = 16r4000000000000000]]
 !
 speculatesFloats: fl
 	"An arithmetic site with flags fl takes Floats only: it saw Floats and never two SmallIntegers (one that only its method's other arithmetic saw Floats at takes both)."

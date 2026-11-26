@@ -361,6 +361,14 @@ fillSurfaceRect: surface rect: rect color: color
 mapSurfaceRGBA: surface r: r g: g b: b a: a
 	<c: 'Uint32 SDL_MapSurfaceRGBA(SDL_Surface *surface, Uint8 r, Uint8 g, Uint8 b, Uint8 a)'>
 	^self notSimulated
+!
+setWindowIcon: window icon: surface
+	<c: 'bool SDL_SetWindowIcon(SDL_Window *window, SDL_Surface *icon)'>
+	^self notSimulated
+!
+SDL_PIXELFORMAT_RGBA32
+	<cMacro: 'SDL_PixelFormat SDL_PIXELFORMAT_RGBA32'>
+	^self notSimulated
 ! !
 
 !SDL methodsFor: 'cursors'!

@@ -355,7 +355,7 @@ initHeaderAt: p class: cls format: fmt slots: n
 	self uint64At: p + 8 put: cls
 !
 assignHashOf: o
-	"The identity hash of an object that has none yet (0 in its header): the generator's next value, kept in the header from then on. The only place that writes a hash (hashOf: calls it), so a concurrent collector has one to coordinate with."
+	"Assign a nonzero identity hash to an object whose header has none. Preserve the other header bits."
 	<function>
 	<var: #o type: 'oop'>
 	<returns: 'uint32_t'>

@@ -186,6 +186,7 @@ generate: m act: a
 		b := cgOrder at: i.
 		self bindBlock: b after: (i > 0 ifTrue: [cgOrder at: i - 1] ifFalse: [-1]).
 		self emitBlock: b next: (self nextWithCode: i + 1)].
+	asm failed ifTrue: [^false].
 	(self emitOuts) ifFalse: [^false].
 	cgDepCount := (builder depCount min: 256) asInt32.
 	0 to: cgDepCount - 1 do: [:i | cgDeps at: i put: (self poolIndexOf: (builder depAt: i))].
@@ -1012,7 +1013,7 @@ ddef: n from: d
 !
 emitFloat: n
 	"Unboxing (a SmallFloat64 or BoxedFloat64 decoded, a SmallInteger converted), boxing (as a SmallFloat64), arithmetic and sqrt on doubles; what does not fit deoptimizes. Doubles in raw slots are loaded into D0 and D1, results computed in D0 and stored."
-	| nd op s x y r done slow k |
+	| nd op s x y r done slow k small |
 	nd := ir node: n.
 	op := nd op asInt32.
 	op = O_UNBOXF ifTrue: [
@@ -1027,28 +1028,20 @@ emitFloat: n
 			asm scvtf: r with: X16.
 			^self ddef: n from: r].
 		"a SmallFloat64 other than zero inline: its IEEE bits are its bits rotated right by 4 less 2^59 (the tag 4 and the exponent's offset); zero, a BoxedFloat64 or a SmallInteger out of line, anything else deoptimizes"
-		(ir node: nd a) tkind asInt32 ~= T_FLOAT ifTrue: [s := self deoptLabelFor: n].
+		small := (ir node: nd a) tkind asInt32 = T_FLOAT.
+		s := small ifTrue: [-1] ifFalse: [self deoptLabelFor: n].
 		slow := self out: OUT_UNBOX node: n index: (x bitOr: r * 256).
-		(cgOuts + (cgOutCount - 1)) aux: ((ir node: nd a) tkind asInt32 ~= T_FLOAT ifTrue: [s] ifFalse: [-1]).
+		asm failed ifTrue: [^self].
+		(cgOuts + (cgOutCount - 1)) aux: s.
 		done := asm newLabel.
 		(cgOuts + (cgOutCount - 1)) resume: done.
 		asm comment: 'a SmallFloat64''s double'.
-		asm isX64
-			ifTrue: [
-				(ir node: nd a) tkind asInt32 ~= T_FLOAT ifTrue: [
-					asm and: X16 with: x imm: 7.
-					asm cmp: X16 imm: 4.
-					asm b: slow if: COND_NE].
-				asm cmp: x imm: 12.
-				asm b: slow if: COND_LS]
-			ifFalse: [
-				(ir node: nd a) tkind asInt32 ~= T_FLOAT
-					ifTrue: [
-						asm and: X16 with: x imm: 7.
-						asm cmp: X16 imm: 4.
-						asm ccmp: x imm: 12 nzcv: 0 cond: COND_EQ]
-					ifFalse: [asm cmp: x imm: 12].
-				asm b: slow if: COND_LS].
+		small ifFalse: [
+			asm and: X16 with: x imm: 7.
+			asm cmp: X16 imm: 4.
+			asm b: slow if: COND_NE].
+		asm cmp: x imm: 12.
+		asm b: slow if: COND_LS.
 		asm ror: X16 with: x imm: 4.
 		asm mov: X17 imm: 16r0800000000000000.
 		asm sub: X16 with: X16 with: X17.
@@ -1056,10 +1049,11 @@ emitFloat: n
 		asm bind: done.
 		^self ddef: n from: r].
 	op = O_BOXF ifTrue: [
-		"the inverse of the decoding: (bits + 2^59) rotated right by 60 where the exponent fits (zero out of line, anything else deoptimizes)"
+		"the inverse of the decoding: (bits + 2^59) rotated left by 4 where the exponent fits (zero out of line, anything else deoptimizes)"
 		s := self deoptLabelFor: n.
 		r := self dst: n.
 		slow := self out: OUT_BOX node: n index: r.
+		asm failed ifTrue: [^self].
 		(cgOuts + (cgOutCount - 1)) aux: s.
 		done := asm newLabel.
 		(cgOuts + (cgOutCount - 1)) resume: done.
@@ -1137,6 +1131,9 @@ emitIndexCheck: n
 		(self isScaledIndex: n)
 			ifTrue: [
 				"arm64, 8- or 4-byte elements: X17 := the object plus the tagged index (2i + 1) times half an element, the element at scaledOffsetOf: from there"
+				nd aux asInt32 = E_PTR
+					ifTrue: [asm comment: 'address from tagged pointer index']
+					ifFalse: [asm comment: 'address from tagged word index'].
 				asm add: X17 with: x with: i shift: SHIFT_LSL amount: ((self elementBytes: nd aux asInt32) = 8 ifTrue: [2] ifFalse: [1])]
 			ifFalse: [
 				"the 1-based index, the element's address one displacement less an element (indexDisplacementOf:)"
@@ -2463,7 +2460,7 @@ baseValueOf: v
 	^r
 !
 emitAllocate: n slow: slow done: done
-	"basicNew(:) in eden: header (slots, format, a hash from the JitState's seed), class, nil fields (bytes and 32-bit words zeroed, their slots and format from the size); no room, the sample's limit or more than 4096 slots: the send (slow)."
+	"basicNew(:) in eden: header (slots and format), class, nil fields (bytes and 32-bit words zeroed, their slots and format from the size); no room, the sample's limit or more than 4096 slots: the send (slow)."
 	| nd fmt isize k e sz r loop fill even v shift max fused |
 	nd := ir node: n.
 	fmt := (nd c bitAnd: 255) asInt32.
@@ -2483,7 +2480,7 @@ emitAllocate: n slow: slow done: done
 				shift > 0 ifTrue: [fmt := (fmt + ((k << shift) - e)) asInt32]]].
 	k >= 0
 		ifTrue: [
-			asm comment: 'header: slots and format (the identity hash comes at its first use)'.
+			asm comment: 'header: slots, format, no identity hash'.
 			asm mov: self scratchB imm: (k asInt64 bitOr: fmt asInt64 << H_FMT_SHIFT)]
 		ifFalse: [
 			r := self src: (ir operand: nd args + 1) into: self scratchB.
@@ -2502,7 +2499,7 @@ emitAllocate: n slow: slow done: done
 					asm add: X17 with: X17 imm: fmt.
 					asm orr: self scratchB with: X16 with: X17 shift: SHIFT_LSL amount: H_FMT_SHIFT]
 				ifFalse: [asm orr: self scratchB with: self scratchB imm: fmt asUInt64 << H_FMT_SHIFT].
-			asm comment: 'header: slots and format (the identity hash comes at its first use)'].
+			asm comment: 'header: slots, format, no identity hash'].
 	self emitEdenObject: nd tcls bytes: (k >= 0 ifTrue: [16 + (8 * k)] ifFalse: [-1]) slow: slow.
 	(shift > 0 and: [(fused := self fusedReplaceOf: n) >= 0]) ifTrue: [
 		self emitFill: n upTo: (ir operand: (ir node: fused) args + 2).
@@ -3203,5 +3200,5 @@ OptOut comment: 'An out-of-line path of optimized code (OptCodegen): its kind, t
 
 !OptOut class methodsFor: 'declaring'!
 fields
-	^#((kind int32_t) (node int32_t) (index int32_t) (label int32_t) (resume int32_t) (pos int32_t) (aux int32_t) (ffiSiteAddr uint64_t))
+	^#((kind int32_t) (node int32_t) (index int32_t) (label int32_t) (resume int32_t) (pos int32_t) (ffiSiteAddr uint64_t) (aux int32_t))
 ! !

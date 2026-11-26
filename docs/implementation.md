@@ -103,6 +103,8 @@ offset  size  field
 
 The loader places the heap in old space and adds `(newBase - B)` to every pointer oop (class words and pointer-format slots). The image builder writes with B = where the simulated old space was. The VM hashes Strings for an image as its String hash field says (`ObjectMemory>>wordHash`), and saves it so: an image from before the word hash keeps FNV-1a (its optimized code calls the primitive for `hash`); the image builder writes 1.
 
+**Identity hash compatibility.** VMs with lazy identity hashes read older images and preserve assigned hashes. Do not open or re-save an image written by a lazy-hash VM in an older VM: it treats an unassigned hash as zero and can save keys in buckets that the newer VM cannot find. Keep a pre-upgrade image for rollback.
+
 ## Special objects array
 
 An Array (format 2). Indices (0-based) the VM relies on:
@@ -281,7 +283,7 @@ A primitive fails (method body runs) on wrong argument types or ranges. Indices 
 | contexts | `nextHandlerContext` `findNextUnwindContext` `terminateTo` (Context receiver; Method execution) |
 | processes | `processResume` `processSuspend` `processorYield` `semaphoreSignal` `semaphoreWait` `processorLastPreempted` `processorRelinquish` (µs) `signalAtMilliseconds` (timer semaphore) `samplerInterval` (µs, external semaphore index; 0 stops) `allocationSampling` (byte interval, external semaphore index[, samples a second at most]) `allocationSampleInfo` (Array: class, size) `processCpuTime` (cpuTime, settled first if the process is running or has unsettled slices) `processStackInto` (profiler: a non-running process's frames as method, pc pairs into an Array; see ControlPrimitives) `stackLimit` (optional new limit, 0 = none; answers the previous one; see Stack overflow) |
 | time | `millisecondClock` `microsecondClock` (monotonic) `utcMicroseconds` `threadCpuTime` (µs, the VM thread's CPU time) |
-| system | `quit` `snapshot` (path; answers true when resumed from the snapshot, false right after writing) `gc` (full GC) `scavenge` (young generation only; a full GC, if old space then exceeds its budget, happens at the next allocation) `vmStats` (Array of counters, documented in SystemPrimitives; `Smalltalk vm statistics` wraps it in a VMStatistics with named accessors) `flushMethodCache` `flushCacheForSelector` `vmArguments` `imagePath` `stdoutWrite` `stderrWrite` `primitiveNames` `getenv` `vmBanner` (`VMMain>>banner`, shown in the top bar) `jitParameters` (`{mode. flags. threshold. osr. cache MB}`, settable) `jitCode` (a method's machine code with its compiler's notes, JitPrimitives) |
+| system | `quit` `snapshot` (path; answers true when resumed from the snapshot, false right after writing) `gc` (full GC) `scavenge` (young generation only; a full GC, if old space then exceeds its budget, happens at the next allocation) `vmStats` (Array of counters, documented in SystemPrimitives; `Smalltalk vm statistics` wraps it in a VMStatistics with named accessors) `flushMethodCache` `flushCacheForSelector` `vmArguments` `imagePath` `stdoutWrite` `stderrWrite` `primitiveNames` `getenv` `vmBanner` (`VMMain>>banner`) `jitParameters` (`{mode. flags. threshold. osr. cache MB}`, settable) `jitCode` (a method's machine code with its compiler's notes, JitPrimitives) |
 
 The [Smalltalk-80 guest display](../st80/README.md) runs in the guest image;
 the simulator exchanges framebuffer and input data.

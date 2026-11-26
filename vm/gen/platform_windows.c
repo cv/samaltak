@@ -354,6 +354,25 @@ bool set_cursor(int32_t kind)
     return SDL_SetCursor(cursors[kind]);
 }
 
+/* PlatformWindows>>setIcon:pixels:width:height: */
+bool set_icon(int32_t win, const uint8_t *pixels, int32_t w, int32_t h)
+{
+    SDL_Window *sw;
+    SDL_Surface *surface;
+    bool ok;
+    sw = sdl_window(win);
+    if (sw == NULL) {
+        return false;
+    }
+    surface = SDL_CreateSurfaceFrom(w, h, SDL_PIXELFORMAT_RGBA32, (void *)pixels, w * 4);
+    if (surface == NULL) {
+        return false;
+    }
+    ok = SDL_SetWindowIcon(sw, surface);
+    SDL_DestroySurface(surface);
+    return ok;
+}
+
 /* PlatformWindows>>setOpacity:permille: */
 bool set_opacity(int32_t win, int32_t permille)
 {

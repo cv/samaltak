@@ -4,7 +4,7 @@ A Samaltak application is a package directory of Smalltalk source that runs as a
 
     bin/samaltak run apps/Weather         # file in apps/Weather, run its Application in a floating window
     bin/samaltak test apps/Weather        # its tests, headless
-    bin/samaltak install apps/Weather     # an XDG .desktop entry, so the app launcher lists it
+    bin/samaltak install apps/Weather     # an XDG .desktop entry, so the app launcher lists it (with icons/samaltak.svg)
     bin/samaltak run apps/Weather --control --control-port 4711   # drive it with samaltak-ctl, as the World (connect --port 4711 with the token it prints: docs/remote.md)
     bin/samaltak agent                    # the Agent (docs/agent.md) in a window of its own (install agent: in the launcher)
     bin/samaltak desk                     # the desktop cards: every app of apps/ that is a card, on the desktop below the windows

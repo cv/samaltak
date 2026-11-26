@@ -35,6 +35,9 @@ windowRefreshRate: window
 !
 window: window title: aString
 !
+window: window icon: aByteArray width: w
+	^false
+!
 window: window textInputAreaX: x y: y width: w height: h cursor: cursorX
 !
 showWindow: window

@@ -1469,11 +1469,6 @@ guard: a atMost: b for: m in: entry state: s
 	"At the end of block entry: SmallInteger a (-1: the constant 1) is at most SmallInteger b, else leave at state s; for the bounds of indexed access m, whose send a failure marks."
 	self guard: a or: 1 atMost: b for: m in: entry state: s
 !
-guard: a below: b for: m in: entry state: s
-	"guard:atMost:for:in:state:, strictly below."
-	self guard: a atMost: b for: m in: entry state: s.
-	ir full ifFalse: [(ir node: (ir node: (ir block: entry) last) prev) aux2: 1]
-!
 guard: a or: k atMost: b for: m in: entry state: s
 	"guard:atMost:for:in:state:, a -1 for the constant SmallInteger k."
 	| g |
