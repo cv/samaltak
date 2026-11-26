@@ -16,7 +16,7 @@ compileAndRun: moduleClasses header: aString arguments: anArray
 	| dir build |
 	dir := self scratchDirectory.
 	(VMTranslator modules: moduleClasses header: aString) writeTo: dir.
-	build := OSProcess run: 'cc -std=gnu11 -O1 -Wall -Wextra -Wno-unused-parameter -Wno-unused-label -Werror -o program *.c 2>&1' in: dir.
+	build := OSProcess run: 'cc -std=gnu11 -D_GNU_SOURCE -O1 -Wall -Wextra -Wno-unused-parameter -Wno-unused-label -Werror -pthread -o program *.c 2>&1' in: dir.
 	self assert: build succeeded description: [build output].
 	^OSProcess run: (OSProcess commandFor: (Array with: dir , '/program') , anArray) in: dir
 !
