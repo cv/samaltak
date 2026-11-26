@@ -712,27 +712,34 @@ signalIndex: index
 !
 handleInterrupts
 	<function>
-	| now s |
+	| now s tick alloc |
+	<var: #tick type: 'bool'>
+	<var: #alloc type: 'bool'>
 	self atomicStore: #interruptPending value: 0.
 	platform poll.
 	now := self nowUs.
+	"The samples are recorded first, of the Process that ran: a due Delay's signal below switches to the timer Process, whose stack they would have otherwise. Who is woken, and in which order, is as before."
+	tick := false.
+	(samplerIntervalUs > 0 and: [now >= samplerNextUs]) ifTrue: [
+		"keep the phase, so the mean interval is exact even if interrupt checks come late"
+		samplerNextUs := samplerNextUs + samplerIntervalUs.
+		samplerNextUs <= now ifTrue: [samplerNextUs := now + samplerIntervalUs].
+		tick := (sampleCpu and: [self recordSample: false at: now]) not].
+	alloc := false.
+	allocSamplePending ifTrue: [
+		allocSamplePending := false.
+		(self recordSample: true at: now)
+			ifTrue: [allocSampleUnread := false]
+			ifFalse: [alloc := true]].
 	(timerMs >= 0 and: [(now quo: 1000) >= timerMs]) ifTrue: [
 		timerMs := -1.
 		s := memory special: SO_TIMER_SEMAPHORE.
 		(self isSemaphore: s) ifTrue: [self semaphoreSignal: s]].
 	preemptToFront := true.
-	(samplerIntervalUs > 0 and: [now >= samplerNextUs]) ifTrue: [
-		"keep the phase, so the mean interval is exact even if interrupt checks come late"
-		samplerNextUs := samplerNextUs + samplerIntervalUs.
-		samplerNextUs <= now ifTrue: [samplerNextUs := now + samplerIntervalUs].
-		(sampleCpu and: [self recordSample: false at: now]) ifFalse: [
-			samplerTickUnread := true.
-			self signalIndex: samplerSema]].
-	allocSamplePending ifTrue: [
-		allocSamplePending := false.
-		(self recordSample: true at: now)
-			ifTrue: [allocSampleUnread := false]
-			ifFalse: [self signalIndex: allocSampleSema]].
+	tick ifTrue: [
+		samplerTickUnread := true.
+		self signalIndex: samplerSema].
+	alloc ifTrue: [self signalIndex: allocSampleSema].
 	sampleDrainDue ifTrue: [
 		sampleDrainDue := false.
 		self signalIndex: (samplerSema ~= 0 ifTrue: [samplerSema] ifFalse: [allocSampleSema])].

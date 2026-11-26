@@ -254,6 +254,8 @@ void alloc_sampling_every(int64_t bytes, int64_t per_second)
 /* Scheduler>>handleInterrupts */
 void handle_interrupts(void)
 {
+    bool tick;
+    bool alloc;
     int64_t now;
     oop s;
     int32_t f;
@@ -262,6 +264,23 @@ void handle_interrupts(void)
     atomic_store_explicit(&interrupt_pending, 0, memory_order_relaxed);
     platform_interface_poll();
     now = now_us();
+    tick = false;
+    if ((sampler_interval_us > 0) && (now >= sampler_next_us)) {
+        sampler_next_us = sampler_next_us + sampler_interval_us;
+        if (sampler_next_us <= now) {
+            sampler_next_us = now + sampler_interval_us;
+        }
+        tick = !(sample_cpu && record_sample(false, now));
+    }
+    alloc = false;
+    if (alloc_sample_pending) {
+        alloc_sample_pending = false;
+        if (record_sample(true, now)) {
+            alloc_sample_unread = false;
+        } else {
+            alloc = true;
+        }
+    }
     if ((timer_ms >= 0) && (now / 1000 >= timer_ms)) {
         timer_ms = -1;
         s = object_memory_special(SO_TIMER_SEMAPHORE);
@@ -272,23 +291,12 @@ void handle_interrupts(void)
         }
     }
     preempt_to_front = true;
-    if ((sampler_interval_us > 0) && (now >= sampler_next_us)) {
-        sampler_next_us = sampler_next_us + sampler_interval_us;
-        if (sampler_next_us <= now) {
-            sampler_next_us = now + sampler_interval_us;
-        }
-        if (!(sample_cpu && record_sample(false, now))) {
-            sampler_tick_unread = true;
-            signal_index(sampler_sema);
-        }
+    if (tick) {
+        sampler_tick_unread = true;
+        signal_index(sampler_sema);
     }
-    if (alloc_sample_pending) {
-        alloc_sample_pending = false;
-        if (record_sample(true, now)) {
-            alloc_sample_unread = false;
-        } else {
-            signal_index(alloc_sample_sema);
-        }
+    if (alloc) {
+        signal_index(alloc_sample_sema);
     }
     if (sample_drain_due) {
         sample_drain_due = false;
