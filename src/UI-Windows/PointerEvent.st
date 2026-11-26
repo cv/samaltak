@@ -126,7 +126,7 @@ decode: anArray
 	code = self evMouseMove ifTrue: [^self type: #move at: point button: 0 buttons: (anArray at: 5) clickCount: 0 delta: nil modifiers: mods time: time].
 	code = self evWheel ifTrue: [
 		^self type: #wheel at: point button: 0 buttons: 0 clickCount: 0
-			delta: (self pointFrom: (anArray at: 7)) modifiers: mods time: time].
+			delta: (self wheelDeltaFrom: anArray) modifiers: mods time: time].
 	^self type: (code = self evMouseDown ifTrue: [#down] ifFalse: [#up]) at: point
 		button: (self buttonFrom: (anArray at: 5) modifiers: mods) buttons: 0
 		clickCount: ((anArray at: 7) ifNil: [1]) delta: nil modifiers: mods time: time
@@ -137,6 +137,12 @@ buttonFrom: platformButton modifiers: aModifiers
 	platformButton = 2 ifTrue: [^3].
 	(platformButton = 1 and: [aModifiers control]) ifTrue: [^2].
 	^platformButton ifNil: [1]
+!
+wheelDeltaFrom: anArray
+	"A wheel's steps; a trackpad's points (buttonOrKey 1) as steps of the 40 points the widgets scroll a step, so that it scrolls as far as the fingers move."
+	| d |
+	d := self pointFrom: (anArray at: 7).
+	^(anArray at: 5) = 1 ifTrue: [d / 40] ifFalse: [d]
 !
 pointFrom: anObject
 	anObject isNil ifTrue: [^0 @ 0].

@@ -96,7 +96,7 @@ modsOf: m
 translate: e
 	"Queue the pf_event of an SDL event (others, the wake event among them, are ignored)."
 	<function>
-	| ev now age t rec |
+	| ev now age t rec scale |
 	ev := self local: 'pf_event'.
 	now := sdl getTicksNS.
 	age := now > e common timestamp ifTrue: [now - e common timestamp] ifFalse: [0].
@@ -132,8 +132,11 @@ translate: e
 		ev x: mouseX.
 		ev y: mouseY.
 		ev xkind: PF_X_POINT.
-		ev dx: e wheel x.
-		ev dy: e wheel y.
+		"buttonOrKey 1: the deltas are points (a trackpad), else steps"
+		scale := host wheelPointScale.
+		scale > 0.0
+			ifTrue: [ev key: 1. ev dx: e wheel x * scale. ev dy: e wheel y * scale]
+			ifFalse: [ev dx: e wheel x. ev dy: e wheel y].
 		ev window: (windows fromSDLId: e wheel windowID).
 		^self push: ev].
 	(t = sdl SDL_EVENT_KEY_DOWN or: [t = sdl SDL_EVENT_KEY_UP]) ifTrue: [

@@ -20,6 +20,8 @@ videoInit
 	videoOk ifTrue: [^true].
 	sdl setHint: sdl SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE value: '0'.
 	sdl setHint: sdl SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH value: '1'.
+	"macOS goes on scrolling after the fingers leave the trackpad"
+	sdl setHint: sdl SDL_HINT_MAC_SCROLL_MOMENTUM value: '1'.
 	"The image draws the input method's composition (PF_EV_TEXT_EDITING)."
 	sdl setHint: sdl SDL_HINT_IME_IMPLEMENTED_UI value: 'composition'.
 	(sdl init: sdl SDL_INIT_VIDEO) ifFalse: [

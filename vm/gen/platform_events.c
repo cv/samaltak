@@ -135,6 +135,7 @@ static void translate(SDL_Event *e)
     Uint64 now;
     Uint64 age;
     Uint32 t;
+    double scale;
     int32_t *rec;
     memset(&local, 0, sizeof local);
     ev = &local;
@@ -176,8 +177,15 @@ static void translate(SDL_Event *e)
         ev->x = mouse_x;
         ev->y = mouse_y;
         ev->xkind = PF_X_POINT;
-        ev->dx = e->wheel.x;
-        ev->dy = e->wheel.y;
+        scale = wheel_point_scale();
+        if (scale > 0.0) {
+            ev->key = 1;
+            ev->dx = e->wheel.x * scale;
+            ev->dy = e->wheel.y * scale;
+        } else {
+            ev->dx = e->wheel.x;
+            ev->dy = e->wheel.y;
+        }
         ev->window = from_sdl_id(e->wheel.windowID);
         platform_events_push(ev);
         return;

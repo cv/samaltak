@@ -224,4 +224,10 @@ void vsync_stop(void)
     atomic_store_explicit(&vsync_on, false, memory_order_relaxed);
 }
 
+/* LinuxPlatformHost>>wheelPointScale */
+double wheel_point_scale(void)
+{
+    return 0.0;
+}
+
 #endif

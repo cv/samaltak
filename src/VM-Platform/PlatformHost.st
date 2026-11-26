@@ -75,6 +75,10 @@ desktopWindowCornerRadius: sw
 	"The radius (points) the system rounds desktop window sw's corners with; 0 if they are square or sw is none."
 	self subclassResponsibility
 !
+wheelPointScale
+	"What turns the wheel deltas SDL just reported into points, if they came from a device that scrolls by points (a trackpad); 0 if they are a wheel's steps."
+	self subclassResponsibility
+!
 desktopMovedEvent
 	"The SDL event type that reports where a desktop window was moved (data1: its window id, x and y as int32_t, malloc'd), once the system applied the move; 0 if none."
 	self subclassResponsibility
@@ -227,6 +231,11 @@ desktopWindowCornerRadius: sw
 	<var: #sw type: 'SDL_Window *'>
 	<returns: 'int'>
 	^darwin cornerRadius: sw
+!
+wheelPointScale
+	<export>
+	<returns: 'double'>
+	^darwin wheelPointScale
 !
 desktopMovedEvent
 	<export>
@@ -423,6 +432,12 @@ desktopWindowCornerRadius: sw
 	<returns: 'int'>
 	^0
 !
+wheelPointScale
+	"SDL does not tell a touchpad's points from a wheel's steps."
+	<export>
+	<returns: 'double'>
+	^0.0
+!
 desktopMovedEvent
 	<export>
 	<returns: 'Uint32'>
@@ -553,10 +568,114 @@ cPreamble
 #include <SDL3/SDL.h>
 #include <objc/runtime.h>
 #include <objc/message.h>
+#include <math.h>
+#include <CoreGraphics/CoreGraphics.h>
 static IMP samaltak_application_send_event;
+static double samaltak_wheel_scale;
+static id samaltak_resizing;
+static unsigned samaltak_resize_edges;
+static CGRect samaltak_resize_frame;
+static CGPoint samaltak_resize_mouse;
+static CGRect samaltak_frame_of(id object)
+{
+#if defined(__x86_64__)
+    CGRect r;
+    ((void (*)(CGRect *, id, SEL))objc_msgSend_stret)(&r, object, sel_registerName("frame"));
+    return r;
+#else
+    return ((CGRect (*)(id, SEL))objc_msgSend)(object, sel_registerName("frame"));
+#endif
+}
+static CGPoint samaltak_mouse_location(void)
+{
+    return ((CGPoint (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSEvent"), sel_registerName("mouseLocation"));
+}
+static unsigned samaltak_resize_edges_at(id window, CGPoint m)
+{
+    /* the edges (1 left, 2 right, 4 bottom, 8 top; y up) a press at m resizes: just outside or on the frame, both near a corner */
+    const double outside = 6, inside = 2, corner = 12;
+    unsigned long style = ((unsigned long (*)(id, SEL))objc_msgSend)(window, sel_registerName("styleMask"));
+    unsigned edges = 0;
+    CGRect f;
+    /* titled and resizable, not full screen */
+    if (!!(style & 1UL) || !!(style & (1UL << 3)) || (style & (1UL << 14))) return 0;
+    f = samaltak_frame_of(window);
+    if (m.x < f.origin.x - outside || m.x > f.origin.x + f.size.width + outside
+        || m.y < f.origin.y - outside || m.y > f.origin.y + f.size.height + outside) return 0;
+    if (m.x < f.origin.x + inside) edges |= 1;
+    else if (m.x > f.origin.x + f.size.width - inside) edges |= 2;
+    if (m.y < f.origin.y + inside) edges |= 4;
+    else if (m.y > f.origin.y + f.size.height - inside) edges |= 8;
+    if (edges == 1 || edges == 2) {
+        if (m.y < f.origin.y + corner) edges |= 4;
+        else if (m.y > f.origin.y + f.size.height - corner) edges |= 8;
+    } else if (edges == 4 || edges == 8) {
+        if (m.x < f.origin.x + corner) edges |= 1;
+        else if (m.x > f.origin.x + f.size.width - corner) edges |= 2;
+    }
+    return edges;
+}
+static void samaltak_resize_cursor(unsigned edges)
+{
+    const char *name = (edges & 3) && (edges & 12)
+        ? (((edges & 1) !!= 0) == ((edges & 8) !!= 0) ? "_windowResizeNorthWestSouthEastCursor" : "_windowResizeNorthEastSouthWestCursor")
+        : (edges & 3) ? "_windowResizeEastWestCursor" : "_windowResizeNorthSouthCursor";
+    id cls = (id)objc_getClass("NSCursor");
+    SEL sel = sel_registerName(name);
+    if (!!((BOOL (*)(id, SEL, SEL))objc_msgSend)(cls, sel_registerName("respondsToSelector:"), sel))
+        sel = sel_registerName((edges & 3) ? "resizeLeftRightCursor" : "resizeUpDownCursor");
+    ((void (*)(id, SEL))objc_msgSend)(((id (*)(id, SEL))objc_msgSend)(cls, sel), sel_registerName("set"));
+}
+static void samaltak_resize_to(CGPoint m)
+{
+    /* keep the opposite edges where they were; not below the minimum size (SDL sets the content''s) */
+    id window = samaltak_resizing;
+    id view = ((id (*)(id, SEL))objc_msgSend)(window, sel_registerName("contentView"));
+    CGSize min = ((CGSize (*)(id, SEL))objc_msgSend)(window, sel_registerName("contentMinSize"));
+    CGRect start = samaltak_resize_frame, f = start, content = samaltak_frame_of(view);
+    double dx = m.x - samaltak_resize_mouse.x, dy = m.y - samaltak_resize_mouse.y;
+    double minW = (min.width > 1 ? min.width : 1) + start.size.width - content.size.width;
+    double minH = (min.height > 1 ? min.height : 1) + start.size.height - content.size.height;
+    if (samaltak_resize_edges & 1) { f.size.width = fmax(start.size.width - dx, minW); f.origin.x = start.origin.x + start.size.width - f.size.width; }
+    if (samaltak_resize_edges & 2) f.size.width = fmax(start.size.width + dx, minW);
+    if (samaltak_resize_edges & 4) { f.size.height = fmax(start.size.height - dy, minH); f.origin.y = start.origin.y + start.size.height - f.size.height; }
+    if (samaltak_resize_edges & 8) f.size.height = fmax(start.size.height + dy, minH);
+    ((void (*)(id, SEL, CGRect, BOOL))objc_msgSend)(window, sel_registerName("setFrame:display:"), f, YES);
+}
+static bool samaltak_resize_event(id event, unsigned long type)
+{
+    /* Resize a window by its edges here rather than in AppKit''s live resize, a modal loop inside SDL_PumpEvents in which the image cannot draw: each step resizes the window, SDL reports it, and the image draws the new size. */
+    if (type == 1) { /* NSEventTypeLeftMouseDown */
+        id window = ((id (*)(id, SEL))objc_msgSend)(event, sel_registerName("window"));
+        CGPoint m = samaltak_mouse_location();
+        unsigned edges = window ? samaltak_resize_edges_at(window, m) : 0;
+        if (!!edges) return false;
+        samaltak_resizing = window;
+        samaltak_resize_edges = edges;
+        samaltak_resize_frame = samaltak_frame_of(window);
+        samaltak_resize_mouse = m;
+        samaltak_resize_cursor(edges);
+        return true;
+    }
+    if (!!samaltak_resizing) return false;
+    if (type == 6) { /* NSEventTypeLeftMouseDragged */
+        samaltak_resize_to(samaltak_mouse_location());
+        samaltak_resize_cursor(samaltak_resize_edges);
+        return true;
+    }
+    if (type == 2) { /* NSEventTypeLeftMouseUp */
+        samaltak_resizing = nil;
+        ((void (*)(id, SEL))objc_msgSend)(((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSCursor"), sel_registerName("arrowCursor")), sel_registerName("set"));
+        return true;
+    }
+    return false;
+}
 static void samaltak_send_event(id receiver, SEL selector, id event)
 {
     unsigned long type = ((unsigned long (*)(id, SEL))objc_msgSend)(event, sel_registerName("type"));
+    if (samaltak_resize_event(event, type)) return;
+    if (type == 22) /* NSEventTypeScrollWheel: SDL''s Cocoa driver divides a precise device''s points by 10 */
+        samaltak_wheel_scale = ((BOOL (*)(id, SEL))objc_msgSend)(event, sel_registerName("hasPreciseScrollingDeltas")) ? 10.0 : 0.0;
     if (type == 10 || type == 11) { /* NSEventTypeKeyDown / KeyUp */
         unsigned long flags = ((unsigned long (*)(id, SEL))objc_msgSend)(event, sel_registerName("modifierFlags"));
         SDL_Keymod saved = SDL_GetModState();
@@ -572,6 +691,10 @@ static void samaltak_send_event(id receiver, SEL selector, id event)
     } else {
         ((void (*)(id, SEL, id))samaltak_application_send_event)(receiver, selector, event);
     }
+}
+static double samaltak_wheel_point_scale(void)
+{
+    return samaltak_wheel_scale;
 }
 static void samaltak_install_paste(void)
 {
@@ -701,5 +824,12 @@ orderFront: sw
 cornerRadius: sw
 	"The radius (points) sw's corners are rounded with, 0 if square."
 	<c: 'int samaltak_corner_radius(SDL_Window *sw)'>
+	^self error: 'not simulated'
+! !
+
+!DarwinPlatform methodsFor: 'wheel'!
+wheelPointScale
+	"10 if the last scroll came from a device that scrolls by points (SDL reports a tenth of them), else 0."
+	<c: 'double samaltak_wheel_point_scale(void)'>
 	^self error: 'not simulated'
 ! !

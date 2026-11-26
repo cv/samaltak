@@ -2558,6 +2558,7 @@ void socket_opened(int fd);
 char *utf8_ctype(void);
 bool vsync_start(void);
 void vsync_stop(void);
+double wheel_point_scale(void);
 #endif
 #ifdef __linux__
 SDL_Keymod alt_keymod(void);
@@ -2577,6 +2578,7 @@ void socket_opened(int fd);
 char *utf8_ctype(void);
 bool vsync_start(void);
 void vsync_stop(void);
+double wheel_point_scale(void);
 void destroy_surface(SDL_Window *sw);
 Uint32 moved_event_type(void);
 SDL_Window *open_surface(char *title, int32_t w, int32_t h, SDL_WindowFlags flags);

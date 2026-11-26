@@ -47,6 +47,10 @@ SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE
 	<cMacro: 'const char *SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE'>
 	^self notSimulated
 !
+SDL_HINT_MAC_SCROLL_MOMENTUM
+	<cMacro: 'const char *SDL_HINT_MAC_SCROLL_MOMENTUM'>
+	^self notSimulated
+!
 SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH
 	<cMacro: 'const char *SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH'>
 	^self notSimulated

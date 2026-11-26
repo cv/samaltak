@@ -21,6 +21,8 @@ testPointerEvents
 	e := UIEvent fromPlatform: {4. 0. 5. 5. 0. 0. 0 @ -2. 1}.
 	self assert: e isWheel.
 	self assert: e delta equals: 0 @ -2.
+	"a trackpad's points, as steps of 40 points"
+	self assert: (UIEvent fromPlatform: {4. 0. 5. 5. 1. 0. 0 @ -20. 1}) delta equals: 0 @ (-1 / 2).
 	e := UIEvent fromPlatform: #(1 0 3 4 1 0 nil 1).
 	self assert: e isMove.
 	self assert: e isDragging
