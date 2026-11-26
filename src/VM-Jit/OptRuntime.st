@@ -1,5 +1,5 @@
 OptModule subclass: #OptRuntime
-	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtFloatVal rtFloatLoc rtFloatBits rtFloatCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtVariantCount rtFailed rtTrace rtTraceSends rtStamp rtStatSends rtUnitFrame rtUnitSignature rtSigCtx rtSigCount host scheduler rtBgStarted rtBgTried rtBgOwned rtBgStale rtBgEmit rtBgStop rtBgState rtBgOk rtBgMethod rtBgLower rtBgStamp rtBgEntry rtBgParams rtBgValid rtBgKey rtBgSyncOnly rtBgTestKey rtBgTestOutcome rtBgTestMode rtBgTestHold rtStatBgQueued rtStatBgInstalled rtStatBgDiscarded'
+	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtFloatVal rtFloatLoc rtFloatBits rtFloatCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtVariantCount rtFailed rtTrace rtTraceSends rtStamp rtStatSends rtUnitFrame rtUnitSignature rtSigCtx rtSigCount host scheduler rtBgStarted rtBgTried rtBgOwned rtBgStale rtBgEmit rtBgPrepared rtBgStop rtBgState rtBgOk rtBgMethod rtBgLower rtBgStamp rtBgEntry rtBgParams rtBgValid rtBgKey rtBgSyncOnly rtBgTestKey rtBgTestOutcome rtBgTestMode rtBgTestHold rtStatBgQueued rtStatBgInstalled rtStatBgDiscarded'
 	classVariableNames: 'OPT_MAX_UNITS OPT_MAX_VARIANT_UNITS OPT_MAX_VARIANTS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
 	package: 'VM-Jit'!
 
@@ -22,7 +22,7 @@ declarations
 		(rtFloatVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtFloatLoc 'int32_t[OPT_MAX_DEOPT_VALS]') (rtFloatBits 'uint64_t[OPT_MAX_DEOPT_VALS]') (rtFloatCount int32_t) (rtWritten int32_t)
 		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtVariantCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]') (rtTrace bool) (rtTraceSends bool) (rtStamp uint32_t) (rtStatSends uint64_t) (rtUnitFrame 'Frame *') (rtUnitSignature uint32_t) (rtSigCtx 'oop[8]') (rtSigCount int32_t)
 		(host JitPlatform) (scheduler Scheduler) (rtBgStarted bool) (rtBgTried bool)
-		(rtBgOwned bool) (rtBgStale bool) (rtBgEmit bool) (rtBgStop bool) (rtBgState int32_t) (rtBgOk bool)
+		(rtBgOwned bool) (rtBgStale bool) (rtBgEmit bool) (rtBgPrepared bool) (rtBgStop bool) (rtBgState int32_t) (rtBgOk bool)
 		(rtBgMethod oop) (rtBgLower 'JitMethod *') (rtBgStamp uint32_t)
 		(rtBgEntry int32_t) (rtBgParams int32_t) (rtBgValid int32_t) (rtBgKey uint64_t) (rtBgSyncOnly 'uint8_t[8192]')
 		(rtBgTestKey uint64_t) (rtBgTestOutcome int32_t) (rtBgTestMode bool) (rtBgTestHold bool)
@@ -140,20 +140,23 @@ tierUp: f loop: loop
 	"f's method ran out of its count at f's pc (synced), its entry or (loop ~= 0) a loop head: answer 0 to go on in the lower tier, 1 to leave, or where f continues in optimized code (at a loop head: on-stack replacement)."
 	<function>
 	<var: #o type: 'JitMethod *'>
-	| m h o s k |
+	| m h o s k defer count |
 	rtBgOwned ifTrue: [self bgPoll].
+	"Do not wait for scratch at an opportunistic tier-up. Still look up and enter code already installed."
+	defer := rtBgOwned and: [rtBgTestMode not].
 	m := f method.
 	"the count's slot is shared by methods whose hashes meet there, and more units of m may follow (its blocks, its loops, frames resumed in the lower tier): it starts over whatever happens; failures are remembered per unit"
-	runtime counterFor: m put: (self initialCount: m).
+	count := self initialCount: m.
+	runtime counterFor: m put: (defer ifTrue: [count min: 64] ifFalse: [count]).
 	h := runtime lookup: m.
 	(runtime hasCode: h) ifFalse: [^0].
 	f code = (self cCoerce: h to: 'uint64_t') ifFalse: [^0].
 	s := f closure = memory nilOop ifTrue: [0] ifFalse: [(self intVal: (self loadRef: f closure at: BC_STARTPC)) asInt32].
-	(s = 0 and: [h opt = 0 and: [(self failed: m start: 0 osr: 0) not]]) ifTrue: [
+	(defer not and: [s = 0 and: [h opt = 0 and: [(self failed: m start: 0 osr: 0) not]]]) ifTrue: [
 		(loop = 0 and: [(runtime flag: runtime bgFlag) and: [self bgRequest: m lower: h]]) ifFalse: [
 			(self optimize: m lower: h) isNull ifTrue: [self noteFailed: m start: 0 osr: 0]]].
 	"a block whose loop ran out of the count is optimized too, as a method is: else, the count running out in its loops rather than at its entries, each of its activations would run its lower tier code up to the loop and enter the loop's unit there"
-	(s ~= 0 and: [loop ~= 0]) ifTrue: [self optimizeBlock: m start: s lower: h].
+	(defer not and: [s ~= 0 and: [loop ~= 0]]) ifTrue: [self optimizeBlock: m start: s lower: h].
 	k := loop = 0 ifTrue: [0] ifFalse: [f pc + 1].
 	"a married frame's temps may change through its Context (blocks it made): a unit of its own keeps those in the frame"
 	(k ~= 0 and: [f ctx ~= memory nilOop and: [self makesClosures: m start: s]]) ifTrue: [k := k + 16r10000].
@@ -164,7 +167,7 @@ tierUp: f loop: loop
 		ifFalse: [
 			o := self unitOf: m start: s osr: k.
 			"a failed compilation leaves a header without code: not compiled again (an invalidated one is)"
-			((o isNull or: [(runtime hasCode: o) and: [(self isAlive: o) not and: [o generation < OPT_MAX_GENERATIONS]]]) and: [(self failed: m start: s osr: k) not]) ifTrue: [
+			(defer not and: [(o isNull or: [(runtime hasCode: o) and: [(self isAlive: o) not and: [o generation < OPT_MAX_GENERATIONS]]]) and: [(self failed: m start: s osr: k) not]]) ifTrue: [
 				"a loop's unit may inline closures this frame made"
 				k ~= 0 ifTrue: [rtUnitFrame := f].
 				o := self optimizeUnit: m start: s osr: k depth: f sp lower: h previous: o.
@@ -466,7 +469,9 @@ compile: m
 	builder frame: rtUnitFrame.
 	builder foreign: rtUnitSignature ~= 0.
 	passes unboxOff: false.
-	ok := self buildAndAllocate: m trace: trace.
+	ok := rtBgPrepared
+		ifTrue: [self allocateBuiltIRTrace: trace]
+		ifFalse: [self buildAndAllocate: m trace: trace].
 	"twins on doubles that make the compilation fail: again without them"
 	(ok not and: [passes unboxed]) ifTrue: [
 		passes unboxOff: true.
@@ -487,10 +492,12 @@ compile: m
 !
 buildAndAllocate: m trace: trace
 	"The unit's IR built, cleaned up and allocated; answer whether it could be."
-	^(builder build: m start: rtUnitStart osr: (rtUnitOsr bitAnd: 16rFFFF) - 1 depth: rtUnitDepth resident: (rtUnitOsr bitAnd: 16r10000) ~= 0) and: [
-		passes cleanup: builder entryBlock.
-		trace ifTrue: [ir print].
-		ir full not and: [regalloc allocate: builder paramSlots valid: builder validSlots]]
+	^(builder build: m start: rtUnitStart osr: (rtUnitOsr bitAnd: 16rFFFF) - 1 depth: rtUnitDepth resident: (rtUnitOsr bitAnd: 16r10000) ~= 0) and: [self allocateBuiltIRTrace: trace]
+!
+allocateBuiltIRTrace: trace
+	passes cleanup: builder entryBlock.
+	trace ifTrue: [ir print].
+	^ir full not and: [regalloc allocate: builder paramSlots valid: builder validSlots]
 !
 extraBytes
 	"What the optimized code's header needs after its notes: the safepoint table, the records, the dependencies, the inline caches and the return map."
@@ -1323,10 +1330,12 @@ bgRun: unused
 	^self null
 !
 bgRequest: m lower: h
-	"True if the tier-up was queued or deferred (not a failed compilation)."
+	"True if handled here; false if the caller should compile synchronously."
 	<function>
 	| ok key count |
 	(runtime flushPending or: [runtime notes]) ifTrue: [^false].
+	"Use the baseline's bytecode count, not a scan or VM-side IR build, to skip cheap methods. The targeted lifecycle test may force a job."
+	(h bytecodes < 48 and: [rtBgTestMode not and: [rtBgTestKey = 0]]) ifTrue: [^false].
 	self bgStart ifFalse: [^false].
 	key := self failedKey: m start: 0 osr: 0.
 	rtBgTestMode ifTrue: [key ~= rtBgTestKey ifTrue: [^true]].
@@ -1338,11 +1347,21 @@ bgRequest: m lower: h
 	scheduler pauseCharging.
 	builder frame: self null.
 	builder foreign: false.
-	ok := (analysis analyze: m) and: [
-		(builder build: m start: 0 osr: -1 depth: 0 resident: false) and: [ir hasBoundForeignCall not]].
-	ok ifTrue: [ir snapshotPassInputsUnbox: true].
+	ok := builder build: m start: 0 osr: -1 depth: 0 resident: false.
+	(ok and: [ir hasBoundForeignCall not]) ifTrue: [ir snapshotPassInputsUnbox: true].
 	scheduler resumeCharging.
-	ok ifFalse: [^false].
+	ok ifFalse: [
+		"Cleanup did not run: there is no unboxing failure to retry."
+		rtStatOptFailed := rtStatOptFailed + 1.
+		self noteFailed: m start: 0 osr: 0.
+		^true].
+	ir hasBoundForeignCall ifTrue: [
+		"Finish this build with live inputs on the VM thread."
+		rtBgPrepared := true.
+		ok := (self optimize: m lower: h) notNull.
+		rtBgPrepared := false.
+		ok ifFalse: [self noteFailed: m start: 0 osr: 0].
+		^true].
 	rtBgMethod := m.
 	rtBgLower := h.
 	rtBgStamp := rtStamp.

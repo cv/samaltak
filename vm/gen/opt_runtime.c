@@ -19,6 +19,7 @@ static oop rt_bg_method;
 static bool rt_bg_ok;
 static bool rt_bg_owned;
 static int32_t rt_bg_params;
+static bool rt_bg_prepared;
 static bool rt_bg_stale;
 static uint32_t rt_bg_stamp;
 static bool rt_bg_started;
@@ -234,10 +235,23 @@ static bool bg_request(oop m, jit_method *h)
     uint32_t r_hash_of_2;
     uint32_t h_3;
     bool ok;
-    int32_t n_2;
     uint32_t r_hash_of_3;
     uint32_t h_4;
+    uint64_t key_2;
+    int32_t i;
+    int64_t n_2;
+    uint32_t r_hash_of_4;
+    uint32_t h_5;
+    uint64_t key_3;
+    int32_t i_2;
+    int64_t n_3;
+    int32_t n_4;
+    uint32_t r_hash_of_5;
+    uint32_t h_6;
     if (flush_pending || ((jit_flags & JIT_FLAG_NOTES) != 0)) {
+        return false;
+    }
+    if ((h->bytecodes < 48) && ((!rt_bg_test_mode) && (rt_bg_test_key == 0))) {
         return false;
     }
     if (!({
@@ -280,13 +294,52 @@ static bool bg_request(oop m, jit_method *h)
     pause_charging();
     ob_frame = (frame *)NULL;
     ob_foreign = false;
-    ok = analyze(m) && (build(m, 0, -1, 0, false) && (!has_bound_foreign_call()));
-    if (ok) {
+    ok = build(m, 0, -1, 0, false);
+    if (ok && (!has_bound_foreign_call())) {
         snapshot_pass_inputs_unbox(true);
     }
     resume_charging();
     if (!ok) {
-        return false;
+        rt_stat_opt_failed = rt_stat_opt_failed + 1;
+        key_2 = ((((uint64_t)({
+    h_4 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_3 = h_4 != 0 ? h_4 : assign_hash_of(m);
+    r_hash_of_3; })) ^ 0ULL) << 32) | 0ULL | 0ULL | 9223372036854775808ULL;
+        i = (int32_t)((key_2 ^ (key_2 >> 29)) & 8191);
+        n_2 = 0;
+        while (rt_failed[i] != 0) {
+            n_2 = n_2 + 1;
+            if (n_2 >= 4096) {
+                goto exit_note_failed;
+            }
+            i = (i + 1) & 8191;
+        }
+        rt_failed[i] = key_2;
+    exit_note_failed:;
+        return true;
+    }
+    if (has_bound_foreign_call()) {
+        rt_bg_prepared = true;
+        ok = optimize(m, h) != NULL;
+        rt_bg_prepared = false;
+        if (!ok) {
+            key_3 = ((((uint64_t)({
+    h_5 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_4 = h_5 != 0 ? h_5 : assign_hash_of(m);
+    r_hash_of_4; })) ^ 0ULL) << 32) | 0ULL | 0ULL | 9223372036854775808ULL;
+            i_2 = (int32_t)((key_3 ^ (key_3 >> 29)) & 8191);
+            n_3 = 0;
+            while (rt_failed[i_2] != 0) {
+                n_3 = n_3 + 1;
+                if (n_3 >= 4096) {
+                    goto exit_note_failed_2;
+                }
+                i_2 = (i_2 + 1) & 8191;
+            }
+            rt_failed[i_2] = key_3;
+        exit_note_failed_2:;
+        }
+        return true;
     }
     rt_bg_method = m;
     rt_bg_lower = h;
@@ -300,11 +353,11 @@ static bool bg_request(oop m, jit_method *h)
     rt_bg_test_outcome = 0;
     rt_bg_test_hold = rt_bg_test_mode;
     snapshot_mode = true;
-    n_2 = count < 64 ? count : 64;
+    n_4 = count < 64 ? count : 64;
     opt_counts[({
-    h_4 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
-    r_hash_of_3 = h_4 != 0 ? h_4 : assign_hash_of(m);
-    r_hash_of_3; }) & 65535] = n_2;
+    h_6 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_5 = h_6 != 0 ? h_6 : assign_hash_of(m);
+    r_hash_of_5; }) & 65535] = n_4;
     jit_worker_lock();
     rt_bg_state = 1;
     rt_stat_bg_queued = rt_stat_bg_queued + 1;
@@ -495,6 +548,9 @@ bool opt_runtime_compile(oop m)
     bool trace;
     char *limit;
     bool b;
+    bool r_allocate_built_ir_trace;
+    bool r_allocate_built_ir_trace_2;
+    bool r_allocate_built_ir_trace_3;
     if (rt_bg_emit) {
         rt_trace = false;
         rt_trace_sends = false;
@@ -523,12 +579,19 @@ bool opt_runtime_compile(oop m)
     b = rt_unit_signature != 0;
     ob_foreign = b;
     ps_unbox_off = false;
-    ok = build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, (rt_unit_osr & 0x10000) != 0) && ({
+    ok = rt_bg_prepared ? ({
     cleanup(ob_entry_block);
     if (trace) {
         print();
     }
-    (!opt_full) && opt_regalloc_allocate(ob_param_slots, ob_valid_slots); });
+    r_allocate_built_ir_trace = (!opt_full) && opt_regalloc_allocate(ob_param_slots, ob_valid_slots);
+    r_allocate_built_ir_trace; }) : build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, (rt_unit_osr & 0x10000) != 0) && ({
+    cleanup(ob_entry_block);
+    if (trace) {
+        print();
+    }
+    r_allocate_built_ir_trace_2 = (!opt_full) && opt_regalloc_allocate(ob_param_slots, ob_valid_slots);
+    r_allocate_built_ir_trace_2; });
     if ((!ok) && ps_unboxed) {
         ps_unbox_off = true;
         ok = build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, (rt_unit_osr & 0x10000) != 0) && ({
@@ -536,7 +599,8 @@ bool opt_runtime_compile(oop m)
     if (trace) {
         print();
     }
-    (!opt_full) && opt_regalloc_allocate(ob_param_slots, ob_valid_slots); });
+    r_allocate_built_ir_trace_3 = (!opt_full) && opt_regalloc_allocate(ob_param_slots, ob_valid_slots);
+    r_allocate_built_ir_trace_3; });
         ps_unbox_off = false;
     }
     ok = ok && ({
@@ -2803,7 +2867,9 @@ uint64_t stack_full(frame *f)
 uint64_t opt_runtime_tier_up(frame *f, int64_t loop)
 {
     jit_method *o;
+    bool defer;
     oop m;
+    int32_t count;
     int32_t n;
     uint32_t r_hash_of;
     uint32_t h_2;
@@ -2849,8 +2915,10 @@ uint64_t opt_runtime_tier_up(frame *f, int64_t loop)
     if (rt_bg_owned) {
         bg_poll();
     }
+    defer = rt_bg_owned && (!rt_bg_test_mode);
     m = f->method;
-    n = initial_count(m);
+    count = initial_count(m);
+    n = defer ? count < 64 ? count : 64 : count;
     opt_counts[({
     h_2 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
     r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m);
@@ -2871,7 +2939,7 @@ uint64_t opt_runtime_tier_up(frame *f, int64_t loop)
         v = (int32_t)(((int64_t)o_3) >> 1);
     }
     v; });
-    if ((s == 0) && ((h->opt == 0) && (!({
+    if ((!defer) && ((s == 0) && ((h->opt == 0) && (!({
     key = ((((uint64_t)({
     h_3 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
     r_hash_of_2 = h_3 != 0 ? h_3 : assign_hash_of(m);
@@ -2888,7 +2956,7 @@ uint64_t opt_runtime_tier_up(frame *f, int64_t loop)
     }
     r_failed = false;
 exit_failed:;
-    r_failed; })))) {
+    r_failed; }))))) {
         if (!((loop == 0) && (((jit_flags & JIT_FLAG_BG) != 0) && bg_request(m, h)))) {
             if (optimize(m, h) == NULL) {
                 key_2 = ((((uint64_t)({
@@ -2909,7 +2977,7 @@ exit_failed:;
             }
         }
     }
-    if ((s != 0) && (loop != 0)) {
+    if ((!defer) && ((s != 0) && (loop != 0))) {
         optimize_block(m, s, h);
     }
     k = loop == 0 ? 0 : f->pc + 1;
@@ -3016,7 +3084,7 @@ exit_opt_of:;
     r_opt_of; });
     } else {
         o = unit_of(m, s, k);
-        if (((o == NULL) || ((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0))) && (o->generation < OPT_MAX_GENERATIONS)))) && (!({
+        if ((!defer) && (((o == NULL) || ((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0))) && (o->generation < OPT_MAX_GENERATIONS)))) && (!({
     key_3 = ((((uint64_t)({
     h_5 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
     r_hash_of_4 = h_5 != 0 ? h_5 : assign_hash_of(m);
@@ -3033,7 +3101,7 @@ exit_opt_of:;
     }
     r_failed_2 = false;
 exit_failed_2:;
-    r_failed_2; }))) {
+    r_failed_2; })))) {
             if (k != 0) {
                 rt_unit_frame = f;
             }
