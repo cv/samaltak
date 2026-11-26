@@ -843,6 +843,62 @@ testCountedLoopsCheckBoundsOnce
 		self assert: (o back: a to: 100) equals: ((1 to: 100) inject: 0 into: [:s :i | s + (101 - i * i)]).
 		self should: [o back: a to: 101] raise: Error]
 !
+testAffineCountedLoopBounds
+	"Both offset reads, a strided store and a descending reverse read are unchecked. For an unaligned limit, only the last visited index matters."
+	| o bytes x y a filled seq expected note |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'mismatch: x at: i0 with: y at: j0 count: n 1 to: n do: [:i | (x at: i0 + i - 1) = (y at: j0 + i - 1) ifFalse: [^i]]. ^0'.
+	self define: 'strideFill: x to: n 1 to: n by: 3 do: [:i | x at: i + 2 put: i]. ^x'.
+	self define: 'descending: x to: n | s | s := 0. 11998 to: n by: -3 do: [:i | s := s + (x at: 12000 - i + 1)]. ^s'.
+	o := JitRuntimeTestSubject new.
+	bytes := ((1 to: 12000) collect: [:i | i \\ 251]) asByteArray.
+	x := (ByteArray new: 4) , bytes.
+	y := (ByteArray new: 8) , bytes.
+	a := Array new: 12000.
+	filled := Array new: 12000.
+	3 to: 12000 by: 3 do: [:i | filled at: i put: i - 2].
+	seq := (1 to: 11997) asArray.
+	expected := (3 to: 11997 by: 3) inject: 0 into: [:s :i | s + i].
+	4 timesRepeat: [
+		self assert: (o mismatch: x at: 5 with: y at: 9 count: 12000) equals: 0.
+		self assert: (o strideFill: a to: 11999) equals: filled.
+		self assert: (o descending: seq to: 2) equals: expected.
+		self assert: (o descending: #() to: 11999) equals: 0].
+	note := 'within bounds: checked once before the loop'.
+	self stressed ifFalse: [
+		self assert: ((self listingOf: #mismatch:at:with:at:count:) lines count: [:line | line includesSubstring: note]) equals: 2.
+		self assert: ((self listingOf: #strideFill:to:) includesSubstring: note).
+		self assert: ((self listingOf: #descending:to:) includesSubstring: note)].
+	y at: y size put: 255.
+	self assert: (o mismatch: x at: 5 with: y at: 9 count: 12000) equals: 12000.
+	self assert: (o mismatch: x at: 0 with: y at: 0 count: 0) equals: 0.
+	3 timesRepeat: [
+		self should: [o mismatch: x at: 0 with: y at: 9 count: 12000] raise: Error.
+		"The failed proof must resume before the first store."
+		a := Array new: 12000.
+		self should: [o strideFill: a to: 12001] raise: Error.
+		self assert: a equals: filled].
+	self stressed ifFalse: [self deny: ((self listingOf: #strideFill:to:) includesSubstring: note)].
+	self assert: (o strideFill: (Array new: 12000) to: 11999) equals: filled.
+	self assert: (o descending: seq to: 2.5) equals: expected
+!
+testAffineCountedLoopOverflowFallsBack
+	"The preheader distance can overflow even when the loop returns after three valid reads."
+	| o a expected base |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'window: x from: base to: n stopAt: k | start s | start := base + 1. s := 0. start to: n by: 3 do: [:i | s := s + (x at: i - base). i = k ifTrue: [^s]]. ^s'.
+	o := JitRuntimeTestSubject new.
+	a := (1 to: 12000) asArray.
+	expected := (1 to: 12000 by: 3) inject: 0 into: [:s :i | s + i].
+	4 timesRepeat: [self assert: (o window: a from: 0 to: 12000 stopAt: 0) equals: expected].
+	self stressed ifFalse: [
+		self assert: ((self listingOf: #window:from:to:stopAt:) includesSubstring: 'within bounds: checked once before the loop')].
+	base := SmallInteger minVal.
+	3 timesRepeat: [
+		self assert: (o window: a from: base to: SmallInteger maxVal stopAt: base + 7) equals: 12.
+		self assert: (o window: a from: 0 to: 12000 stopAt: 0) equals: expected]
+!
+
 testUncheckedPointerLoadAddressing
 	"A bounds-hoisted Array scan uses the tagged index on arm64; x86 still untags it and uses its indexed memory operand."
 	| o a listing lines k |
