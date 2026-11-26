@@ -23,7 +23,7 @@ run() {
 }
 # Timer sampling can tier up an unrelated loop and take back the worker's scratch.
 # Stop it in each process; drive scratch contention explicitly in its own lane.
-run true eager,-inline 'JitWorkerProof fallback: -2'
+run true eager,-inline,-bg 'JitWorkerProof fallback: -2'
 run true eager,-inline,bg 'JitWorkerProof install. JitWorkerProof collections. JitWorkerProof invalidation. JitWorkerProof interleavedDiscards'
 run true eager,-inline,bg 'JitWorkerProof scratchContention'
 run quit eager,-inline,bg 'JitWorkerProof quitWithJob. Smalltalk quit: 1'

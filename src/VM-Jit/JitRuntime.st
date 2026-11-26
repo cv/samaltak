@@ -348,10 +348,10 @@ setFlags: f
 	invalidations := invalidations + 1
 !
 defaults
-	"Before the command line: --jit opt, threshold 2, OSR after 50 backward jumps, optimization after 1000 entries and backward jumps, 64 MB, background, notes, eager and deopt off."
+	"Before the command line: --jit opt, threshold 2, OSR after 50 backward jumps, optimization after 1000 entries and backward jumps, 64 MB, background compilation on, notes, eager and deopt off."
 	<function>
 	jitMode := JIT_OPT.
-	jitFlags := ((JIT_FLAG_BG - 1) bitClear: ((JIT_FLAG_NOTES bitOr: JIT_FLAG_EAGER) bitOr: JIT_FLAG_DEOPT)) asUInt32
+	jitFlags := ((JIT_FLAG_LAST * 2 - 1) bitClear: ((JIT_FLAG_NOTES bitOr: JIT_FLAG_EAGER) bitOr: JIT_FLAG_DEOPT)) asUInt32
 !
 start
 	"After the image is loaded. Where machine code does not run (in the simulator) the JIT stays off, whatever --jit says."

@@ -887,7 +887,7 @@ uint64_t jit_runtime_context_field(frame *f)
 void defaults(void)
 {
     jit_mode = JIT_OPT;
-    jit_flags = 7602167U;
+    jit_flags = 15990775U;
 }
 
 #if defined(__x86_64__)
