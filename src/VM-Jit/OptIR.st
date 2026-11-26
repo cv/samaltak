@@ -1,6 +1,6 @@
 OptModule subclass: #OptIR
-	instanceVariableNames: 'optNodes optNodeCount optBlocks optBlockCount optEdges optEdgeCount optOperands optOperandCount optStates optStateCount optActs optActCount optFull optCurAct optCurPc optOsrEntry optOsrState optOsrNumbers optOsrFloats optOsrInts'
-	classVariableNames: ''
+	instanceVariableNames: 'optNodes optNodeCount optBlocks optBlockCount optEdges optEdgeCount optOperands optOperandCount optStates optStateCount optActs optActCount optFull optCurAct optCurPc optOsrEntry optOsrState optOsrNumbers optOsrFloats optOsrInts optPassUnbox optPassGvn optPassHoist optFbKeys optFbVals optFbStamps optFbStamp optConstClasses optSnapNodes optClsSmallint optClsChar optClsSmallfloat'
+	classVariableNames: 'OPT_FB_SNAP'
 	package: 'VM-Jit'!
 
 OptIR comment: 'The optimizing tier''s IR (OptModule): nodes, blocks, predecessor edges, the operand array (phi inputs, send arguments, frame state values), frame states and inlined activations, all in fixed arrays reset for each compilation. A node belongs to a block''s doubly linked list; a block ends with a control node (O_GOTO, O_BRANCH, O_RETURN, O_DEOPT). Running out of room sets full: the compilation is abandoned.'!
@@ -13,7 +13,105 @@ declarations
 		(optOperands 'int32_t[OPT_MAX_OPERANDS]') (optOperandCount int32_t)
 		(optStates 'OptState[OPT_MAX_STATES]') (optStateCount int32_t)
 		(optActs 'OptAct[OPT_MAX_ACTS]') (optActCount int32_t)
-		(optFull bool) (optCurAct int32_t) (optCurPc int32_t) (optOsrEntry int32_t) (optOsrState int32_t) (optOsrNumbers uint64_t) (optOsrFloats uint64_t) (optOsrInts uint64_t))
+		(optFull bool) (optCurAct int32_t) (optCurPc int32_t) (optOsrEntry int32_t) (optOsrState int32_t) (optOsrNumbers uint64_t) (optOsrFloats uint64_t) (optOsrInts uint64_t)
+		(optPassUnbox bool) (optPassGvn bool) (optPassHoist bool)
+		(optFbKeys 'uint64_t[OPT_FB_SNAP]') (optFbVals 'uint32_t[OPT_FB_SNAP]') (optFbStamps 'uint32_t[OPT_FB_SNAP]') (optFbStamp uint32_t)
+		(optConstClasses 'oop[OPT_MAX_NODES]') (optSnapNodes int32_t) (optClsSmallint oop) (optClsChar oop) (optClsSmallfloat oop))
+!
+initialize
+	"Power of two; at least twice the sum of the node and state limits."
+	OPT_FB_SNAP := 65536
+! !
+
+!OptIR methodsFor: 'snapshotting'!
+snapshotPassInputsUnbox: unbox
+	"After a successful build, on the VM thread. Passes copy origins from existing nodes and states, so feedback is keyed by origin rather than by mutable IR position."
+	<function>
+	<var: #unbox type: 'bool'>
+	| nd st |
+	optPassUnbox := unbox and: [runtime flag: runtime unboxFlag].
+	optPassGvn := runtime flag: runtime gvnFlag.
+	optPassHoist := runtime flag: runtime hoistFlag.
+	optClsSmallint := memory clsSmallint.
+	optClsChar := memory clsChar.
+	optClsSmallfloat := memory clsSmallfloat.
+	optFbStamp := optFbStamp + 1.
+	optFbStamp = 0 ifTrue: [
+		libc memset: optFbStamps value: 0 size: 4 * OPT_FB_SNAP.
+		optFbStamp := 1].
+	optSnapNodes := optNodeCount.
+	optPassHoist ifTrue: [
+		0 to: optNodeCount - 1 do: [:n |
+			nd := optNodes + n.
+			(nd op asInt32 = O_CONST and: [nd rep asInt32 = R_OOP and: [self isPtr: nd aux asUInt64]]) ifTrue: [
+				optConstClasses at: n put: (self rawClass: nd aux asUInt64)].
+			self snapshotFeedbackAt: nd bcact pc: nd bcpc]].
+	(optPassUnbox or: [optPassHoist]) ifTrue: [
+		0 to: optStateCount - 1 do: [:s |
+			st := optStates + s.
+			self snapshotFeedbackAt: st act pc: st pc]]
+!
+snapshotFeedbackAt: a pc: pc
+	<function>
+	<var: #a type: 'int32_t'>
+	<var: #pc type: 'int32_t'>
+	| key i |
+	(a < 0 or: [a >= optActCount]) ifTrue: [^self].
+	key := self feedbackKeyAt: a pc: pc.
+	i := self feedbackSlotFor: key.
+	(optFbStamps at: i) = optFbStamp ifTrue: [^self].
+	optFbStamps at: i put: optFbStamp.
+	optFbKeys at: i put: key.
+	optFbVals at: i put: (feedback deoptFlagsAt: (optActs + a) method pc: pc)
+! !
+
+!OptIR methodsFor: 'pass inputs'!
+feedbackKeyAt: a pc: pc
+	^(a asUInt64 << 32) bitOr: pc asUInt32 asUInt64
+!
+feedbackSlotFor: key
+	<function>
+	<var: #key type: 'uint64_t'>
+	| i |
+	i := ((key * 16r5851F42D4C957F2D asUInt64 >> 48) asInt32) bitAnd: OPT_FB_SNAP - 1.
+	[(optFbStamps at: i) = optFbStamp and: [(optFbKeys at: i) ~= key]] whileTrue: [
+		i := (i + 1) bitAnd: OPT_FB_SNAP - 1].
+	^i
+!
+passFlagsAt: a pc: pc
+	"Missing origin: do not speculate. A recorded site with no feedback has zero bits."
+	<function>
+	<returns: 'uint32_t'>
+	| i |
+	i := self feedbackSlotFor: (self feedbackKeyAt: a pc: pc).
+	(optFbStamps at: i) = optFbStamp ifTrue: [^optFbVals at: i].
+	^16rFFFFFFFF asUInt32
+!
+passUnbox
+	^optPassUnbox
+!
+passGvn
+	^optPassGvn
+!
+passHoist
+	^optPassHoist
+!
+smallFloatClass
+	^optClsSmallfloat
+!
+constantClass: n
+	"Use the snapshot for heap constants. A pass can synthesize immediate constants."
+	<function>
+	<returns: 'oop'>
+	| nd v |
+	nd := optNodes + n.
+	nd rep asInt32 = R_OOP ifFalse: [^0].
+	v := nd aux asUInt64.
+	(self isInt: v) ifTrue: [^optClsSmallint].
+	(v bitAnd: 7) = 2 ifTrue: [^optClsChar].
+	(v bitAnd: 7) = 4 ifTrue: [^optClsSmallfloat].
+	(optPassHoist and: [n < optSnapNodes and: [self isPtr: v]]) ifTrue: [^optConstClasses at: n].
+	^0
 ! !
 
 !OptIR methodsFor: 'accessing'!
@@ -449,10 +547,16 @@ fields
 
 !OptIR methodsFor: 'memory'!
 release
-	"Give back the pages of my node, block, edge and operand arrays (each compile starts them anew)."
+	"Give back scratch pages (each compile starts them anew)."
 	<function>
 	gc releasePages: optNodes size: (self sizeof: 'OptNode') * OPT_MAX_NODES.
 	gc releasePages: optBlocks size: (self sizeof: 'OptBlock') * OPT_MAX_BLOCKS.
 	gc releasePages: optEdges size: (self sizeof: 'OptEdge') * OPT_MAX_EDGES.
-	gc releasePages: optOperands size: 4 * OPT_MAX_OPERANDS
+	gc releasePages: optOperands size: 4 * OPT_MAX_OPERANDS.
+	gc releasePages: optConstClasses size: 8 * OPT_MAX_NODES.
+	gc releasePages: optFbKeys size: 8 * OPT_FB_SNAP.
+	gc releasePages: optFbVals size: 4 * OPT_FB_SNAP.
+	gc releasePages: optFbStamps size: 4 * OPT_FB_SNAP.
+	"Clear all stamps at the next capture, including on hosts retaining discarded pages."
+	optFbStamp := 16rFFFFFFFF asUInt32
 ! !

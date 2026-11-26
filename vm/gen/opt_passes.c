@@ -20,7 +20,6 @@ static int32_t ps_post[2048];
 static int32_t ps_pre[2048];
 static int32_t ps_sibling[2048];
 static int32_t ps_twin[16384];
-bool ps_unbox_off;
 bool ps_unboxed;
 static uint8_t ps_visit_mark[2048];
 static int32_t ps_work_list[16384];
@@ -125,7 +124,6 @@ static void bounds_out_of(int32_t h, int64_t entry, int64_t index)
     int32_t x;
     bool r_counted_value_3;
     int32_t b_4;
-    int32_t a;
     int32_t direction;
     int32_t g;
     int32_t g_2;
@@ -289,9 +287,7 @@ exit_block:;
             if (((int32_t)(opt_nodes + x)->tkind == T_OBJ) && (({
     b_4 = (opt_nodes + x)->block;
     r_counted_value_3 = (b_4 >= 0) && ((ps_pre[b_4] <= ps_pre[entry]) && (ps_post[entry] <= ps_post[b_4]));
-    r_counted_value_3; }) && ({
-    a = nd->bcact;
-    (flags_at((opt_acts + a)->method, nd->bcpc) & FB_DEOPT_HOISTED) == 0; }))) {
+    r_counted_value_3; }) && ((pass_flags_at(nd->bcact, nd->bcpc) & FB_DEOPT_HOISTED) == 0))) {
                 direction = counted_index(nd->b, phi, (int32_t)entry, parts);
                 if (direction != 0) {
                     if (s < 0) {
@@ -449,7 +445,7 @@ void cleanup(int32_t entry)
     forward_unboxes();
     resolve_operands();
     ps_unboxed = false;
-    if ((!ps_unbox_off) && ((jit_flags & JIT_FLAG_UNBOX) != 0)) {
+    if (opt_pass_unbox) {
         unbox_phis();
         drop_boxes();
         resolve_operands();
@@ -462,20 +458,20 @@ void cleanup(int32_t entry)
         return;
     }
     compute_order(entry);
-    if (((jit_flags & JIT_FLAG_GVN) != 0) || ((jit_flags & JIT_FLAG_HOIST) != 0)) {
+    if (opt_pass_gvn || opt_pass_hoist) {
         dominators(entry);
     }
-    if ((jit_flags & JIT_FLAG_GVN) != 0) {
+    if (opt_pass_gvn) {
         value_numbers();
         drop_int_checks();
         resolve_operands();
     }
     ranges();
-    if ((jit_flags & JIT_FLAG_HOIST) != 0) {
+    if (opt_pass_hoist) {
         hoist_guards();
         drop_int_checks();
         resolve_operands();
-        if ((jit_flags & JIT_FLAG_GVN) != 0) {
+        if (opt_pass_gvn) {
             value_numbers();
             resolve_operands();
         }
@@ -1509,7 +1505,6 @@ static void head_bounds_out_of(int32_t h, int64_t entry, int64_t index)
     int32_t x;
     bool r_is_before_2;
     int32_t b_2;
-    int32_t a;
     int32_t g;
     int32_t size;
     int32_t g_2;
@@ -1627,9 +1622,7 @@ exit_is_phi:;
     b_2 = (opt_nodes + x)->block;
     r_is_before_2 = (b_2 >= 0) && (!((ps_pre[h] <= ps_pre[b_2]) && (ps_post[b_2] <= ps_post[h])));
 exit_is_before_2:;
-    r_is_before_2; }) && (((int32_t)(opt_nodes + x)->tkind == T_OBJ) && ({
-    a = nd->bcact;
-    (flags_at((opt_acts + a)->method, nd->bcpc) & FB_DEOPT_HOISTED) == 0; }))) {
+    r_is_before_2; }) && (((int32_t)(opt_nodes + x)->tkind == T_OBJ) && ((pass_flags_at(nd->bcact, nd->bcpc) & FB_DEOPT_HOISTED) == 0))) {
                 if (s < 0) {
                     s = opt_passes_state(hb->entry_state, index, h);
                     if (opt_full) {
@@ -1730,7 +1723,6 @@ static void hoist_out_of(int32_t h)
     int32_t b_5;
     int32_t n_2;
     int32_t b_3;
-    int32_t a;
     bool r_is_invariant_outer_load;
     opt_node *nd_2;
     int32_t n_3;
@@ -1833,8 +1825,7 @@ exit_is_before_2:;
             goto exit_is_hoistable;
         }
     }
-    a = nd->bcact;
-    r_is_hoistable = (flags_at((opt_acts + a)->method, nd->bcpc) & FB_DEOPT_HOISTED) == 0;
+    r_is_hoistable = (pass_flags_at(nd->bcact, nd->bcpc) & FB_DEOPT_HOISTED) == 0;
 exit_is_hoistable:;
     r_is_hoistable; })) {
                 if (s < 0) {
@@ -1920,13 +1911,9 @@ static bool is_invariant_field_load(int32_t n, int32_t h)
     bool r_may_be_same;
     oop r_known_class_of;
     opt_node *nd_2;
-    uint64_t o;
-    oop r_class_of;
     oop cx;
     oop r_known_class_of_2;
     opt_node *nd_3;
-    uint64_t o_2;
-    oop r_class_of_2;
     oop cy;
     nd = opt_nodes + n;
     if (!(((int32_t)nd->op == O_LOADFIELD) && ({
@@ -1967,27 +1954,7 @@ exit_block:;
     cx = ({
     nd_2 = opt_nodes + x;
     if ((int32_t)nd_2->op == O_CONST) {
-        o = (uint64_t)nd_2->aux;
-        r_known_class_of = ({
-    if ((o & 1) != 0) {
-        r_class_of = cls_smallint;
-        goto exit_class_of;
-    }
-    if ((o & 7) == 0) {
-        r_class_of = *(uint64_t *)(o + 8);
-        goto exit_class_of;
-    }
-    if ((o & 7) == 2) {
-        r_class_of = cls_char;
-        goto exit_class_of;
-    }
-    if ((o & 7) == 4) {
-        r_class_of = cls_smallfloat;
-        goto exit_class_of;
-    }
-    r_class_of = nil_oop;
-exit_class_of:;
-    r_class_of; });
+        r_known_class_of = constant_class(x);
         goto exit_known_class_of;
     }
     if (((int32_t)nd_2->tkind == T_OBJ) && (nd_2->tcls != 0)) {
@@ -2000,27 +1967,7 @@ exit_known_class_of:;
     cy = ({
     nd_3 = opt_nodes + y;
     if ((int32_t)nd_3->op == O_CONST) {
-        o_2 = (uint64_t)nd_3->aux;
-        r_known_class_of_2 = ({
-    if ((o_2 & 1) != 0) {
-        r_class_of_2 = cls_smallint;
-        goto exit_class_of_2;
-    }
-    if ((o_2 & 7) == 0) {
-        r_class_of_2 = *(uint64_t *)(o_2 + 8);
-        goto exit_class_of_2;
-    }
-    if ((o_2 & 7) == 2) {
-        r_class_of_2 = cls_char;
-        goto exit_class_of_2;
-    }
-    if ((o_2 & 7) == 4) {
-        r_class_of_2 = cls_smallfloat;
-        goto exit_class_of_2;
-    }
-    r_class_of_2 = nil_oop;
-exit_class_of_2:;
-    r_class_of_2; });
+        r_known_class_of_2 = constant_class(y);
         goto exit_known_class_of_2;
     }
     if (((int32_t)nd_3->tkind == T_OBJ) && (nd_3->tcls != 0)) {
@@ -2118,7 +2065,6 @@ static void mutability_out_of(int32_t h, int64_t entry, int64_t index)
     int32_t b;
     bool r_block;
     int32_t l;
-    int32_t a;
     int32_t x;
     bool r_is_before;
     int32_t b_2;
@@ -2149,9 +2095,7 @@ static void mutability_out_of(int32_t h, int64_t entry, int64_t index)
     }
     r_block = false;
 exit_block:;
-    r_block; }) && ({
-    a = nd->bcact;
-    (flags_at((opt_acts + a)->method, nd->bcpc) & FB_DEOPT_HOISTED) == 0; }); }))) {
+    r_block; }) && ((pass_flags_at(nd->bcact, nd->bcpc) & FB_DEOPT_HOISTED) == 0); }))) {
             x = opt_ir_resolve(nd->a);
             if (({
     if ((int32_t)(opt_nodes + x)->op == O_CONST) {
@@ -2323,7 +2267,6 @@ static void promote_outer_temps_of(int32_t h, int64_t entry, int64_t index, int6
     int32_t b_5;
     bool r_block_2;
     int32_t l_2;
-    int32_t a;
     int32_t e;
     int32_t n;
     int32_t g;
@@ -2461,9 +2404,7 @@ exit_block_2:;
                     }
                 }
             }
-            if (ok && ((ld >= 0) && ({
-    a = (opt_nodes + ld)->bcact;
-    (flags_at((opt_acts + a)->method, (opt_nodes + ld)->bcpc) & FB_DEOPT_HOISTED) == 0; }))) {
+            if (ok && ((ld >= 0) && ((pass_flags_at((opt_nodes + ld)->bcact, (opt_nodes + ld)->bcpc) & FB_DEOPT_HOISTED) == 0))) {
                 if (s < 0) {
                     s = opt_passes_state((opt_blocks + h)->entry_state, index, h);
                     if (opt_full) {
@@ -2569,7 +2510,6 @@ static void range_bounds_out_of(int32_t h, int64_t entry, int64_t index)
     int32_t x;
     bool r_is_before;
     int32_t b_2;
-    int32_t a;
     int32_t size;
     int32_t n_2;
     int64_t k;
@@ -2602,9 +2542,7 @@ exit_block:;
     b_2 = (opt_nodes + x)->block;
     r_is_before = (b_2 >= 0) && (!((ps_pre[h] <= ps_pre[b_2]) && (ps_post[b_2] <= ps_post[h])));
 exit_is_before:;
-    r_is_before; }) && (((int32_t)(opt_nodes + x)->tkind == T_OBJ) && ({
-    a = nd->bcact;
-    (flags_at((opt_acts + a)->method, nd->bcpc) & FB_DEOPT_HOISTED) == 0; }))))) {
+    r_is_before; }) && (((int32_t)(opt_nodes + x)->tkind == T_OBJ) && ((pass_flags_at(nd->bcact, nd->bcpc) & FB_DEOPT_HOISTED) == 0))))) {
                 if (s < 0) {
                     s = opt_passes_state((opt_blocks + h)->entry_state, index, h);
                     if (opt_full) {
@@ -2963,7 +2901,6 @@ static bool sinks(int32_t p, int32_t n, int i)
     int32_t op;
     int32_t s;
     opt_state *st;
-    int32_t a;
     int32_t b;
     int32_t h;
     int32_t b_2;
@@ -2981,8 +2918,7 @@ static bool sinks(int32_t p, int32_t n, int i)
     if ((op == O_RETURN) && (st->parent >= 0)) {
         return false;
     }
-    a = st->act;
-    if (!((flags_at((opt_acts + a)->method, st->pc) & FB_DEOPT_OTHER) == 0)) {
+    if (!((pass_flags_at(st->act, st->pc) & FB_DEOPT_OTHER) == 0)) {
         return false;
     }
     b = (opt_nodes + p)->block;
@@ -3289,7 +3225,7 @@ static void type_float_phis(void)
                     v = ({
     n_4 = (opt_blocks + opt_osr_entry)->first;
     while (n_4 >= 0) {
-        if (((int32_t)(opt_nodes + n_4)->op == O_GUARDCLASS) && (((opt_nodes + n_4)->a == v) && ((opt_nodes + n_4)->aux == (int64_t)cls_smallfloat))) {
+        if (((int32_t)(opt_nodes + n_4)->op == O_GUARDCLASS) && (((opt_nodes + n_4)->a == v) && ((opt_nodes + n_4)->aux == (int64_t)opt_cls_smallfloat))) {
             r_float_guard_of = n_4;
             goto exit_float_guard_of;
         }
@@ -3301,7 +3237,7 @@ static void type_float_phis(void)
         goto exit_float_guard_of;
     }
     (opt_nodes + g)->a = v;
-    (opt_nodes + g)->aux = (int64_t)cls_smallfloat;
+    (opt_nodes + g)->aux = (int64_t)opt_cls_smallfloat;
     (opt_nodes + g)->state = opt_osr_state;
     (opt_nodes + g)->flags = NF_GUARD;
     (opt_nodes + g)->tkind = T_FLOAT;

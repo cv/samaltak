@@ -8,6 +8,7 @@ static feedback_site fb_sites[65536];
 static bool fb_young;
 
 static void jit_feedback_clear(void);
+static feedback_site *probe(oop m, int64_t pc, uint32_t h);
 static feedback_site *site_for(oop m, int64_t pc);
 
 /* JitFeedback>>allRoots: */
@@ -38,6 +39,19 @@ static void jit_feedback_clear(void)
     memset(fb_sites, 0, sizeof(feedback_site) * FB_MAX);
     fb_count = 0;
     fb_young = false;
+}
+
+/* JitFeedback>>deoptFlagsAt:pc: */
+uint32_t deopt_flags_at(oop m, int64_t pc)
+{
+    uint32_t h;
+    feedback_site *s;
+    h = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    if (h == 0) {
+        return 0;
+    }
+    s = probe(m, pc, h);
+    return s == NULL ? 0 : s->flags & 640;
 }
 
 /* JitFeedback>>flagsAt:pc: */
@@ -94,6 +108,21 @@ void note_send(oop m, int64_t pc, oop cls)
     s->flags = s->flags | FB_MEGA;
 }
 
+/* JitFeedback>>probe:pc:hash: */
+static feedback_site *probe(oop m, int64_t pc, uint32_t h)
+{
+    uint64_t i;
+    feedback_site *s;
+    i = ((uint64_t)h * 31 + (uint64_t)pc) & 65535;
+    while ((s = fb_sites + i)->method != 0) {
+        if ((s->method == m) && (s->pc == (int32_t)pc)) {
+            return s;
+        }
+        i = (i + 1) & 65535;
+    }
+    return (feedback_site *)NULL;
+}
+
 /* JitFeedback>>release */
 void jit_feedback_release(void)
 {
@@ -107,19 +136,10 @@ feedback_site *site_at(oop m, int64_t pc)
 {
     uint32_t r_hash_of;
     uint32_t h;
-    uint64_t i;
-    feedback_site *s;
-    i = ((uint64_t)({
+    return probe(m, pc, ({
     h = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
     r_hash_of = h != 0 ? h : assign_hash_of(m);
-    r_hash_of; }) * 31 + (uint64_t)pc) & 65535;
-    while ((s = fb_sites + i)->method != 0) {
-        if ((s->method == m) && (s->pc == (int32_t)pc)) {
-            return s;
-        }
-        i = (i + 1) & 65535;
-    }
-    return (feedback_site *)NULL;
+    r_hash_of; }));
 }
 
 /* JitFeedback>>siteFor:pc: */

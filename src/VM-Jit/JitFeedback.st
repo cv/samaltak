@@ -69,8 +69,14 @@ siteAt: m pc: pc
 	"m's site at pc, null if there is none."
 	<function>
 	<var: #pc type: 'int64_t'>
+	^self probe: m pc: pc hash: (self hashOf: m)
+!
+probe: m pc: pc hash: h
+	<function>
+	<var: #pc type: 'int64_t'>
+	<var: #h type: 'uint32_t'>
 	| i s |
-	i := ((self hashOf: m) asUInt64 * 31 + pc asUInt64) bitAnd: FB_MAX - 1.
+	i := (h asUInt64 * 31 + pc asUInt64) bitAnd: FB_MAX - 1.
 	[(s := fbSites + i) method ~= 0] whileTrue: [
 		(s method = m and: [s pc = pc asInt32]) ifTrue: [^s].
 		i := (i + 1) bitAnd: FB_MAX - 1].
@@ -137,6 +143,17 @@ flagsAt: m pc: pc
 	"the byte is m's only while m has the code that sets it (compiling that code clears it)"
 	((self uint8At: (self floatBitAddressFor: m pc: pc)) ~= 0 and: [jit hasCode: (jit lookup: m)]) ifTrue: [f := f bitOr: FB_FLOAT].
 	^f
+!
+deoptFlagsAt: m pc: pc
+	"The deopt bits used by the passes. An unhashed method has no sites; do not assign hashes while sampling unused sites. The shared Float byte adds no deopt bits."
+	<function>
+	<var: #pc type: 'int64_t'>
+	<returns: 'uint32_t'>
+	| h s |
+	h := (((self header: m) >> H_HASH_SHIFT) bitAnd: H_HASH_MASK) asUInt32.
+	h = 0 ifTrue: [^0].
+	s := self probe: m pc: pc hash: h.
+	^s isNull ifTrue: [0] ifFalse: [s flags bitAnd: (FB_DEOPT_OTHER bitOr: FB_DEOPT_HOISTED)]
 !
 clear
 	<function>

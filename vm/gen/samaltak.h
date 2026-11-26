@@ -434,6 +434,7 @@ typedef bool (*prim_try_guard)(oop);
 #define OPK_STRINGATPUT 5
 #define OPT_ANA_MAX 65536
 #define OPT_DEF_SIZE 131072
+#define OPT_FB_SNAP 65536
 #define OPT_INLINE_BUDGET 3000
 #define OPT_INLINE_DEPTH 8
 #define OPT_INLINE_SIZE 200
@@ -1616,6 +1617,7 @@ extern int32_t opt_act_count;
 extern opt_act opt_acts[512];
 extern int32_t opt_block_count;
 extern opt_block opt_blocks[2048];
+extern oop opt_cls_smallfloat;
 extern int32_t opt_cur_act;
 extern int32_t opt_cur_pc;
 extern opt_edge opt_edges[8192];
@@ -1628,6 +1630,9 @@ extern uint64_t opt_osr_floats;
 extern uint64_t opt_osr_ints;
 extern uint64_t opt_osr_numbers;
 extern int32_t opt_osr_state;
+extern bool opt_pass_gvn;
+extern bool opt_pass_hoist;
+extern bool opt_pass_unbox;
 extern int32_t opt_state_count;
 extern opt_state opt_states[16384];
 #if defined(__x86_64__)
@@ -1635,7 +1640,6 @@ extern int32_t ps_loop_outer[2048];
 #endif
 extern int32_t ps_order[2048];
 extern int32_t ps_order_count;
-extern bool ps_unbox_off;
 extern bool ps_unboxed;
 extern int32_t ra_raw_base;
 extern int32_t ra_raw_top;
@@ -1939,6 +1943,7 @@ void unlink_all(void);
 void unlink_selector(oop sel);
 void jit_baseline_runtime_young_roots(void (*fn)(oop *));
 void jit_feedback_all_roots(void (*fn)(oop *));
+uint32_t deopt_flags_at(oop m, int64_t pc);
 uint32_t flags_at(oop m, int64_t pc);
 void note_flags(oop m, int64_t pc, int64_t f);
 void note_send(oop m, int64_t pc, oop cls);
@@ -2132,11 +2137,13 @@ bool opt_codegen_generate(oop m, int a);
 int32_t add_pred(int32_t from, int32_t to);
 int32_t alloc_operands(int32_t n);
 void append(int32_t n, int32_t b);
+oop constant_class(int32_t n);
 void insert(int64_t n, int32_t m);
 int32_t new_act(void);
 int32_t new_block(void);
 int32_t new_node(int op, int rep);
 int32_t new_state(void);
+uint32_t pass_flags_at(int32_t a, int32_t pc);
 int32_t pred(int32_t i, int32_t b);
 void prepend(int32_t n, int32_t b);
 void print(void);
@@ -2144,6 +2151,7 @@ void opt_ir_release(void);
 void replace_pred(int32_t old, int32_t new, int32_t b);
 void reset(void);
 int32_t opt_ir_resolve(int32_t n);
+void snapshot_pass_inputs_unbox(bool unbox);
 void opt_ir_unlink(int32_t n);
 void cleanup(int32_t entry);
 bool opt_regalloc_allocate(int32_t num_args, int32_t n);

@@ -53,6 +53,7 @@ static jit_method *rt_units[8192];
 static int32_t rt_variant_count;
 static int32_t rt_written;
 
+static bool build_and_allocate(oop m, bool unbox, bool trace);
 static uint32_t closure_signature_of(frame *f);
 static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode);
 static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode);
@@ -61,6 +62,7 @@ static void make_sunk(int32_t s, oop ctx);
 static uint64_t mix(uint64_t h0, oop c, int32_t i, int d, oop fc);
 static jit_method *optimize(oop m, jit_method *h);
 static void optimize_block(oop m, int32_t s, jit_method *h);
+static bool optimize_entry(int32_t entry, int32_t params, int32_t valid, bool trace);
 static jit_method *optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_method *h, jit_method *p);
 static oop opt_runtime_send(frame *f, int64_t k, uint64_t key);
 static void trace_deopt(jit_method *h, int64_t k, int mode);
@@ -113,6 +115,24 @@ uint64_t opt_runtime_block_code_for(uint64_t m, int32_t s)
     return jit_runtime_block_code_for(m);
 }
 
+/* OptRuntime>>buildAndAllocate:unbox:trace: */
+static bool build_and_allocate(oop m, bool unbox, bool trace)
+{
+    bool r_prepare;
+    if (!({
+    if (!build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, (rt_unit_osr & 0x10000) != 0)) {
+        r_prepare = false;
+        goto exit_prepare;
+    }
+    snapshot_pass_inputs_unbox(unbox);
+    r_prepare = true;
+exit_prepare:;
+    r_prepare; })) {
+        return false;
+    }
+    return optimize_entry(ob_entry_block, ob_param_slots, ob_valid_slots, trace);
+}
+
 /* OptRuntime>>closureSignatureOf: */
 static uint32_t closure_signature_of(frame *f)
 {
@@ -163,22 +183,9 @@ bool opt_runtime_compile(oop m)
     ob_frame = rt_unit_frame;
     b = rt_unit_signature != 0;
     ob_foreign = b;
-    ps_unbox_off = false;
-    ok = build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, (rt_unit_osr & 0x10000) != 0) && ({
-    cleanup(ob_entry_block);
-    if (trace) {
-        print();
-    }
-    (!opt_full) && opt_regalloc_allocate(ob_param_slots, ob_valid_slots); });
+    ok = build_and_allocate(m, true, trace);
     if ((!ok) && ps_unboxed) {
-        ps_unbox_off = true;
-        ok = build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, (rt_unit_osr & 0x10000) != 0) && ({
-    cleanup(ob_entry_block);
-    if (trace) {
-        print();
-    }
-    (!opt_full) && opt_regalloc_allocate(ob_param_slots, ob_valid_slots); });
-        ps_unbox_off = false;
+        ok = build_and_allocate(m, false, trace);
     }
     ok = ok && ({
     if (trace) {
@@ -1863,6 +1870,16 @@ exit_failed:;
         rt_failed[i_2] = key_2;
     exit_note_failed:;
     }
+}
+
+/* OptRuntime>>optimizeEntry:params:valid:trace: */
+static bool optimize_entry(int32_t entry, int32_t params, int32_t valid, bool trace)
+{
+    cleanup(entry);
+    if (trace) {
+        print();
+    }
+    return (!opt_full) && opt_regalloc_allocate(params, valid);
 }
 
 /* OptRuntime>>optimizeUnit:start:osr:depth:lower:previous: */

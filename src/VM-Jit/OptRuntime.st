@@ -446,13 +446,10 @@ compile: m
 		interpreter printActivation: m receiver: memory nilOop closure: memory nilOop on: libc stderr].
 	builder frame: rtUnitFrame.
 	builder foreign: rtUnitSignature ~= 0.
-	passes unboxOff: false.
-	ok := self buildAndAllocate: m trace: trace.
+	ok := self buildAndAllocate: m unbox: true trace: trace.
 	"twins on doubles that make the compilation fail: again without them"
 	(ok not and: [passes unboxed]) ifTrue: [
-		passes unboxOff: true.
-		ok := self buildAndAllocate: m trace: trace.
-		passes unboxOff: false].
+		ok := self buildAndAllocate: m unbox: false trace: trace].
 	ok := ok and: [
 		trace ifTrue: [
 			libc fputs: 'allocated:
@@ -466,12 +463,23 @@ compile: m
 ' with: (ok ifTrue: ['ok'] ifFalse: ['failed'])].
 	^ok
 !
-buildAndAllocate: m trace: trace
-	"The unit's IR built, cleaned up and allocated; answer whether it could be."
-	^(builder build: m start: rtUnitStart osr: (rtUnitOsr bitAnd: 16rFFFF) - 1 depth: rtUnitDepth resident: (rtUnitOsr bitAnd: 16r10000) ~= 0) and: [
-		passes cleanup: builder entryBlock.
-		trace ifTrue: [ir print].
-		ir full not and: [regalloc allocate: builder paramSlots valid: builder validSlots]]
+buildAndAllocate: m unbox: unbox trace: trace
+	<function>
+	(self prepare: m unbox: unbox) ifFalse: [^false].
+	^self optimizeEntry: builder entryBlock params: builder paramSlots valid: builder validSlots trace: trace
+!
+prepare: m unbox: unbox
+	"Build the unit and capture the live VM inputs to the passes."
+	(builder build: m start: rtUnitStart osr: (rtUnitOsr bitAnd: 16rFFFF) - 1 depth: rtUnitDepth resident: (rtUnitOsr bitAnd: 16r10000) ~= 0) ifFalse: [^false].
+	ir snapshotPassInputsUnbox: unbox.
+	^true
+!
+optimizeEntry: entry params: params valid: valid trace: trace
+	"Mutate the prepared IR and pass/allocator scratch. Still called synchronously."
+	<function>
+	passes cleanup: entry.
+	trace ifTrue: [ir print].
+	^ir full not and: [regalloc allocate: params valid: valid]
 !
 extraBytes
 	"What the optimized code's header needs after its notes: the safepoint table, the records, the dependencies, the inline caches and the return map."

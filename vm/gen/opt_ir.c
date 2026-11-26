@@ -6,10 +6,18 @@ int32_t opt_act_count;
 opt_act opt_acts[512];
 int32_t opt_block_count;
 opt_block opt_blocks[2048];
+static oop opt_cls_char;
+oop opt_cls_smallfloat;
+static oop opt_cls_smallint;
+static oop opt_const_classes[16384];
 int32_t opt_cur_act;
 int32_t opt_cur_pc;
 static int32_t opt_edge_count;
 opt_edge opt_edges[8192];
+static uint64_t opt_fb_keys[65536];
+static uint32_t opt_fb_stamp;
+static uint32_t opt_fb_stamps[65536];
+static uint32_t opt_fb_vals[65536];
 bool opt_full;
 int32_t opt_node_count;
 opt_node opt_nodes[16384];
@@ -20,10 +28,16 @@ uint64_t opt_osr_floats;
 uint64_t opt_osr_ints;
 uint64_t opt_osr_numbers;
 int32_t opt_osr_state;
+bool opt_pass_gvn;
+bool opt_pass_hoist;
+bool opt_pass_unbox;
+static int32_t opt_snap_nodes;
 int32_t opt_state_count;
 opt_state opt_states[16384];
 
+static int32_t feedback_slot_for(uint64_t key);
 static void print_node(int32_t n);
+static void snapshot_feedback_at(int32_t a, int32_t pc);
 
 /* OptIR>>addPred:to: */
 int32_t add_pred(int32_t from, int32_t to)
@@ -90,6 +104,42 @@ void append(int32_t n, int32_t b)
         bl->first = n;
     }
     bl->last = n;
+}
+
+/* OptIR>>constantClass: */
+oop constant_class(int32_t n)
+{
+    opt_node *nd;
+    uint64_t v;
+    nd = opt_nodes + n;
+    if (!((int32_t)nd->rep == R_OOP)) {
+        return 0;
+    }
+    v = (uint64_t)nd->aux;
+    if ((v & 1) != 0) {
+        return opt_cls_smallint;
+    }
+    if ((v & 7) == 2) {
+        return opt_cls_char;
+    }
+    if ((v & 7) == 4) {
+        return opt_cls_smallfloat;
+    }
+    if (opt_pass_hoist && ((n < opt_snap_nodes) && ((v & 7) == 0))) {
+        return opt_const_classes[n];
+    }
+    return 0;
+}
+
+/* OptIR>>feedbackSlotFor: */
+static int32_t feedback_slot_for(uint64_t key)
+{
+    int32_t i;
+    i = ((int32_t)((key * 6364136223846793005ULL) >> 48)) & 65535;
+    while ((opt_fb_stamps[i] == opt_fb_stamp) && (opt_fb_keys[i] != key)) {
+        i = (i + 1) & 65535;
+    }
+    return i;
 }
 
 /* OptIR>>insert:before: */
@@ -201,6 +251,17 @@ int32_t new_state(void)
     return opt_state_count - 1;
 }
 
+/* OptIR>>passFlagsAt:pc: */
+uint32_t pass_flags_at(int32_t a, int32_t pc)
+{
+    int32_t i;
+    i = feedback_slot_for((((uint64_t)a) << 32) | ((uint64_t)(uint32_t)pc));
+    if (opt_fb_stamps[i] == opt_fb_stamp) {
+        return opt_fb_vals[i];
+    }
+    return 4294967295LL;
+}
+
 /* OptIR>>pred:of: */
 int32_t pred(int32_t i, int32_t b)
 {
@@ -306,6 +367,11 @@ void opt_ir_release(void)
     release_pages(opt_blocks, sizeof(opt_block) * OPT_MAX_BLOCKS);
     release_pages(opt_edges, sizeof(opt_edge) * OPT_MAX_EDGES);
     release_pages(opt_operands, 524288);
+    release_pages(opt_const_classes, 131072);
+    release_pages(opt_fb_keys, 524288);
+    release_pages(opt_fb_vals, 262144);
+    release_pages(opt_fb_stamps, 262144);
+    opt_fb_stamp = 4294967295LL;
 }
 
 /* OptIR>>replacePred:with:in: */
@@ -352,6 +418,65 @@ int32_t opt_ir_resolve(int32_t n)
         m = (opt_nodes + m)->fwd;
     }
     return m;
+}
+
+/* OptIR>>snapshotFeedbackAt:pc: */
+static void snapshot_feedback_at(int32_t a, int32_t pc)
+{
+    uint64_t key;
+    int32_t i;
+    if ((a < 0) || (a >= opt_act_count)) {
+        return;
+    }
+    key = (((uint64_t)a) << 32) | ((uint64_t)(uint32_t)pc);
+    i = feedback_slot_for(key);
+    if (opt_fb_stamps[i] == opt_fb_stamp) {
+        return;
+    }
+    opt_fb_stamps[i] = opt_fb_stamp;
+    opt_fb_keys[i] = key;
+    opt_fb_vals[i] = deopt_flags_at((opt_acts + a)->method, pc);
+}
+
+/* OptIR>>snapshotPassInputsUnbox: */
+void snapshot_pass_inputs_unbox(bool unbox)
+{
+    int32_t n;
+    opt_node *nd;
+    uint64_t o;
+    uint64_t o_2;
+    int32_t s;
+    opt_state *st;
+    opt_pass_unbox = unbox && ((jit_flags & JIT_FLAG_UNBOX) != 0);
+    opt_pass_gvn = (jit_flags & JIT_FLAG_GVN) != 0;
+    opt_pass_hoist = (jit_flags & JIT_FLAG_HOIST) != 0;
+    opt_cls_smallint = cls_smallint;
+    opt_cls_char = cls_char;
+    opt_cls_smallfloat = cls_smallfloat;
+    opt_fb_stamp = opt_fb_stamp + 1;
+    if (opt_fb_stamp == 0) {
+        memset(opt_fb_stamps, 0, 262144);
+        opt_fb_stamp = 1;
+    }
+    opt_snap_nodes = opt_node_count;
+    if (opt_pass_hoist) {
+        for (n = 0; n <= opt_node_count - 1; n++) {
+            nd = opt_nodes + n;
+            if (((int32_t)nd->op == O_CONST) && (((int32_t)nd->rep == R_OOP) && ({
+    o = (uint64_t)nd->aux;
+    (o & 7) == 0; }))) {
+                o_2 = (uint64_t)nd->aux;
+                opt_const_classes[n] = *(uint64_t *)(o_2 + 8);
+            }
+            snapshot_feedback_at(nd->bcact, nd->bcpc);
+        }
+    }
+    if (opt_pass_unbox || opt_pass_hoist) {
+        for (s = 0; s <= opt_state_count - 1; s++) {
+            st = opt_states + s;
+            snapshot_feedback_at(st->act, st->pc);
+        }
+    }
 }
 
 /* OptIR>>unlink: */
