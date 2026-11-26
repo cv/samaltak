@@ -292,6 +292,13 @@ ffiWindow: win fillRects: bytes size: n
 			rgba: (self windowWire: bytes at: o + 16 count: 4) asUInt32].
 	^(windows presentSurface: w) ifTrue: [1] ifFalse: [0]
 !
+ffiSystemTheme
+	"The appearance the system shows (macOS: light or dark): 1 light, 2 dark, 0 if it does not tell."
+	<function>
+	<approvedFFI: 428 symbol: 'platform_windows_system_theme' arguments: #() result: 1>
+	<returns: 'int32_t'>
+	^windows systemTheme asInt32
+!
 ffiWindowCornerRadius: win
 	"The radius (points) the system rounds the window's corners with: a desktop window's on macOS; 0 if square."
 	<function>

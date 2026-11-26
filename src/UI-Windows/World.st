@@ -552,6 +552,10 @@ restyleAll
 	"Drawing code or the look changed: every running World draws anew."
 	self allDo: [:world | world restyle]
 !
+systemAppearance
+	"#dark or #light, as the host system shows its windows (macOS); nil where it does not tell."
+	^DisplayWindow systemAppearance
+!
 current: aWorld
 	Current := aWorld
 !

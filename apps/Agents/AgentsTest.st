@@ -104,3 +104,45 @@ testCommandIInspectsTheAppWithTheToolsFiledIn
 			inspector isNil ifFalse: [inspector stop].
 			app world isNil ifFalse: [app world stop]]
 ! !
+
+!AgentsTest methodsFor: 'tests-collecting'!
+testCodexRecords
+	"ChatGPT's usage endpoint and codex app-server answer the same window."
+	| now wins |
+	now := 1796086608 - 86400.
+	#('{"plan_type": "pro", "rate_limit": {"primary_window": {"used_percent": 34, "limit_window_seconds": 604800, "reset_at": 1796086608}, "secondary_window": null}}'
+		'-') with: #(#codexRecordFrom: #codexRecordFromCLI:) do: [:text :selector |
+		| json usage |
+		json := selector == #codexRecordFrom:
+			ifTrue: [JSON parse: text]
+			ifFalse: [JSON parse: '{"rateLimits": {"primary": {"usedPercent": 34, "windowDurationMins": 10080, "resetsAt": 1796086608}, "secondary": null, "planType": "pro"}}'].
+		usage := AgentUsage fromRecord: (AgentCollector perform: selector with: json).
+		self assert: usage id equals: 'codex'.
+		self assert: usage tierLabel equals: 'Pro'.
+		wins := usage windowsAt: now.
+		self assert: (wins collect: [:w | w first]) equals: #('Weekly').
+		self assert: (wins first at: 2) equals: 0.34.
+		self assert: (wins first at: 3) equals: 86400.
+		self assert: (wins first at: 4) equals: 6 / 7].
+	self assert: (AgentCollector codexRecordFromCLI: nil) isNil
+!
+testClaudeRecord
+	| json credentials usage wins |
+	json := JSON parse: '{"five_hour": null, "seven_day": {"utilization": 59.0, "resets_at": "2026-11-29T14:00:00+00:00"}, "limits": [{"kind": "weekly_all", "group": "weekly", "percent": 59, "resets_at": "2026-11-29T14:00:00.771257+00:00", "scope": null}, {"kind": "weekly_scoped", "group": "weekly", "percent": 3, "resets_at": "2026-11-29T14:00:00+00:00", "scope": {"model": {"display_name": "Fable"}}}]}'.
+	credentials := JSON parse: '{"accessToken": "t", "subscriptionType": "max", "rateLimitTier": "default_claude_max_20x"}'.
+	usage := AgentUsage fromRecord: (AgentCollector claudeRecordFrom: json credentials: credentials).
+	self assert: usage name equals: 'Claude Code'.
+	self assert: usage tierLabel equals: 'Max 20x'.
+	"2026-11-28T14:00:00Z: a day before both reset"
+	wins := usage windowsAt: 1795960800 - 86400.
+	self assert: (wins collect: [:w | w first]) equals: #('Weekly' 'Fable Weekly').
+	self assert: (wins collect: [:w | w at: 2]) equals: #(0.59 0.03).
+	self assert: ((wins first at: 3) - 86400) abs < 1.
+	"without limits, the five_hour and seven_day windows"
+	json removeKey: 'limits'.
+	usage := AgentUsage fromRecord: (AgentCollector claudeRecordFrom: json credentials: credentials).
+	self assert: ((usage windowsAt: 1795960800 - 86400) collect: [:w | w first]) equals: #('Weekly').
+	self assert: (AgentCollector claudeTierOf: (JSON parse: '{"subscriptionType": "pro"}')) equals: 'Pro'.
+	self assert: (AgentCollector hasExpired: (JSON parse: '{"expiresAt": 1000}')).
+	self deny: (AgentCollector hasExpired: (Dictionary new at: 'expiresAt' put: Time utcMicroseconds / 1000 + 3600000; yourself))
+! !

@@ -2530,6 +2530,7 @@ bool set_title(int32_t win, char *title);
 bool platform_windows_show(int32_t win, bool show);
 void platform_windows_shutdown(void);
 bool platform_windows_size(int32_t win, int *w, int *h);
+int system_theme(void);
 bool video_init(void);
 bool video_inited(void);
 int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signature, uint64_t *target_out);

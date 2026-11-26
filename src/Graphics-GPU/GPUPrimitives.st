@@ -62,6 +62,13 @@ window: window fillRects: anArray
 	anArray doWithIndex: [:v :i | bytes uint32At: i - 1 * 4 + 1 put: (v bitAnd: 16rFFFFFFFF)].
 	^(binding tryInvoke2: window with: {bytes. 1. bytes size}) = 1
 !
+systemTheme
+	"The appearance the system shows: 1 light, 2 dark, 0 if it or the VM does not tell."
+	| binding |
+	binding := WindowPlatformFFI systemThemeCall.
+	binding isNil ifTrue: [^0].
+	^binding tryInvoke0
+!
 cornerRadiusOf: window
 	"The radius (points) the system rounds window's corners with; 0 if square or where the VM cannot tell."
 	| binding |

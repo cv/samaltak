@@ -13,7 +13,7 @@ typedefs
 	^#((Uint8 uint8_t) (Uint16 uint16_t) (Uint32 uint32_t) (Uint64 uint64_t) (Sint32 int32_t)
 		(SDL_Window opaque) (SDL_Surface opaque) (SDL_Cursor opaque) (SDL_DisplayID uint32_t) (SDL_WindowID uint32_t) (SDL_WindowFlags uint64_t)
 		(SDL_InitFlags uint32_t) (SDL_Keymod uint16_t) (SDL_Keycode uint32_t) (SDL_MouseButtonFlags uint32_t)
-		(SDL_MouseWheelDirection uint32_t) (SDL_EventAction uint32_t) (SDL_SystemCursor uint32_t) (SDL_LogPriority uint32_t) (SDL_PixelFormat uint32_t)
+		(SDL_MouseWheelDirection uint32_t) (SDL_EventAction uint32_t) (SDL_SystemCursor uint32_t) (SDL_LogPriority uint32_t) (SDL_PixelFormat uint32_t) (SDL_SystemTheme uint32_t)
 		(SDL_LogOutputFunction 'void (*)(void *, int, SDL_LogPriority, const char *)'))
 ! !
 
@@ -284,6 +284,10 @@ getDisplayForWindow: window
 !
 getDisplayUsableBounds: displayID rect: rect
 	<c: 'bool SDL_GetDisplayUsableBounds(SDL_DisplayID displayID, SDL_Rect *rect)'>
+	^self notSimulated
+!
+getSystemTheme
+	<c: 'SDL_SystemTheme SDL_GetSystemTheme(void)'>
 	^self notSimulated
 !
 getCurrentDisplayMode: displayID

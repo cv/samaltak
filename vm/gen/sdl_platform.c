@@ -106,6 +106,7 @@ static int32_t ffi_socket_lookup(const uint8_t *name, uint64_t n);
 static int64_t ffi_socket_recv(int64_t h, uint8_t *buf, uint64_t n);
 static int32_t ffi_socket_semaphore(int64_t h, int64_t r, int64_t w);
 static int64_t ffi_socket_send(int64_t h, const uint8_t *buf, uint64_t n);
+static int32_t ffi_system_theme(void);
 static int32_t ffi_tls_close(int64_t h);
 static int32_t ffi_tls_handshake(int64_t h);
 static int64_t ffi_tls_recv(int64_t h, uint8_t *buf, uint64_t n);
@@ -278,6 +279,10 @@ static int32_t ffi_desktop_area_entry_witness(uint8_t *a1, uint64_t a2) {
 static int32_t ffi_window_corner_radius_entry_witness(int64_t a1) {
     fprintf(stderr, "\nffi-native-entry 1451\n");
     return ffi_window_corner_radius(a1);
+}
+static int32_t ffi_system_theme_entry_witness(void) {
+    fprintf(stderr, "\nffi-native-entry 1452\n");
+    return ffi_system_theme();
 }
 static int32_t ffi_gpu_create_device_entry_witness(int32_t a1) {
     fprintf(stderr, "\nffi-native-entry 1454\n");
@@ -704,6 +709,12 @@ int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signatu
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_window_corner_radius_entry_witness;
         return 1451;
+    }
+    if (packed_signature == 1 && strcmp(approved_name, "platform_windows_system_theme") == 0) {
+        *target_out = (uint64_t) ffi_system_theme;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_system_theme_entry_witness;
+        return 1452;
     }
     if (packed_signature == 17 && strcmp(approved_name, "platform_gpu_create_device") == 0) {
         *target_out = (uint64_t) ffi_gpu_create_device;
@@ -2467,6 +2478,12 @@ static int32_t ffi_socket_semaphore(int64_t h, int64_t r, int64_t w)
 static int64_t ffi_socket_send(int64_t h, const uint8_t *buf, uint64_t n)
 {
     return platform_sockets_send((int32_t)h, buf, n);
+}
+
+/* SDLPlatform>>ffiSystemTheme */
+static int32_t ffi_system_theme(void)
+{
+    return (int32_t)system_theme();
 }
 
 /* SDLPlatform>>ffiTLSClose: */

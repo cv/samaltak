@@ -175,6 +175,9 @@ window: window opacity: permille
 cornerRadiusOf: window
 	^self display cornerRadiusOf: window
 !
+systemTheme
+	^self display systemTheme
+!
 desktopArea
 	"The part of the primary display that docked bars (the menu bar, the Dock) leave free, a Rectangle in points from the top left of the screen; nil where the display cannot tell."
 	^self display desktopArea

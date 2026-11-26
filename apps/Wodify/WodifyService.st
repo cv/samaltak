@@ -3,7 +3,7 @@ Object subclass: #WodifyService
 	classVariableNames: ''
 	package: 'Wodify'!
 
-WodifyService comment: 'I keep today''s and tomorrow''s workouts current, in a Process of my own, as the desktop card''s wodify.py and its timers do: I fetch them (WodifyClient) when I start, when the local day changes, when ~/.config/omarchy/wodify.json changes, every refreshMinutes (30, at least 10) and a minute after network trouble (not after a rejected password: trying that every minute could lock the account). My Process looks at the wall clock every two seconds, so a fetch due while the machine slept happens as it wakes. After every attempt onChange runs (in my Process).
+WodifyService comment: 'I keep today''s and tomorrow''s workouts current, in a Process of my own, as the desktop card''s wodify.py and its timers do: I fetch them (WodifyClient) when I start, when the local day changes, when its config changes (~/.config/omarchy/wodify.json on Omarchy, else ~/.config/wodify.json), every refreshMinutes (30, at least 10) and a minute after network trouble (not after a rejected password: trying that every minute could lock the account). My Process looks at the wall clock every two seconds, so a fetch due while the machine slept happens as it wakes. After every attempt onChange runs (in my Process).
 
 What I fetched is kept in ~/.local/state/samaltak/wodify/last.json (the workouts only) and shown, marked offline, while Wodify cannot be reached.
 
@@ -15,7 +15,7 @@ The config:
 
 !WodifyService methodsFor: 'initialization'!
 initialize
-	configPath := XDG config: 'omarchy/wodify.json'.
+	configPath := XDG config: self class configName.
 	cachePath := XDG state: 'samaltak/wodify/last.json'.
 	refreshMinutes := 30.
 	wakeup := Semaphore new.
@@ -110,7 +110,7 @@ fetch
 	config isNil
 		ifTrue: [
 			ok := false.
-			error := 'No config: create ~/.config/omarchy/wodify.json'.
+			error := 'No config: create ~/.config/', self class configName.
 			retrySoon := false]
 		ifFalse: [
 			[self fetchWith: config.
@@ -177,6 +177,10 @@ writeCache
 ! !
 
 !WodifyService class methodsFor: 'config'!
+configName
+	"The config below ~/.config: Omarchy's on Omarchy, else (macOS) one of its own."
+	^Omarchy isAvailable ifTrue: ['omarchy/wodify.json'] ifFalse: ['wodify.json']
+!
 keyOf: aConfig
 	"What a session is for: host, email and gym; a change logs in anew."
 	^String new: 64 streamContents: [:s |

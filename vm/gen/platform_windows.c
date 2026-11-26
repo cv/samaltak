@@ -470,6 +470,15 @@ bool platform_windows_size(int32_t win, int *w, int *h)
     return (sw != NULL) && SDL_GetWindowSize(sw, w, h);
 }
 
+/* PlatformWindows>>systemTheme */
+int system_theme(void)
+{
+    if (!video_init()) {
+        return 0;
+    }
+    return SDL_GetSystemTheme();
+}
+
 /* PlatformWindows>>videoInit */
 bool video_init(void)
 {

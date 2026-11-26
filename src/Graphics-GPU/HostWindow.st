@@ -153,6 +153,10 @@ cursor: aSymbol
 	kind = 0 ifTrue: [^self error: 'Unknown cursor ', aSymbol printString].
 	^GPUPlatform setCursor: kind - 1
 !
+systemAppearance
+	"#dark or #light, as the system shows its windows (macOS); nil if it does not tell."
+	^#(#light #dark) at: GPUPlatform systemTheme ifAbsent: [nil]
+!
 desktopArea
 	"The part of the primary display that docked bars leave free (points), or nil."
 	^GPUPlatform desktopArea

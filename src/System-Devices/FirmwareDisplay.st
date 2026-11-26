@@ -107,6 +107,10 @@ window: window fillRects: anArray
 	self check: window.
 	^false
 !
+systemTheme
+	"No system shows an appearance."
+	^0
+!
 cornerRadiusOf: window
 	"The screen is square."
 	self check: window.

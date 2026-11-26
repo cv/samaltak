@@ -73,6 +73,23 @@ static void samaltak_round_corners(id window)
     ((void (*)(id, SEL, id))objc_msgSend)(window, sel_registerName("setBackgroundColor:"),
         ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSColor"), sel_registerName("clearColor")));
 }
+static void samaltak_ignore_mouse(id self, SEL cmd, BOOL ignores)
+{
+    struct objc_super parent = { self, class_getSuperclass(object_getClass(self)) };
+    ((void (*)(struct objc_super *, SEL, BOOL))objc_msgSendSuper)(&parent, cmd, YES);
+}
+static void samaltak_pass_through(id window)
+{
+    /* the pointer always passes through: SDL clears ignoresMouseEvents of a transparent window without a shape when the pointer moves in it */
+    static Class passThrough;
+    if (!passThrough) {
+        passThrough = objc_allocateClassPair(object_getClass(window), "SamaltakPassThroughWindow", 0);
+        class_addMethod(passThrough, sel_registerName("setIgnoresMouseEvents:"), (IMP)samaltak_ignore_mouse, "v@:c");
+        objc_registerClassPair(passThrough);
+    }
+    object_setClass(window, passThrough);
+    ((void (*)(id, SEL, BOOL))objc_msgSend)(window, sel_registerName("setIgnoresMouseEvents:"), YES);
+}
 static int samaltak_corner_radius(SDL_Window *sw)
 {
     id window = samaltak_ns_window(sw);
@@ -90,7 +107,7 @@ static void samaltak_desktop_configure(SDL_Window *sw, bool passThrough)
     /* on every Space, left in place by Mission Control, not cycled through */
     ((void (*)(id, SEL, unsigned long))objc_msgSend)(window, sel_registerName("setCollectionBehavior:"), (1UL << 0) | (1UL << 4) | (1UL << 6));
     ((void (*)(id, SEL, BOOL))objc_msgSend)(window, sel_registerName("setHasShadow:"), NO);
-    if (passThrough) ((void (*)(id, SEL, BOOL))objc_msgSend)(window, sel_registerName("setIgnoresMouseEvents:"), YES);
+    if (passThrough) samaltak_pass_through(window);
     else samaltak_round_corners(window);
     /* a process with desktop windows has no Dock icon and is not in the app switcher (NSApplicationActivationPolicyAccessory) */
     ((BOOL (*)(id, SEL, long))objc_msgSend)(app, sel_registerName("setActivationPolicy:"), 1);

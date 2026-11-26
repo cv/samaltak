@@ -185,6 +185,13 @@ presentSurface: win
 	sw isNull ifTrue: [^false].
 	^sdl updateWindowSurface: sw
 !
+systemTheme
+	"The appearance the system shows: 1 light, 2 dark, 0 if it does not tell."
+	<export>
+	<returns: 'int'>
+	self videoInit ifFalse: [^0].
+	^sdl getSystemTheme
+!
 cornerRadius: win
 	"The radius (points) the system rounds the window's corners with; 0 if square."
 	<export>

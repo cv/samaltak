@@ -58,7 +58,8 @@ windowsAt: nowSeconds
 		| percent reset expired title span pace |
 		percent := self class number: (e at: 'percent' ifAbsent: [nil]).
 		(percent notNil and: [percent >= 0]) ifTrue: [
-			reset := TimeZone local utcSecondsOf: (e at: 'resetsAt' ifAbsent: [nil]).
+			reset := e at: 'resetsAt' ifAbsent: [nil].
+			reset isNumber ifFalse: [reset := TimeZone local utcSecondsOf: reset].
 			expired := reset notNil and: [reset <= nowSeconds].
 			title := e at: 'title' ifAbsent: [nil].
 			(title isString and: [title notEmpty]) ifFalse: [title := self class windowTitle: (e at: 'label' ifAbsent: [''])].
@@ -92,7 +93,10 @@ fromJSON: aString
 	r := [JSON parse: aString] on: Error do: [:e | e return: nil].
 	(r isKindOf: Dictionary) ifFalse: [^nil].
 	(r at: 'id' ifAbsent: [nil]) isString ifFalse: [^nil].
-	^self new setRecord: r
+	^self fromRecord: r
+!
+fromRecord: aDictionary
+	^self new setRecord: aDictionary
 ! !
 
 !AgentUsage class methodsFor: 'records'!
@@ -112,8 +116,12 @@ recordsIn: aDirectory hiding: hiddenIds
 		(file endsWith: '.json') ifTrue: [
 			| u |
 			u := self fromJSON: ([File readText: (File join: aDirectory with: file)] on: Error do: [:e | e return: nil]).
-			(u notNil and: [(hiddenIds includes: u id) not and: [u isShown]]) ifTrue: [out add: u]]].
-	^out asArray sort: [:a :b | | ia ib |
+			u notNil ifTrue: [out add: u]]].
+	^self shown: out hiding: hiddenIds
+!
+shown: usages hiding: hiddenIds
+	"The usages the card shows (not hidden, with a window or a balance), in the bar's order."
+	^(usages select: [:u | (hiddenIds includes: u id) not and: [u isShown]]) asArray sort: [:a :b | | ia ib |
 		ia := self order indexOf: a id. ia = 0 ifTrue: [ia := 999].
 		ib := self order indexOf: b id. ib = 0 ifTrue: [ib := 999].
 		ia = ib ifTrue: [a name asString <= b name asString] ifFalse: [ia < ib]]

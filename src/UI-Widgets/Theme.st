@@ -1,6 +1,6 @@
 Object subclass: #Theme
 	instanceVariableNames: 'name colors fonts metrics syntax terminal'
-	classVariableNames: 'Current'
+	classVariableNames: 'Current Watcher'
 	package: 'UI-Widgets'!
 
 Theme comment: 'I am the look of the widgets: named colors, fonts and metrics. "Theme current" is the Blue Book theme with pi-orb typography (prototypes/1-classic/themes/blue-book.css, types/pi-orb.css): black on white, 1-point black rules, inversion for selection, ultramarine as the only accent.
@@ -10,6 +10,8 @@ Theme comment: 'I am the look of the widgets: named colors, fonts and metrics. "
 	Theme current metric: #rowHeight.
 
 Widgets ask me instead of hard-coding values, so a theme switch is "Theme current: aTheme" followed by a redraw. Fonts are created lazily, and again for another Font deviceScale. The current theme publishes its accent and inks as Color''s named colors, which the window system''s chrome draws with.
+
+Where the system shows its windows light or dark (macOS), the Blue Book follows it: blueBookDark is white on near-black. Checked once a second; --theme blue-book keeps the light one. A desktop''s own theme (OmarchyTheme) replaces both.
 
 Change me while the system runs: when a method of mine (or Color''s) is accepted, the current theme defines its colors and metrics again (refresh) and every window redraws (SystemChanges).'!
 
@@ -81,12 +83,46 @@ initializeBlueBook
 		at: #glideMs put: 100;
 		at: #fadeMs put: 120;
 		at: #flashMs put: 90
+!
+initializeBlueBookDark
+	"The Blue Book at night, over initializeBlueBook: white on near-black, the rules white, a lighter ultramarine."
+	| ultra ink paper |
+	ultra := Color hex: 16r8AA4F0.
+	ink := Color hex: 16rF2F2F2.
+	paper := Color hex: 16r1E1E1E.
+	colors
+		at: #ink put: ink;
+		at: #ink2 put: (Color hex: 16rC8C8C8);
+		at: #ink3 put: (Color hex: 16r9A9A9A);
+		at: #ink4 put: (Color hex: 16r666666);
+		at: #hair put: (Color hex: 16r3C3C3C);
+		at: #paper put: paper;
+		at: #rule put: ink;
+		at: #ultramarine put: ultra;
+		at: #accentSoft put: (ultra alpha: 0.18);
+		at: #textSelection put: (ultra alpha: 0.32);
+		at: #textSelectionInactive put: (ink alpha: 0.1);
+		at: #busySoft put: (ultra alpha: 0.14);
+		at: #wash put: (ink alpha: 0.08);
+		at: #inverseMuted put: (paper alpha: 0.7);
+		at: #inverseKey put: (paper alpha: 0.75);
+		at: #comment put: (Color hex: 16rA0A0A0);
+		at: #l0 put: ink;
+		at: #l1 put: ultra;
+		at: #l2 put: (ultra mixed: 0.3 with: paper);
+		at: #l3 put: (ultra mixed: 0.5 with: paper);
+		at: #l4 put: (ultra mixed: 0.7 with: paper);
+		at: #l5 put: (ultra mixed: 0.85 with: paper);
+		at: #shadow put: Color black;
+		at: #desk put: paper;
+		at: #deskDots put: (Color hex: 16r5A5A5A)
 ! !
 
 !Theme methodsFor: 'refreshing'!
 refresh
 	"My definition changed: define my colors and metrics again (fonts are kept), forget the syntax styles and publish the palette."
 	self initializeBlueBook.
+	self isDark ifTrue: [self initializeBlueBookDark].
 	syntax := nil.
 	terminal := nil.
 	self publishPalette
@@ -102,6 +138,9 @@ publishPalette
 !Theme methodsFor: 'accessing'!
 name
 	^name
+!
+isDark
+	^name = 'blue-book-dark'
 !
 color: aSymbol
 	^colors at: aSymbol ifAbsent: [Color named: aSymbol]
@@ -211,6 +250,9 @@ buildSyntaxStyles
 !Theme class methodsFor: 'instance creation'!
 blueBook
 	^self new setName: 'blue-book'; initializeBlueBook; yourself
+!
+blueBookDark
+	^self new setName: 'blue-book-dark'; initializeBlueBook; initializeBlueBookDark; yourself
 ! !
 
 !Theme class methodsFor: 'class initialization'!
@@ -219,7 +261,44 @@ initialize
 		Current := nil.
 		Smalltalk isRuntimeImage ifFalse: [self current prepareFonts]] named: 'Widget fonts'.
 	SystemChanges subscribe: #Theme do: [:change |
-		((change affects: Theme) or: [change affects: Color]) ifTrue: [self themeChanged]]
+		((change affects: Theme) or: [change affects: Color]) ifTrue: [self themeChanged]].
+	Smalltalk addToStartUpList: self
+! !
+
+!Theme class methodsFor: 'system appearance'!
+followsSystem
+	"Whether this image follows the system's light or dark appearance: with a display, not running tests, not told otherwise (--theme blue-book)."
+	(Smalltalk argumentAfter: '--theme') = 'blue-book' ifTrue: [^false].
+	^(Smalltalk isHeadless or: [Smalltalk vm arguments includes: '--test']) not
+!
+followSystemAppearance
+	"While the Blue Book is current (no desktop theme replaced it), be its light or its dark one as the system shows its windows; every window redraws when that changes."
+	| dark |
+	(Current isNil or: [Current class == Theme]) ifFalse: [^self].
+	dark := World systemAppearance.
+	dark isNil ifTrue: [^self].
+	dark := dark == #dark.
+	dark = self current isDark ifTrue: [^self].
+	Current := dark ifTrue: [self blueBookDark] ifFalse: [self blueBook].
+	Current publishPalette.
+	World restyleAll
+!
+startWatching
+	(Watcher notNil and: [Watcher isTerminated not]) ifTrue: [^self].
+	Watcher := [[(Delay forSeconds: 1) wait. [self followSystemAppearance] on: Error do: [:e | e return: nil]] repeat] newProcess.
+	Watcher priority: Processor userBackgroundPriority; name: 'System appearance watcher'.
+	Watcher resume
+!
+stopWatching
+	Watcher isNil ifFalse: [Watcher terminate. Watcher := nil]
+! !
+
+!Theme class methodsFor: 'system startup'!
+startUp: resuming
+	"Every start: follow the system's appearance where it is wanted."
+	self followsSystem
+		ifTrue: [[self followSystemAppearance] on: Error do: [:e | e return: nil]. self startWatching]
+		ifFalse: [self stopWatching]
 ! !
 
 !Theme class methodsFor: 'current'!

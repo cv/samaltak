@@ -134,6 +134,10 @@ clipboard: aString
 clipboardData: mime
 	^HostWindow clipboardData: mime
 !
+systemAppearance
+	"#dark or #light, as the system shows its windows; nil if it does not tell."
+	^HostWindow systemAppearance
+!
 desktopArea
 	"The part of the primary display that docked bars leave free (points), or nil."
 	^HostWindow desktopArea

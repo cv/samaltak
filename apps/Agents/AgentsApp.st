@@ -1,5 +1,5 @@
 Application subclass: #AgentsApp
-	instanceVariableNames: 'card process wakeup'
+	instanceVariableNames: 'card process wakeup collected collector collectNow'
 	classVariableNames: ''
 	package: 'Agents'!
 
@@ -8,7 +8,9 @@ AgentsApp comment: 'I am the Omarchy desktop''s agents card as a window of its o
 	bin/samaltak run apps/Agents
 	AgentsApp run
 
-A click opens the bar''s Agents panel (omarchy-shell), a middle click asks the collectors for fresh limits (omarchy-agent-usage-update --limits-only) and reads the records again.'!
+Without omarchy-agent-usage-update (macOS) the limits come from AgentCollector instead, every 5 minutes.
+
+A click opens the bar''s Agents panel (omarchy-shell), a middle click asks the collectors for fresh limits (omarchy-agent-usage-update --limits-only, or AgentCollector) and reads the records again.'!
 
 !AgentsApp methodsFor: 'accessing'!
 title
@@ -35,7 +37,12 @@ hidden
 	^(hide isKindOf: Array) ifTrue: [hide] ifFalse: [#()]
 !
 readUsages
+	collected isNil ifFalse: [^AgentUsage shown: collected hiding: self hidden].
 	^AgentUsage recordsIn: AgentUsage directory hiding: self hidden
+!
+collectsItself
+	"Whether Omarchy's collectors are missing, so that AgentCollector stands in for them."
+	^(OSProcess run: 'command -v omarchy-agent-usage-update >/dev/null') exitCode ~= 0
 !
 now
 	^Time utcMicroseconds / 1.0e6
@@ -51,6 +58,7 @@ reload
 !
 update
 	"Ask the collectors for fresh limits, then read them."
+	collectNow isNil ifFalse: [^collectNow signal].
 	Omarchy launch: #('omarchy-agent-usage-update' '--limits-only') then: [:p | wakeup signal]
 ! !
 
@@ -65,10 +73,17 @@ started
 	wakeup := Semaphore new.
 	process := [[wakeup waitTimeoutMSecs: 60000. self reload] repeat] newProcess.
 	process priority: Processor userBackgroundPriority; name: 'Agents reload'.
-	process resume
+	process resume.
+	self collectsItself ifTrue: [
+		collected := #().
+		collectNow := Semaphore new.
+		collector := [[collected := AgentCollector usages. wakeup signal. collectNow waitTimeoutMSecs: 300000] repeat] newProcess.
+		collector priority: Processor userBackgroundPriority; name: 'Agents collector'.
+		collector resume]
 !
 stopped
-	process isNil ifFalse: [process terminate. process := nil]
+	process isNil ifFalse: [process terminate. process := nil].
+	collector isNil ifFalse: [collector terminate. collector := nil]
 ! !
 
 !AgentsApp class methodsFor: 'desktop'!

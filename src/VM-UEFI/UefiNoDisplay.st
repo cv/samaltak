@@ -510,6 +510,11 @@ setOpacity: win permille: permille
 	common setError: 'not on UEFI'.
 	^false
 !
+systemTheme
+	<function>
+	<returns: 'int'>
+	^0
+!
 cornerRadius: win
 	<function>
 	<var: #win type: 'int32_t'>
