@@ -253,6 +253,7 @@ commandFinished
 ping: aRequest
 	^Dictionary new
 		at: 'pong' put: true;
+		at: 'controlAuth' put: 1;
 		at: 'image' put: Smalltalk vm imagePath;
 		at: 'port' put: (ControlServer current ifNotNil: [:s | s port]);
 		yourself

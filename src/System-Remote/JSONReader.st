@@ -1,5 +1,5 @@
 Object subclass: #JSONReader
-	instanceVariableNames: 'source position'
+	instanceVariableNames: 'source position limit'
 	classVariableNames: ''
 	package: 'System-Remote'!
 
@@ -8,6 +8,7 @@ JSONReader comment: 'I parse JSON text (see JSON). position is the 1-based index
 !JSONReader methodsFor: 'initialization'!
 setSource: aString
 	source := aString.
+	limit := source size.
 	position := 1
 ! !
 
@@ -15,6 +16,9 @@ setSource: aString
 parseDocument
 	| value |
 	value := self parseValue.
+	^self documentEndingWith: value
+!
+documentEndingWith: value
 	self skipWhitespace.
 	self atEnd ifFalse: [self error: 'unexpected text after the value'].
 	^value
@@ -34,6 +38,9 @@ parseValue
 	^self error: 'unexpected character ', c printString
 !
 parseObject
+	^self parseObjectWithAuth: nil
+!
+parseObjectWithAuth: authBlock
 	| result key |
 	result := Dictionary new.
 	self expect: ${.
@@ -44,7 +51,9 @@ parseObject
 	 key := self parseString.
 	 self skipWhitespace.
 	 self expect: $:.
-	 result at: key put: self parseValue.
+	 (authBlock notNil and: [key = 'auth'])
+		ifTrue: [authBlock value]
+		ifFalse: [result at: key put: self parseValue].
 	 self skipWhitespace.
 	 self peekFor: $,] whileTrue.
 	self expect: $}.
@@ -63,17 +72,21 @@ parseArray
 	^result asArray
 !
 parseString
-	| stream c |
-	self expect: $".
+	| stream |
 	stream := WriteStream on: (String new: 16).
+	self parseStringDo: [:ch | stream nextPut: ch].
+	^stream contents
+!
+parseStringDo: aBlock
+	| c |
+	self expect: $".
 	[self atEnd ifTrue: [^self error: 'unterminated string'].
 	 (c := self next) = $"] whileFalse: [
 		c = $\
-			ifTrue: [stream nextPut: self parseEscape]
+			ifTrue: [aBlock value: self parseEscape]
 			ifFalse: [
 				c value < 32 ifTrue: [^self error: 'control character in string'].
-				stream nextPut: c]].
-	^stream contents
+				aBlock value: c]]
 !
 parseEscape
 	| c code low |
@@ -147,13 +160,56 @@ floatFrom: mantissa exponent: exponent
 	^(mantissa / (10 raisedTo: exponent negated)) asFloat
 ! !
 
+!JSONReader methodsFor: 'control requests'!
+parseControlBytes: bytes length: byteCount authenticating: verify
+	"Decode and erase the source here, and never put auth in the parsed object."
+	| authenticated seen json |
+	seen := authenticated := false.
+	"Allocate once; do not leave an old buffer behind on Unicode promotion."
+	source := WideString new: byteCount.
+	position := 1.
+	^[self decodeControlBytes: bytes length: byteCount.
+	  self skipWhitespace.
+	  self peek = ${ ifFalse: [^self error: 'object expected'].
+	  json := self parseObjectWithAuth: [
+		| valid |
+		valid := self parseAuthWith: verify.
+		authenticated := seen not and: [valid].
+		seen := true].
+	  self documentEndingWith: json.
+	  {json. authenticated}] ensure: [source atAllPut: (Character value: 0)]
+!
+decodeControlBytes: bytes length: byteCount
+	| i n |
+	i := 1.
+	limit := 0.
+	[i <= byteCount] whileTrue: [
+		n := bytes utf8LengthAt: i to: byteCount.
+		limit := limit + 1.
+		source at: limit put: (bytes utf8CharacterAt: i length: n).
+		i := i + n abs]
+!
+parseAuthWith: verify
+	"Only a string can be a credential. Decode it into bounded, scratch storage."
+	| bytes size |
+	self skipWhitespace.
+	self peek = $" ifFalse: [self parseValue. ^false].
+	bytes := ByteArray new: 35.
+	size := 0.
+	^[self parseStringDo: [:ch |
+		size := size + 1.
+		(ch value < 128 and: [size <= bytes size]) ifTrue: [bytes at: size put: ch value]].
+	  verify value: (ControlToken verifierOfLength: size byteAt: [:i | bytes at: i])]
+		ensure: [bytes atAllPut: 0]
+! !
+
 !JSONReader methodsFor: 'scanning'!
 atEnd
-	^position > source size
+	^position > limit
 !
 peek
 	"Answer the next character, or nil at the end."
-	position > source size ifTrue: [^nil].
+	position > limit ifTrue: [^nil].
 	^source at: position
 !
 next
@@ -174,8 +230,8 @@ expect: aCharacter
 			ifFalse: [aCharacter printString, ' expected but found ', self peek printString])]
 !
 matches: aString
-	(position + aString size - 1 <= source size
-		and: [(source copyFrom: position to: position + aString size - 1) = aString]) ifFalse: [^false].
+	position + aString size - 1 > limit ifTrue: [^false].
+	1 to: aString size do: [:i | (source at: position + i - 1) = (aString at: i) ifFalse: [^false]].
 	position := position + aString size.
 	^true
 !

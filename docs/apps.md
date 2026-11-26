@@ -5,9 +5,11 @@ A Samaltak application is a package directory of Smalltalk source that runs as a
     bin/samaltak run apps/Weather         # file in apps/Weather, run its Application in a floating window
     bin/samaltak test apps/Weather        # its tests, headless
     bin/samaltak install apps/Weather     # an XDG .desktop entry, so the app launcher lists it (with icons/samaltak.svg)
-    bin/samaltak run apps/Weather --control --control-port 4711   # drive it with samaltak-ctl, as the World
+    bin/samaltak run apps/Weather --control --control-port 4711   # the console announces the control token
     bin/samaltak agent                    # the Agent (docs/agent.md) in a window of its own (install agent: in the launcher)
     bin/samaltak desk                     # the desktop cards: every app of apps/ that is a card, on the desktop below the windows
+
+To drive a running app with `tools/samaltak-ctl`, attach with `connect --port 4711 --token-file -` and supply its token on stdin. See [remote control authentication](remote-auth.md).
 
 `bin/samaltak desk` (`OmarchyDesk`) replaces the desktop-cards plugin of omarchy-shell. It runs the card apps in one process, each card in a desktop host window of its own: on Wayland a wlr-layer-shell surface on the bottom layer, above the wallpaper, below every window, never taking the keyboard focus. It places them as the plugin's layout file `~/.config/omarchy/desktop-cards.json` says (three columns of the free area, a stack at the top and one at the bottom of each), and when a card grows the cards of its stack move. Cards are dragged as with the plugin (its `DesktopWindow.qml` and `Layout.js`, ported): press a card and move it past 6 points, and it follows the pointer, raised above the other cards and faded to 0.85, while the others close up; the column it would land in is tinted and a line marks where in it; releasing it rewrites the file and the cards slide into place (200 ms, Omarchy's ease-out; at once when Hyprland's animations are off). A click without moving runs the card's action, on release. Edits of the file show within a second. The plugin and the desk read the same file, so the plugin can be turned back on (`omarchy-shell -q shell setPluginEnabled schani.desktop-cards true`). Autostarted from `~/.config/hypr/autostart.lua`: `o.launch_on_start("…/bin/samaltak desk")`.
 

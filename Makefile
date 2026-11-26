@@ -176,6 +176,7 @@ test-tools: image
 	$(PLATFORM_CHECK)
 	$(MAKE) -C vm/platform test st-test
 	tests/remote/cli_test.sh $(OUT)/samaltak.image
+	tests/remote/auth_test.sh $(OUT)/samaltak.image
 	tests/remote/recording_test.sh $(OUT)/samaltak.image
 	tests/tools/desktop_test.sh $(OUT)/samaltak.image
 	tests/tools/snapshot_test.sh $(OUT)/samaltak.image
@@ -189,7 +190,9 @@ test-tools: image
 # firmware, on this machine's CPU if it is UEFI_ARCH (KVM, or Hypervisor.framework on macOS), and fails unless the VM
 # exits 0; UEFI_ARGS are its arguments after the image (disk:). uefi-ui boots the World in a QEMU window (USB keyboard,
 # virtio tablet; the console on stdio). uefi-control boots it without a window, its control service (--control on
-# 0.0.0.0 in the guest) forwarded from 127.0.0.1:UEFI_CONTROL_PORT, UEFI_CONTROL_ARGS after it (samaltak-ctl open --uefi).
+# 0.0.0.0 in the guest) forwarded from 127.0.0.1:UEFI_CONTROL_PORT (samaltak-ctl open --uefi). It reads the CLI's
+# UEFI_CONTROL_TOKEN from the environment into owner-only samaltak.args, never onto a host command line. If unset,
+# the guest generates and displays a token using firmware entropy (QEMU's virtio-rng).
 # The guest's network is QEMU's user network (NAT, DHCP, DNS) on a UEFI_NIC without its option ROM, which the image
 # drives: e1000e on x86-64 (q35's default), virtio-net-pci on arm64 (virt's). test-uefi runs the tests there that need no platform layer (no files, processes
 # or ptys from Smalltalk), opens the World on the firmware's screen and moves its pointer by remote input, drives the VM with
@@ -225,7 +228,7 @@ UEFI_NIC ?= e1000e
 endif
 QEMU_UEFI = $(QEMU_UEFI_MACHINE) -m 2048 -no-reboot \
 	-nic user,model=$(UEFI_NIC)$(if $(UEFI_CONTROL_PORT),$(comma)hostfwd=tcp:127.0.0.1:$(UEFI_CONTROL_PORT)-:7341) -global $(UEFI_NIC).romfile= \
-	-drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/vars.fd \
+	-device virtio-rng-pci -drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) -drive if=pflash,format=raw,file=$(UEFI)/vars.fd \
 	-drive format=raw,file=fat:rw:$(UEFI)/esp -drive format=raw,file=$(UEFI)/image.disk
 uefi: fresh-image
 	$(MAKE) $(UEFI)/esp/EFI/BOOT/$(UEFI_BOOT) $(UEFI)/image.disk
@@ -240,17 +243,21 @@ $(UEFI)/image.disk: $(OUT)/samaltak.image
 	truncate -s $(UEFI_DISK_MB)M $(UEFI)/image.disk
 uefi-run: uefi
 	$(MAKE) uefi-boot
+# Recreate rather than truncate: umask does not change an existing file's mode.
+UEFI_ARGS_FILE := $(UEFI)/esp/samaltak.args
+UEFI_WRITE_ARGS = rm -f "$(UEFI_ARGS_FILE)" && umask 077 && set -C && printf '%s\n'
 uefi-boot:
-	printf '%s\n' --max-heap $(UEFI_HEAP_MB) disk: $(UEFI_ARGS) > $(UEFI)/esp/samaltak.args
+	$(UEFI_WRITE_ARGS) --max-heap $(UEFI_HEAP_MB) disk: $(UEFI_ARGS) > "$(UEFI_ARGS_FILE)"
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
 	$(QEMU_UEFI) -nographic | tee $(UEFI)/console.log
 	@grep -q 'samaltak: exit 0' $(UEFI)/console.log
 uefi-ui: uefi
-	printf '%s\n' --max-heap $(UEFI_HEAP_MB) disk: --window-size $(UEFI_SCREEN) > $(UEFI)/esp/samaltak.args
+	$(UEFI_WRITE_ARGS) --max-heap $(UEFI_HEAP_MB) disk: --window-size $(UEFI_SCREEN) > "$(UEFI_ARGS_FILE)"
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
 	$(UEFI_WINDOW) $(QEMU_UEFI) $(UEFI_DISPLAY) $(if $(filter x86_64,$(UEFI_ARCH)),-vga std) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 uefi-control: uefi
-	printf '%s\n' --max-heap $(UEFI_HEAP_MB) disk: --control --control-host 0.0.0.0 --control-port 7341 $(UEFI_CONTROL_ARGS) > $(UEFI)/esp/samaltak.args
+	@set +x; $(UEFI_WRITE_ARGS) --max-heap $(UEFI_HEAP_MB) disk: --control --control-host 0.0.0.0 --control-port 7341 \
+		$${UEFI_CONTROL_TOKEN:+--control-token "$$UEFI_CONTROL_TOKEN"} $(UEFI_CONTROL_ARGS) > "$(UEFI_ARGS_FILE)"
 	cp $(OVMF_VARS) $(UEFI)/vars.fd
 	$(QEMU_UEFI) -display none $(if $(filter x86_64,$(UEFI_ARCH)),-vga std) -device qemu-xhci -device usb-kbd -device virtio-tablet-pci -serial stdio
 UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest ContextTest ExceptionTest FloatTest FractionTest \
@@ -258,8 +265,10 @@ UEFI_TESTS := CompilerTest ParserTest ScannerTest ClassTest CollectionTest Conte
 	StackOverflowTest StreamTest StringSearchTest StringTest SymbolTest SystemChangesTest SystemTest UnicodeTest WorkClockTest \
 	Amd64DisassemblerTest Arm64DisassemblerTest ByteSearchTest FFIBindingTest
 UEFI_WORLD := | w t | w := UIWindows startUp. RemoteInputDevice default inject: {1. nil. 123. 45. 0. 0. nil. w displayWindow windowId}. t := Time millisecondClockValue. [w dispatcher pointer = (123 @ 45) or: [Time millisecondClockValue - t > 20000]] whileFalse: [(Delay forMilliseconds: 50) wait]. Smalltalk vm stderrWrite: 'world ', w extent printString, ' ', Renderer default device isSoftware printString, ' ', w dispatcher pointer rounded printString, (String with: Character lf)
-UEFI_NET := | s buf n | s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: '{\"cmd\": \"ping\"}', (String with: Character lf). buf := ByteArray new: 200. n := s receiveInto: buf timeout: 20000. s close. (buf copyFrom: 1 to: n) asString
-UEFI_NET_BULK := | src req s buf n chunk out t ms resp ok more | src := String new: 1000000. 1 to: src size do: [:i | src at: i put: (Character value: 97 + (i * 7 rem: 26))]. req := '{\"cmd\": \"eval\", \"source\": \"''', src, ''' reverse\"}', (String with: Character lf). t := Time millisecondClockValue. s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: req. out := WriteStream on: (String new: 1100000). buf := ByteArray new: 65536. more := true. [more] whileTrue: [n := s receiveInto: buf timeout: 60000. chunk := (buf copyFrom: 1 to: n) asString. out nextPutAll: chunk. more := n > 0 and: [(chunk includes: Character lf) not]]. ms := Time millisecondClockValue - t. s close. resp := out contents. ok := (resp includesSubstring: '\"ok\":true') and: [resp includesSubstring: src reverse]. 'bulk ', ok printString, ' ', (req size + resp size) printString, ' bytes in ', ms printString, ' ms'
+# Resolve the credential in the guest's boot arguments; the host client's argv gets only this expression.
+UEFI_NET_AUTH := (Smalltalk argumentAfter: '--control-token')
+UEFI_NET := | s buf n | s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: '{\"cmd\": \"ping\", \"auth\": \"', $(UEFI_NET_AUTH), '\"}', (String with: Character lf). buf := ByteArray new: 200. n := s receiveInto: buf timeout: 20000. s close. (buf copyFrom: 1 to: n) asString
+UEFI_NET_BULK := | src req s buf n chunk out t ms resp ok more | src := String new: 1000000. 1 to: src size do: [:i | src at: i put: (Character value: 97 + (i * 7 rem: 26))]. req := '{\"cmd\": \"eval\", \"auth\": \"', $(UEFI_NET_AUTH), '\", \"source\": \"''', src, ''' reverse\"}', (String with: Character lf). t := Time millisecondClockValue. s := RemoteSocket connectTo: '10.0.2.2' port: $$P timeout: 20000. s sendAll: req. out := WriteStream on: (String new: 1100000). buf := ByteArray new: 65536. more := true. [more] whileTrue: [n := s receiveInto: buf timeout: 60000. chunk := (buf copyFrom: 1 to: n) asString. out nextPutAll: chunk. more := n > 0 and: [(chunk includes: Character lf) not]]. ms := Time millisecondClockValue - t. s close. resp := out contents. ok := (resp includesSubstring: '\"ok\":true') and: [resp includesSubstring: src reverse]. 'bulk ', ok printString, ' ', (req size + resp size) printString, ' bytes in ', ms printString, ' ms'
 UEFI_NET_DRIVER := 'driver ', NetworkStack active interface class name
 UEFI_DRIVER = $(if $(filter e1000e,$(1)),E1000eInterface,VirtioNetInterface)
 UEFI_SNAPSHOT := Smalltalk at: 'UefiMark' asSymbol put: 42. (Smalltalk snapshot: Smalltalk vm imagePath) ifTrue: ['resumed ', (Smalltalk at: 'UefiMark' asSymbol) printString] ifFalse: ['saved']
@@ -272,13 +281,7 @@ test-uefi:
 	grep -Fq 'UEFI-stderr-é' $(UEFI)/console.log
 	$(MAKE) uefi-boot UEFI_ARGS="--eval \"$(UEFI_WORLD)\""
 	grep -qE "^world [0-9]+@[0-9]+ true 123@45" $(UEFI)/console.log
-	OUT=$(OUT) tools/samaltak-ctl --session uefi-test open --uefi --headless
-	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); \
-	tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET_DRIVER)" > $(UEFI)/net.log; ok=$$?; \
-	[ $$ok = 0 ] && { tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET)" >> $(UEFI)/net.log; ok=$$?; }; \
-	[ $$ok = 0 ] && { tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET_BULK)" >> $(UEFI)/net.log; ok=$$?; }; \
-	tools/samaltak-ctl --session uefi-test close; cat $(UEFI)/net.log; [ $$ok = 0 ] && grep -q pong $(UEFI)/net.log && grep -q "'bulk true" $(UEFI)/net.log \
-		&& grep -q "'driver $(call UEFI_DRIVER,$(UEFI_NIC))'" $(UEFI)/net.log
+	$(call UEFI_NET_TEST,bulk)
 	$(if $(filter-out virtio-net-pci,$(UEFI_NIC)),$(MAKE) test-uefi-nic UEFI_NIC=virtio-net-pci)
 	$(MAKE) uefi-boot UEFI_ARGS="--headless --eval \"$(UEFI_SNAPSHOT)\""
 	grep -q "'saved'" $(UEFI)/console.log
@@ -286,12 +289,21 @@ test-uefi:
 	grep -q "'resumed 42'" $(UEFI)/console.log
 	rm $(UEFI)/image.disk
 test-uefi-nic:
-	UEFI_NIC=$(UEFI_NIC) OUT=$(OUT) tools/samaltak-ctl --session uefi-test open --uefi --headless
-	P=$$(sed -n 's/.*"port": \([0-9]*\).*/\1/p' $${TMPDIR:-/tmp}/samaltak-ctl/uefi-test.json); \
-	tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET_DRIVER)" > $(UEFI)/net.log; ok=$$?; \
-	[ $$ok = 0 ] && { tools/samaltak-ctl --session uefi-test eval "$(UEFI_NET)" >> $(UEFI)/net.log; ok=$$?; }; \
-	tools/samaltak-ctl --session uefi-test close; cat $(UEFI)/net.log; [ $$ok = 0 ] && grep -q pong $(UEFI)/net.log \
-		&& grep -q "'driver $(call UEFI_DRIVER,$(UEFI_NIC))'" $(UEFI)/net.log
+	$(call UEFI_NET_TEST,ping)
+
+define UEFI_NET_TEST
+	@set -eu; \
+	S=uefi-test-$$$$; \
+	OUT=$(OUT) UEFI_NIC=$(UEFI_NIC) SAMALTAK_CONTROL_PORT= tools/samaltak-ctl --session "$$S" open --uefi --headless; \
+	trap 'tools/samaltak-ctl --session "$$S" close; cat "$(UEFI)/net.log"' EXIT; \
+	P=$$(sed -n 's/.*"port": *\([0-9]*\).*/\1/p' "$${TMPDIR:-/tmp}/samaltak-ctl/$$S.json"); \
+	tools/samaltak-ctl --session "$$S" eval "$(UEFI_NET_DRIVER)" > "$(UEFI)/net.log"; \
+	$(if $(filter bulk,$(1)),tests/remote/auth_test.sh --session "$$S" >> "$(UEFI)/net.log";) \
+	tools/samaltak-ctl --session "$$S" eval "$(UEFI_NET)" >> "$(UEFI)/net.log"; \
+	$(if $(filter bulk,$(1)),tools/samaltak-ctl --session "$$S" eval "$(UEFI_NET_BULK)" >> "$(UEFI)/net.log"; grep -q "'bulk true" "$(UEFI)/net.log";) \
+	grep -Fq '"pong":true' "$(UEFI)/net.log"; \
+	grep -q "'driver $(call UEFI_DRIVER,$(UEFI_NIC))'" "$(UEFI)/net.log"
+endef
 
 # The narrated walkthrough on the real system, from a copy of the image named nuuk.image like the prototype's (a visible window; needs ffmpeg, agent-browser for the captions and
 # ELEVENLABS_API_KEY in .env unless the clips in $(VIDEO)/narration are cached).

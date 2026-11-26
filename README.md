@@ -42,7 +42,7 @@ Its stages (`make test-core`, `test-jit-*`, `test-tools`, `test-uefi`, …) also
 
 ## Remote control and the videos
 
-`tools/samaltak-ctl` drives the running image (snapshot, click, type, key, eval, screenshot, record). `make video` replays `tools/walkthrough.mjs` against the real system, records the compositor's frames, and adds captions and ElevenLabs narration (`ELEVENLABS_API_KEY` in `.env`) → `docs/media/walkthrough.mp4` (needs ffmpeg). `make mindblown-video` and `make jit-video` make the other two.
+`tools/samaltak-ctl` drives the running image (snapshot, click, type, key, eval, screenshot, record). Every request requires a token; `open` provisions it for you. See [CLI usage](tools/README.md) and [remote control authentication](docs/remote-auth.md). `make video` replays `tools/walkthrough.mjs` against the real system, records the compositor's frames, and adds captions and ElevenLabs narration (`ELEVENLABS_API_KEY` in `.env`) → `docs/media/walkthrough.mp4` (needs ffmpeg). `make mindblown-video` and `make jit-video` make the other two.
 
 For Zed syntax highlighting, install the [Smalltalk extension](tools/zed-smalltalk/README.md).
 

@@ -1,5 +1,5 @@
 Object subclass: #ControlConnection
-	instanceVariableNames: 'server socket process line pending handler buffer jobRequest moved'
+	instanceVariableNames: 'server socket line lineSize discarding pending handler buffer jobRequest moved'
 	classVariableNames: ''
 	package: 'System-Remote'!
 
@@ -13,32 +13,68 @@ setServer: aServer socket: aSocket
 
 !ControlConnection methodsFor: 'running'!
 pump
-	"The server's Process (or its host's): read what arrived (never waiting), handle the complete lines; close at end of stream."
+	"Read without waiting; authenticate complete lines before queueing or running any command."
 	| count |
-	line isNil ifTrue: [line := WriteStream on: (ByteArray new: 256). pending := OrderedCollection new].
-	buffer isNil ifTrue: [buffer := ByteArray new: 16384].
-	[[(count := socket receiveNowInto: buffer) notNil and: [count > 0]] whileTrue: [
-		1 to: count do: [:i | | byte |
-			byte := buffer at: i.
-			byte = 10
-				ifTrue: [
-					pending add: line contents.
-					line := WriteStream on: (ByteArray new: 256)]
-				ifFalse: [line nextPut: byte]]].
+	[count := server readRequestsDuring: [self readPending].
 	 self handlePending.
 	 count = 0 ifTrue: [handler isNil ifTrue: [self close]]]
 		on: Error do: [:e |
 			Smalltalk vm stderrWrite: 'control: connection failed: ', (RemoteControl describeError: e), (String with: Character lf).
 			self close]
 !
-handlePending
-	[handler isNil and: [pending notEmpty]] whileTrue: [self handleLine: pending removeFirst]
+readPending
+	| count |
+	line isNil ifTrue: [
+		line := ByteArray new: 256.
+		lineSize := 0.
+		pending := OrderedCollection new.
+		buffer := ByteArray new: 16384].
+	[[(count := socket receiveNowInto: buffer) notNil and: [count > 0]] whileTrue: [
+		[1 to: count do: [:i | self readByte: (buffer at: i)]]
+			ensure: [1 to: count do: [:i | buffer at: i put: 0]]]]
+		on: Error do: [:e | self clearPartialRequest. e pass].
+	^count
 !
-handleLine: aByteArray
-	| bytes request |
-	bytes := (aByteArray notEmpty and: [aByteArray last = 13]) ifTrue: [aByteArray allButLast] ifFalse: [aByteArray].
-	bytes isEmpty ifTrue: [^self].
-	request := self requestFrom: bytes.
+readByte: byte
+	byte = 10 ifTrue: [
+		discarding == true
+			ifTrue: [
+				discarding := false.
+				pending add: (RemoteControl errorResponse: 'bad request: partial line discarded for snapshot' code: 1)]
+			ifFalse: [self enqueueLine].
+		^self].
+	discarding == true ifTrue: [^self].
+	lineSize = line size ifTrue: [
+		| grown |
+		grown := ByteArray new: lineSize * 2.
+		grown replaceFrom: 1 to: lineSize with: line.
+		line atAllPut: 0.
+		line := grown].
+	lineSize := lineSize + 1.
+	line at: lineSize put: byte
+!
+enqueueLine
+	(lineSize = 0 or: [lineSize = 1 and: [line first = 13]]) ifFalse: [
+		[pending add: self decodeRequest] ensure: [self clearLine].
+		^self].
+	self clearLine
+!
+clearLine
+	line isNil ifTrue: [^self].
+	1 to: lineSize do: [:i | line at: i put: 0].
+	lineSize := 0
+!
+clearPartialRequest
+	"Drop an unfinished line before snapshotting; skip its remainder on this connection."
+	(lineSize notNil and: [lineSize > 0]) ifTrue: [
+		discarding := true.
+		self clearLine].
+	buffer ifNotNil: [buffer atAllPut: 0]
+!
+handlePending
+	[handler isNil and: [pending notNil and: [pending notEmpty]]] whileTrue: [self handleRequest: pending removeFirst]
+!
+handleRequest: request
 	request isDictionary ifTrue: [^self respond: request to: nil].
 	(server notNil and: [server host notNil and: [(self class transientCommands includes: request command) not]])
 		ifTrue: [^self beginInline: request].
@@ -79,20 +115,25 @@ respond: aDictionary to: aRequestOrNil
 	socket sendAll: ((JSON render: aDictionary), (String with: Character lf)) utf8Encoded.
 	(aRequestOrNil notNil and: [aRequestOrNil afterResponse notNil]) ifTrue: [aRequestOrNil afterResponse value]
 !
-requestFrom: aByteArray
-	"Answer a RemoteRequest, or an error response Dictionary for a malformed line."
-	| json |
-	json := [JSON parse: (String fromUTF8: aByteArray)] on: Error do: [:e |
-		^RemoteControl errorResponse: 'bad request: ', e messageText code: 1].
-	json isDictionary ifFalse: [^RemoteControl errorResponse: 'bad request: not a JSON object' code: 1].
-	^RemoteRequest on: json connection: self
+decodeRequest
+	"Answer an authenticated RemoteRequest, or an error response Dictionary."
+	| decoded request |
+	decoded := [JSONReader new parseControlBytes: line length: lineSize authenticating: [:digest |
+		server authenticate: digest]] on: JSONError do: [:e |
+			^RemoteControl errorResponse: 'bad request: invalid JSON object' code: 1].
+	request := RemoteRequest on: decoded first connection: self.
+	decoded second ifFalse: [
+		^RemoteControl finish: (RemoteControl errorResponse: 'control authentication failed' code: 4) request: request].
+	^request
 !
 close
+	self clearPartialRequest.
 	socket close.
 	server isNil ifFalse: [server removeConnection: self]
 !
 abandon
 	"My socket died with the VM that saved the image: forget it and end my request's Process."
+	self clearPartialRequest.
 	socket forget.
 	server isNil ifFalse: [server removeConnection: self].
 	((handler isKindOf: Process) and: [handler isActiveProcess not]) ifTrue: [handler terminate]

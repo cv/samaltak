@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // samaltak-ctl: drive a running Samaltak image through its control service (ControlServer, JSON lines over
-// TCP on 127.0.0.1). See README.md. Node >= 18, no dependencies.
+// TCP; every request carries the session's token). See README.md. Node >= 18, no dependencies.
 'use strict';
 
 const { spawn } = require('child_process');
+const { randomBytes } = require('crypto');
 const net = require('net');
 const path = require('path');
 const fs = require('fs');
@@ -13,6 +14,7 @@ const ROOT = path.resolve(__dirname, '..');
 const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
   open [--headless] [--hidden] [--work-clock] [--image path] [--port n] [--window-size WxH] [--source-dir d]   start an image with --control (--work-clock: on the recording clock from the start)
   open --uefi [--headless] [--port n] [--window-size WxH]   the VM on UEFI in QEMU (make uefi-control), its control port forwarded to n
+  connect [--host h] --port n --token-file f   join an existing image (f: - for stdin; default host: 127.0.0.1; use a trusted network or SSH tunnel)
   snapshot [ref] [--depth n] [--bounds]    widget tree with stable @refs
   find <text>                              refs whose label/ref contains text
   click <ref|x,y> [--right] [--mods Shift+Meta]
@@ -32,10 +34,10 @@ const USAGE = `usage: samaltak-ctl [--session name] <command> [args]
   record start <out.mp4> [--size WxH] [--fps n] [--raw]   record the screen with ffmpeg (raw RGBA through a FIFO; --raw: <out> gets the RGBA frames, no ffmpeg)
   record stop
   state
-  close
+  close [--quit]                           close a local image, or disconnect from a remote one (quit it only with --quit)
 session: --session, $SAMALTAK_SESSION, default "samaltak"
 input commands wait until the image settles (at most 2 s); --settle ms changes that (0: return at once)
-exit codes: 1 error, 2 not found or timed out, 3 Smalltalk error`;
+exit codes: 1 error, 2 not found or timed out, 3 Smalltalk error, 4 unauthorized`;
 
 let argv = process.argv.slice(2);
 let session = process.env.SAMALTAK_SESSION || 'samaltak';
@@ -44,84 +46,171 @@ const pos = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--session') session = argv[++i];
-  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at)$/.test(a)) flags[a.slice(2)] = argv[++i];
-  else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi)$/.test(a)) flags[a.slice(2)] = true;
+  else if (/^--(depth|mods|timeout|image|port|scale|size|fps|window-size|settle|delay|source-dir|at|host|token-file)$/.test(a)) flags[a.slice(2)] = argv[++i];
+  else if (/^--(headless|hidden|work-clock|raw|headed|bounds|right|end|start|replace|json|pointer|preedit|uefi|quit)$/.test(a)) flags[a.slice(2)] = true;
   else if (a === '-h' || a === '--help') { console.log(USAGE); process.exit(0); }
   else pos.push(a);
 }
 const [cmd, ...args] = pos;
 
-const DIR = path.join(process.env.TMPDIR || os.tmpdir(), 'samaltak-ctl');
-const SESSION_FILE = path.join(DIR, `${session}.json`);
+let DIR, SESSION_FILE;
+const uid = process.geteuid?.();
 
-function die(msg, code = 1) { process.stderr.write(`samaltak-ctl: ${msg}\n`); process.exit(code); }
+function die(msg, code = 1) { throw Object.assign(new Error(msg), { exitCode: code }); }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 // Commands that wait on the image's clock: real time is not theirs to bound (the machine may be loaded).
 const HOUR = 3600000;
-const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+const validPid = pid => Number.isSafeInteger(pid) && pid > 0;
+const alive = pid => {
+  if (!Number.isSafeInteger(pid) || pid === 0) return false;
+  try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
+};
+const managedAlive = s => validPid(s.pid) && (alive(s.pid) || (s.group && alive(-s.pid)));
 
-function readSession() {
-  try { return JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8')); } catch (_) { return null; }
+function ensureSessionDir() {
+  if (DIR) return;
+  if (!session || /[^A-Za-z0-9_.-]/.test(session)) die('invalid session name (use letters, digits, _, . or -)');
+  const parent = fs.realpathSync(process.env.TMPDIR || os.tmpdir());
+  if (uid !== undefined) {
+    // A private directory isn't enough if another user can replace it or an ancestor.
+    for (let p = parent; ; p = path.dirname(p)) {
+      const st = fs.statSync(p);
+      if (!st.isDirectory() || (st.uid !== uid && st.uid !== 0) || ((st.mode & 0o022) && !(st.mode & 0o1000))) {
+        die('unsafe TMPDIR; use a trusted temporary directory');
+      }
+      if (p === path.dirname(p)) break;
+    }
+  }
+  const dir = path.join(parent, 'samaltak-ctl');
+  try { fs.mkdirSync(dir, { mode: 0o700 }); }
+  catch (e) { if (e.code !== 'EEXIST') throw e; }
+  const checkDir = st => {
+    if (!st.isDirectory() || (uid !== undefined && (st.uid !== uid || (st.mode & 0o022)))) {
+      die('unsafe session directory; use an owned directory that is not writable by group or others');
+    }
+  };
+  checkDir(fs.lstatSync(dir));
+  if (uid !== undefined) {
+    const fd = fs.openSync(dir, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
+    try {
+      const st = fs.fstatSync(fd);
+      checkDir(st);
+      // Migrate an owned 0755 directory before storing any secrets; never chmod through a symlink.
+      if ((st.mode & 0o7777) !== 0o700) fs.fchmodSync(fd, 0o700);
+    } finally { fs.closeSync(fd); }
+  }
+  DIR = dir;
+  SESSION_FILE = path.join(DIR, `${session}.json`);
 }
 
-// Send one request, answer the parsed response.
-function request(port, req, timeout = 60000) {
+function readSession() {
+  ensureSessionDir();
+  let st;
+  try { st = fs.lstatSync(SESSION_FILE); }
+  catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+  if (!st.isFile() || (uid !== undefined && (st.uid !== uid || (st.mode & 0o022)))) die('unsafe session file');
+  let s;
+  try { s = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8')); }
+  catch (_) { die('cannot read session file'); }
+  if (!s || typeof s !== 'object' || Array.isArray(s)) die('invalid session file');
+  if (s.token && uid !== undefined && (st.mode & 0o077)) die('session token file is not private; rotate the token');
+  return s;
+}
+
+// Serialize mutations so connect cannot replace a managed session while open is starting it.
+async function withSessionLock(action) {
+  ensureSessionDir();
+  const lock = path.join(DIR, `${session}.lock`);
+  try { fs.mkdirSync(lock, { mode: 0o700 }); }
+  catch (e) { if (e.code === 'EEXIST') die(`session ${session} is busy; try again or use another session name`); throw e; }
+  try { return await action(); }
+  finally { fs.rmdirSync(lock); }
+}
+
+function writeSession(s) {
+  const tmp = `${SESSION_FILE}.${randomBytes(8).toString('hex')}.tmp`;
+  const fd = fs.openSync(tmp, 'wx', 0o600);
+  try {
+    try { fs.writeFileSync(fd, JSON.stringify(s, null, 2)); }
+    finally { fs.closeSync(fd); }
+    fs.renameSync(tmp, SESSION_FILE);
+  } finally { fs.rmSync(tmp, { force: true }); }
+}
+
+const newToken = () => randomBytes(16).toString('hex');
+const isToken = t => typeof t === 'string' && t.length === 32 && !/[^0-9a-f]/.test(t);
+function readToken(file) {
+  let token;
+  try { token = fs.readFileSync(file === '-' ? 0 : file, 'utf8').trim().toLowerCase(); }
+  catch (_) { die('connect: cannot read token file'); }
+  if (/^(?:[0-9a-f]{8}-){3}[0-9a-f]{8}$/.test(token)) token = token.replace(/-/g, '');
+  if (!isToken(token)) die('connect: expected 32 hex digits, optionally in four groups of eight separated by hyphens');
+  return token;
+}
+
+// Don't display credentials even if a peer echoes one in an unexpected response.
+let secretPattern;
+const redact = text => secretPattern ? text.replace(secretPattern, '[redacted]') : text;
+const output = text => console.log(redact(text));
+
+const UNAUTHORIZED = 'unauthorized: missing or wrong control token';
+function request(s, req, timeout = 60000) {
+  if (!isToken(s.token)) die(`${UNAUTHORIZED}; reopen or connect --token-file`, 4);
+  secretPattern = new RegExp(s.token.match(/.{8}/g).join('-?'), 'gi');
   return new Promise((resolve, reject) => {
-    const sock = net.createConnection({ host: '127.0.0.1', port });
+    const sock = net.createConnection({ host: s.host || '127.0.0.1', port: s.port });
     let buf = '';
     const timer = setTimeout(() => { sock.destroy(); reject(new Error(`no answer from the image within ${timeout} ms`)); }, timeout);
     sock.setEncoding('utf8');
-    sock.on('connect', () => sock.write(JSON.stringify({ id: 1, ...req }) + '\n'));
+    sock.on('connect', () => sock.write(JSON.stringify({ id: 1, ...req, auth: s.token }) + '\n'));
     sock.on('data', d => {
       buf += d;
       const nl = buf.indexOf('\n');
       if (nl < 0) return;
       clearTimeout(timer);
-      sock.end();
-      try { resolve(JSON.parse(buf.slice(0, nl))); } catch (e) { reject(new Error(`bad response: ${buf.slice(0, 200)}`)); }
+      sock.destroy();
+      try {
+        const r = JSON.parse(buf.slice(0, nl));
+        if (typeof r?.ok !== 'boolean') throw new Error();
+        delete r.auth;
+        resolve(r);
+      } catch (_) { reject(Object.assign(new Error('invalid control response'), { badResponse: true })); }
     });
     sock.on('error', e => { clearTimeout(timer); reject(e); });
     sock.on('close', () => { clearTimeout(timer); if (buf.indexOf('\n') < 0) reject(new Error('connection closed by the image')); });
   });
 }
 
-// Like call, but answers a failure ({ok: false, error}) instead of exiting.
-async function attempt(req, timeout) {
-  const s = readSession();
+// Rebuild & reboot execs the VM with the same pid, port and token file.
+async function attempt(s, req, timeout) {
   for (const t0 = Date.now(); ;) {
-    try { return await request(s.port, req, timeout); }
+    try { return await request(s, req, timeout); }
     catch (e) {
-      if (e.code === 'ECONNREFUSED' && alive(s.pid) && Date.now() - t0 < 60000) { await sleep(100); continue; }
-      return { ok: false, error: e.message };
+      if (e.code === 'ECONNREFUSED' && !s.remote && managedAlive(s) && Date.now() - t0 < 60000) { await sleep(100); continue; }
+      if (e.code === 'ECONNREFUSED' || e.code === 'ECONNRESET') return { ok: false, error: `no Samaltak in session ${session}` };
+      return { ok: false, error: e.message, code: e.exitCode };
     }
   }
 }
 
-async function call(req, timeout) {
-  const s = readSession();
-  if (!s) die(`no Samaltak in session ${session} (run: samaltak-ctl open)`);
+function commandError(r) {
+  if (r.code === 4) die(UNAUTHORIZED, 4);
+  if (r.code === 3) { delete r.id; output(JSON.stringify(r)); die('', 3); }
+  die(r.error || JSON.stringify(r), r.code === 2 ? 2 : 1);
+}
+
+async function call(req, timeout, s = readSession()) {
+  if (!s) die(`no Samaltak in session ${session} (run: samaltak-ctl open or connect)`);
   if (flags.settle != null && /^(click|hover|type|key|drag|select|scroll|resize)$/.test(req.cmd)) req = { ...req, settle: +flags.settle };
-  let r;
-  for (const t0 = Date.now(); ;) {
-    try { r = await request(s.port, req, timeout); break; }
-    catch (e) {
-      // Rebuild & reboot: the VM exec'd a new one (same pid), which listens on the same port within seconds.
-      if (e.code === 'ECONNREFUSED' && alive(s.pid) && Date.now() - t0 < 60000) { await sleep(100); continue; }
-      if (e.code === 'ECONNREFUSED' || e.code === 'ECONNRESET') die(`no Samaltak in session ${session} (run: samaltak-ctl open)`);
-      die(e.message);
-    }
-  }
-  if (!r.ok) {
-    if (r.code === 3) { delete r.id; console.log(JSON.stringify(r)); process.exit(3); }
-    die(r.error || JSON.stringify(r), r.code === 2 ? 2 : 1);
-  }
+  const r = await attempt(s, req, timeout);
+  if (!r.ok) commandError(r);
   delete r.ok; delete r.id;
   return r;
 }
 
 function print(v) {
-  if (typeof v === 'string') console.log(v);
-  else if (v !== undefined && v !== null) console.log(JSON.stringify(v, null, flags.json || cmd === 'state' ? 2 : 0));
+  if (typeof v === 'string') output(v);
+  else if (v !== undefined && v !== null) output(JSON.stringify(v, null, flags.json || cmd === 'state' ? 2 : 0));
 }
 const target = s => {
   if (s == null) die('missing ref');
@@ -130,76 +219,138 @@ const target = s => {
 };
 const need = (n, what) => { if (args.length < n) die(`${cmd}: ${what}\n${USAGE}`); };
 
+function checkPing(r) {
+  if (r.code === 4) die(UNAUTHORIZED, 4);
+  if (!r.ok || r.controlAuth !== 1) die('control service does not advertise authenticated protocol (controlAuth: 1); update the image');
+}
+
+const validPort = p => Number.isInteger(p) && p > 0 && p <= 65535;
+const sessionPath = ext => path.join(DIR, `${session}.${ext}`);
+
+function openPrivateLog(file) {
+  fs.rmSync(file, { force: true });
+  return fs.openSync(file, 'wx', 0o600);
+}
+
 async function open() {
   const old = readSession();
-  if (old && alive(old.pid)) {
-    try { await request(old.port, { cmd: 'ping' }, 2000); console.log(`already open (session ${session}, pid ${old.pid}, port ${old.port})`); return; }
-    catch (_) { /* stale: start a new one */ }
+  if (old && (old.remote || managedAlive(old))) {
+    if (!isToken(old.token)) die(`session ${session} is already in use without authentication; close it first`);
+    let r;
+    try { r = await request(old, { cmd: 'ping' }, 2000); }
+    catch (_) { die(`session ${session} is already in use but not responding; close it or use another name`); }
+    checkPing(r);
+    output(old.remote ? `already connected (session ${session}, ${old.host}:${old.port})`
+      : `already open (session ${session}, pid ${old.pid}, port ${old.port})`);
+    return;
   }
-  fs.mkdirSync(DIR, { recursive: true });
+  if (alive(old?.recording?.pid)) die('stop the session recording before reopening');
   if (flags.uefi) return openUefi();
   const vm = path.join(ROOT, 'vm/build/samaltak');
   const image = path.resolve(flags.image || path.join(ROOT, 'build/samaltak.image'));
   if (!fs.existsSync(vm)) die(`no VM at ${vm} (run: make vm)`);
   if (!fs.existsSync(image)) die(`no image at ${image} (run: make image)`);
-  const portFile = path.join(DIR, `${session}.port`);
-  const logFile = path.join(DIR, `${session}.log`);
-  fs.rmSync(portFile, { force: true });
+
+  const portFile = sessionPath('port');
+  const tokenFile = sessionPath('token');
   const port = flags.port || process.env.SAMALTAK_CONTROL_PORT || '0';
-  const vmArgs = [image, '--control', '--control-port', String(port), '--control-port-file', portFile];
+  const vmArgs = [image, '--control', '--control-port', String(port), '--control-port-file', portFile, '--control-token-file', tokenFile];
   if (flags.headless) vmArgs.push('--headless');
   if (flags.hidden) vmArgs.push('--hidden');
   if (flags['work-clock']) vmArgs.push('--work-clock');
   if (flags['window-size']) vmArgs.push('--window-size', flags['window-size']);
   if (flags['source-dir']) vmArgs.push('--source-dir', path.resolve(flags['source-dir']));
-  const log = fs.openSync(logFile, 'w');
-  const child = spawn(vm, vmArgs, { cwd: ROOT, detached: true, stdio: ['ignore', log, log] });
-  child.unref();
-  let exited = null;
-  child.on('exit', (code, sig) => { exited = sig || code; });
-  const t0 = Date.now();
-  for (;;) {
-    let p = NaN;
-    try { p = parseInt(fs.readFileSync(portFile, 'utf8'), 10); } catch (_) { /* not yet */ }
-    if (p > 0) {
-      fs.writeFileSync(SESSION_FILE, JSON.stringify({ pid: child.pid, port: p, image, log: logFile, started: new Date().toISOString() }, null, 2));
-      // On the work clock nothing runs between commands: this command lets the image start.
-      if (flags['work-clock']) await call({ cmd: 'wait', idle: true, eval: 'World current notNil', timeout: 120000 }, HOUR);
-      console.log(`opened ${image} (session ${session}, pid ${child.pid}, port ${p})`);
-      return;
-    }
-    if (exited !== null) die(`the image exited (${exited}) before listening; log ${logFile}:\n${fs.readFileSync(logFile, 'utf8').slice(-2000)}`);
-    if (Date.now() - t0 > 30000) { try { process.kill(child.pid); } catch (_) {} die(`the image did not start listening within 30 s; log ${logFile}`); }
-    await sleep(50);
+
+  const token = newToken();
+  // The VM execs with the same arguments on reboot, so keep this file until close.
+  for (const file of [portFile, portFile + '.tmp', tokenFile]) fs.rmSync(file, { force: true });
+  fs.writeFileSync(tokenFile, token + '\n', { flag: 'wx', mode: 0o600 });
+  try {
+    await startImage(vm, vmArgs, { token, tokenFile, image }, {
+      timeout: 30000,
+      getPort: () => {
+        try { return Number(fs.readFileSync(portFile, 'utf8').trim()); }
+        catch (e) { if (e.code === 'ENOENT') return 0; throw e; }
+      }
+    });
+  } catch (e) {
+    fs.rmSync(tokenFile, { force: true });
+    throw e;
   }
 }
 
-// The VM on UEFI: make uefi-control boots it in QEMU (building it first if needed), its control service on 0.0.0.0 in
-// the guest, forwarded from the host's 127.0.0.1:port. The session's pid is make's, the leader of the process group.
+// QEMU forwards the guest's control port from the host's loopback; make leads the process group.
 async function openUefi() {
-  const logFile = path.join(DIR, `${session}.log`);
-  const port = flags.port || process.env.SAMALTAK_CONTROL_PORT || await freePort();
+  const port = Number(flags.port || process.env.SAMALTAK_CONTROL_PORT || await freePort());
+  if (!validPort(port)) die('open --uefi: --port must be between 1 and 65535');
   const vmArgs = [];
   if (flags.headless) vmArgs.push('--headless');
   if (flags['window-size']) vmArgs.push('--window-size', flags['window-size']);
-  const log = fs.openSync(logFile, 'w');
-  const child = spawn('make', ['-s', 'uefi-control', `UEFI_CONTROL_PORT=${port}`, `UEFI_CONTROL_ARGS=${vmArgs.join(' ')}`],
-    { cwd: ROOT, detached: true, stdio: ['ignore', log, log] });
+  const token = newToken();
+  await startImage('make', ['-s', 'uefi-control', `UEFI_CONTROL_PORT=${port}`, `UEFI_CONTROL_ARGS=${vmArgs.join(' ')}`],
+    { token, uefi: true, group: true }, {
+      timeout: 900000,
+      getPort: () => port,
+      env: { ...process.env, UEFI_CONTROL_TOKEN: token }
+    });
+}
+
+async function startImage(program, args, s, { timeout, getPort, env }) {
+  s.log = sessionPath('log');
+  const log = openPrivateLog(s.log);
+  let child;
+  const umask = process.umask(0o077); // Includes the VM's port file and make's UEFI files.
+  try { child = spawn(program, args, { cwd: ROOT, detached: true, stdio: ['ignore', log, log], env }); }
+  finally { process.umask(umask); fs.closeSync(log); }
   child.unref();
-  let exited = null;
-  child.on('exit', (code, sig) => { exited = sig || code; });
-  const t0 = Date.now();
-  for (;;) {
-    try {
-      await request(+port, { cmd: 'ping' }, 2000);
-      fs.writeFileSync(SESSION_FILE, JSON.stringify({ pid: child.pid, group: true, port: +port, uefi: true, log: logFile, started: new Date().toISOString() }, null, 2));
-      console.log(`opened the VM on UEFI (session ${session}, pid ${child.pid}, port ${port})`);
-      return;
-    } catch (_) { /* QEMU forwards the port before the image listens */ }
-    if (exited !== null) die(`make uefi-control exited (${exited}) before the image listened; log ${logFile}:\n${fs.readFileSync(logFile, 'utf8').slice(-2000)}`);
-    if (Date.now() - t0 > 900000) { killGroup(child.pid); die(`the image did not start listening within 15 min; log ${logFile}`); }
-    await sleep(1000);
+  let spawnFailed = false;
+  child.on('error', () => { spawnFailed = true; });
+  s.pid = child.pid;
+  const deadline = Date.now() + timeout;
+  const checkChild = () => {
+    if (spawnFailed || child.exitCode !== null || child.signalCode !== null) {
+      die(`image exited before becoming ready; see ${s.log}`);
+    }
+  };
+  try {
+    for (;;) {
+      checkChild();
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) die(`image did not become ready; see ${s.log}`);
+      s.port = getPort();
+      let r;
+      if (validPort(s.port)) {
+        try { r = await request(s, { cmd: 'ping' }, Math.min(2000, remaining)); }
+        catch (e) { if (e.badResponse) throw e; /* still booting */ }
+      }
+      if (r) { checkPing(r); checkChild(); break; }
+      await sleep(s.uefi ? 1000 : 50);
+    }
+    // On the work clock the ping is only a query. Let the World start, as before.
+    if (!s.uefi && flags['work-clock']) await call({ cmd: 'wait', idle: true, eval: 'World current notNil', timeout: 120000 }, HOUR, s);
+    checkChild();
+    s.started = new Date().toISOString();
+    writeSession(s);
+  } catch (e) {
+    if (validPid(s.pid) && (s.group || child.exitCode === null && child.signalCode === null)) stopManaged(s);
+    throw e;
   }
+  output(`opened ${s.uefi ? 'the VM on UEFI' : s.image} (session ${session}, pid ${s.pid}, port ${s.port})`);
+}
+
+async function connect() {
+  if (!flags.port || !flags['token-file']) die('connect: --port n and --token-file f (use - for stdin)');
+  const port = Number(flags.port);
+  if (!validPort(port)) die('connect: --port must be between 1 and 65535');
+  const old = readSession();
+  if (old && !old.remote) die(`session ${session} is managed by open; close it or use another name`);
+  if (alive(old?.recording?.pid)) die('stop the session recording before reconnecting');
+  const s = { host: flags.host || '127.0.0.1', port, token: readToken(flags['token-file']), remote: true };
+  const r = await request(s, { cmd: 'ping' }, 10000);
+  checkPing(r);
+  const image = typeof r.image === 'string' ? redact(r.image) : undefined;
+  writeSession({ ...s, image, started: new Date().toISOString() });
+  output(`connected to ${s.host}:${s.port} (session ${session})`);
 }
 
 function freePort() {
@@ -210,17 +361,33 @@ function freePort() {
   });
 }
 
-function killGroup(pid) { try { process.kill(-pid, 'SIGKILL'); } catch (_) { try { process.kill(pid, 'SIGKILL'); } catch (_) {} } }
+function stopManaged(s) {
+  if (!validPid(s.pid)) return;
+  if (s.group) { try { process.kill(-s.pid, 'SIGKILL'); return; } catch (_) {} }
+  try { process.kill(s.pid, 'SIGKILL'); } catch (_) {}
+}
 
 async function close() {
   const s = readSession();
   if (!s) die(`no Samaltak in session ${session}`);
-  try { await request(s.port, { cmd: 'quit' }, 5000); } catch (_) { /* already gone, or hung: killed below */ }
-  const t0 = Date.now();
-  while (alive(s.pid) && Date.now() - t0 < 5000) await sleep(50);
-  if (alive(s.pid)) { if (s.group) killGroup(s.pid); else { try { process.kill(s.pid, 'SIGKILL'); } catch (_) {} } }
+  if (s.remote) {
+    if (alive(s.recording?.pid)) die('stop the session recording before disconnecting');
+    if (flags.quit) {
+      const r = await request(s, { cmd: 'quit' }, 5000);
+      if (!r.ok) commandError(r);
+    }
+  } else {
+    // Legacy managed entries can be cleaned up locally, but don't send unauthenticated commands.
+    if (isToken(s.token)) {
+      try { await request(s, { cmd: 'quit' }, 5000); } catch (_) { /* already gone, or hung */ }
+    }
+    const t0 = Date.now();
+    while (managedAlive(s) && Date.now() - t0 < 5000) await sleep(50);
+    if (managedAlive(s)) stopManaged(s);
+    fs.rmSync(sessionPath('token'), { force: true });
+  }
   fs.rmSync(SESSION_FILE, { force: true });
-  console.log(`closed session ${session}`);
+  output(s.remote ? `${flags.quit ? 'quit and ' : ''}disconnected session ${session}` : `closed session ${session}`);
 }
 
 // record start <out> spawns ffmpeg reading raw RGBA frames from a FIFO the image writes; record stop ends both.
@@ -233,10 +400,11 @@ async function record() {
     // likewise after Rebuild & reboot, when the new VM does not know the recording the old one ended.
     let r = { frames: '?' };
     const rec = s.recording;
-    if (alive(s.pid)) {
-      const q = await attempt({ cmd: 'record', action: 'stop' });
+    if (s.remote || managedAlive(s)) {
+      const q = await attempt(s, { cmd: 'record', action: 'stop' });
       if (q.ok) r = q;
-      else if (!rec) die(q.error);
+      else if (!rec) commandError(q);
+      else if (q.code === 4) die(UNAUTHORIZED, 4);
     }
     if (rec) {
       const t0 = Date.now();
@@ -244,8 +412,8 @@ async function record() {
       if (alive(rec.pid)) { try { process.kill(rec.pid, 'SIGKILL'); } catch (_) {} }
       fs.rmSync(rec.fifo, { force: true });
       delete s.recording;
-      fs.writeFileSync(SESSION_FILE, JSON.stringify(s, null, 2));
-      console.log(`${rec.out} (${r.frames} frames)`);
+      writeSession(s);
+      output(`${rec.out} (${r.frames} frames)`);
     } else print(r);
     return;
   }
@@ -264,19 +432,20 @@ async function record() {
   }
   const fps = +(flags.fps || 30);
   if (flags.raw) {
-    const r = await attempt({ cmd: 'record', action: 'start', path: out, w, h, fps });
-    if (!r.ok) die(r.error || JSON.stringify(r));
-    console.log(`recording raw RGBA ${w}x${h} at ${r.fps} fps to ${out} (samaltak-ctl record stop)`);
+    const r = await attempt(s, { cmd: 'record', action: 'start', path: out, w, h, fps });
+    if (!r.ok) commandError(r);
+    output(`recording raw RGBA ${w}x${h} at ${r.fps} fps to ${out} (samaltak-ctl record stop)`);
     return;
   }
   const fifo = path.join(DIR, `${session}.fifo`);
   fs.rmSync(fifo, { force: true });
-  require('child_process').execFileSync('mkfifo', [fifo]);
+  require('child_process').execFileSync('mkfifo', ['-m', '600', fifo]);
   fs.mkdirSync(path.dirname(out), { recursive: true });
-  const log = fs.openSync(path.join(DIR, `${session}.ffmpeg.log`), 'w');
+  const log = openPrivateLog(sessionPath('ffmpeg.log'));
   const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${w}x${h}`, '-r', String(fps),
     '-i', fifo, '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', out],
     { detached: true, stdio: ['ignore', log, log] });
+  fs.closeSync(log);
   ff.unref();
   let exited = null;
   ff.on('exit', c => { exited = c; });
@@ -284,23 +453,24 @@ async function record() {
   await sleep(300);
   if (exited !== null) { fs.rmSync(fifo, { force: true }); die(`ffmpeg failed to start (${exited}); see ${path.join(DIR, session + '.ffmpeg.log')}`); }
   s.recording = { pid: ff.pid, out, fifo };
-  fs.writeFileSync(SESSION_FILE, JSON.stringify(s, null, 2));
-  const r = await attempt({ cmd: 'record', action: 'start', path: fifo, w, h, fps });
+  writeSession(s);
+  const r = await attempt(s, { cmd: 'record', action: 'start', path: fifo, w, h, fps });
   if (!r.ok) {
     // the image did not start recording: no ffmpeg waiting for frames, no recording in the session
     try { process.kill(ff.pid, 'SIGKILL'); } catch (_) {}
     fs.rmSync(fifo, { force: true });
     delete s.recording;
-    fs.writeFileSync(SESSION_FILE, JSON.stringify(s, null, 2));
-    die(r.error || JSON.stringify(r));
+    writeSession(s);
+    commandError(r);
   }
-  console.log(`recording ${w}x${h} at ${r.fps} fps to ${out} (samaltak-ctl record stop)`);
+  output(`recording ${w}x${h} at ${r.fps} fps to ${out} (samaltak-ctl record stop)`);
 }
 
 async function main() {
   switch (cmd) {
-    case 'open': return open();
-    case 'close': return close();
+    case 'open': return withSessionLock(open);
+    case 'close': return withSessionLock(close);
+    case 'connect': return withSessionLock(connect);
     case 'snapshot': {
       const o = { cmd: 'snapshot' };
       if (args[0]) o.ref = args[0];
@@ -313,7 +483,7 @@ async function main() {
       need(1, 'find <text>');
       const r = await call({ cmd: 'find', text: args.join(' ') });
       if (!r.matches.length) die(`nothing matches ${JSON.stringify(args.join(' '))}`, 2);
-      for (const n of r.matches) console.log(`${n.role} ${n.ref} ${JSON.stringify(n.label)}`);
+      for (const n of r.matches) output(`${n.role} ${n.ref} ${JSON.stringify(n.label)}`);
       return;
     }
     case 'click': need(1, 'click <ref|x,y>'); return print(await call({ cmd: 'click', target: target(args[0]), button: flags.right ? 'right' : 'left', mods: flags.mods }));
@@ -370,16 +540,20 @@ async function main() {
       if (args.length > 1) o.target = args[0];
       if (flags.scale) o.scale = +flags.scale;
       if (flags.pointer) o.pointer = true;
-      // An image on UEFI cannot write this machine's files: it answers the PNG.
-      if (readSession()?.uefi) o.inline = true;
-      const r = await call(o);
+      // UEFI and remote images send the PNG back instead of writing it on this machine.
+      const s = readSession();
+      if (s?.uefi || s?.remote) o.inline = true;
+      const r = await call(o, undefined, s);
       if (r.png) fs.writeFileSync(file, Buffer.from(r.png, 'base64'));
       return print(file);
     }
-    case 'record': return record();
-    case undefined: console.log(USAGE); process.exit(1); break;
+    case 'record': return withSessionLock(record);
+    case undefined: output(USAGE); process.exit(1); break;
     default: die(`unknown command ${JSON.stringify(cmd)}\n${USAGE}`);
   }
 }
 
-main().catch(e => die(e && e.message || String(e)));
+main().catch(e => {
+  if (e.message || !e.exitCode) process.stderr.write(`samaltak-ctl: ${redact(e.message || String(e))}\n`);
+  process.exitCode = e.exitCode || 1;
+});

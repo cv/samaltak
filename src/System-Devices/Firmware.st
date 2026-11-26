@@ -26,6 +26,24 @@ conOut
 	^Machine uint64At: systemTable + 64
 ! !
 
+!Firmware methodsFor: 'console'!
+mirrorConsoleLine: asciiLine
+	"Mirror an ASCII line ending in LF to text output when VM stdio uses serial."
+	| output address |
+	output := self conOut.
+	(output = 0 or: [(self locateProtocol: 'bb25cf6f-f1d4-11d2-9a0c-0090273fc1fd') isNil]) ifTrue: [^self].
+	address := Machine allocate: (asciiLine size + 2) * 2.
+	[1 to: asciiLine size - 1 do: [:i |
+		Machine uint16At: address + ((i - 1) * 2) put: (asciiLine at: i) value].
+	 Machine uint16At: address + ((asciiLine size - 1) * 2) put: 13.
+	 Machine uint16At: address + (asciiLine size * 2) put: 10.
+	 Machine uint16At: address + ((asciiLine size + 1) * 2) put: 0.
+	 Machine call: (self function: output at: 8) with: output with: address]
+		ensure: [
+			0 to: asciiLine size + 1 do: [:i | Machine uint16At: address + (i * 2) put: 0].
+			Machine free: address]
+! !
+
 !Firmware methodsFor: 'calling'!
 isError: status
 	^status >= 16r8000000000000000
@@ -91,6 +109,22 @@ handlesSupporting: aGuidString
 !
 freePool: anAddress
 	self boot: 72 with: anAddress
+! !
+
+!Firmware methodsFor: 'entropy'!
+readRandomInto: bytes
+	"EFI_RNG_PROTOCOL.GetRNG (UEFI 2.10, 37.5), default algorithm."
+	| rng address |
+	rng := self locateProtocol: '3152bca5-eade-433d-862e-c01cdc291f44'.
+	rng isNil ifTrue: [^false].
+	address := Machine allocate: bytes size.
+	^[(Machine call: (self function: rng at: 8) with: rng with: 0 with: bytes size with: address) = 0
+		ifFalse: [false]
+		ifTrue: [
+			1 to: bytes size do: [:i | bytes at: i put: (Machine uint8At: address + i - 1)].
+			true]] ensure: [
+				0 to: bytes size - 1 do: [:i | Machine uint8At: address + i put: 0].
+				Machine free: address]
 ! !
 
 !Firmware methodsFor: 'drivers'!
