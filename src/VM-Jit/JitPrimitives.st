@@ -174,3 +174,17 @@ listingOf: h mode: md
 	memory popRoot.
 	^r value
 ! !
+
+!JitPrimitives methodsFor: 'worker testing'!
+primJitWorkerTest
+	"Allocation-free test controls on a CompiledMethod, enabled only by SAMALTAK_OPT_BG_TEST."
+	<vmPrimitive: 183 name: 'jitWorkerTest'>
+	<notTryable>
+	| m cmd |
+	m := self receiver.
+	((self isPtr: m) and: [(self rawClass: m) = (memory special: SO_COMPILEDMETHOD)]) ifFalse: [^self fail].
+	(self isInt: self arg0) ifFalse: [^self fail].
+	cmd := self intVal: self arg0.
+	(cmd < 0 or: [cmd > 5]) ifTrue: [^self fail].
+	self answer: (self intOop: (jit bgTest: cmd asInt32 method: m))
+! !

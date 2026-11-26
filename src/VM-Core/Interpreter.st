@@ -168,6 +168,7 @@ beforeGC
 	"Frames hold raw pointers into their methods' bytecodes and literals: offsets while objects move."
 	<function>
 	| f |
+	jit beforeCollection.
 	0 to: nframes - 1 do: [:i |
 		f := frames + i.
 		(jit isOptFrame: f) ifFalse: [f pc: (f ip - (self methodBcs: f method)) asInt32]]

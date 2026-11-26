@@ -223,6 +223,7 @@ void prim_jit_code(void)
         prim_status = PS_OK;
     }
     if (scratch) {
+        bg_invalidate();
         forget_slots_from(top);
         cache_top = top;
     }
@@ -683,6 +684,40 @@ void prim_jit_send_sites(void)
     pop_root();
     v_9 = *r;
     prim_result = v_9;
+    prim_status = PS_OK;
+}
+
+/* JitPrimitives>>primJitWorkerTest */
+void prim_jit_worker_test(void)
+{
+    oop m;
+    oop o;
+    oop o_2;
+    int64_t cmd;
+    int v;
+    uint64_t v_2;
+    m = prim_base[0];
+    if (!(((m & 7) == 0) && (*(uint64_t *)(m + 8) == object_memory_special(SO_COMPILEDMETHOD)))) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o = prim_nargs > 0 ? prim_base[1] : nil_oop;
+    if (!((o & 1) != 0)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    o_2 = prim_nargs > 0 ? prim_base[1] : nil_oop;
+    cmd = ((int64_t)o_2) >> 1;
+    if ((cmd < 0) || (cmd > 5)) {
+        prim_status = PS_FAIL;
+        prim_error_code = -1;
+        return;
+    }
+    v = jit_runtime_bg_test((int32_t)cmd, m);
+    v_2 = (uint64_t)((((int64_t)v) << 1) | 1);
+    prim_result = v_2;
     prim_status = PS_OK;
 }
 

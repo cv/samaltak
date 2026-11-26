@@ -142,6 +142,18 @@ static int32_t feedback_slot_for(uint64_t key)
     return i;
 }
 
+/* OptIR>>hasBoundForeignCall */
+bool has_bound_foreign_call(void)
+{
+    int32_t n;
+    for (n = 0; n <= opt_node_count - 1; n++) {
+        if (((opt_nodes + n)->flags & NF_BOUNDFFI) != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /* OptIR>>insert:before: */
 void insert(int64_t n, int32_t m)
 {
@@ -252,7 +264,7 @@ int32_t new_state(void)
 }
 
 /* OptIR>>passFlagsAt:pc: */
-uint32_t pass_flags_at(int32_t a, int32_t pc)
+uint32_t opt_ir_pass_flags_at(int32_t a, int32_t pc)
 {
     int32_t i;
     i = feedback_slot_for((((uint64_t)a) << 32) | ((uint64_t)(uint32_t)pc));
@@ -367,6 +379,9 @@ void opt_ir_release(void)
     release_pages(opt_blocks, sizeof(opt_block) * OPT_MAX_BLOCKS);
     release_pages(opt_edges, sizeof(opt_edge) * OPT_MAX_EDGES);
     release_pages(opt_operands, 524288);
+    if (opt_fb_stamp == 0) {
+        return;
+    }
     release_pages(opt_const_classes, 131072);
     release_pages(opt_fb_keys, 524288);
     release_pages(opt_fb_vals, 262144);

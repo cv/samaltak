@@ -24,6 +24,12 @@ initialize
 ! !
 
 !OptIR methodsFor: 'snapshotting'!
+hasBoundForeignCall
+	<function>
+	0 to: optNodeCount - 1 do: [:n |
+		(((optNodes + n) flags bitAnd: NF_BOUNDFFI) ~= 0) ifTrue: [^true]].
+	^false
+!
 snapshotPassInputsUnbox: unbox
 	"After a successful build, on the VM thread. Passes copy origins from existing nodes and states, so feedback is keyed by origin rather than by mutable IR position."
 	<function>
@@ -553,6 +559,7 @@ release
 	gc releasePages: optBlocks size: (self sizeof: 'OptBlock') * OPT_MAX_BLOCKS.
 	gc releasePages: optEdges size: (self sizeof: 'OptEdge') * OPT_MAX_EDGES.
 	gc releasePages: optOperands size: 4 * OPT_MAX_OPERANDS.
+	optFbStamp = 0 ifTrue: [^self].
 	gc releasePages: optConstClasses size: 8 * OPT_MAX_NODES.
 	gc releasePages: optFbKeys size: 8 * OPT_FB_SNAP.
 	gc releasePages: optFbVals size: 4 * OPT_FB_SNAP.

@@ -1,5 +1,5 @@
 OptModule subclass: #OptPasses
-	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxed psTwin psLoopOuter psMemOut psCountedChecks psCountedNodes'
+	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter psMemOut psCountedChecks psCountedNodes snapshotMode'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -9,14 +9,40 @@ OptPasses comment: 'Passes over the IR (OptIR) after it is built: operands resol
 declarations
 	^#((ir OptIR) (psOrder 'int32_t[OPT_MAX_BLOCKS]') (psOrderCount int32_t) (psVisitMark 'uint8_t[OPT_MAX_BLOCKS]') (psWorkList 'int32_t[OPT_MAX_NODES]')
 		(psIdom 'int32_t[OPT_MAX_BLOCKS]') (psPre 'int32_t[OPT_MAX_BLOCKS]') (psPost 'int32_t[OPT_MAX_BLOCKS]') (psChild 'int32_t[OPT_MAX_BLOCKS]') (psSibling 'int32_t[OPT_MAX_BLOCKS]')
-		(psHeads 'int32_t[4096]') (psChain 'int32_t[OPT_MAX_NODES]') (psUnboxed bool)
+		(psHeads 'int32_t[4096]') (psChain 'int32_t[OPT_MAX_NODES]') (psUnboxOff bool) (psUnboxed bool)
 		(psTwin 'int32_t[OPT_MAX_NODES]') (psLoopOuter 'int32_t[OPT_MAX_BLOCKS]') (psMemOut 'int32_t[OPT_MAX_BLOCKS]')
-		(psCountedChecks 'int8_t[OPT_MAX_NODES]') (psCountedNodes int32_t))
+		(psCountedChecks 'int8_t[OPT_MAX_NODES]') (psCountedNodes int32_t) (snapshotMode bool))
 ! !
 
 !OptPasses methodsFor: 'accessing'!
 orderCount
 	^psOrderCount
+!
+unboxOff: aBoolean
+	"Compile without unboxPhis (a compilation it made fail is tried again so)."
+	psUnboxOff := aBoolean
+!
+useSnapshot: aBoolean
+	snapshotMode := aBoolean
+!
+passUnbox
+	^snapshotMode ifTrue: [ir passUnbox] ifFalse: [psUnboxOff not and: [runtime flag: runtime unboxFlag]]
+!
+passGvn
+	^snapshotMode ifTrue: [ir passGvn] ifFalse: [runtime flag: runtime gvnFlag]
+!
+passHoist
+	^snapshotMode ifTrue: [ir passHoist] ifFalse: [runtime flag: runtime hoistFlag]
+!
+passFlagsAt: a pc: pc
+	<function>
+	<returns: 'uint32_t'>
+	^snapshotMode
+		ifTrue: [ir passFlagsAt: a pc: pc]
+		ifFalse: [feedback flagsAt: (ir act: a) method pc: pc]
+!
+smallFloatClass
+	^snapshotMode ifTrue: [ir smallFloatClass] ifFalse: [memory clsSmallfloat]
 !
 unboxed
 	"unboxPhis made a twin in this compilation."
@@ -46,7 +72,7 @@ cleanup: entry
 	self forwardUnboxes.
 	self resolveOperands.
 	psUnboxed := false.
-	ir passUnbox ifTrue: [
+	self passUnbox ifTrue: [
 		self unboxPhis.
 		self dropBoxes.
 		self resolveOperands].
@@ -54,20 +80,20 @@ cleanup: entry
 	self splitCriticalEdges.
 	ir full ifTrue: [^self].
 	self computeOrder: entry.
-	(ir passGvn or: [ir passHoist]) ifTrue: [self dominators: entry].
-	ir passGvn ifTrue: [
+	(self passGvn or: [self passHoist]) ifTrue: [self dominators: entry].
+	self passGvn ifTrue: [
 		self valueNumbers.
 		"a load forwarded to the SmallInteger stored: its guard goes"
 		self dropIntChecks.
 		self resolveOperands].
 	self ranges.
-	ir passHoist ifTrue: [
+	(self passHoist) ifTrue: [
 		self hoistGuards.
 		"what loops' phis replaced, and the guards of SmallIntegers that leaves"
 		self dropIntChecks.
 		self resolveOperands.
 		"what moved before a loop may be what was there (an invariant load and its guard)"
-		ir passGvn ifTrue: [
+		self passGvn ifTrue: [
 			self valueNumbers.
 			self resolveOperands].
 		ir full ifFalse: [self finishCountedChecks]].
@@ -281,12 +307,12 @@ floatGuardOf: v
 	| n g |
 	n := (ir block: ir osrEntry) first.
 	[n >= 0] whileTrue: [
-		((ir node: n) op asInt32 = O_GUARDCLASS and: [(ir node: n) a = v and: [(ir node: n) aux = ir smallFloatClass asInt64]]) ifTrue: [^n].
+		((ir node: n) op asInt32 = O_GUARDCLASS and: [(ir node: n) a = v and: [(ir node: n) aux = self smallFloatClass asInt64]]) ifTrue: [^n].
 		n := (ir node: n) next].
 	g := ir newNode: O_GUARDCLASS rep: R_OOP.
 	ir full ifTrue: [^-1].
 	(ir node: g) a: v.
-	(ir node: g) aux: ir smallFloatClass asInt64.
+	(ir node: g) aux: self smallFloatClass asInt64.
 	(ir node: g) state: ir osrState.
 	(ir node: g) flags: NF_GUARD.
 	(ir node: g) tkind: T_FLOAT.
@@ -549,7 +575,7 @@ sinks: p into: n operand: i
 	st := ir state: nd state.
 	"a block's ^ (inlined in its home method): deoptimized there, the unit would not be optimized again"
 	(op = O_RETURN and: [st parent >= 0]) ifTrue: [^false].
-	((ir passFlagsAt: st act pc: st pc) bitAnd: feedback deoptOther) = 0 ifFalse: [^false].
+	((self passFlagsAt: st act pc: st pc) bitAnd: feedback deoptOther) = 0 ifFalse: [^false].
 	b := (ir node: p) block.
 	h := (ir block: b) loop.
 	(ir node: p) op asInt32 = O_PHI
@@ -847,7 +873,7 @@ mutabilityOutOf: h entry: entry index: index
 	0 to: ir nodeCount - 1 do: [:m |
 		nd := ir node: m.
 		op := nd op asInt32.
-		(((op = O_INDEXSTORE and: [(nd flags bitAnd: NF_MUTABLE) = 0]) or: [op = O_STOREFIELD and: [nd state >= 0]]) and: [nd block >= 0 and: [(self block: nd block isIn: h) and: [((ir passFlagsAt: nd bcact pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0]]]) ifTrue: [
+		(((op = O_INDEXSTORE and: [(nd flags bitAnd: NF_MUTABLE) = 0]) or: [op = O_STOREFIELD and: [nd state >= 0]]) and: [nd block >= 0 and: [(self block: nd block isIn: h) and: [((self passFlagsAt: nd bcact pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0]]]) ifTrue: [
 			x := ir resolve: nd a.
 			((self isBefore: x loop: h) and: [(ir node: x) tkind asInt32 = T_OBJ]) ifTrue: [
 				g := -1.
@@ -900,7 +926,7 @@ headBoundsOutOf: h entry: entry index: index
 		nd := ir node: m.
 		((nd op asInt32 = O_INDEXLOAD or: [nd op asInt32 = O_INDEXSTORE]) and: [nd block >= 0 and: [(nd flags bitAnd: NF_NOBOUNDS) = 0 and: [(self dominates: body block: nd block) and: [self isPhi: phi plusOne: (ir resolve: nd b)]]]]) ifTrue: [
 			x := ir resolve: nd a.
-			((self isBefore: x loop: h) and: [(ir node: x) tkind asInt32 = T_OBJ and: [((ir passFlagsAt: nd bcact pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0]]) ifTrue: [
+			((self isBefore: x loop: h) and: [(ir node: x) tkind asInt32 = T_OBJ and: [((self passFlagsAt: nd bcact pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0]]) ifTrue: [
 				s < 0 ifTrue: [
 					s := self state: hb entryState enteredFrom: index of: h.
 					ir full ifTrue: [^self].
@@ -944,7 +970,7 @@ rangeBoundsOutOf: h entry: entry index: index
 		((nd op asInt32 = O_INDEXLOAD or: [nd op asInt32 = O_INDEXSTORE]) and: [nd block >= 0 and: [(nd flags bitAnd: NF_NOBOUNDS) = 0 and: [self block: nd block isIn: h]]]) ifTrue: [
 			i := ir node: (ir resolve: nd b).
 			x := ir resolve: nd a.
-			(i lo >= 1 and: [i hi < 16r40000000 and: [(self isBefore: x loop: h) and: [(ir node: x) tkind asInt32 = T_OBJ and: [((ir passFlagsAt: nd bcact pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0]]]]) ifTrue: [
+			(i lo >= 1 and: [i hi < 16r40000000 and: [(self isBefore: x loop: h) and: [(ir node: x) tkind asInt32 = T_OBJ and: [((self passFlagsAt: nd bcact pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0]]]]) ifTrue: [
 				s < 0 ifTrue: [
 					s := self state: (ir block: h) entryState enteredFrom: index of: h.
 					ir full ifTrue: [^self]].
@@ -988,7 +1014,7 @@ promoteOuterTempsOf: h entry: entry index: index latch: latch
 			"a field: no store of an outer temp in the loop (a Context's slots are fields)"
 			nd op asInt32 = O_STOREFIELD ifTrue: [
 				0 to: ir nodeCount - 1 do: [:j | ((ir node: j) block >= 0 and: [(ir node: j) op asInt32 = O_OUTERSTORE and: [self block: (ir node: j) block isIn: h]]) ifTrue: [ok := false]]].
-			(ok and: [ld >= 0 and: [((ir passFlagsAt: (ir node: ld) bcact pc: (ir node: ld) bcpc) bitAnd: feedback deoptHoisted) = 0]]) ifTrue: [
+			(ok and: [ld >= 0 and: [((self passFlagsAt: (ir node: ld) bcact pc: (ir node: ld) bcpc) bitAnd: feedback deoptHoisted) = 0]]) ifTrue: [
 				s < 0 ifTrue: [
 					s := self state: (ir block: h) entryState enteredFrom: index of: h.
 					ir full ifTrue: [^self]].
@@ -1139,7 +1165,7 @@ boundsOutOf: h entry: entry index: index
 		nd := ir node: m.
 		((nd op asInt32 = O_INDEXLOAD or: [nd op asInt32 = O_INDEXSTORE]) and: [nd block >= 0 and: [nd fwd < 0 and: [(nd flags bitAnd: NF_NOBOUNDS) = 0 and: [self block: nd block isIn: h]]]]) ifTrue: [
 			x := ir resolve: nd a.
-			((ir node: x) tkind asInt32 = T_OBJ and: [(self countedValue: x atEntry: entry) and: [((ir passFlagsAt: nd bcact pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0]]) ifTrue: [
+			((ir node: x) tkind asInt32 = T_OBJ and: [(self countedValue: x atEntry: entry) and: [((self passFlagsAt: nd bcact pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0]]) ifTrue: [
 				direction := self countedIndex: nd b phi: phi entry: entry asInt32 parts: parts.
 				direction ~= 0 ifTrue: [
 					s < 0 ifTrue: [
@@ -1355,7 +1381,7 @@ isHoistable: n outOf: h
 			b := (ir node: nd a) block.
 			b < 0 ifTrue: [^false].
 			(self dominates: h block: b) ifTrue: [^false]].
-	^((ir passFlagsAt: nd bcact pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0
+	^((self passFlagsAt: nd bcact pc: nd bcpc) bitAnd: feedback deoptHoisted) = 0
 !
 isInvariantFieldLoad: n of: h
 	"n loads a field of an object from before loop h, and no turn of the loop writes that field of an object that may be it (a store into it, unless both classes are known and differ; a send, or a store into an outer temp, may write anything)."
@@ -1386,7 +1412,7 @@ knownClassOf: v
 	<returns: 'oop'>
 	| nd |
 	nd := ir node: v.
-	nd op asInt32 = O_CONST ifTrue: [^ir constantClass: v].
+	nd op asInt32 = O_CONST ifTrue: [^snapshotMode ifTrue: [ir constantClass: v] ifFalse: [self classOf: nd aux asUInt64]].
 	(nd tkind asInt32 = T_OBJ and: [nd tcls ~= 0]) ifTrue: [^nd tcls].
 	^0
 !

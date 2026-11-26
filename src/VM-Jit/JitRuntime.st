@@ -1,6 +1,6 @@
 VMCoreModule subclass: #JitRuntime
 	instanceVariableNames: 'stubs baseline brt cache ffi asm analysis jitMode jitFlags jitThreshold jitOsrThreshold jitCacheMB cacheOpened flushPending releasePending invalidations stateBlock methodTable tableCount methodCounts youngMethods youngCount youngOverflow mapPcs mapOffsets mapCount sendPushed performFn performArgsFn statCompiled statFailed statBytecodes statCompileUs statCodeBytes statCacheFlushes statEntries statExits statResumes statOsr feedback optimizer jitOptThreshold optCounts copying bottomReturned perfMap'
-	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FFI_SITE JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_LIVE JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
+	classVariableNames: 'JIT_BASELINE JIT_FLAG_ACCESS JIT_FLAG_ALLOC JIT_FLAG_ARITH JIT_FLAG_BARRIER JIT_FLAG_BG JIT_FLAG_BLOCKS JIT_FLAG_CALLS JIT_FLAG_DEOPT JIT_FLAG_EAGER JIT_FLAG_FFI_SITE JIT_FLAG_FLOAT JIT_FLAG_FUSE JIT_FLAG_GVN JIT_FLAG_HOIST JIT_FLAG_IC JIT_FLAG_INLINE JIT_FLAG_LAST JIT_FLAG_LIVE JIT_FLAG_MEGA JIT_FLAG_NOTES JIT_FLAG_PIC JIT_FLAG_PRIMS JIT_FLAG_QUICK JIT_FLAG_REGS JIT_FLAG_UNBOX JIT_MAX_COUNT JIT_MAX_MAP JIT_MAX_YOUNG JIT_NONE JIT_OPT JIT_PROLOGUE_BYTES JIT_PROLOGUE_BYTES_X64 JIT_TABLE_SIZE JM_DEAD JM_ENTRY JM_FAILED JM_NOTES JM_OSR'
 	package: 'VM-Jit'!
 
 JitRuntime comment: 'The runtime every compiler''s machine code runs on (docs/jit.md, Shared runtime): configuration (--jit, --jit-threshold, --jit-osr, --jit-flags, --jit-cache), the compiled methods (JitMethod headers in the code cache, found by the method''s identity hash; their methods are GC roots, young ones listed for scavenges), the interpreter''s hooks (activated:, resume:, backJump:), the functions machine code calls (interrupt:, interruptAtEntry:, closure:, makeArray:, widow:, writeBarrier:value:), code cache flushes, statistics.
@@ -50,7 +50,8 @@ initialize
 	JIT_FLAG_HOIST := 1048576.
 	JIT_FLAG_LIVE := 2097152.
 	JIT_FLAG_FFI_SITE := 4194304.
-	JIT_FLAG_LAST := JIT_FLAG_FFI_SITE.
+	JIT_FLAG_BG := 8388608.
+	JIT_FLAG_LAST := JIT_FLAG_BG.
 	JIT_TABLE_SIZE := 65536.
 	JIT_MAX_YOUNG := 4096.
 	JIT_MAX_MAP := 32768.
@@ -242,6 +243,12 @@ modeName: m
 	m = JIT_BASELINE ifTrue: [^'baseline'].
 	^'none'
 !
+bgFlag
+	^JIT_FLAG_BG
+!
+flushPending
+	^flushPending
+!
 flagNamed: name length: n
 	"The bit of the ablation flag called name (n bytes), 0 if there is none."
 	(self is: name length: n named: 'arith') ifTrue: [^JIT_FLAG_ARITH].
@@ -267,6 +274,7 @@ flagNamed: name length: n
 	(self is: name length: n named: 'ffi-site') ifTrue: [^JIT_FLAG_FFI_SITE].
 	(self is: name length: n named: 'eager') ifTrue: [^JIT_FLAG_EAGER].
 	(self is: name length: n named: 'deopt') ifTrue: [^JIT_FLAG_DEOPT].
+	(self is: name length: n named: 'bg') ifTrue: [^JIT_FLAG_BG].
 	^0
 !
 is: s length: n named: name
@@ -295,6 +303,7 @@ flagName: bit
 	bit = JIT_FLAG_UNBOX ifTrue: [^'unbox'].
 	bit = JIT_FLAG_CALLS ifTrue: [^'calls'].
 	bit = JIT_FLAG_FFI_SITE ifTrue: [^'ffi-site'].
+	bit = JIT_FLAG_BG ifTrue: [^'bg'].
 	bit = JIT_FLAG_EAGER ifTrue: [^'eager'].
 	^'deopt'
 !
@@ -324,6 +333,7 @@ setMode: m
 	"optimized frames keep the cache from being flushed: they become Contexts"
 	self noOptFrames ifFalse: [interpreter materializeAll].
 	jitMode := m.
+	optimizer bgInvalidate.
 	flushPending := true.
 	invalidations := invalidations + 1.
 	interpreter flushMethodCache.
@@ -333,14 +343,15 @@ setFlags: f
 	<function>
 	self noOptFrames ifFalse: [interpreter materializeAll].
 	jitFlags := f.
+	optimizer bgInvalidate.
 	flushPending := true.
 	invalidations := invalidations + 1
 !
 defaults
-	"Before the command line: --jit opt, threshold 2, OSR after 50 backward jumps, optimization after 1000 entries and backward jumps, 64 MB, every flag but notes and the stress flags eager and deopt."
+	"Before the command line: --jit opt, threshold 2, OSR after 50 backward jumps, optimization after 1000 entries and backward jumps, 64 MB, background, notes, eager and deopt off."
 	<function>
 	jitMode := JIT_OPT.
-	jitFlags := ((JIT_FLAG_LAST << 1) - 1 bitClear: ((JIT_FLAG_NOTES bitOr: JIT_FLAG_EAGER) bitOr: JIT_FLAG_DEOPT)) asUInt32
+	jitFlags := ((JIT_FLAG_BG - 1) bitClear: ((JIT_FLAG_NOTES bitOr: JIT_FLAG_EAGER) bitOr: JIT_FLAG_DEOPT)) asUInt32
 !
 start
 	"After the image is loaded. Where machine code does not run (in the simulator) the JIT stays off, whatever --jit says."
@@ -354,6 +365,18 @@ start
 	self refreshState.
 	cache canRunCode ifFalse: [jitMode := JIT_NONE].
 	(jitMode ~= JIT_NONE and: [self ensureOpen not]) ifTrue: [self fatal: 'cannot open a %lld MB code cache' with: jitCacheMB]
+!
+shutdownWorker
+	<function>
+	optimizer bgShutdown
+!
+beforeCollection
+	<function>
+	optimizer bgInvalidate
+!
+bgTest: cmd method: m
+	<function>
+	^optimizer bgTest: cmd method: m
 !
 printBoundSiteTrace
 	<function>
@@ -563,6 +586,7 @@ lookup: m
 insert: h
 	| i |
 	tableCount >= ((JIT_TABLE_SIZE quo: 4) * 3) ifTrue: [
+		optimizer bgInvalidate.
 		flushPending := true.
 		^false].
 	i := (self hashOf: h method) bitAnd: JIT_TABLE_SIZE - 1.
@@ -604,10 +628,12 @@ headerAt: i
 !
 requestFlush
 	"The code cache is full: flush it at the next interpreter hook."
+	optimizer bgInvalidate.
 	flushPending := true
 !
 codeResetTo: address
 	"Drop code compiled from address on (for a disassembly only)."
+	optimizer bgInvalidate.
 	brt forgetSlotsFrom: address.
 	cache resetTo: address
 !
@@ -746,6 +772,7 @@ compile: m mode: md notes: wantNotes
 	(asm isFull: err) ifTrue: [
 		asm recordNotes: false.
 		cache endWritingFrom: start size: 0.
+		optimizer bgInvalidate.
 		flushPending := true.
 		scheduler resumeCharging.
 		^self null].
@@ -757,6 +784,7 @@ compile: m mode: md notes: wantNotes
 	asm recordNotes: false.
 	cache endWritingFrom: start size: cache top - start.
 	h isNull ifTrue: [
+		optimizer bgInvalidate.
 		flushPending := true.
 		scheduler resumeCharging.
 		^self null].
@@ -887,6 +915,7 @@ kill: h
 	"h's code must not run again: frames using it go back to the interpreter for good."
 	<function>
 	| f |
+	optimizer bgInvalidate.
 	cache beginWriting.
 	h method: memory nilOop.
 	h flags: (h flags bitOr: JM_DEAD).
@@ -915,6 +944,7 @@ methodsChangedFor: sel
 !
 dropAllCode
 	"Code that may be wrong now: running code leaves at its next runtime call, all code is dropped before Smalltalk goes on."
+	optimizer bgInvalidate.
 	flushPending := true.
 	invalidations := invalidations + 1
 !
@@ -929,6 +959,7 @@ flushCode
 	"Drop all machine code (none is on the native stack): frames continue in the interpreter."
 	<function>
 	| used |
+	optimizer bgQuiesce.
 	used := cacheOpened ifTrue: [cache top] ifFalse: [0].
 	0 to: interpreter nframes - 1 do: [:i | (interpreter frames + i) code: (jitMode = JIT_NONE ifTrue: [0] ifFalse: [1])].
 	libc memset: methodTable value: 0 size: 8 * JIT_TABLE_SIZE.

@@ -7,13 +7,13 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <pthread.h>
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <sys/mman.h>
 #include <sys/time.h>
-#include <time.h>
-#include <pthread.h>
 #include <unistd.h>
 #include <limits.h>
 #include <sys/random.h>
@@ -26,6 +26,7 @@
 #include <sys/event.h>
 #endif
 #ifdef __linux__
+#include <sched.h>
 #include <sys/timerfd.h>
 #endif
 #ifndef SAMALTAK_NO_PLATFORM
@@ -302,6 +303,7 @@ typedef bool (*prim_try_guard)(oop);
 #define JIT_FLAG_ALLOC 1024
 #define JIT_FLAG_ARITH 1
 #define JIT_FLAG_BARRIER 4
+#define JIT_FLAG_BG 8388608
 #define JIT_FLAG_BLOCKS 4096
 #define JIT_FLAG_CALLS 65536
 #define JIT_FLAG_DEOPT 524288
@@ -313,7 +315,7 @@ typedef bool (*prim_try_guard)(oop);
 #define JIT_FLAG_HOIST 1048576
 #define JIT_FLAG_IC 16
 #define JIT_FLAG_INLINE 16384
-#define JIT_FLAG_LAST 4194304
+#define JIT_FLAG_LAST 8388608
 #define JIT_FLAG_LIVE 2097152
 #define JIT_FLAG_MEGA 64
 #define JIT_FLAG_NOTES 8
@@ -1640,13 +1642,18 @@ extern int32_t ps_loop_outer[2048];
 #endif
 extern int32_t ps_order[2048];
 extern int32_t ps_order_count;
+extern bool ps_unbox_off;
 extern bool ps_unboxed;
+extern bool snapshot_mode;
 extern int32_t ra_raw_base;
 extern int32_t ra_raw_top;
 extern int32_t ra_safe_list[262144];
 extern int32_t ra_slot_top;
 extern jit_method *rt_all[16384];
 extern int32_t rt_all_count;
+extern uint64_t rt_stat_bg_discarded;
+extern uint64_t rt_stat_bg_installed;
+extern uint64_t rt_stat_bg_queued;
 extern uint64_t rt_stat_deopts;
 extern uint64_t rt_stat_invalidations;
 extern uint64_t rt_stat_opt_bytecodes;
@@ -1953,6 +1960,7 @@ void jit_feedback_young_roots(void (*fn)(oop *));
 void prim_jit_code(void);
 void prim_jit_parameters(void);
 void prim_jit_send_sites(void);
+void prim_jit_worker_test(void);
 void activated(frame *f);
 uint64_t address_for(frame *f);
 void jit_runtime_after_gc(void);
@@ -1960,6 +1968,8 @@ void jit_runtime_all_roots(void (*fn)(oop *));
 void jit_runtime_back_jump(frame *f);
 uint64_t baseline_stat(int32_t i);
 void become_method(oop from);
+void before_collection(void);
+int jit_runtime_bg_test(int32_t cmd, oop m);
 uint64_t jit_runtime_block_code_for(oop m);
 uint64_t cache_code_for(uint64_t m);
 void class_changed(void);
@@ -2003,6 +2013,7 @@ void jit_runtime_resume(frame *f);
 void resume_context(bool looping);
 void set_flags(uint32_t f);
 bool set_mode(int32_t m);
+void shutdown_worker(void);
 oop special_fast(int32_t k, oop *base);
 void jit_runtime_start(void);
 void sync_pending_bound_frame(void);
@@ -2138,12 +2149,13 @@ int32_t add_pred(int32_t from, int32_t to);
 int32_t alloc_operands(int32_t n);
 void append(int32_t n, int32_t b);
 oop constant_class(int32_t n);
+bool has_bound_foreign_call(void);
 void insert(int64_t n, int32_t m);
 int32_t new_act(void);
 int32_t new_block(void);
 int32_t new_node(int op, int rep);
 int32_t new_state(void);
-uint32_t pass_flags_at(int32_t a, int32_t pc);
+uint32_t opt_ir_pass_flags_at(int32_t a, int32_t pc);
 int32_t pred(int32_t i, int32_t b);
 void prepend(int32_t n, int32_t b);
 void print(void);
@@ -2157,6 +2169,10 @@ void cleanup(int32_t entry);
 bool opt_regalloc_allocate(int32_t num_args, int32_t n);
 void opt_regalloc_release(void);
 void opt_runtime_all_roots(void (*fn)(oop *));
+void bg_invalidate(void);
+void bg_quiesce(void);
+void bg_shutdown(void);
+int opt_runtime_bg_test(int32_t cmd, oop m);
 uint64_t opt_runtime_block_code_for(uint64_t m, int32_t s);
 bool opt_runtime_compile(oop m);
 uint64_t deopt_guard(frame *f, int64_t k);
@@ -2256,6 +2272,12 @@ bool can_run_code(void);
 void end_writing(void);
 void *ffi_arena_base(void);
 void jit_platform_invalidate(uint8_t *start, uint64_t size);
+void jit_worker_join(void);
+void jit_worker_lock(void);
+bool jit_worker_start(void *(*fn)(void *));
+void jit_worker_unlock(void);
+void jit_worker_wait(void);
+void jit_worker_wake(void);
 void *map(void *near, uint64_t size);
 void arm(int ident, int64_t us, bool periodic);
 void ticker_start(void);
@@ -2269,6 +2291,12 @@ void begin_writing(void);
 bool can_run_code(void);
 void end_writing(void);
 void jit_platform_invalidate(uint8_t *start, uint64_t size);
+void jit_worker_join(void);
+void jit_worker_lock(void);
+bool jit_worker_start(void *(*fn)(void *));
+void jit_worker_unlock(void);
+void jit_worker_wait(void);
+void jit_worker_wake(void);
 void *map(void *near, uint64_t size);
 void arm(int ident, int64_t us, bool periodic);
 void ticker_start(void);

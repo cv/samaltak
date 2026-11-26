@@ -123,6 +123,7 @@ void before_gc(void)
     uint64_t c;
     oop m;
     uint64_t o;
+    before_collection();
     for (i = 0; i <= nframes - 1; i++) {
         f = frames + i;
         c = f->code;

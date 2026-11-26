@@ -87,6 +87,7 @@ void prim_quit(void)
 {
     oop c;
     c = prim_nargs > 0 ? prim_base[1] : nil_oop;
+    shutdown_worker();
     jit_runtime_print_bound_site_trace();
     fflush(stdout);
     fflush(stderr);
@@ -177,12 +178,13 @@ void prim_vm_banner(void)
 /* SystemPrimitives>>primVMStats */
 void prim_vm_stats(void)
 {
-    int64_t local[43];
+    int64_t local[46];
     int64_t *v;
     int i;
     int i_2;
-    uint64_t a;
     int i_3;
+    uint64_t a;
+    int i_4;
     int64_t v_2;
     memset(&local, 0, sizeof local);
     v = local;
@@ -219,10 +221,13 @@ void prim_vm_stats(void)
     v[40] = 2LL;
     v[41] = (int64_t)stat_reconciles;
     v[42] = (int64_t)stat_timer_arms;
-    a = alloc_obj(cls_array, F_VAR, 43);
-    for (i_3 = 0; i_3 <= 42; i_3++) {
-        v_2 = v[i_3];
-        ((oop *)(a + 16))[i_3] = (uint64_t)((v_2 << 1) | 1);
+    for (i_3 = 0; i_3 <= 2; i_3++) {
+        v[43 + i_3] = opt_stat(9 + (int32_t)i_3);
+    }
+    a = alloc_obj(cls_array, F_VAR, 46);
+    for (i_4 = 0; i_4 <= 45; i_4++) {
+        v_2 = v[i_4];
+        ((oop *)(a + 16))[i_4] = (uint64_t)((v_2 << 1) | 1);
     }
     prim_result = a;
     prim_status = PS_OK;

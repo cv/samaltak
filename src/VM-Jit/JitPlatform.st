@@ -38,8 +38,57 @@ invalidate: start size: size
 	self subclassResponsibility
 ! !
 
+!JitPlatform methodsFor: 'worker'!
+jitWorkerStart: fn
+	<var: #fn type: 'void *(*)(void *)'>
+	<returns: 'bool'>
+	self subclassResponsibility
+!
+jitWorkerJoin
+	self subclassResponsibility
+!
+jitWorkerLock
+	self subclassResponsibility
+!
+jitWorkerUnlock
+	self subclassResponsibility
+!
+jitWorkerWait
+	self subclassResponsibility
+!
+jitWorkerWake
+	self subclassResponsibility
+! !
+
+PosixThreads subclass: #JitWorkerLib
+	instanceVariableNames: ''
+	classVariableNames: ''
+	package: 'VM-Jit'!
+
+!JitWorkerLib methodsFor: 'worker'!
+join: t result: out
+	<c: 'int pthread_join(pthread_t t, void **out)'>
+	^self error: 'not simulated'
+!
+mutexDestroy: m
+	<c: 'int pthread_mutex_destroy(pthread_mutex_t *m)'>
+	^self error: 'not simulated'
+!
+condDestroy: c
+	<c: 'int pthread_cond_destroy(pthread_cond_t *c)'>
+	^self error: 'not simulated'
+!
+onlineCPUs
+	<cMacro: 'int _SC_NPROCESSORS_ONLN'>
+	^0
+!
+sysconf: n
+	<c: 'long sysconf(int n)'>
+	^self error: 'not simulated'
+! !
+
 JitPlatform subclass: #DarwinJitPlatform
-	instanceVariableNames: 'darwin cache jitMapping jitMappingAttempted'
+	instanceVariableNames: 'darwin cache jitMapping jitMappingAttempted workerLib workerThread workerMutex workerCond'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -47,10 +96,50 @@ DarwinJitPlatform comment: 'One MAP_JIT mapping on macOS (Apple Silicon), with a
 
 !DarwinJitPlatform class methodsFor: 'declaring'!
 declarations
-	^#((darwin DarwinJit) (cache CodeCache) (jitMapping 'void *') (jitMappingAttempted bool))
+	^#((darwin DarwinJit) (cache CodeCache) (jitMapping 'void *') (jitMappingAttempted bool) (workerLib JitWorkerLib) (workerThread 'pthread_t[1]') (workerMutex 'pthread_mutex_t[1]') (workerCond 'pthread_cond_t[1]'))
 !
 targetOS
 	^#darwin
+! !
+
+!DarwinJitPlatform methodsFor: 'worker'!
+jitWorkerStart: fn
+	<export>
+	<var: #fn type: 'void *(*)(void *)'>
+	self workerCpusAvailable ifFalse: [^false].
+	(workerLib mutexInit: workerMutex attributes: self null) ~= 0 ifTrue: [^false].
+	(workerLib condInit: workerCond attributes: self null) ~= 0 ifTrue: [
+		workerLib mutexDestroy: workerMutex.
+		^false].
+	(posix pthreadCreate: workerThread attributes: self null start: fn argument: self null) = 0 ifTrue: [^true].
+	workerLib condDestroy: workerCond.
+	workerLib mutexDestroy: workerMutex.
+	^false
+!
+jitWorkerJoin
+	<export>
+	workerLib join: (workerThread at: 0) result: self null.
+	workerLib condDestroy: workerCond.
+	workerLib mutexDestroy: workerMutex
+!
+jitWorkerLock
+	<export>
+	workerLib mutexLock: workerMutex
+!
+jitWorkerUnlock
+	<export>
+	workerLib mutexUnlock: workerMutex
+!
+jitWorkerWait
+	<export>
+	workerLib condWait: workerCond mutex: workerMutex
+!
+jitWorkerWake
+	<export>
+	workerLib condSignal: workerCond
+!
+workerCpusAvailable
+	^self canRunCode and: [(workerLib sysconf: workerLib onlineCPUs) > 1]
 ! !
 
 !DarwinJitPlatform methodsFor: 'region'!
@@ -101,7 +190,7 @@ invalidate: start size: size
 ! !
 
 JitPlatform subclass: #LinuxJitPlatform
-	instanceVariableNames: 'linux'
+	instanceVariableNames: 'linux workerLib workerThread workerMutex workerCond'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -109,13 +198,56 @@ LinuxJitPlatform comment: 'The code cache on Linux (arm64): one private read-wri
 
 !LinuxJitPlatform class methodsFor: 'declaring'!
 declarations
-	^#((linux LinuxJit))
+	^#((linux LinuxJit) (workerLib JitWorkerLib) (workerThread 'pthread_t[1]') (workerMutex 'pthread_mutex_t[1]') (workerCond 'pthread_cond_t[1]'))
 !
 targetOS
 	^#linux
 !
 isSimulated
 	^false
+! !
+
+!LinuxJitPlatform methodsFor: 'worker'!
+jitWorkerStart: fn
+	<export>
+	<var: #fn type: 'void *(*)(void *)'>
+	self workerCpusAvailable ifFalse: [^false].
+	(workerLib mutexInit: workerMutex attributes: self null) ~= 0 ifTrue: [^false].
+	(workerLib condInit: workerCond attributes: self null) ~= 0 ifTrue: [
+		workerLib mutexDestroy: workerMutex.
+		^false].
+	(posix pthreadCreate: workerThread attributes: self null start: fn argument: self null) = 0 ifTrue: [^true].
+	workerLib condDestroy: workerCond.
+	workerLib mutexDestroy: workerMutex.
+	^false
+!
+jitWorkerJoin
+	<export>
+	workerLib join: (workerThread at: 0) result: self null.
+	workerLib condDestroy: workerCond.
+	workerLib mutexDestroy: workerMutex
+!
+jitWorkerLock
+	<export>
+	workerLib mutexLock: workerMutex
+!
+jitWorkerUnlock
+	<export>
+	workerLib mutexUnlock: workerMutex
+!
+jitWorkerWait
+	<export>
+	workerLib condWait: workerCond mutex: workerMutex
+!
+jitWorkerWake
+	<export>
+	workerLib condSignal: workerCond
+!
+workerCpusAvailable
+	"Respect process affinity (including taskset); an unknown mask size is a safe synchronous fallback."
+	| set |
+	set := self local: 'cpu_set_t'.
+	^(linux schedGetAffinity: 0 size: (self sizeof: 'cpu_set_t') mask: set) = 0 and: [(linux cpuCount: set) > 1]
 ! !
 
 !LinuxJitPlatform methodsFor: 'region'!
@@ -147,6 +279,12 @@ CLibrary subclass: #LinuxJit
 LinuxJit comment: 'The instruction cache maintenance of the code cache on Linux: the compiler''s builtin (dc cvau / ic ivau on arm64). Not simulated.'!
 
 !LinuxJit class methodsFor: 'declaring'!
+headers
+	^#('<sched.h>')
+!
+typedefs
+	^#((cpu_set_t opaque))
+!
 targetOS
 	^#linux
 ! !
@@ -154,5 +292,13 @@ targetOS
 !LinuxJit methodsFor: 'functions'!
 clearCache: begin to: end
 	<c: 'void __builtin___clear_cache(void *begin, void *end)'>
+	^self error: 'not simulated'
+!
+schedGetAffinity: pid size: n mask: set
+	<c: 'int sched_getaffinity(int pid, size_t n, cpu_set_t *set)'>
+	^self error: 'not simulated'
+!
+cpuCount: set
+	<c: 'int CPU_COUNT(const cpu_set_t *set)'>
 	^self error: 'not simulated'
 ! !

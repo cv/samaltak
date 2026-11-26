@@ -39,7 +39,7 @@ usage
   --jit-opt N        with --jit opt: entries and backward jumps in compiled code before a method is optimized
   --jit-flags        ablations: baseline: ic pic mega regs arith fuse float access prims blocks quick
                      barrier; opt: inline blocks prims unbox calls alloc gvn hoist live ffi-site;
-                     listings: notes; stress: eager deopt (-name turns one off)
+                     opt-in worker: bg; listings: notes; stress: eager deopt (-name turns one off)
 ' to: libc stderr.
 	libc exit: 64
 !
@@ -92,6 +92,7 @@ main: n argv: v
 	self storeRef: proc at: PROC_SUSPENDED put: memory nilOop.
 	gc rememberIfOld: ctx.
 	interpreter interpret.
+	jit shutdownWorker.
 	^0
 !
 jitOption: v at: i count: n

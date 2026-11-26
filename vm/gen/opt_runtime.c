@@ -11,6 +11,26 @@ static int32_t rt_act_rcv[256];
 static int32_t rt_act_vals[256];
 jit_method *rt_all[16384];
 int32_t rt_all_count;
+static bool rt_bg_emit;
+static int32_t rt_bg_entry;
+static uint64_t rt_bg_key;
+static jit_method *rt_bg_lower;
+static oop rt_bg_method;
+static bool rt_bg_ok;
+static bool rt_bg_owned;
+static int32_t rt_bg_params;
+static bool rt_bg_stale;
+static uint32_t rt_bg_stamp;
+static bool rt_bg_started;
+static int32_t rt_bg_state;
+static bool rt_bg_stop;
+static uint8_t rt_bg_sync_only[8192];
+static bool rt_bg_test_hold;
+static uint64_t rt_bg_test_key;
+static bool rt_bg_test_mode;
+static int32_t rt_bg_test_outcome;
+static bool rt_bg_tried;
+static int32_t rt_bg_valid;
 static int32_t rt_deopt_count;
 static oop rt_deopt_vals[8192];
 static uint64_t rt_failed[8192];
@@ -24,6 +44,9 @@ static bool rt_opt_young_overflow;
 static int32_t rt_sig_count;
 static oop rt_sig_ctx[8];
 static uint32_t rt_stamp;
+uint64_t rt_stat_bg_discarded;
+uint64_t rt_stat_bg_installed;
+uint64_t rt_stat_bg_queued;
 uint64_t rt_stat_deopts;
 uint64_t rt_stat_invalidations;
 uint64_t rt_stat_opt_bytecodes;
@@ -53,7 +76,14 @@ static jit_method *rt_units[8192];
 static int32_t rt_variant_count;
 static int32_t rt_written;
 
-static bool build_and_allocate(oop m, bool unbox, bool trace);
+static void bg_complete(void);
+static void bg_discard(void);
+static void bg_note_discard(void);
+static void bg_poll(void);
+static bool bg_request(oop m, jit_method *h);
+static void bg_reset(void);
+static void *bg_run(void *unused);
+static void bg_wait(void);
 static uint32_t closure_signature_of(frame *f);
 static void decode(jit_method *h, int64_t k, frame *f, uint64_t *regs, int mode);
 static uint64_t deopt_frame(frame *f, int64_t k, uint64_t *regs, int mode);
@@ -62,7 +92,6 @@ static void make_sunk(int32_t s, oop ctx);
 static uint64_t mix(uint64_t h0, oop c, int32_t i, int d, oop fc);
 static jit_method *optimize(oop m, jit_method *h);
 static void optimize_block(oop m, int32_t s, jit_method *h);
-static bool optimize_entry(int32_t entry, int32_t params, int32_t valid, bool trace);
 static jit_method *optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_method *h, jit_method *p);
 static oop opt_runtime_send(frame *f, int64_t k, uint64_t key);
 static void trace_deopt(jit_method *h, int64_t k, int mode);
@@ -104,6 +133,321 @@ exit_decoded_roots:;
     end_writing();
 }
 
+/* OptRuntime>>bgComplete */
+static void bg_complete(void)
+{
+    oop m;
+    jit_method *h;
+    jit_method *o;
+    if (rt_bg_stale || (flush_pending || (!rt_bg_ok))) {
+        bg_discard();
+        return;
+    }
+    m = rt_bg_method;
+    h = jit_runtime_lookup(m);
+    if ((h != rt_bg_lower) || ((!((h != NULL) && ((h->flags & JM_FAILED) == 0))) || (h->opt != 0))) {
+        bg_discard();
+        return;
+    }
+    if (rt_all_count >= OPT_MAX_HEADERS) {
+        bg_invalidate();
+        flush_pending = true;
+        bg_discard();
+        return;
+    }
+    bg_reset();
+    rt_bg_emit = true;
+    o = optimize(m, h);
+    rt_bg_emit = false;
+    if (o == NULL) {
+        bg_note_discard();
+    } else {
+        rt_stat_bg_installed = rt_stat_bg_installed + 1;
+        rt_bg_test_outcome = 3;
+    }
+}
+
+/* OptRuntime>>bgDiscard */
+static void bg_discard(void)
+{
+    bg_note_discard();
+    bg_reset();
+}
+
+/* OptRuntime>>bgInvalidate */
+void bg_invalidate(void)
+{
+    if (rt_bg_owned) {
+        rt_bg_stale = true;
+    }
+}
+
+/* OptRuntime>>bgNoteDiscard */
+static void bg_note_discard(void)
+{
+    uint64_t bucket;
+    uint64_t i;
+    bucket = (rt_bg_key >> 32) & 0xFFFF;
+    i = bucket >> 3;
+    rt_bg_sync_only[i] = (uint8_t)(rt_bg_sync_only[i] | (1LL << (bucket & 7)));
+    rt_stat_bg_discarded = rt_stat_bg_discarded + 1;
+    rt_bg_test_outcome = 4;
+}
+
+/* OptRuntime>>bgPoll */
+static void bg_poll(void)
+{
+    bool ready;
+    if (rt_bg_test_hold) {
+        return;
+    }
+    jit_worker_lock();
+    ready = rt_bg_state == 2;
+    jit_worker_unlock();
+    if (ready) {
+        bg_complete();
+    }
+}
+
+/* OptRuntime>>bgQuiesce */
+void bg_quiesce(void)
+{
+    if (!rt_bg_owned) {
+        return;
+    }
+    bg_wait();
+    bg_discard();
+}
+
+/* OptRuntime>>bgRequest:lower: */
+static bool bg_request(oop m, jit_method *h)
+{
+    bool r_bg_start;
+    uint32_t r_hash_of;
+    uint32_t h_2;
+    uint64_t key;
+    bool r_bg_sync_only;
+    uint64_t bucket;
+    uint8_t bits;
+    int32_t count;
+    int32_t n;
+    uint32_t r_hash_of_2;
+    uint32_t h_3;
+    bool ok;
+    int32_t n_2;
+    uint32_t r_hash_of_3;
+    uint32_t h_4;
+    if (flush_pending || ((jit_flags & JIT_FLAG_NOTES) != 0)) {
+        return false;
+    }
+    if (!({
+    if (!rt_bg_tried) {
+        rt_bg_tried = true;
+        if ((getenv("SAMALTAK_OPT_TRACE") == NULL) && ((getenv("SAMALTAK_OPT_SENDS") == NULL) && ((getenv("SAMALTAK_OPT_LIMIT") == NULL) && ((!((jit_flags & JIT_FLAG_NOTES) != 0)) && jit_worker_start(bg_run))))) {
+            rt_bg_started = true;
+            rt_bg_test_mode = getenv("SAMALTAK_OPT_BG_TEST") != NULL;
+        }
+    }
+    r_bg_start = rt_bg_started;
+    r_bg_start; })) {
+        return false;
+    }
+    key = ((((uint64_t)({
+    h_2 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_2 != 0 ? h_2 : assign_hash_of(m);
+    r_hash_of; })) ^ 0ULL) << 32) | 0ULL | 0ULL;
+    if (rt_bg_test_mode) {
+        if (key != rt_bg_test_key) {
+            return true;
+        }
+    }
+    if (({
+    bucket = (key >> 32) & 0xFFFF;
+    bits = rt_bg_sync_only[bucket >> 3];
+    r_bg_sync_only = (bits & (1LL << (bucket & 7))) != 0;
+    r_bg_sync_only; })) {
+        return false;
+    }
+    count = initial_count(m);
+    if (rt_bg_owned) {
+        n = count < 64 ? count : 64;
+        opt_counts[({
+    h_3 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_2 = h_3 != 0 ? h_3 : assign_hash_of(m);
+    r_hash_of_2; }) & 65535] = n;
+        return true;
+    }
+    pause_charging();
+    ob_frame = (frame *)NULL;
+    ob_foreign = false;
+    ok = analyze(m) && (build(m, 0, -1, 0, false) && (!has_bound_foreign_call()));
+    if (ok) {
+        snapshot_pass_inputs_unbox(true);
+    }
+    resume_charging();
+    if (!ok) {
+        return false;
+    }
+    rt_bg_method = m;
+    rt_bg_lower = h;
+    rt_bg_stamp = rt_stamp;
+    rt_bg_key = key;
+    rt_bg_entry = ob_entry_block;
+    rt_bg_params = ob_param_slots;
+    rt_bg_valid = ob_valid_slots;
+    rt_bg_owned = true;
+    rt_bg_stale = false;
+    rt_bg_test_outcome = 0;
+    rt_bg_test_hold = rt_bg_test_mode;
+    snapshot_mode = true;
+    n_2 = count < 64 ? count : 64;
+    opt_counts[({
+    h_4 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_3 = h_4 != 0 ? h_4 : assign_hash_of(m);
+    r_hash_of_3; }) & 65535] = n_2;
+    jit_worker_lock();
+    rt_bg_state = 1;
+    rt_stat_bg_queued = rt_stat_bg_queued + 1;
+    jit_worker_wake();
+    jit_worker_unlock();
+    return true;
+}
+
+/* OptRuntime>>bgReset */
+static void bg_reset(void)
+{
+    rt_bg_owned = false;
+    rt_bg_method = 0;
+    rt_bg_lower = (jit_method *)NULL;
+    snapshot_mode = false;
+    jit_worker_lock();
+    rt_bg_state = 0;
+    jit_worker_unlock();
+}
+
+/* OptRuntime>>bgRun: */
+static void *bg_run(void *unused)
+{
+    bool ok;
+    jit_worker_lock();
+    for (;;) {
+        while ((rt_bg_state != 1) && (!rt_bg_stop)) {
+            jit_worker_wait();
+        }
+        if (rt_bg_stop) {
+            jit_worker_unlock();
+            return NULL;
+        }
+        jit_worker_unlock();
+        cleanup(rt_bg_entry);
+        ok = (!opt_full) && opt_regalloc_allocate(rt_bg_params, rt_bg_valid);
+        jit_worker_lock();
+        rt_bg_ok = ok;
+        rt_bg_state = 2;
+        jit_worker_wake();
+    }
+    return NULL;
+}
+
+/* OptRuntime>>bgShutdown */
+void bg_shutdown(void)
+{
+    if (!rt_bg_started) {
+        return;
+    }
+    bg_quiesce();
+    jit_worker_lock();
+    rt_bg_stop = true;
+    jit_worker_wake();
+    jit_worker_unlock();
+    jit_worker_join();
+    rt_bg_started = false;
+}
+
+/* OptRuntime>>bgTest:method: */
+int opt_runtime_bg_test(int32_t cmd, oop m)
+{
+    jit_method *h_2;
+    void *r_opt_of;
+    jit_method *o;
+    void *h;
+    uint32_t r_hash_of;
+    uint32_t h_3;
+    uint32_t r_hash_of_2;
+    uint32_t h_4;
+    if (getenv("SAMALTAK_OPT_BG_TEST") == NULL) {
+        return -3;
+    }
+    if (cmd == 4) {
+        h_2 = jit_runtime_lookup(m);
+        h = ({
+    if (h_2 == NULL) {
+        r_opt_of = NULL;
+        goto exit_opt_of;
+    }
+    if (h_2->opt == 0) {
+        r_opt_of = NULL;
+        goto exit_opt_of;
+    }
+    o = (jit_method *)h_2->opt;
+    if (!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0))) {
+        r_opt_of = NULL;
+        goto exit_opt_of;
+    }
+    r_opt_of = o;
+exit_opt_of:;
+    r_opt_of; });
+        return h == NULL ? 0 : 1;
+    }
+    if ((jit_mode != JIT_OPT) || (!((jit_flags & JIT_FLAG_BG) != 0))) {
+        return -2;
+    }
+    if (cmd == 0) {
+        bg_quiesce();
+        rt_bg_test_key = ((((uint64_t)({
+    h_3 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of = h_3 != 0 ? h_3 : assign_hash_of(m);
+    r_hash_of; })) ^ 0ULL) << 32) | 0ULL | 0ULL;
+        rt_bg_test_outcome = 0;
+        return 0;
+    }
+    if (rt_bg_tried && (!rt_bg_started)) {
+        return -1;
+    }
+    if (!rt_bg_owned) {
+        return rt_bg_test_outcome;
+    }
+    if (!((((((uint64_t)({
+    h_4 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
+    r_hash_of_2 = h_4 != 0 ? h_4 : assign_hash_of(m);
+    r_hash_of_2; })) ^ 0ULL) << 32) | 0ULL | 0ULL) == rt_bg_key)) {
+        return -3;
+    }
+    if (cmd == 1) {
+        return 1;
+    }
+    if (cmd == 5) {
+        rt_bg_test_hold = false;
+        return 1;
+    }
+    bg_wait();
+    if (cmd == 2) {
+        return 2;
+    }
+    bg_complete();
+    return rt_bg_test_outcome;
+}
+
+/* OptRuntime>>bgWait */
+static void bg_wait(void)
+{
+    jit_worker_lock();
+    while (rt_bg_state == 1) {
+        jit_worker_wait();
+    }
+    jit_worker_unlock();
+}
+
 /* OptRuntime>>blockCodeFor:start: */
 uint64_t opt_runtime_block_code_for(uint64_t m, int32_t s)
 {
@@ -113,24 +457,6 @@ uint64_t opt_runtime_block_code_for(uint64_t m, int32_t s)
         return (uint64_t)o;
     }
     return jit_runtime_block_code_for(m);
-}
-
-/* OptRuntime>>buildAndAllocate:unbox:trace: */
-static bool build_and_allocate(oop m, bool unbox, bool trace)
-{
-    bool r_prepare;
-    if (!({
-    if (!build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, (rt_unit_osr & 0x10000) != 0)) {
-        r_prepare = false;
-        goto exit_prepare;
-    }
-    snapshot_pass_inputs_unbox(unbox);
-    r_prepare = true;
-exit_prepare:;
-    r_prepare; })) {
-        return false;
-    }
-    return optimize_entry(ob_entry_block, ob_param_slots, ob_valid_slots, trace);
 }
 
 /* OptRuntime>>closureSignatureOf: */
@@ -165,10 +491,23 @@ static uint32_t closure_signature_of(frame *f)
 /* OptRuntime>>compile: */
 bool opt_runtime_compile(oop m)
 {
+    bool ok;
     bool trace;
     char *limit;
     bool b;
-    bool ok;
+    if (rt_bg_emit) {
+        rt_trace = false;
+        rt_trace_sends = false;
+        ok = opt_codegen_generate(m, 0);
+        analyze(m);
+        if (!ok) {
+            rt_stat_opt_failed = rt_stat_opt_failed + 1;
+        }
+        return ok;
+    }
+    if (rt_bg_owned) {
+        bg_quiesce();
+    }
     trace = getenv("SAMALTAK_OPT_TRACE") != NULL;
     rt_trace = trace;
     rt_trace_sends = getenv("SAMALTAK_OPT_SENDS") != NULL;
@@ -183,9 +522,22 @@ bool opt_runtime_compile(oop m)
     ob_frame = rt_unit_frame;
     b = rt_unit_signature != 0;
     ob_foreign = b;
-    ok = build_and_allocate(m, true, trace);
+    ps_unbox_off = false;
+    ok = build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, (rt_unit_osr & 0x10000) != 0) && ({
+    cleanup(ob_entry_block);
+    if (trace) {
+        print();
+    }
+    (!opt_full) && opt_regalloc_allocate(ob_param_slots, ob_valid_slots); });
     if ((!ok) && ps_unboxed) {
-        ok = build_and_allocate(m, false, trace);
+        ps_unbox_off = true;
+        ok = build(m, rt_unit_start, (rt_unit_osr & 0xFFFF) - 1, rt_unit_depth, (rt_unit_osr & 0x10000) != 0) && ({
+    cleanup(ob_entry_block);
+    if (trace) {
+        print();
+    }
+    (!opt_full) && opt_regalloc_allocate(ob_param_slots, ob_valid_slots); });
+        ps_unbox_off = false;
     }
     ok = ok && ({
     if (trace) {
@@ -1365,6 +1717,7 @@ void invalidate_all(void)
     uint32_t r_hash_of;
     uint32_t h_2;
     jit_method *h;
+    bg_invalidate();
     for (i = 0; i <= rt_all_count - 1; i++) {
         o = rt_all[i];
         if (!((o != NULL) && ((o->flags & JM_FAILED) == 0) && ((o->flags & 2) == 0))) {
@@ -1401,6 +1754,7 @@ void invalidate_selector(oop sel)
     uint32_t r_hash_of;
     uint32_t h_2;
     jit_method *h;
+    bg_invalidate();
     for (i = 0; i <= rt_all_count - 1; i++) {
         o = rt_all[i];
         for (k = 0; k <= (int64_t)o->dep_count - 1; k++) {
@@ -1775,19 +2129,20 @@ static jit_method *optimize(oop m, jit_method *h)
     t0 = now_us();
     o = jit_runtime_compile(m, JIT_OPT, (jit_flags & JIT_FLAG_NOTES) != 0);
     rt_stat_opt_us = rt_stat_opt_us + (uint64_t)(now_us() - t0);
-    if (o == NULL) {
+    if ((o == NULL) || (rt_bg_emit && (!((o != NULL) && ((o->flags & JM_FAILED) == 0))))) {
         return (jit_method *)NULL;
     }
     if (rt_all_count < OPT_MAX_HEADERS) {
         rt_all[rt_all_count] = o;
         rt_all_count = rt_all_count + 1;
     } else {
+        bg_invalidate();
         flush_pending = true;
     }
     begin_writing();
     h->opt = (uint64_t)o;
     o->lower = (uint64_t)h;
-    o->stamp = rt_stamp;
+    o->stamp = rt_bg_emit ? rt_bg_stamp : rt_stamp;
     end_writing();
     o_2 = o->method;
     young = (uint64_t)(o_2 - young_lo) < young_hi - young_lo;
@@ -1872,16 +2227,6 @@ exit_failed:;
     }
 }
 
-/* OptRuntime>>optimizeEntry:params:valid:trace: */
-static bool optimize_entry(int32_t entry, int32_t params, int32_t valid, bool trace)
-{
-    cleanup(entry);
-    if (trace) {
-        print();
-    }
-    return (!opt_full) && opt_regalloc_allocate(params, valid);
-}
-
 /* OptRuntime>>optimizeUnit:start:osr:depth:lower:previous: */
 static jit_method *optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_method *h, jit_method *p)
 {
@@ -1915,6 +2260,7 @@ static jit_method *optimize_unit(oop m, int32_t s, int32_t t, int32_t d, jit_met
         rt_all[rt_all_count] = o;
         rt_all_count = rt_all_count + 1;
     } else {
+        bg_invalidate();
         flush_pending = true;
     }
     begin_writing();
@@ -1975,6 +2321,7 @@ exit_note_young:;
 /* OptRuntime>>release */
 void opt_runtime_release(void)
 {
+    bg_quiesce();
     opt_ir_release();
     opt_regalloc_release();
 }
@@ -2499,6 +2846,9 @@ uint64_t opt_runtime_tier_up(frame *f, int64_t loop)
     uint64_t key_4;
     int32_t i_4;
     int64_t n_5;
+    if (rt_bg_owned) {
+        bg_poll();
+    }
     m = f->method;
     n = initial_count(m);
     opt_counts[({
@@ -2539,22 +2889,24 @@ uint64_t opt_runtime_tier_up(frame *f, int64_t loop)
     r_failed = false;
 exit_failed:;
     r_failed; })))) {
-        if (optimize(m, h) == NULL) {
-            key_2 = ((((uint64_t)({
+        if (!((loop == 0) && (((jit_flags & JIT_FLAG_BG) != 0) && bg_request(m, h)))) {
+            if (optimize(m, h) == NULL) {
+                key_2 = ((((uint64_t)({
     h_4 = (uint32_t)(((*(uint64_t *)m) >> H_HASH_SHIFT) & H_HASH_MASK);
     r_hash_of_3 = h_4 != 0 ? h_4 : assign_hash_of(m);
     r_hash_of_3; })) ^ 0ULL) << 32) | 0ULL | 0ULL | 9223372036854775808ULL;
-            i_2 = (int32_t)((key_2 ^ (key_2 >> 29)) & 8191);
-            n_3 = 0;
-            while (rt_failed[i_2] != 0) {
-                n_3 = n_3 + 1;
-                if (n_3 >= 4096) {
-                    goto exit_note_failed;
+                i_2 = (int32_t)((key_2 ^ (key_2 >> 29)) & 8191);
+                n_3 = 0;
+                while (rt_failed[i_2] != 0) {
+                    n_3 = n_3 + 1;
+                    if (n_3 >= 4096) {
+                        goto exit_note_failed;
+                    }
+                    i_2 = (i_2 + 1) & 8191;
                 }
-                i_2 = (i_2 + 1) & 8191;
+                rt_failed[i_2] = key_2;
+            exit_note_failed:;
             }
-            rt_failed[i_2] = key_2;
-        exit_note_failed:;
         }
     }
     if ((s != 0) && (loop != 0)) {

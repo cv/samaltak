@@ -1,5 +1,5 @@
 OptModule subclass: #OptRuntime
-	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtFloatVal rtFloatLoc rtFloatBits rtFloatCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtVariantCount rtFailed rtTrace rtTraceSends rtStamp rtStatSends rtUnitFrame rtUnitSignature rtSigCtx rtSigCount'
+	instanceVariableNames: 'ir builder passes regalloc codegen rtDeoptVals rtDeoptCount rtActMethod rtActClosure rtActRcv rtActPc rtActDepth rtActVals rtActCount rtOptYoung rtOptYoungCount rtOptYoungOverflow rtStatOptCompiled rtStatOptFailed rtStatOptBytecodes rtStatOptUs rtStatOptBytes rtStatDeopts rtStatOptOsr rtStatInvalidations rtAll rtAllCount rtSunkAct rtSunkStart rtSunkInfo rtSunkOrder rtSunkCount rtSunkUseVal rtSunkUseId rtSunkUseCount rtFloatVal rtFloatLoc rtFloatBits rtFloatCount rtWritten rtUnitStart rtUnitOsr rtUnitDepth rtUnits rtUnitCount rtVariantCount rtFailed rtTrace rtTraceSends rtStamp rtStatSends rtUnitFrame rtUnitSignature rtSigCtx rtSigCount host scheduler rtBgStarted rtBgTried rtBgOwned rtBgStale rtBgEmit rtBgStop rtBgState rtBgOk rtBgMethod rtBgLower rtBgStamp rtBgEntry rtBgParams rtBgValid rtBgKey rtBgSyncOnly rtBgTestKey rtBgTestOutcome rtBgTestMode rtBgTestHold rtStatBgQueued rtStatBgInstalled rtStatBgDiscarded'
 	classVariableNames: 'OPT_MAX_UNITS OPT_MAX_VARIANT_UNITS OPT_MAX_VARIANTS OPT_MAX_GENERATIONS OPT_MAX_DEOPTS OPT_MAX_DEOPT_ACTS OPT_MAX_DEOPT_VALS OPT_MAX_HEADERS OPT_MAX_YOUNG'
 	package: 'VM-Jit'!
 
@@ -20,7 +20,13 @@ declarations
 		(rtSunkAct 'int32_t[64]') (rtSunkStart 'int32_t[64]') (rtSunkInfo 'int32_t[64]') (rtSunkOrder 'int32_t[64]') (rtSunkCount int32_t)
 		(rtSunkUseVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseId 'int32_t[OPT_MAX_DEOPT_VALS]') (rtSunkUseCount int32_t)
 		(rtFloatVal 'int32_t[OPT_MAX_DEOPT_VALS]') (rtFloatLoc 'int32_t[OPT_MAX_DEOPT_VALS]') (rtFloatBits 'uint64_t[OPT_MAX_DEOPT_VALS]') (rtFloatCount int32_t) (rtWritten int32_t)
-		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtVariantCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]') (rtTrace bool) (rtTraceSends bool) (rtStamp uint32_t) (rtStatSends uint64_t) (rtUnitFrame 'Frame *') (rtUnitSignature uint32_t) (rtSigCtx 'oop[8]') (rtSigCount int32_t))
+		(rtUnitStart int32_t) (rtUnitOsr int32_t) (rtUnitDepth int32_t) (rtUnits 'JitMethod *[OPT_MAX_UNITS]') (rtUnitCount int32_t) (rtVariantCount int32_t) (rtFailed 'uint64_t[OPT_MAX_UNITS]') (rtTrace bool) (rtTraceSends bool) (rtStamp uint32_t) (rtStatSends uint64_t) (rtUnitFrame 'Frame *') (rtUnitSignature uint32_t) (rtSigCtx 'oop[8]') (rtSigCount int32_t)
+		(host JitPlatform) (scheduler Scheduler) (rtBgStarted bool) (rtBgTried bool)
+		(rtBgOwned bool) (rtBgStale bool) (rtBgEmit bool) (rtBgStop bool) (rtBgState int32_t) (rtBgOk bool)
+		(rtBgMethod oop) (rtBgLower 'JitMethod *') (rtBgStamp uint32_t)
+		(rtBgEntry int32_t) (rtBgParams int32_t) (rtBgValid int32_t) (rtBgKey uint64_t) (rtBgSyncOnly 'uint8_t[8192]')
+		(rtBgTestKey uint64_t) (rtBgTestOutcome int32_t) (rtBgTestMode bool) (rtBgTestHold bool)
+		(rtStatBgQueued uint64_t) (rtStatBgInstalled uint64_t) (rtStatBgDiscarded uint64_t))
 !
 initialize
 	OPT_MAX_DEOPT_VALS := 8192.
@@ -60,7 +66,10 @@ statInvalidations
 	^rtStatInvalidations
 !
 stat: i
-	"vmStats' order: optimized, bytecodes, µs, code bytes, deoptimizations, OSR entries, invalidations, failures, sends through the runtime."
+	"vmStats' order: optimized, bytecodes, µs, code bytes, deoptimizations, OSR entries, invalidations, failures, sends through the runtime; background queued, installed and discarded."
+	i = 9 ifTrue: [^rtStatBgQueued asInt64].
+	i = 10 ifTrue: [^rtStatBgInstalled asInt64].
+	i = 11 ifTrue: [^rtStatBgDiscarded asInt64].
 	i = 8 ifTrue: [^rtStatSends asInt64].
 	i = 0 ifTrue: [^rtStatOptCompiled asInt64].
 	i = 1 ifTrue: [^rtStatOptBytecodes asInt64].
@@ -132,6 +141,7 @@ tierUp: f loop: loop
 	<function>
 	<var: #o type: 'JitMethod *'>
 	| m h o s k |
+	rtBgOwned ifTrue: [self bgPoll].
 	m := f method.
 	"the count's slot is shared by methods whose hashes meet there, and more units of m may follow (its blocks, its loops, frames resumed in the lower tier): it starts over whatever happens; failures are remembered per unit"
 	runtime counterFor: m put: (self initialCount: m).
@@ -140,7 +150,8 @@ tierUp: f loop: loop
 	f code = (self cCoerce: h to: 'uint64_t') ifFalse: [^0].
 	s := f closure = memory nilOop ifTrue: [0] ifFalse: [(self intVal: (self loadRef: f closure at: BC_STARTPC)) asInt32].
 	(s = 0 and: [h opt = 0 and: [(self failed: m start: 0 osr: 0) not]]) ifTrue: [
-		(self optimize: m lower: h) isNull ifTrue: [self noteFailed: m start: 0 osr: 0]].
+		(loop = 0 and: [(runtime flag: runtime bgFlag) and: [self bgRequest: m lower: h]]) ifFalse: [
+			(self optimize: m lower: h) isNull ifTrue: [self noteFailed: m start: 0 osr: 0]]].
 	"a block whose loop ran out of the count is optimized too, as a method is: else, the count running out in its loops rather than at its entries, each of its activations would run its lower tier code up to the loop and enter the loop's unit there"
 	(s ~= 0 and: [loop ~= 0]) ifTrue: [self optimizeBlock: m start: s lower: h].
 	k := loop = 0 ifTrue: [0] ifFalse: [f pc + 1].
@@ -416,7 +427,7 @@ optimize: m lower: h
 	t0 := runtime nowUs.
 	o := runtime compile: m mode: runtime optMode notes: runtime notes.
 	rtStatOptUs := rtStatOptUs + (runtime nowUs - t0) asUInt64.
-	o isNull ifTrue: [^self null].
+	(o isNull or: [rtBgEmit and: [(runtime hasCode: o) not]]) ifTrue: [^self null].
 	rtAllCount < OPT_MAX_HEADERS
 		ifTrue: [
 			rtAll at: rtAllCount put: o.
@@ -425,7 +436,7 @@ optimize: m lower: h
 	cache beginWriting.
 	h opt: (self cCoerce: o to: 'uint64_t').
 	o lower: (self cCoerce: h to: 'uint64_t').
-	o stamp: rtStamp.
+	o stamp: (rtBgEmit ifTrue: [rtBgStamp] ifFalse: [rtStamp]).
 	cache endWriting.
 	self noteYoung: o.
 	(runtime hasCode: o) ifFalse: [^self null].
@@ -436,6 +447,14 @@ compile: m
 	"Emit optimized code for m at the assembler's pc (JitRuntime>>compile:mode:notes:); answer whether it could."
 	<function>
 	| ok trace limit |
+	rtBgEmit ifTrue: [
+		rtTrace := false.
+		rtTraceSends := false.
+		ok := codegen generate: m act: 0.
+		analysis analyze: m.
+		ok ifFalse: [rtStatOptFailed := rtStatOptFailed + 1].
+		^ok].
+	rtBgOwned ifTrue: [self bgQuiesce].
 	trace := (libc getenv: 'SAMALTAK_OPT_TRACE') notNull.
 	rtTrace := trace.
 	rtTraceSends := (libc getenv: 'SAMALTAK_OPT_SENDS') notNull.
@@ -446,10 +465,13 @@ compile: m
 		interpreter printActivation: m receiver: memory nilOop closure: memory nilOop on: libc stderr].
 	builder frame: rtUnitFrame.
 	builder foreign: rtUnitSignature ~= 0.
-	ok := self buildAndAllocate: m unbox: true trace: trace.
+	passes unboxOff: false.
+	ok := self buildAndAllocate: m trace: trace.
 	"twins on doubles that make the compilation fail: again without them"
 	(ok not and: [passes unboxed]) ifTrue: [
-		ok := self buildAndAllocate: m unbox: false trace: trace].
+		passes unboxOff: true.
+		ok := self buildAndAllocate: m trace: trace.
+		passes unboxOff: false].
 	ok := ok and: [
 		trace ifTrue: [
 			libc fputs: 'allocated:
@@ -463,23 +485,12 @@ compile: m
 ' with: (ok ifTrue: ['ok'] ifFalse: ['failed'])].
 	^ok
 !
-buildAndAllocate: m unbox: unbox trace: trace
-	<function>
-	(self prepare: m unbox: unbox) ifFalse: [^false].
-	^self optimizeEntry: builder entryBlock params: builder paramSlots valid: builder validSlots trace: trace
-!
-prepare: m unbox: unbox
-	"Build the unit and capture the live VM inputs to the passes."
-	(builder build: m start: rtUnitStart osr: (rtUnitOsr bitAnd: 16rFFFF) - 1 depth: rtUnitDepth resident: (rtUnitOsr bitAnd: 16r10000) ~= 0) ifFalse: [^false].
-	ir snapshotPassInputsUnbox: unbox.
-	^true
-!
-optimizeEntry: entry params: params valid: valid trace: trace
-	"Mutate the prepared IR and pass/allocator scratch. Still called synchronously."
-	<function>
-	passes cleanup: entry.
-	trace ifTrue: [ir print].
-	^ir full not and: [regalloc allocate: params valid: valid]
+buildAndAllocate: m trace: trace
+	"The unit's IR built, cleaned up and allocated; answer whether it could be."
+	^(builder build: m start: rtUnitStart osr: (rtUnitOsr bitAnd: 16rFFFF) - 1 depth: rtUnitDepth resident: (rtUnitOsr bitAnd: 16r10000) ~= 0) and: [
+		passes cleanup: builder entryBlock.
+		trace ifTrue: [ir print].
+		ir full not and: [regalloc allocate: builder paramSlots valid: builder validSlots]]
 !
 extraBytes
 	"What the optimized code's header needs after its notes: the safepoint table, the records, the dependencies, the inline caches and the return map."
@@ -1242,6 +1253,7 @@ flushed
 release
 	"All code was dropped (flushed): give back the pages of the optimizer's scratch areas; each compile starts them anew."
 	<function>
+	self bgQuiesce.
 	ir release.
 	regalloc release
 ! !
@@ -1265,11 +1277,206 @@ invalidateSelector: sel
 	"A method for sel was added or removed: optimized code that inlined or speculated on a send of sel."
 	<function>
 	| o |
+	self bgInvalidate.
 	0 to: rtAllCount - 1 do: [:i |
 		o := rtAll at: i.
 		0 to: o depCount asInt64 - 1 do: [:k | (self poolAt: (o deps at: k) of: o) = sel ifTrue: [self invalidate: o]]]
 !
 invalidateAll
 	<function>
+	self bgInvalidate.
 	0 to: rtAllCount - 1 do: [:i | self invalidate: (rtAll at: i)]
+! !
+
+!OptRuntime methodsFor: 'background compilation'!
+bgStart
+	"VM thread only. Never start on a status query or when unsupported; no retry after startup failure."
+	rtBgTried ifFalse: [
+		rtBgTried := true.
+		((libc getenv: 'SAMALTAK_OPT_TRACE') isNull and: [
+			(libc getenv: 'SAMALTAK_OPT_SENDS') isNull and: [
+			(libc getenv: 'SAMALTAK_OPT_LIMIT') isNull and: [
+			runtime notes not and: [host jitWorkerStart: (self functionPointer: #bgRun:)]]]]) ifTrue: [
+			rtBgStarted := true.
+			rtBgTestMode := (libc getenv: 'SAMALTAK_OPT_BG_TEST') notNull]].
+	^rtBgStarted
 !
+bgRun: unused
+	"The mutex hands exclusive scratch ownership to the worker at state 1 and back at 2. No builder, codegen, time, or other VM state here."
+	<function>
+	<var: #unused type: 'void *'>
+	<returns: 'void *'>
+	| ok |
+	host jitWorkerLock.
+	[true] whileTrue: [
+		[rtBgState ~= 1 and: [rtBgStop not]] whileTrue: [host jitWorkerWait].
+		rtBgStop ifTrue: [
+			host jitWorkerUnlock.
+			^self null].
+		host jitWorkerUnlock.
+		passes cleanup: rtBgEntry.
+		ok := ir full not and: [regalloc allocate: rtBgParams valid: rtBgValid].
+		host jitWorkerLock.
+		rtBgOk := ok.
+		rtBgState := 2.
+		host jitWorkerWake].
+	^self null
+!
+bgRequest: m lower: h
+	"True if the tier-up was queued or deferred (not a failed compilation)."
+	<function>
+	| ok key count |
+	(runtime flushPending or: [runtime notes]) ifTrue: [^false].
+	self bgStart ifFalse: [^false].
+	key := self failedKey: m start: 0 osr: 0.
+	rtBgTestMode ifTrue: [key ~= rtBgTestKey ifTrue: [^true]].
+	(self bgSyncOnly: key) ifTrue: [^false].
+	count := self initialCount: m.
+	rtBgOwned ifTrue: [
+		runtime counterFor: m put: (count min: 64).
+		^true].
+	scheduler pauseCharging.
+	builder frame: self null.
+	builder foreign: false.
+	ok := (analysis analyze: m) and: [
+		(builder build: m start: 0 osr: -1 depth: 0 resident: false) and: [ir hasBoundForeignCall not]].
+	ok ifTrue: [ir snapshotPassInputsUnbox: true].
+	scheduler resumeCharging.
+	ok ifFalse: [^false].
+	rtBgMethod := m.
+	rtBgLower := h.
+	rtBgStamp := rtStamp.
+	rtBgKey := key.
+	rtBgEntry := builder entryBlock.
+	rtBgParams := builder paramSlots.
+	rtBgValid := builder validSlots.
+	rtBgOwned := true.
+	rtBgStale := false.
+	rtBgTestOutcome := 0.
+	rtBgTestHold := rtBgTestMode.
+	passes useSnapshot: true.
+	runtime counterFor: m put: (count min: 64).
+	host jitWorkerLock.
+	rtBgState := 1.
+	rtStatBgQueued := rtStatBgQueued + 1.
+	host jitWorkerWake.
+	host jitWorkerUnlock.
+	^true
+!
+bgInvalidate
+	"VM thread only: the job may finish, but never inspect its oop or cache references again."
+	<function>
+	rtBgOwned ifTrue: [rtBgStale := true]
+!
+bgWait
+	"Wait for a worker-owned job to return the scratch slot."
+	<function>
+	host jitWorkerLock.
+	[rtBgState = 1] whileTrue: [host jitWorkerWait].
+	host jitWorkerUnlock
+!
+bgReset
+	"Only after completion, with no new request possible on this VM thread."
+	<function>
+	rtBgOwned := false.
+	rtBgMethod := 0.
+	rtBgLower := self null.
+	passes useSnapshot: false.
+	host jitWorkerLock.
+	rtBgState := 0.
+	host jitWorkerUnlock
+!
+bgSyncOnly: key
+	"One monotone bit per hash bucket. GC and flush cannot lose a fallback; collisions only select the synchronous compiler."
+	| bucket bits |
+	bucket := (key >> 32) bitAnd: 16rFFFF.
+	bits := rtBgSyncOnly at: bucket >> 3.
+	^(bits bitAnd: 1 << (bucket bitAnd: 7)) ~= 0
+!
+bgNoteDiscard
+	<function>
+	| bucket i |
+	bucket := (rtBgKey >> 32) bitAnd: 16rFFFF.
+	i := bucket >> 3.
+	rtBgSyncOnly at: i put: ((rtBgSyncOnly at: i) bitOr: 1 << (bucket bitAnd: 7)) asUInt8.
+	rtStatBgDiscarded := rtStatBgDiscarded + 1.
+	rtBgTestOutcome := 4
+!
+bgDiscard
+	<function>
+	self bgNoteDiscard.
+	self bgReset
+!
+bgQuiesce
+	"Before synchronous compilation reuses the slot, the cache is flushed, or scratch is released."
+	<function>
+	rtBgOwned ifFalse: [^self].
+	self bgWait.
+	self bgDiscard
+!
+bgPoll
+	"On the VM thread only, at a tier-up. Tests can hold the result until the next explicit poll."
+	<function>
+	| ready |
+	rtBgTestHold ifTrue: [^self].
+	host jitWorkerLock.
+	ready := rtBgState = 2.
+	host jitWorkerUnlock.
+	ready ifTrue: [self bgComplete]
+!
+bgComplete
+	"Only after the mutex has handed back the slot. Check staleness before touching any oop or header."
+	<function>
+	| m h o |
+	(rtBgStale or: [runtime flushPending or: [rtBgOk not]]) ifTrue: [^self bgDiscard].
+	m := rtBgMethod.
+	h := runtime lookup: m.
+	(h ~= rtBgLower or: [(runtime hasCode: h) not or: [h opt ~= 0]]) ifTrue: [^self bgDiscard].
+	rtAllCount >= OPT_MAX_HEADERS ifTrue: [
+		runtime requestFlush.
+		^self bgDiscard].
+	self bgReset.
+	rtBgEmit := true.
+	o := self optimize: m lower: h.
+	rtBgEmit := false.
+	o isNull
+		ifTrue: [self bgNoteDiscard]
+		ifFalse: [
+			rtStatBgInstalled := rtStatBgInstalled + 1.
+			rtBgTestOutcome := 3]
+!
+bgShutdown
+	<function>
+	rtBgStarted ifFalse: [^self].
+	self bgQuiesce.
+	host jitWorkerLock.
+	rtBgStop := true.
+	host jitWorkerWake.
+	host jitWorkerUnlock.
+	host jitWorkerJoin.
+	rtBgStarted := false
+!
+bgTest: cmd method: m
+	"Test-only targeted gate. Inspecting state never starts a worker."
+	<function>
+	| h |
+	(libc getenv: 'SAMALTAK_OPT_BG_TEST') isNull ifTrue: [^-3].
+	cmd = 4 ifTrue: [
+		h := self optOf: (runtime lookup: m).
+		^(h isNull ifTrue: [0] ifFalse: [1])].
+	(runtime mode ~= runtime optMode or: [(runtime flag: runtime bgFlag) not]) ifTrue: [^-2].
+	cmd = 0 ifTrue: [
+		self bgQuiesce.
+		rtBgTestKey := self failedKey: m start: 0 osr: 0.
+		rtBgTestOutcome := 0.
+		^0].
+	(rtBgTried and: [rtBgStarted not]) ifTrue: [^-1].
+	rtBgOwned ifFalse: [^rtBgTestOutcome].
+	(self failedKey: m start: 0 osr: 0) = rtBgKey ifFalse: [^-3].
+	cmd = 1 ifTrue: [^1].
+	cmd = 5 ifTrue: [rtBgTestHold := false. ^1].
+	self bgWait.
+	cmd = 2 ifTrue: [^2].
+	self bgComplete.
+	^rtBgTestOutcome
+! !

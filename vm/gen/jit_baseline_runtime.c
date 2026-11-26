@@ -1227,6 +1227,7 @@ static uint64_t new_pic_for(uint64_t site, uint64_t c0, jit_method *t0)
     }
     p = code_cache_allocate((uint64_t)(sizeof(baseline_pic) + 192));
     if (p == 0) {
+        bg_invalidate();
         flush_pending = true;
         return 0;
     }
@@ -1284,6 +1285,7 @@ static uint64_t new_pic_for(uint64_t site, uint64_t c0, jit_method *t0)
     }
     p = code_cache_allocate((uint64_t)(sizeof(baseline_pic) + 128));
     if (p == 0) {
+        bg_invalidate();
         flush_pending = true;
         return 0;
     }
@@ -1363,6 +1365,7 @@ void nil_tests_changed(oop sel)
             return;
         }
     }
+    bg_invalidate();
     flush_pending = true;
     invalidations = invalidations + 1;
 }

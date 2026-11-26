@@ -6,6 +6,9 @@
 
 static void *jit_mapping;
 static bool jit_mapping_attempted;
+static pthread_cond_t worker_cond[1];
+static pthread_mutex_t worker_mutex[1];
+static pthread_t worker_thread[1];
 
 static void *ensure_jit_mapping_near(void *near);
 
@@ -51,6 +54,59 @@ void *ffi_arena_base(void)
 void jit_platform_invalidate(uint8_t *start, uint64_t size)
 {
     sys_icache_invalidate(start, size);
+}
+
+/* DarwinJitPlatform>>jitWorkerJoin */
+void jit_worker_join(void)
+{
+    pthread_join(worker_thread[0], (void **)NULL);
+    pthread_cond_destroy(worker_cond);
+    pthread_mutex_destroy(worker_mutex);
+}
+
+/* DarwinJitPlatform>>jitWorkerLock */
+void jit_worker_lock(void)
+{
+    pthread_mutex_lock(worker_mutex);
+}
+
+/* DarwinJitPlatform>>jitWorkerStart: */
+bool jit_worker_start(void *(*fn)(void *))
+{
+    if (!(can_run_code() && (sysconf(_SC_NPROCESSORS_ONLN) > 1))) {
+        return false;
+    }
+    if (pthread_mutex_init(worker_mutex, (const pthread_mutexattr_t *)NULL) != 0) {
+        return false;
+    }
+    if (pthread_cond_init(worker_cond, (const pthread_condattr_t *)NULL) != 0) {
+        pthread_mutex_destroy(worker_mutex);
+        return false;
+    }
+    if (pthread_create(worker_thread, (const pthread_attr_t *)NULL, fn, NULL) == 0) {
+        return true;
+    }
+    pthread_cond_destroy(worker_cond);
+    pthread_mutex_destroy(worker_mutex);
+    return false;
+}
+
+/* DarwinJitPlatform>>jitWorkerUnlock */
+void jit_worker_unlock(void)
+{
+    pthread_mutex_unlock(worker_mutex);
+}
+
+/* DarwinJitPlatform>>jitWorkerWait */
+void jit_worker_wait(void)
+{
+    pthread_cond_wait(worker_cond, worker_mutex);
+}
+
+/* DarwinJitPlatform>>jitWorkerWake */
+void jit_worker_wake(void)
+{
+    pthread_cond_signal(worker_cond);
 }
 
 /* DarwinJitPlatform>>map:size: */

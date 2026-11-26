@@ -123,6 +123,7 @@ primitive_entry vm_primitive_table[] = {
     {180, 2, "jitParameters", prim_jit_parameters},
     {181, 2, "jitCode", prim_jit_code},
     {182, 2, "jitSendSites", prim_jit_send_sites},
+    {183, 0, "jitWorkerTest", prim_jit_worker_test},
     {195, 2, "findNextUnwindContext", prim_find_next_unwind_context},
     {196, 2, "terminateTo", prim_terminate_to},
     {197, 2, "nextHandlerContext", prim_next_handler_context},

@@ -422,6 +422,18 @@ void become_method(oop from)
     }
 }
 
+/* JitRuntime>>beforeCollection */
+void before_collection(void)
+{
+    bg_invalidate();
+}
+
+/* JitRuntime>>bgTest:method: */
+int jit_runtime_bg_test(int32_t cmd, oop m)
+{
+    return opt_runtime_bg_test(cmd, m);
+}
+
 /* JitRuntime>>blockCodeFor: */
 uint64_t jit_runtime_block_code_for(oop m)
 {
@@ -638,6 +650,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
         record_notes(false);
         end_writing();
         jit_platform_invalidate((uint8_t *)(void *)start, 0);
+        bg_invalidate();
         flush_pending = true;
         resume_charging();
         return (jit_method *)NULL;
@@ -653,6 +666,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
     end_writing();
     jit_platform_invalidate((uint8_t *)(void *)start, size);
     if (h == NULL) {
+        bg_invalidate();
         flush_pending = true;
         resume_charging();
         return (jit_method *)NULL;
@@ -709,6 +723,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
         record_notes(false);
         end_writing();
         jit_platform_invalidate((uint8_t *)(void *)start, 0);
+        bg_invalidate();
         flush_pending = true;
         resume_charging();
         return (jit_method *)NULL;
@@ -724,6 +739,7 @@ jit_method *jit_runtime_compile(oop m, int32_t md, bool want_notes)
     end_writing();
     jit_platform_invalidate((uint8_t *)(void *)start, size);
     if (h == NULL) {
+        bg_invalidate();
         flush_pending = true;
         resume_charging();
         return (jit_method *)NULL;
@@ -760,6 +776,7 @@ jit_method *compile_and_install(oop m)
     }
     if (!({
     if (table_count >= 49152) {
+        bg_invalidate();
         flush_pending = true;
         r_insert = false;
         goto exit_insert;
@@ -1843,6 +1860,9 @@ char *flag_name(uint32_t bit)
     if (bit == JIT_FLAG_FFI_SITE) {
         return "ffi-site";
     }
+    if (bit == JIT_FLAG_BG) {
+        return "bg";
+    }
     if (bit == JIT_FLAG_EAGER) {
         return "eager";
     }
@@ -1854,6 +1874,7 @@ static void flush_code(void)
 {
     uint64_t used;
     int32_t i;
+    bg_quiesce();
     used = cache_opened ? cache_top : 0;
     for (i = 0; i <= nframes - 1; i++) {
         (frames + i)->code = jit_mode == JIT_NONE ? 0 : 1;
@@ -1953,6 +1974,7 @@ void jit_runtime_kill(jit_method *h)
 {
     int32_t i;
     frame *f;
+    bg_invalidate();
     begin_writing();
     h->method = nil_oop;
     h->flags = h->flags | JM_DEAD;
@@ -2188,6 +2210,18 @@ int64_t opt_stat(int32_t i)
 {
     int64_t r_stat;
     return ({
+    if (i == 9) {
+        r_stat = (int64_t)rt_stat_bg_queued;
+        goto exit_stat;
+    }
+    if (i == 10) {
+        r_stat = (int64_t)rt_stat_bg_installed;
+        goto exit_stat;
+    }
+    if (i == 11) {
+        r_stat = (int64_t)rt_stat_bg_discarded;
+        goto exit_stat;
+    }
     if (i == 8) {
         r_stat = (int64_t)rt_stat_sends;
         goto exit_stat;
@@ -2338,6 +2372,10 @@ bool parse_flags(char *s)
     }
     if ((strlen("deopt") == (uint64_t)n) && (memcmp(name, "deopt", (uint64_t)n) == 0)) {
         r_flag_named = JIT_FLAG_DEOPT;
+        goto exit_flag_named;
+    }
+    if ((strlen("bg") == (uint64_t)n) && (memcmp(name, "bg", (uint64_t)n) == 0)) {
+        r_flag_named = JIT_FLAG_BG;
         goto exit_flag_named;
     }
     r_flag_named = 0;
@@ -2492,6 +2530,7 @@ void release_memory(void)
         return;
     }
     release_pending = true;
+    bg_invalidate();
     flush_pending = true;
     invalidations = invalidations + 1;
 }
@@ -2653,6 +2692,7 @@ void set_flags(uint32_t f)
         materialize_all();
     }
     jit_flags = f;
+    bg_invalidate();
     flush_pending = true;
     invalidations = invalidations + 1;
 }
@@ -2667,10 +2707,17 @@ bool set_mode(int32_t m)
         materialize_all();
     }
     jit_mode = m;
+    bg_invalidate();
     flush_pending = true;
     invalidations = invalidations + 1;
     flush_method_cache();
     return true;
+}
+
+/* JitRuntime>>shutdownWorker */
+void shutdown_worker(void)
+{
+    bg_shutdown();
 }
 
 /* JitRuntime>>slotOf: */

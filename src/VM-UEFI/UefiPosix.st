@@ -464,3 +464,26 @@ invalidate: start size: size
 	<export>
 	cpu invalidate: start size: size
 ! !
+
+!UefiJitPlatform methodsFor: 'worker'!
+jitWorkerStart: fn
+	<export>
+	<var: #fn type: 'void *(*)(void *)'>
+	<returns: 'bool'>
+	^false
+!
+jitWorkerJoin
+	<export>
+!
+jitWorkerLock
+	<export>
+!
+jitWorkerUnlock
+	<export>
+!
+jitWorkerWait
+	<export>
+!
+jitWorkerWake
+	<export>
+! !

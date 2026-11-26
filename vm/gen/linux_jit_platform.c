@@ -4,6 +4,10 @@
 
 #ifdef __linux__
 
+static pthread_cond_t worker_cond[1];
+static pthread_mutex_t worker_mutex[1];
+static pthread_t worker_thread[1];
+
 /* LinuxJitPlatform>>beginWriting */
 void begin_writing(void)
 {
@@ -24,6 +28,66 @@ void end_writing(void)
 void jit_platform_invalidate(uint8_t *start, uint64_t size)
 {
     __builtin___clear_cache(start, (char *)start + size);
+}
+
+/* LinuxJitPlatform>>jitWorkerJoin */
+void jit_worker_join(void)
+{
+    pthread_join(worker_thread[0], (void **)NULL);
+    pthread_cond_destroy(worker_cond);
+    pthread_mutex_destroy(worker_mutex);
+}
+
+/* LinuxJitPlatform>>jitWorkerLock */
+void jit_worker_lock(void)
+{
+    pthread_mutex_lock(worker_mutex);
+}
+
+/* LinuxJitPlatform>>jitWorkerStart: */
+bool jit_worker_start(void *(*fn)(void *))
+{
+    bool r_worker_cpus_available;
+    cpu_set_t local;
+    cpu_set_t *set;
+    if (!({
+    memset(&local, 0, sizeof local);
+    set = &local;
+    r_worker_cpus_available = (sched_getaffinity(0, sizeof(cpu_set_t), set) == 0) && (CPU_COUNT(set) > 1);
+    r_worker_cpus_available; })) {
+        return false;
+    }
+    if (pthread_mutex_init(worker_mutex, (const pthread_mutexattr_t *)NULL) != 0) {
+        return false;
+    }
+    if (pthread_cond_init(worker_cond, (const pthread_condattr_t *)NULL) != 0) {
+        pthread_mutex_destroy(worker_mutex);
+        return false;
+    }
+    if (pthread_create(worker_thread, (const pthread_attr_t *)NULL, fn, NULL) == 0) {
+        return true;
+    }
+    pthread_cond_destroy(worker_cond);
+    pthread_mutex_destroy(worker_mutex);
+    return false;
+}
+
+/* LinuxJitPlatform>>jitWorkerUnlock */
+void jit_worker_unlock(void)
+{
+    pthread_mutex_unlock(worker_mutex);
+}
+
+/* LinuxJitPlatform>>jitWorkerWait */
+void jit_worker_wait(void)
+{
+    pthread_cond_wait(worker_cond, worker_mutex);
+}
+
+/* LinuxJitPlatform>>jitWorkerWake */
+void jit_worker_wake(void)
+{
+    pthread_cond_signal(worker_cond);
 }
 
 /* LinuxJitPlatform>>map:size: */
