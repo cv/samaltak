@@ -62,6 +62,13 @@ window: window fillRects: anArray
 	anArray doWithIndex: [:v :i | bytes uint32At: i - 1 * 4 + 1 put: (v bitAnd: 16rFFFFFFFF)].
 	^(binding tryInvoke2: window with: {bytes. 1. bytes size}) = 1
 !
+cornerRadiusOf: window
+	"The radius (points) the system rounds window's corners with; 0 if square or where the VM cannot tell."
+	| binding |
+	binding := WindowPlatformFFI cornerRadiusCall.
+	binding isNil ifTrue: [^0].
+	^binding tryInvoke1: window
+!
 desktopArea
 	"The part of the primary display that docked bars leave free (points), or nil where the VM or the system cannot tell."
 	| binding bytes |

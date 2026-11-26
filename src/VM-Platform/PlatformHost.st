@@ -71,6 +71,10 @@ setDesktopWindowOpacity: sw permille: permille
 	"Show desktop window sw at permille / 1000 opacity; false if it is none or the system cannot."
 	self subclassResponsibility
 !
+desktopWindowCornerRadius: sw
+	"The radius (points) the system rounds desktop window sw's corners with; 0 if they are square or sw is none."
+	self subclassResponsibility
+!
 desktopMovedEvent
 	"The SDL event type that reports where a desktop window was moved (data1: its window id, x and y as int32_t, malloc'd), once the system applied the move; 0 if none."
 	self subclassResponsibility
@@ -217,6 +221,12 @@ setDesktopWindowOpacity: sw permille: permille
 	<export>
 	<var: #sw type: 'SDL_Window *'>
 	^false
+!
+desktopWindowCornerRadius: sw
+	<export>
+	<var: #sw type: 'SDL_Window *'>
+	<returns: 'int'>
+	^darwin cornerRadius: sw
 !
 desktopMovedEvent
 	<export>
@@ -406,6 +416,13 @@ setDesktopWindowOpacity: sw permille: permille
 	<var: #sw type: 'SDL_Window *'>
 	^desktop setSurfaceOpacity: sw permille: permille
 !
+desktopWindowCornerRadius: sw
+	"Layer surfaces are square."
+	<export>
+	<var: #sw type: 'SDL_Window *'>
+	<returns: 'int'>
+	^0
+!
 desktopMovedEvent
 	<export>
 	<returns: 'Uint32'>
@@ -576,6 +593,41 @@ static long samaltak_desktop_level(void)
     /* above Finder''s desktop (its icons take the clicks below them), below every window */
     return (long)CGWindowLevelForKey(kCGDesktopIconWindowLevelKey) + 1;
 }
+static double samaltak_system_corner_radius(void)
+{
+    /* the corners of the system''s titled windows (NSWindow''s _cornerRadius: 16 points on macOS 26, 10 before) */
+    static double radius = -1;
+    if (radius < 0) {
+        SEL sel = sel_registerName("_cornerRadius");
+        id window = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSWindow"), sel_registerName("alloc"));
+        window = ((id (*)(id, SEL, CGRect, unsigned long, unsigned long, BOOL))objc_msgSend)(window,
+            sel_registerName("initWithContentRect:styleMask:backing:defer:"), CGRectMake(0, 0, 100, 100), 1, 2, YES);
+        radius = window && ((BOOL (*)(id, SEL, SEL))objc_msgSend)(window, sel_registerName("respondsToSelector:"), sel)
+            ? ((double (*)(id, SEL))objc_msgSend)(window, sel) : 10;
+        if (window) ((void (*)(id, SEL))objc_msgSend)(window, sel_registerName("release"));
+    }
+    return radius;
+}
+static void samaltak_round_corners(id window)
+{
+    /* clip the content (SDL''s Metal layer is a sublayer) to the system''s corners; the window is clear outside them */
+    id view = ((id (*)(id, SEL))objc_msgSend)(window, sel_registerName("contentView"));
+    id layer;
+    ((void (*)(id, SEL, BOOL))objc_msgSend)(view, sel_registerName("setWantsLayer:"), YES);
+    layer = ((id (*)(id, SEL))objc_msgSend)(view, sel_registerName("layer"));
+    ((void (*)(id, SEL, double))objc_msgSend)(layer, sel_registerName("setCornerRadius:"), samaltak_system_corner_radius());
+    ((void (*)(id, SEL, BOOL))objc_msgSend)(layer, sel_registerName("setMasksToBounds:"), YES);
+    ((void (*)(id, SEL, BOOL))objc_msgSend)(window, sel_registerName("setOpaque:"), NO);
+    ((void (*)(id, SEL, id))objc_msgSend)(window, sel_registerName("setBackgroundColor:"),
+        ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSColor"), sel_registerName("clearColor")));
+}
+static int samaltak_corner_radius(SDL_Window *sw)
+{
+    id window = samaltak_ns_window(sw);
+    id view = window ? ((id (*)(id, SEL))objc_msgSend)(window, sel_registerName("contentView")) : nil;
+    id layer = view ? ((id (*)(id, SEL))objc_msgSend)(view, sel_registerName("layer")) : nil;
+    return layer ? (int)((double (*)(id, SEL))objc_msgSend)(layer, sel_registerName("cornerRadius")) : 0;
+}
 static void samaltak_desktop_configure(SDL_Window *sw, bool passThrough)
 {
     id window = samaltak_ns_window(sw);
@@ -587,6 +639,7 @@ static void samaltak_desktop_configure(SDL_Window *sw, bool passThrough)
     ((void (*)(id, SEL, unsigned long))objc_msgSend)(window, sel_registerName("setCollectionBehavior:"), (1UL << 0) | (1UL << 4) | (1UL << 6));
     ((void (*)(id, SEL, BOOL))objc_msgSend)(window, sel_registerName("setHasShadow:"), NO);
     if (passThrough) ((void (*)(id, SEL, BOOL))objc_msgSend)(window, sel_registerName("setIgnoresMouseEvents:"), YES);
+    else samaltak_round_corners(window);
     /* a process with desktop windows has no Dock icon and is not in the app switcher (NSApplicationActivationPolicyAccessory) */
     ((BOOL (*)(id, SEL, long))objc_msgSend)(app, sel_registerName("setActivationPolicy:"), 1);
     /* a click does not activate the process (and take the focus from the active app) */
@@ -615,7 +668,7 @@ installPaste
 
 !DarwinPlatform methodsFor: 'desktop windows'!
 configureDesktop: sw passThrough: aBoolean
-	"Make SDL window sw a desktop window: on every Space above Finder's desktop, below every window, without a shadow; the pointer passes through it if aBoolean."
+	"Make SDL window sw a desktop window: on every Space above Finder's desktop, below every window, without a shadow; the pointer passes through it if aBoolean, else its corners are rounded as the system's windows are."
 	<c: 'void samaltak_desktop_configure(SDL_Window *sw, bool passThrough)'>
 	^self error: 'not simulated'
 !
@@ -626,5 +679,10 @@ isDesktop: sw
 orderFront: sw
 	"Put sw above the other windows of its level, without activating the process."
 	<c: 'void samaltak_order_front(SDL_Window *sw)'>
+	^self error: 'not simulated'
+!
+cornerRadius: sw
+	"The radius (points) sw's corners are rounded with, 0 if square."
+	<c: 'int samaltak_corner_radius(SDL_Window *sw)'>
 	^self error: 'not simulated'
 ! !

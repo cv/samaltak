@@ -79,6 +79,17 @@ bool platform_windows_close(int32_t win)
     return true;
 }
 
+/* PlatformWindows>>cornerRadius: */
+int corner_radius(int32_t win)
+{
+    SDL_Window *sw;
+    sw = sdl_window(win);
+    if (sw == NULL) {
+        return 0;
+    }
+    return desktop_window_corner_radius(sw);
+}
+
 /* PlatformWindows>>desktopAreaX:y:width:height: */
 bool desktop_area_x(int *x, int *y, int *w, int *h)
 {

@@ -122,6 +122,10 @@ opacity: aNumber
 	"Show my host window at aNumber (0 to 1) opacity, where the system can (a desktop one on Wayland: the compositor's alpha modifier). Answer whether it did."
 	^displayWindow hostWindow opacity: aNumber
 !
+cornerRadius
+	"The radius (points) the system rounds my host window's corners with (a desktop one on macOS); 0 if square."
+	^displayWindow hostWindow cornerRadius
+!
 resizeTo: aPoint
 	"Ask the host window to become aPoint points (it stays fixed-size); my window follows when the host reports the new size. Answer whether the host took it."
 	^displayWindow extent: aPoint

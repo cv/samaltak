@@ -94,6 +94,12 @@ Uint32 desktop_moved_event(void)
     return moved_event_type();
 }
 
+/* LinuxPlatformHost>>desktopWindowCornerRadius: */
+int desktop_window_corner_radius(SDL_Window *sw)
+{
+    return 0;
+}
+
 /* LinuxPlatformHost>>environment */
 char **environment(void)
 {

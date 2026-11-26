@@ -1,5 +1,5 @@
 Widget subclass: #OmarchyCard
-	instanceVariableNames: 'onActivate onRefresh onDrag press pressButton moved scrollOffset maxHeight pills columnWidth framed'
+	instanceVariableNames: 'onActivate onRefresh onDrag press pressButton moved scrollOffset maxHeight pills columnWidth framed cornerRadius'
 	classVariableNames: ''
 	package: 'UI-Omarchy'!
 
@@ -85,6 +85,11 @@ isFramed
 !
 framed: aBoolean
 	framed := aBoolean.
+	self invalidate
+!
+cornerRadius: points
+	"The radius my window's corners are rounded with (macOS), which my border follows."
+	cornerRadius := points.
 	self invalidate
 !
 border
@@ -176,7 +181,7 @@ clampScroll
 drawSelfOn: aCanvas
 	| pad w view |
 	aCanvas fillRect: self localBounds color: self background.
-	self isFramed ifTrue: [| b | b := self border. aCanvas strokeRect: self localBounds color: b key width: b value].
+	self isFramed ifTrue: [self drawBorderOn: aCanvas].
 	pad := self cardPadding.
 	w := self width - (2 * pad).
 	self clampScroll.
@@ -185,6 +190,28 @@ drawSelfOn: aCanvas
 		aCanvas translateBy: pad @ (pad - scrollOffset) during: [
 			self drawContentOn: aCanvas width: w]].
 	self maxScroll > 0 ifTrue: [self drawScrollIndicatorOn: aCanvas]
+!
+drawBorderOn: aCanvas
+	"The card's border, along my window's rounded corners if it has them."
+	| b r s w h key form |
+	b := self border.
+	r := cornerRadius ifNil: [0].
+	r > 0 ifFalse: [^aCanvas strokeRect: self localBounds color: b key width: b value].
+	s := aCanvas scale.
+	w := (self width * s) rounded max: 1.
+	h := (self height * s) rounded max: 1.
+	key := {#border. w. h. b key. b value. r. self background}.
+	pills size > 64 ifTrue: [pills := Dictionary new].
+	form := pills at: key ifAbsent: [
+		| f inset |
+		f := Form width: w height: h.
+		inset := b value * s.
+		(VectorPainter on: f)
+			fill: (VectorPath rectX: 0 y: 0 width: w height: h rx: r * s ry: r * s) color: b key rule: #nonzero;
+			fill: (VectorPath rectX: inset y: inset width: w - (2 * inset) height: h - (2 * inset)
+				rx: (r - b value max: 0) * s ry: (r - b value max: 0) * s) color: self background rule: #nonzero.
+		pills at: key put: f].
+	aCanvas image: form in: (0 @ 0 extent: (w / s) @ (h / s))
 !
 drawContentOn: aCanvas width: w
 	"Draw my content, its top left at 0 @ 0, w points wide."

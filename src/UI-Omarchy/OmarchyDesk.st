@@ -131,6 +131,7 @@ openCard: anId
 	app runOnDesktopHidden: hidden.
 	(entry notNil and: [(entry at: 5) notNil]) ifTrue: [
 		app window do: [app content maxHeight: (entry at: 5). app fitToContent]].
+	(app content isKindOf: OmarchyCard) ifTrue: [app window do: [app content cornerRadius: app world cornerRadius]].
 	placed at: anId put: 0 @ 0.
 	app world whenResized: [:w | lock critical: [self arrange]].
 	self warmDragPreviewFor: app.

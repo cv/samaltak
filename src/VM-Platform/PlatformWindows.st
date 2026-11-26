@@ -185,6 +185,15 @@ presentSurface: win
 	sw isNull ifTrue: [^false].
 	^sdl updateWindowSurface: sw
 !
+cornerRadius: win
+	"The radius (points) the system rounds the window's corners with; 0 if square."
+	<export>
+	<returns: 'int'>
+	| sw |
+	sw := self sdlWindow: win.
+	sw isNull ifTrue: [^0].
+	^host desktopWindowCornerRadius: sw
+!
 desktopAreaX: x y: y width: w height: h
 	"The area of the primary display that docked bars (the menu bar, the Dock) leave free, in points from the top left of the screen."
 	<export>

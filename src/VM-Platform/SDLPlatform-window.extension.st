@@ -292,6 +292,14 @@ ffiWindow: win fillRects: bytes size: n
 			rgba: (self windowWire: bytes at: o + 16 count: 4) asUInt32].
 	^(windows presentSurface: w) ifTrue: [1] ifFalse: [0]
 !
+ffiWindowCornerRadius: win
+	"The radius (points) the system rounds the window's corners with: a desktop window's on macOS; 0 if square."
+	<function>
+	<approvedFFI: 427 symbol: 'platform_windows_corner_radius' arguments: #(3) result: 1>
+	<var: #win type: 'int64_t'>
+	<returns: 'int32_t'>
+	^(windows cornerRadius: win asInt32) asInt32
+!
 ffiDesktopArea: bytes capacity: cap
 	"The area of the primary display that docked bars leave free: x, y, width and height in points (int32, little-endian)."
 	<function>

@@ -107,6 +107,11 @@ window: window fillRects: anArray
 	self check: window.
 	^false
 !
+cornerRadiusOf: window
+	"The screen is square."
+	self check: window.
+	^0
+!
 desktopArea
 	"No bars dock on the screen."
 	^nil

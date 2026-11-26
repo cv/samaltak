@@ -86,6 +86,10 @@ opacity: aNumber
 	"Show me at aNumber (0 to 1) opacity, where the system can; answer whether it did."
 	^self isOpen and: [(GPUPlatform window: handle opacity: (aNumber * 1000) rounded) ~~ false]
 !
+cornerRadius
+	"The radius (points) the system rounds my corners with (a desktop window on macOS); 0 if square."
+	^self isOpen ifTrue: [GPUPlatform cornerRadiusOf: handle] ifFalse: [0]
+!
 hide
 	GPUPlatform hideWindow: self handle
 !

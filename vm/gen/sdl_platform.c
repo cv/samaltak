@@ -120,6 +120,7 @@ static int32_t sdl_platform_ffi_window_title_size(int64_t win, const uint8_t *by
 static int32_t sdl_platform_ffi_window_width_height(int64_t win, int64_t w, int64_t h);
 static int32_t sdl_platform_ffi_window_x_y_width_height_cursor(int64_t win, int64_t x, int64_t y, int64_t w, int64_t h, int64_t cursor);
 static int32_t ffi_window_close(int64_t w);
+static int32_t ffi_window_corner_radius(int64_t win);
 static double ffi_window_display_scale(int64_t w);
 static int32_t ffi_window_open(int64_t w, int64_t h, const uint8_t *bytes, uint64_t n, int64_t flags);
 static int32_t ffi_window_pixel_size(int64_t win, uint8_t *bytes, uint64_t cap);
@@ -273,6 +274,10 @@ static int32_t sdl_platform_ffi_window_icon_size_width_entry_witness(int64_t a1,
 static int32_t ffi_desktop_area_entry_witness(uint8_t *a1, uint64_t a2) {
     fprintf(stderr, "\nffi-native-entry 1450\n");
     return ffi_desktop_area(a1, a2);
+}
+static int32_t ffi_window_corner_radius_entry_witness(int64_t a1) {
+    fprintf(stderr, "\nffi-native-entry 1451\n");
+    return ffi_window_corner_radius(a1);
 }
 static int32_t ffi_gpu_create_device_entry_witness(int32_t a1) {
     fprintf(stderr, "\nffi-native-entry 1454\n");
@@ -693,6 +698,12 @@ int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signatu
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_desktop_area_entry_witness;
         return 1450;
+    }
+    if (packed_signature == 49 && strcmp(approved_name, "platform_windows_corner_radius") == 0) {
+        *target_out = (uint64_t) ffi_window_corner_radius;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_window_corner_radius_entry_witness;
+        return 1451;
     }
     if (packed_signature == 17 && strcmp(approved_name, "platform_gpu_create_device") == 0) {
         *target_out = (uint64_t) ffi_gpu_create_device;
@@ -2628,6 +2639,12 @@ static int32_t sdl_platform_ffi_window_x_y_width_height_cursor(int64_t win, int6
 static int32_t ffi_window_close(int64_t w)
 {
     return (int32_t)(platform_windows_close((int32_t)w) ? 1 : 0);
+}
+
+/* SDLPlatform>>ffiWindowCornerRadius: */
+static int32_t ffi_window_corner_radius(int64_t win)
+{
+    return (int32_t)corner_radius((int32_t)win);
 }
 
 /* SDLPlatform>>ffiWindowDisplayScale: */

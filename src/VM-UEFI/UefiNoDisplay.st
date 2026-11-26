@@ -510,6 +510,12 @@ setOpacity: win permille: permille
 	common setError: 'not on UEFI'.
 	^false
 !
+cornerRadius: win
+	<function>
+	<var: #win type: 'int32_t'>
+	<returns: 'int'>
+	^0
+!
 desktopAreaX: x y: y width: w height: h
 	<function>
 	<var: #x type: 'int *'>
