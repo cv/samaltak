@@ -229,6 +229,7 @@ void alloc_sample_hit(oop a_class, uint64_t bytes)
     alloc_sample_large = false;
     alloc_sample_pending = true;
     alloc_sample_unread = true;
+    state_block->alloc_sample = 1;
     request_interrupt_check();
 }
 
@@ -275,6 +276,7 @@ void handle_interrupts(void)
     alloc = false;
     if (alloc_sample_pending) {
         alloc_sample_pending = false;
+        state_block->alloc_sample = 0;
         if (record_sample(true, now)) {
             alloc_sample_unread = false;
         } else {

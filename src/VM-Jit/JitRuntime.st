@@ -577,6 +577,13 @@ requestInterrupt
 	stateBlock interrupt: 1.
 	stateBlock stackLimit: 0
 !
+requestAllocSample
+	"An allocation sample is pending (Scheduler>>allocSampleHit:bytes:): optimized code takes the interrupt after a call that may have run a primitive (OptCodegen>>mayCallPrimitive:), where the frames are the allocation's."
+	stateBlock allocSample: 1
+!
+allocSampleTaken
+	stateBlock allocSample: 0
+!
 clearInterrupt
 	"The runtime handles the interrupt: entries stop taking the slow path (unless another is requested meanwhile)."
 	stateBlock interrupt: 0.
@@ -1772,11 +1779,11 @@ VMStruct subclass: #JitState
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
-JitState comment: 'What machine code reads through x22: nil, true and false and the classes inline paths check (refreshed after every GC; tagClasses by the low 3 bits of an immediate), the interrupt flag (set with the scheduler''s, cleared by the runtime''s interrupt check), the frames array, the native stack pointer jit_enter left (exits reset it), the young space''s bounds (the store barrier). Baseline code also uses: stackLimit (a callee''s fp at or above it takes the entry''s slow path: the C stack is nearly full, or an interrupt is pending, which sets it to 0; stackLimitNormal is its value otherwise), baseFrame and baseRecord (the first Frame and native frame record of the activations since jit_enter: frame f''s record is baseRecord - (f - baseFrame) / 4), the address of eden''s top and limit (edenBox), the megamorphic and block caches (JitBaselineRuntime), and words the runtime answers through (result, ecode) or reads (primRet: where a C primitive returns to). Optimized code also uses: cstackLimit (the highest slot address a frame may use), the deoptimization stress counter, where a guard that fails saves the registers (dump: x0-x31, then d0-d31), and oopTable: the objects its class checks compare with and the other constants it loads on arm64 (OptCodegen>>oopSlotOf:; one load from x22, where a pc-relative literal is two operations on the Cortex-X925), filled as code is generated, GC roots, emptied when the code cache is flushed.'!
+JitState comment: 'What machine code reads through x22: nil, true and false and the classes inline paths check (refreshed after every GC; tagClasses by the low 3 bits of an immediate), the interrupt flag (set with the scheduler''s, cleared by the runtime''s interrupt check), the allocation sample''s flag (set with it when the VM takes an allocation sample, cleared once it is recorded: optimized code checks it after calls that may run a primitive), the frames array, the native stack pointer jit_enter left (exits reset it), the young space''s bounds (the store barrier). Baseline code also uses: stackLimit (a callee''s fp at or above it takes the entry''s slow path: the C stack is nearly full, or an interrupt is pending, which sets it to 0; stackLimitNormal is its value otherwise), baseFrame and baseRecord (the first Frame and native frame record of the activations since jit_enter: frame f''s record is baseRecord - (f - baseFrame) / 4), the address of eden''s top and limit (edenBox), the megamorphic and block caches (JitBaselineRuntime), and words the runtime answers through (result, ecode) or reads (primRet: where a C primitive returns to). Optimized code also uses: cstackLimit (the highest slot address a frame may use), the deoptimization stress counter, where a guard that fails saves the registers (dump: x0-x31, then d0-d31), and oopTable: the objects its class checks compare with and the other constants it loads on arm64 (OptCodegen>>oopSlotOf:; one load from x22, where a pc-relative literal is two operations on the Cortex-X925), filled as code is generated, GC roots, emptied when the code cache is flushed.'!
 
 !JitState class methodsFor: 'declaring'!
 fields
-	^#((nilOop oop) (trueOop oop) (falseOop oop) (interrupt int32_t) (pad int32_t) (frames uint64_t) (exitSp uint64_t) (youngLo uint64_t) (youngHi uint64_t)
+	^#((nilOop oop) (trueOop oop) (falseOop oop) (interrupt int32_t) (allocSample int32_t) (frames uint64_t) (exitSp uint64_t) (youngLo uint64_t) (youngHi uint64_t)
 		(arrayClass oop) (pointClass oop)
 		(stackLimit uint64_t) (stackLimitNormal uint64_t) (baseFrame uint64_t) (baseRecord uint64_t)
 		(edenBox uint64_t)

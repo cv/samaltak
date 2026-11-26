@@ -728,6 +728,7 @@ handleInterrupts
 	alloc := false.
 	allocSamplePending ifTrue: [
 		allocSamplePending := false.
+		jit allocSampleTaken.
 		(self recordSample: true at: now)
 			ifTrue: [allocSampleUnread := false]
 			ifFalse: [alloc := true]].
@@ -1021,6 +1022,7 @@ allocSampleHit: aClass bytes: bytes
 	allocSampleLarge := false.
 	allocSamplePending := true.
 	allocSampleUnread := true.
+	jit requestAllocSample.
 	self requestInterruptCheck
 !
 allocSampleLargeHit: aClass bytes: bytes

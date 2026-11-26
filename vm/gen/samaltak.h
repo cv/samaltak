@@ -179,7 +179,7 @@ typedef x_error_handler (*x_set_error_handler)(x_error_handler);
 #define CG_MAX_HELD 32
 #define CG_MAX_META 262144
 #define CG_MAX_MOVES 256
-#define CG_MAX_OUT 4096
+#define CG_MAX_OUT 8192
 #define CG_MAX_POOL 1024
 #define CG_MAX_RETS 8192
 #define CG_MAX_SITES 4096
@@ -1132,7 +1132,7 @@ struct jit_state {
     oop true_oop;
     oop false_oop;
     int32_t interrupt;
-    int32_t pad;
+    int32_t alloc_sample;
     uint64_t frames;
     uint64_t exit_sp;
     uint64_t young_lo;

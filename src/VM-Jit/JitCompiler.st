@@ -44,6 +44,9 @@ trueOffset
 falseOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #falseOop) to: 'int64_t'
 !
+allocSampleOffset
+	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #allocSample) to: 'int64_t'
+!
 interruptOffset
 	^self cCoerce: ((self cCoerce: 0 to: 'JitState *') fieldAddress: #interrupt) to: 'int64_t'
 !
@@ -101,6 +104,16 @@ emitSync: pc depth: d
 	asm comment: 'spill: frame pc %d' with: pc.
 	asm mov: X16 imm: ((d asInt64 << 32) bitOr: pc).
 	asm str: X16 base: X19 offset: self pcOffset
+!
+emitAllocSampleTestTo: aLabel
+	"Branch to aLabel if an allocation sample is pending (the JitState's allocSample word)."
+	asm isX64
+		ifTrue: [
+			asm cmpStateWord32At: self allocSampleOffset imm: 0.
+			asm b: aLabel if: COND_NE]
+		ifFalse: [
+			asm ldr: W16 base: X22 offset: self allocSampleOffset.
+			asm cbnz: W16 to: aLabel]
 !
 emitInterruptTestTo: aLabel
 	"Branch to aLabel if an interrupt is pending (the JitState's interrupt word)."

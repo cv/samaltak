@@ -26,7 +26,7 @@ declarations
 		(cgOrder 'int32_t[OPT_MAX_BLOCKS]') (cgPlaced 'uint8_t[OPT_MAX_BLOCKS]') (ffi FFIPrimitives) (cgIndex int32_t) (cgBase int32_t))
 !
 initialize
-	CG_MAX_OUT := 4096.
+	CG_MAX_OUT := 8192.
 	CG_MAX_POOL := 1024.
 	CG_MAX_META := 262144.
 	CG_MAX_SP := 4096.
@@ -1962,6 +1962,13 @@ emitCheckInterrupt: n
 	self emitStressAt: n label: s.
 	asm bind: back
 !
+mayCallPrimitive: n
+	"Whether call n may run a primitive (a known method with one, or an inline cache's target), which has no frame and so no interrupt check of its own: an allocation sample it took would otherwise be recorded at the next one, after its caller's inlined activations have returned (block calls and methods with frames check at their entries)."
+	| nd |
+	nd := ir node: n.
+	nd op asInt32 = O_CALL ifTrue: [^(self methodPrimitive: nd tcls) ~= 0].
+	^(nd flags bitAnd: NF_BLOCKCALL) = 0
+!
 emitStressAt: n label: l
 	"--jit-flags deopt: every so often take the slow path anyway."
 	(runtime flag: runtime deoptFlag) ifFalse: [^self].
@@ -2041,13 +2048,18 @@ emitSend: n
 		self loadConstant: nd tcls into: X17.
 		asm cmp: X16 with: X17.
 		asm b: lazy if: COND_NE].
-	(site notNull or: [(nd flags bitAnd: NF_ALLOC) ~= 0]) ifTrue: [
-		"An interrupt requested by the native call or result boxing is taken after it."
+	(site notNull or: [(nd flags bitAnd: NF_ALLOC) ~= 0 or: [self mayCallPrimitive: n]]) ifTrue: [
+		"An interrupt requested by the native call or result boxing is taken after it; after a call that may have run a primitive, only an allocation sample's (Scheduler>>recordSample:at:): other interrupts wait for the next check, as before."
 		cont := asm newLabel.
 		slow := self out: OUT_SENT node: n index: k.
 		(cgOuts + (cgOutCount - 1)) resume: cont.
-		asm comment: 'interrupt check (an allocation sample)'.
-		self emitInterruptTestTo: slow.
+		(site notNull or: [(nd flags bitAnd: NF_ALLOC) ~= 0])
+			ifTrue: [
+				asm comment: 'interrupt check (an allocation sample)'.
+				self emitInterruptTestTo: slow]
+			ifFalse: [
+				asm comment: 'allocation sample check (a primitive took one)'.
+				self emitAllocSampleTestTo: slow].
 		asm bind: cont].
 	asm comment: 'the result (x0)'.
 	self def: n from: X0.
