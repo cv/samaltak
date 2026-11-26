@@ -7,7 +7,7 @@ UNAME_S := $(shell uname -s)
 OS := $(shell echo $(UNAME_S) | tr a-z A-Z)
 ifeq ($(UNAME_S),Darwin)
   OS_CFLAGS := -D_DARWIN_C_SOURCE
-  OS_LIBS := -framework CoreVideo -lobjc
+  OS_LIBS := -framework CoreVideo -framework CoreGraphics -lobjc
   DEAD_STRIP := -Wl,-dead_strip
 else
   # gcc's extra warnings about the generated code are not bugs (see ../Makefile)

@@ -2507,6 +2507,7 @@ void *clipboard_data(char *mime, size_t *size);
 char *clipboard_get(void);
 bool clipboard_set(char *s);
 bool platform_windows_close(int32_t win);
+bool desktop_area_x(int *x, int *y, int *w, int *h);
 double display_scale(int32_t win);
 bool fill_surface(int32_t win, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t rgba);
 void free_clipboard_data(void *data);

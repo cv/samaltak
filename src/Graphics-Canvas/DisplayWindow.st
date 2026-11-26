@@ -133,4 +133,8 @@ clipboard: aString
 !
 clipboardData: mime
 	^HostWindow clipboardData: mime
+!
+desktopArea
+	"The part of the primary display that docked bars leave free (points), or nil."
+	^HostWindow desktopArea
 ! !

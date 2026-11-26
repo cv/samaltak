@@ -39,6 +39,10 @@ setHint: name value: value
 	<c: 'bool SDL_SetHint(const char *name, const char *value)'>
 	^self notSimulated
 !
+resetHint: name
+	<c: 'bool SDL_ResetHint(const char *name)'>
+	^self notSimulated
+!
 SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE
 	<cMacro: 'const char *SDL_HINT_QUIT_ON_LAST_WINDOW_CLOSE'>
 	^self notSimulated
@@ -49,6 +53,10 @@ SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH
 !
 SDL_HINT_IME_IMPLEMENTED_UI
 	<cMacro: 'const char *SDL_HINT_IME_IMPLEMENTED_UI'>
+	^self notSimulated
+!
+SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN
+	<cMacro: 'const char *SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN'>
 	^self notSimulated
 !
 getError
@@ -274,6 +282,10 @@ getDisplayForWindow: window
 	<c: 'SDL_DisplayID SDL_GetDisplayForWindow(SDL_Window *window)'>
 	^self notSimulated
 !
+getDisplayUsableBounds: displayID rect: rect
+	<c: 'bool SDL_GetDisplayUsableBounds(SDL_DisplayID displayID, SDL_Rect *rect)'>
+	^self notSimulated
+!
 getCurrentDisplayMode: displayID
 	<c: 'const SDL_DisplayMode *SDL_GetCurrentDisplayMode(SDL_DisplayID displayID)'>
 	^self notSimulated
@@ -320,6 +332,14 @@ SDL_WINDOW_HIGH_PIXEL_DENSITY
 !
 SDL_WINDOW_TRANSPARENT
 	<cMacro: 'SDL_WindowFlags SDL_WINDOW_TRANSPARENT'>
+	^self notSimulated
+!
+SDL_WINDOW_BORDERLESS
+	<cMacro: 'SDL_WindowFlags SDL_WINDOW_BORDERLESS'>
+	^self notSimulated
+!
+SDL_WINDOW_NOT_FOCUSABLE
+	<cMacro: 'SDL_WindowFlags SDL_WINDOW_NOT_FOCUSABLE'>
 	^self notSimulated
 !
 setWindowOpacity: window opacity: opacity

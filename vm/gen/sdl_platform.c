@@ -20,6 +20,7 @@ static int32_t ffi_clipboard_data(const uint8_t *bytes, uint64_t n, uint64_t tic
 static int32_t ffi_clipboard_get(uint8_t *receipt, uint64_t cap);
 static int32_t ffi_clipboard_set(const uint8_t *bytes, uint64_t n);
 static int32_t ffi_cwd_receipt(uint8_t *out, uint64_t cap);
+static int32_t ffi_desktop_area(uint8_t *bytes, uint64_t cap);
 static int32_t ffi_dir_entries(const uint8_t *bytes, uint64_t n, uint8_t *out, uint64_t cap);
 static int64_t ffi_dropped_events(void);
 static int32_t ffi_events_inject(const uint8_t *bytes, uint64_t n);
@@ -268,6 +269,10 @@ static int32_t sdl_platform_ffi_window_fill_rects_size_entry_witness(int64_t a1,
 static int32_t sdl_platform_ffi_window_icon_size_width_entry_witness(int64_t a1, const uint8_t *a2, uint64_t a3, int64_t a4) {
     fprintf(stderr, "\nffi-native-entry 1449\n");
     return sdl_platform_ffi_window_icon_size_width(a1, a2, a3, a4);
+}
+static int32_t ffi_desktop_area_entry_witness(uint8_t *a1, uint64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1450\n");
+    return ffi_desktop_area(a1, a2);
 }
 static int32_t ffi_gpu_create_device_entry_witness(int32_t a1) {
     fprintf(stderr, "\nffi-native-entry 1454\n");
@@ -682,6 +687,12 @@ int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signatu
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) sdl_platform_ffi_window_icon_size_width_entry_witness;
         return 1449;
+    }
+    if (packed_signature == 145 && strcmp(approved_name, "platform_windows_desktop_area") == 0) {
+        *target_out = (uint64_t) ffi_desktop_area;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_desktop_area_entry_witness;
+        return 1450;
     }
     if (packed_signature == 17 && strcmp(approved_name, "platform_gpu_create_device") == 0) {
         *target_out = (uint64_t) ffi_gpu_create_device;
@@ -1245,6 +1256,38 @@ static int32_t ffi_cwd_receipt(uint8_t *out, uint64_t cap)
     }
     names[0] = path;
     owned_names_publish(row, names, 1U, out);
+    return 1;
+}
+
+/* SDLPlatform>>ffiDesktopArea:capacity: */
+static int32_t ffi_desktop_area(uint8_t *bytes, uint64_t cap)
+{
+    int local;
+    int *x;
+    int local_2;
+    int *y;
+    int local_3;
+    int *w;
+    int local_4;
+    int *h;
+    if (cap != 16) {
+        return 0;
+    }
+    memset(&local, 0, sizeof local);
+    x = &local;
+    memset(&local_2, 0, sizeof local_2);
+    y = &local_2;
+    memset(&local_3, 0, sizeof local_3);
+    w = &local_3;
+    memset(&local_4, 0, sizeof local_4);
+    h = &local_4;
+    if (!desktop_area_x(x, y, w, h)) {
+        return 0;
+    }
+    sdl_platform_window_wire_at_put_count(bytes, 0, (uint32_t)*x, 4);
+    sdl_platform_window_wire_at_put_count(bytes, 4, (uint32_t)*y, 4);
+    sdl_platform_window_wire_at_put_count(bytes, 8, (uint32_t)*w, 4);
+    sdl_platform_window_wire_at_put_count(bytes, 12, (uint32_t)*h, 4);
     return 1;
 }
 

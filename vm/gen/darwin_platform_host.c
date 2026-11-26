@@ -35,6 +35,43 @@ static void samaltak_install_paste(void)
     samaltak_application_send_event = method_setImplementation(method, (IMP)samaltak_send_event);
     installed = true;
 }
+#include <CoreGraphics/CoreGraphics.h>
+static id samaltak_ns_window(SDL_Window *sw)
+{
+    return (id)SDL_GetPointerProperty(SDL_GetWindowProperties(sw), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, NULL);
+}
+static long samaltak_desktop_level(void)
+{
+    /* above Finder's desktop (its icons take the clicks below them), below every window */
+    return (long)CGWindowLevelForKey(kCGDesktopIconWindowLevelKey) + 1;
+}
+static void samaltak_desktop_configure(SDL_Window *sw, bool passThrough)
+{
+    id window = samaltak_ns_window(sw);
+    id app = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
+    SEL prevents = sel_registerName("_setPreventsActivation:");
+    if (!window) return;
+    ((void (*)(id, SEL, long))objc_msgSend)(window, sel_registerName("setLevel:"), samaltak_desktop_level());
+    /* on every Space, left in place by Mission Control, not cycled through */
+    ((void (*)(id, SEL, unsigned long))objc_msgSend)(window, sel_registerName("setCollectionBehavior:"), (1UL << 0) | (1UL << 4) | (1UL << 6));
+    ((void (*)(id, SEL, BOOL))objc_msgSend)(window, sel_registerName("setHasShadow:"), NO);
+    if (passThrough) ((void (*)(id, SEL, BOOL))objc_msgSend)(window, sel_registerName("setIgnoresMouseEvents:"), YES);
+    /* a process with desktop windows has no Dock icon and is not in the app switcher (NSApplicationActivationPolicyAccessory) */
+    ((BOOL (*)(id, SEL, long))objc_msgSend)(app, sel_registerName("setActivationPolicy:"), 1);
+    /* a click does not activate the process (and take the focus from the active app) */
+    if (((BOOL (*)(id, SEL, SEL))objc_msgSend)(window, sel_registerName("respondsToSelector:"), prevents))
+        ((void (*)(id, SEL, BOOL))objc_msgSend)(window, prevents, YES);
+}
+static bool samaltak_is_desktop(SDL_Window *sw)
+{
+    id window = samaltak_ns_window(sw);
+    return window && ((long (*)(id, SEL))objc_msgSend)(window, sel_registerName("level")) == samaltak_desktop_level();
+}
+static void samaltak_order_front(SDL_Window *sw)
+{
+    id window = samaltak_ns_window(sw);
+    if (window) ((void (*)(id, SEL))objc_msgSend)(window, sel_registerName("orderFrontRegardless"));
+}
 #endif
 #include "samaltak.h"
 
@@ -83,7 +120,30 @@ char **environment(void)
 /* DarwinPlatformHost>>moveDesktopWindow:x:y: */
 bool move_desktop_window(SDL_Window *sw, int32_t x, int32_t y)
 {
-    return false;
+    SDL_Rect local;
+    SDL_Rect *r;
+    pf_event local_2;
+    pf_event *ev;
+    if (!samaltak_is_desktop(sw)) {
+        return false;
+    }
+    memset(&local, 0, sizeof local);
+    r = &local;
+    if (!SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), r)) {
+        return false;
+    }
+    if (!SDL_SetWindowPosition(sw, r->x + x, r->y + y)) {
+        return false;
+    }
+    memset(&local_2, 0, sizeof local_2);
+    ev = &local_2;
+    ev->type = PF_EV_WINDOW_MOVED;
+    ev->time_ms = platform_common_now_ms();
+    ev->x = (double)x;
+    ev->y = (double)y;
+    ev->window = from_sdl_id(SDL_GetWindowID(sw));
+    platform_events_push(ev);
+    return true;
 }
 
 /* DarwinPlatformHost>>onRefresh:now:output:flags:flagsOut:context: */
@@ -96,13 +156,31 @@ static CVReturn on_refresh(CVDisplayLinkRef link, const CVTimeStamp *now, const 
 /* DarwinPlatformHost>>openDesktopWindow:width:height:flags: */
 SDL_Window *open_desktop_window(char *title, int32_t w, int32_t h, SDL_WindowFlags flags)
 {
-    return (SDL_Window *)NULL;
+    SDL_Window *sw;
+    sw = SDL_CreateWindow(title, w, h, flags | (SDL_WINDOW_BORDERLESS | SDL_WINDOW_NOT_FOCUSABLE | SDL_WINDOW_HIDDEN));
+    if (sw == NULL) {
+        return sw;
+    }
+    samaltak_desktop_configure(sw, (flags & SDL_WINDOW_TRANSPARENT) != 0);
+    SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0");
+    SDL_ShowWindow(sw);
+    SDL_ResetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN);
+    return sw;
 }
 
 /* DarwinPlatformHost>>raiseDesktopWindow: */
 bool raise_desktop_window(SDL_Window *sw)
 {
-    return false;
+    if (!samaltak_is_desktop(sw)) {
+        return false;
+    }
+    if ((SDL_GetWindowFlags(sw) & SDL_WINDOW_HIDDEN) != 0) {
+        SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0");
+        SDL_ShowWindow(sw);
+        SDL_ResetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN);
+    }
+    samaltak_order_front(sw);
+    return true;
 }
 
 /* DarwinPlatformHost>>resizeDesktopWindow:width:height: */

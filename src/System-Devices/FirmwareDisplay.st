@@ -107,6 +107,10 @@ window: window fillRects: anArray
 	self check: window.
 	^false
 !
+desktopArea
+	"No bars dock on the screen."
+	^nil
+!
 window: window icon: aByteArray width: w
 	"The screen has no icon."
 	self check: window.

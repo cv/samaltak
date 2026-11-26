@@ -91,7 +91,8 @@ save
 	s := self class serialize: layout.
 	text := s.
 	tmp := self path, '.tmp'.
-	[File writeText: s to: tmp.
+	[Directory ensureExists: (File directoryOf: tmp).
+	 File writeText: s to: tmp.
 	 File rename: tmp to: self path] on: Error do: [:e | e return: nil].
 	stamp := self fileStamp
 !

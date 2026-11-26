@@ -292,6 +292,26 @@ ffiWindow: win fillRects: bytes size: n
 			rgba: (self windowWire: bytes at: o + 16 count: 4) asUInt32].
 	^(windows presentSurface: w) ifTrue: [1] ifFalse: [0]
 !
+ffiDesktopArea: bytes capacity: cap
+	"The area of the primary display that docked bars leave free: x, y, width and height in points (int32, little-endian)."
+	<function>
+	<approvedFFI: 426 symbol: 'platform_windows_desktop_area' arguments: #(9) result: 1>
+	<var: #bytes type: 'uint8_t *'>
+	<var: #cap type: 'uint64_t'>
+	<returns: 'int32_t'>
+	| x y w h |
+	cap ~= 16 ifTrue: [^0].
+	x := self local: 'int'.
+	y := self local: 'int'.
+	w := self local: 'int'.
+	h := self local: 'int'.
+	(windows desktopAreaX: x y: y width: w height: h) ifFalse: [^0].
+	self windowWire: bytes at: 0 put: x value asUInt32 count: 4.
+	self windowWire: bytes at: 4 put: y value asUInt32 count: 4.
+	self windowWire: bytes at: 8 put: w value asUInt32 count: 4.
+	self windowWire: bytes at: 12 put: h value asUInt32 count: 4.
+	^1
+!
 ffiWindow: win icon: bytes size: n width: w
 	"Set the window's icon: w pixels wide, 4 bytes each (red, green, blue, alpha; not premultiplied), rows top to bottom."
 	<function>

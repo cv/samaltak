@@ -185,6 +185,25 @@ presentSurface: win
 	sw isNull ifTrue: [^false].
 	^sdl updateWindowSurface: sw
 !
+desktopAreaX: x y: y width: w height: h
+	"The area of the primary display that docked bars (the menu bar, the Dock) leave free, in points from the top left of the screen."
+	<export>
+	<var: #x type: 'int *'>
+	<var: #y type: 'int *'>
+	<var: #w type: 'int *'>
+	<var: #h type: 'int *'>
+	| r |
+	self videoInit ifFalse: [^false].
+	r := self local: 'SDL_Rect'.
+	(sdl getDisplayUsableBounds: sdl getPrimaryDisplay rect: r) ifFalse: [
+		common setError: 'SDL_GetDisplayUsableBounds: %s' with: sdl getError.
+		^false].
+	x value: r x.
+	y value: r y.
+	w value: r w.
+	h value: r h.
+	^true
+!
 setIcon: win pixels: pixels width: w height: h
 	"The window's icon (the Dock's on macOS, the window manager's elsewhere): w × h pixels, 4 bytes each (red, green, blue, alpha; not premultiplied), rows top to bottom."
 	<export>

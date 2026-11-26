@@ -187,6 +187,10 @@ remoteRole
 desktopWindowExtent: aPoint title: aString
 	"A bare desktop host window (flag 8: above the wallpaper, below every window) of aPoint points, opened after the others, so above them; a DisplayWindow for code above UI-Windows, which does not name it (show:clear:, hostWindow moveTo:, hostWindow opacity:, close)."
 	^DisplayWindow width: aPoint x ceiling height: aPoint y ceiling title: aString flags: 8
+!
+desktopArea
+	"The part of the primary display that docked bars (the menu bar, the Dock) leave free, a Rectangle in points from the top left of the screen; nil where the host cannot tell."
+	^DisplayWindow desktopArea
 ! !
 
 !AppWorld class methodsFor: 'instance creation'!

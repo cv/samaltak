@@ -510,6 +510,16 @@ setOpacity: win permille: permille
 	common setError: 'not on UEFI'.
 	^false
 !
+desktopAreaX: x y: y width: w height: h
+	<function>
+	<var: #x type: 'int *'>
+	<var: #y type: 'int *'>
+	<var: #w type: 'int *'>
+	<var: #h type: 'int *'>
+	<returns: 'bool'>
+	common setError: 'not on UEFI'.
+	^false
+!
 setIcon: win pixels: pixels width: w height: h
 	<function>
 	<var: #win type: 'int32_t'>

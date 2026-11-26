@@ -79,6 +79,29 @@ bool platform_windows_close(int32_t win)
     return true;
 }
 
+/* PlatformWindows>>desktopAreaX:y:width:height: */
+bool desktop_area_x(int *x, int *y, int *w, int *h)
+{
+    SDL_Rect local;
+    SDL_Rect *r;
+    const char *a;
+    if (!video_init()) {
+        return false;
+    }
+    memset(&local, 0, sizeof local);
+    r = &local;
+    if (!SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), r)) {
+        a = SDL_GetError();
+        snprintf(last_error, LAST_ERROR_SIZE, "SDL_GetDisplayUsableBounds: %s", a);
+        return false;
+    }
+    *x = r->x;
+    *y = r->y;
+    *w = r->w;
+    *h = r->h;
+    return true;
+}
+
 /* PlatformWindows>>displayScale: */
 double display_scale(int32_t win)
 {

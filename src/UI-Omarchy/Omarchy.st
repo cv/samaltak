@@ -7,11 +7,12 @@ Omarchy comment: 'I am what applications ask of the Omarchy desktop (omarchy.org
 
 	Omarchy path                               "$OMARCHY_PATH, else /usr/share/omarchy"
 	Omarchy cardSettings: ''wodify''           "the card''s settings in ~/.config/omarchy/desktop-cards.json"
-	Omarchy screenExtent                       "the focused monitor in points (hyprctl), nil if unknown"
-	Omarchy freeArea                           "the part of it the bar leaves free"
+	Omarchy screenExtent                       "the focused monitor in points (hyprctl; else the primary display), nil if unknown"
+	Omarchy freeArea                           "the part of it the bar (the menu bar and the Dock) leaves free"
 	Omarchy animates                           "whether Hyprland animates (else the shell''s animations take 0 ms)"
 	Omarchy togglePanel: ''omarchy.agents''     "open or close a panel of the bar (omarchy-shell)"
-	Omarchy launch: #(''xdg-open'' ''https://omarchy.org'')'!
+	Omarchy open: ''https://omarchy.org''           "xdg-open, or open on macOS"
+	Omarchy launch: #(''omarchy-shell'' ''-q'' ''shell'' ''toggle'' ''omarchy.weather'')'!
 
 !Omarchy class methodsFor: 'installation'!
 path
@@ -47,19 +48,17 @@ cardSettings: anId in: aJSONString
 
 !Omarchy class methodsFor: 'screen'!
 screenExtent
-	"The focused monitor's size in points (pixels over its scale, turned when it is), as Hyprland reports it; nil without Hyprland."
+	"The focused monitor's size in points (pixels over its scale, turned when it is), as Hyprland reports it; without Hyprland the primary display's, as far as its free area goes (nil if unknown)."
 	| monitors |
 	monitors := [JSON parse: (OSProcess outputOf: 'hyprctl monitors -j')] on: Error do: [:e | e return: nil].
-	(monitors isKindOf: Array) ifFalse: [^nil].
-	monitors isEmpty ifTrue: [^nil].
+	((monitors isKindOf: Array) and: [monitors notEmpty]) ifFalse: [^AppWorld desktopArea ifNotNil: [:area | area corner]].
 	^self extentOfMonitor: (monitors detect: [:m | (m at: 'focused' ifAbsent: [false]) == true] ifNone: [monitors first])
 !
 freeArea
-	"The part of the focused monitor that the bar and other docked layer surfaces leave free, in points from its top left (what Hyprland reserves: left, top, right, bottom); nil without Hyprland."
+	"The part of the focused monitor that the bar and other docked layer surfaces leave free, in points from its top left (what Hyprland reserves: left, top, right, bottom); without Hyprland the primary display's that the menu bar and the Dock leave free (AppWorld desktopArea), nil if unknown."
 	| monitors |
 	monitors := [JSON parse: (OSProcess outputOf: 'hyprctl monitors -j')] on: Error do: [:e | e return: nil].
-	(monitors isKindOf: Array) ifFalse: [^nil].
-	monitors isEmpty ifTrue: [^nil].
+	((monitors isKindOf: Array) and: [monitors notEmpty]) ifFalse: [^AppWorld desktopArea].
 	^self freeAreaOfMonitor: (monitors detect: [:m | (m at: 'focused' ifAbsent: [false]) == true] ifNone: [monitors first])
 !
 freeAreaOfMonitor: aDictionary
@@ -94,6 +93,10 @@ animates
 togglePanel: aName
 	"Open or close a panel of the Omarchy bar (omarchy.weather, omarchy.agents ...), as a desktop card's click does."
 	self launch: (Array with: 'omarchy-shell' with: '-q' with: 'shell' with: 'toggle' with: aName)
+!
+open: aURL
+	"Open aURL in the user's browser or the program for it: xdg-open, or open on macOS."
+	self launch: (Array with: 'sh' with: '-c' with: 'if command -v xdg-open >/dev/null; then exec xdg-open "$1"; else exec open "$1"; fi' with: 'sh' with: aURL)
 !
 launch: anArrayOfStrings
 	"Run a program without waiting for it."

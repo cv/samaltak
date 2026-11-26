@@ -25,7 +25,7 @@ endif
 CFLAGS += -std=gnu11 -Wall -Wextra -Wno-unused-parameter -MMD -MP -Igen
 ifeq ($(UNAME_S),Darwin)
   CFLAGS += -D_DARWIN_C_SOURCE
-  OS_PLATFORM_LIBS := -framework CoreVideo -lobjc
+  OS_PLATFORM_LIBS := -framework CoreVideo -framework CoreGraphics -lobjc
 else
   # The VM was written for Darwin's arm64 ABI, where char is signed; Linux's makes it unsigned.
   CFLAGS += -D_GNU_SOURCE -fsigned-char

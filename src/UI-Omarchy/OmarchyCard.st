@@ -58,9 +58,7 @@ fontOfSize: pixels style: aSymbol tracking: points
 	"The shell's typeface at pixels, #regular, #bold or #italic, points between letters."
 	| font |
 	self omarchy ifNotNil: [:t | ^t fontOfSize: pixels style: aSymbol letterSpacing: points].
-	font := Font faceNamed: (aSymbol == #bold
-		ifTrue: ['JetBrainsMono-Bold']
-		ifFalse: [aSymbol == #italic ifTrue: ['JetBrainsMono-Italic'] ifFalse: ['JetBrainsMono-Regular']]) size: pixels.
+	font := Font face: (OmarchyTheme face: aSymbol) size: pixels.
 	points = 0 ifFalse: [font letterSpacing: points].
 	^font
 !

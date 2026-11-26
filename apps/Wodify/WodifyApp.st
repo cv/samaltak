@@ -8,7 +8,7 @@ WodifyApp comment: 'I am the Omarchy desktop''s Wodify card as a window of its o
 	bin/samaltak run apps/Wodify
 	WodifyApp run
 
-A click opens the gym''s Wodify app in the browser (xdg-open), a middle click fetches again.'!
+A click opens the gym''s Wodify app in the browser (xdg-open, open on macOS), a middle click fetches again.'!
 
 !WodifyApp methodsFor: 'accessing'!
 title
@@ -63,7 +63,7 @@ show: aService
 !
 openInBrowser
 	"The gym's member app, as the card's click does."
-	service url isNil ifFalse: [Omarchy launch: (Array with: 'xdg-open' with: service url)]
+	service url isNil ifFalse: [Omarchy open: service url]
 ! !
 
 !WodifyApp methodsFor: 'agent'!

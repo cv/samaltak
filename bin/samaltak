@@ -6,7 +6,7 @@
 #                                    in a window of its own; options go to the image (--control, --profile ...)
 #   samaltak agent [opt...]          the Agent in a window of its own (AgentApp); an app's right-click menu opens it on the app
 #   samaltak desk [app dir...]       the Omarchy desktop cards (OmarchyDesk): the apps (default: all of apps/) that are cards,
-#                                    on the desktop below the windows, laid out as ~/.config/omarchy/desktop-cards.json says
+#                                    on the desktop below the windows (Omarchy or macOS), laid out as ~/.config/omarchy/desktop-cards.json says
 #   samaltak test <app dir> [name...]  run the app's tests headless (default: all of its package)
 #   samaltak install <app dir>|agent add the app (or the agent) to the desktop's launcher (an XDG .desktop entry)
 #

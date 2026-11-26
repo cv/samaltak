@@ -62,6 +62,16 @@ window: window fillRects: anArray
 	anArray doWithIndex: [:v :i | bytes uint32At: i - 1 * 4 + 1 put: (v bitAnd: 16rFFFFFFFF)].
 	^(binding tryInvoke2: window with: {bytes. 1. bytes size}) = 1
 !
+desktopArea
+	"The part of the primary display that docked bars leave free (points), or nil where the VM or the system cannot tell."
+	| binding bytes |
+	binding := WindowPlatformFFI desktopAreaCall.
+	binding isNil ifTrue: [^nil].
+	bytes := ByteArray new: 16.
+	(binding tryInvoke1: {bytes. 1. 16}) = 1 ifFalse: [^nil].
+	^((WindowPlatformFFI signed32At: 1 in: bytes) @ (WindowPlatformFFI signed32At: 5 in: bytes))
+		extent: ((WindowPlatformFFI signed32At: 9 in: bytes) @ (WindowPlatformFFI signed32At: 13 in: bytes))
+!
 window: window icon: aByteArray width: w
 	"Set window's icon: w pixels wide, 4 bytes each (red, green, blue, alpha; not premultiplied), rows top to bottom; false where the VM or the system cannot."
 	| binding |

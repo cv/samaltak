@@ -1,6 +1,6 @@
 Theme subclass: #OmarchyTheme
 	instanceVariableNames: 'directory userShellPath palette shell regular bold italic sized stamp'
-	classVariableNames: 'Watcher'
+	classVariableNames: 'Faces Watcher'
 	package: 'UI-Omarchy'!
 
 OmarchyTheme comment: 'I am the look of the Omarchy desktop (omarchy.org) for Samaltak''s widgets, read from the same files the Omarchy shell reads, so an application looks like the shell''s own panels and follows the user''s theme:
@@ -373,10 +373,20 @@ checkForChanges
 ! !
 
 !OmarchyTheme class methodsFor: 'fonts'!
+face: aSymbol
+	"The shell's typeface in aSymbol (#regular, #bold or #italic) where there is no Omarchy theme (macOS): fontconfig's, as a theme would have it, looked up once."
+	Faces isNil ifTrue: [Faces := Dictionary new].
+	^Faces at: aSymbol ifAbsentPut: [
+		aSymbol == #bold
+			ifTrue: [self fontconfigFace: 'monospace:bold' fallback: 'JetBrainsMono-Bold']
+			ifFalse: [aSymbol == #italic
+				ifTrue: [self fontconfigFace: 'monospace:italic' fallback: 'JetBrainsMono-Italic']
+				ifFalse: [self fontconfigFace: 'monospace' fallback: 'JetBrainsMono-Regular']]]
+!
 fontconfigFace: aPattern fallback: aFaceName
-	"The TrueTypeFont fontconfig picks for aPattern (fc-match), else the image's face aFaceName."
+	"The TrueTypeFont fontconfig picks for aPattern (fc-match), else the image's face aFaceName. The shell's monospace is a Nerd Font, whose icons the cards draw: fontconfig is asked for one that has them (a weather glyph), which on Omarchy is the monospace face itself, elsewhere (macOS) a Nerd Font that is installed."
 	| path |
-	path := [(OSProcess outputOf: 'fc-match -f ''%{file}'' ', (OSProcess quote: aPattern)) trimBoth]
+	path := [(OSProcess outputOf: 'fc-match -f ''%{file}'' ', (OSProcess quote: aPattern, ':charset=e30d')) trimBoth]
 		on: Error do: [:e | e return: ''].
 	((path endsWith: '.ttf') and: [File exists: path]) ifTrue: [
 		^[Font faceFromFile: path] on: Error do: [:e | e return: (Font faceNamed: aFaceName)]].

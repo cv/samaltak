@@ -149,6 +149,10 @@ cursor: aSymbol
 	kind = 0 ifTrue: [^self error: 'Unknown cursor ', aSymbol printString].
 	^GPUPlatform setCursor: kind - 1
 !
+desktopArea
+	"The part of the primary display that docked bars leave free (points), or nil."
+	^GPUPlatform desktopArea
+!
 clipboard
 	^GPUPlatform clipboardGet
 !

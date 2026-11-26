@@ -85,7 +85,7 @@ PlatformHost subclass: #DarwinPlatformHost
 	classVariableNames: ''
 	package: 'VM-Platform'!
 
-DarwinPlatformHost comment: 'The platform layer on macOS: a CVDisplayLink thread for the refreshes, _NSGetEnviron, SO_NOSIGPIPE, the command key as cmd, MSL shaders (SDL_GPU on Metal; GLSL is not compiled here).'!
+DarwinPlatformHost comment: 'The platform layer on macOS: a CVDisplayLink thread for the refreshes, _NSGetEnviron, SO_NOSIGPIPE, the command key as cmd, MSL shaders (SDL_GPU on Metal; GLSL is not compiled here), desktop windows as borderless windows on every Space at the level just above Finder''s desktop.'!
 
 !DarwinPlatformHost class methodsFor: 'declaring'!
 declarations
@@ -163,28 +163,57 @@ compileShader: source stage: stage size: sizeOut
 
 !DarwinPlatformHost methodsFor: 'desktop windows'!
 openDesktopWindow: title width: w height: h flags: flags
-	"None on macOS: an ordinary window."
+	"A borderless window that never takes the focus, on every Space at the level just above Finder's desktop; a transparent one (SDL_WINDOW_TRANSPARENT) lets the pointer through."
 	<export>
 	<returns: 'SDL_Window *'>
 	<var: #flags type: 'SDL_WindowFlags'>
-	^self null
+	| sw |
+	sw := sdl createWindow: title width: w height: h
+		flags: (flags bitOr: ((sdl SDL_WINDOW_BORDERLESS bitOr: sdl SDL_WINDOW_NOT_FOCUSABLE) bitOr: sdl SDL_WINDOW_HIDDEN)).
+	sw isNull ifTrue: [^sw].
+	darwin configureDesktop: sw passThrough: (flags bitAnd: sdl SDL_WINDOW_TRANSPARENT) ~= 0.
+	sdl setHint: sdl SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN value: '0'.
+	sdl showWindow: sw.
+	sdl resetHint: sdl SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN.
+	^sw
 !
 resizeDesktopWindow: sw width: w height: h
+	"SDL resizes it."
 	<export>
 	<var: #sw type: 'SDL_Window *'>
 	^false
 !
 moveDesktopWindow: sw x: x y: y
+	"From the top left of the primary display's area the menu bar and the Dock leave free. The move is applied at once, so PF_EV_WINDOW_MOVED follows at once."
 	<export>
 	<var: #sw type: 'SDL_Window *'>
-	^false
+	| r ev |
+	(darwin isDesktop: sw) ifFalse: [^false].
+	r := self local: 'SDL_Rect'.
+	(sdl getDisplayUsableBounds: sdl getPrimaryDisplay rect: r) ifFalse: [^false].
+	(sdl setWindowPosition: sw x: r x + x y: r y + y) ifFalse: [^false].
+	ev := self local: 'pf_event'.
+	ev type: PF_EV_WINDOW_MOVED.
+	ev timeMs: common nowMs.
+	ev x: x asFloat.
+	ev y: y asFloat.
+	ev window: (windows fromSDLId: (sdl getWindowID: sw)).
+	events push: ev.
+	^true
 !
 raiseDesktopWindow: sw
 	<export>
 	<var: #sw type: 'SDL_Window *'>
-	^false
+	(darwin isDesktop: sw) ifFalse: [^false].
+	((sdl getWindowFlags: sw) bitAnd: sdl SDL_WINDOW_HIDDEN) ~= 0 ifTrue: [
+		sdl setHint: sdl SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN value: '0'.
+		sdl showWindow: sw.
+		sdl resetHint: sdl SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN].
+	darwin orderFront: sw.
+	^true
 !
 setDesktopWindowOpacity: sw permille: permille
+	"SDL sets it."
 	<export>
 	<var: #sw type: 'SDL_Window *'>
 	^false
@@ -537,6 +566,43 @@ static void samaltak_install_paste(void)
     samaltak_application_send_event = method_setImplementation(method, (IMP)samaltak_send_event);
     installed = true;
 }
+#include <CoreGraphics/CoreGraphics.h>
+static id samaltak_ns_window(SDL_Window *sw)
+{
+    return (id)SDL_GetPointerProperty(SDL_GetWindowProperties(sw), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, NULL);
+}
+static long samaltak_desktop_level(void)
+{
+    /* above Finder''s desktop (its icons take the clicks below them), below every window */
+    return (long)CGWindowLevelForKey(kCGDesktopIconWindowLevelKey) + 1;
+}
+static void samaltak_desktop_configure(SDL_Window *sw, bool passThrough)
+{
+    id window = samaltak_ns_window(sw);
+    id app = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
+    SEL prevents = sel_registerName("_setPreventsActivation:");
+    if (!!window) return;
+    ((void (*)(id, SEL, long))objc_msgSend)(window, sel_registerName("setLevel:"), samaltak_desktop_level());
+    /* on every Space, left in place by Mission Control, not cycled through */
+    ((void (*)(id, SEL, unsigned long))objc_msgSend)(window, sel_registerName("setCollectionBehavior:"), (1UL << 0) | (1UL << 4) | (1UL << 6));
+    ((void (*)(id, SEL, BOOL))objc_msgSend)(window, sel_registerName("setHasShadow:"), NO);
+    if (passThrough) ((void (*)(id, SEL, BOOL))objc_msgSend)(window, sel_registerName("setIgnoresMouseEvents:"), YES);
+    /* a process with desktop windows has no Dock icon and is not in the app switcher (NSApplicationActivationPolicyAccessory) */
+    ((BOOL (*)(id, SEL, long))objc_msgSend)(app, sel_registerName("setActivationPolicy:"), 1);
+    /* a click does not activate the process (and take the focus from the active app) */
+    if (((BOOL (*)(id, SEL, SEL))objc_msgSend)(window, sel_registerName("respondsToSelector:"), prevents))
+        ((void (*)(id, SEL, BOOL))objc_msgSend)(window, prevents, YES);
+}
+static bool samaltak_is_desktop(SDL_Window *sw)
+{
+    id window = samaltak_ns_window(sw);
+    return window && ((long (*)(id, SEL))objc_msgSend)(window, sel_registerName("level")) == samaltak_desktop_level();
+}
+static void samaltak_order_front(SDL_Window *sw)
+{
+    id window = samaltak_ns_window(sw);
+    if (window) ((void (*)(id, SEL))objc_msgSend)(window, sel_registerName("orderFrontRegardless"));
+}
 #endif'
 ! !
 
@@ -544,5 +610,21 @@ static void samaltak_install_paste(void)
 !DarwinPlatform methodsFor: 'paste'!
 installPaste
 	<c: 'void samaltak_install_paste(void)'>
+	^self error: 'not simulated'
+! !
+
+!DarwinPlatform methodsFor: 'desktop windows'!
+configureDesktop: sw passThrough: aBoolean
+	"Make SDL window sw a desktop window: on every Space above Finder's desktop, below every window, without a shadow; the pointer passes through it if aBoolean."
+	<c: 'void samaltak_desktop_configure(SDL_Window *sw, bool passThrough)'>
+	^self error: 'not simulated'
+!
+isDesktop: sw
+	<c: 'bool samaltak_is_desktop(SDL_Window *sw)'>
+	^self error: 'not simulated'
+!
+orderFront: sw
+	"Put sw above the other windows of its level, without activating the process."
+	<c: 'void samaltak_order_front(SDL_Window *sw)'>
 	^self error: 'not simulated'
 ! !
