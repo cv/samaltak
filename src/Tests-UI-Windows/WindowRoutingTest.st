@@ -271,7 +271,7 @@ testInputWhileAnotherWorldRuns
 !
 testServiceReturnsToTheDispatcherThatServedItBefore
 	| server b |
-	server := ControlServer new startOn: 0.
+	server := ControlServer new startOn: 0 verifier: (ControlToken verifierFor: '0123456789abcdef0123456789abcdef').
 	b := World openHidden: 400 @ 300.
 	[world dispatcher addService: server.
 	 b dispatcher addService: server.

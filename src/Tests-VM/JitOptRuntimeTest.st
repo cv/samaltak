@@ -35,17 +35,22 @@ testParameters
 	self assert: Smalltalk vm jitMode equals: self mode asSymbol
 !
 testDeoptimizationOfASpeculation
-	"SmallInteger arithmetic speculated from feedback: a Float deoptimizes to the send, the next compilation takes Floats too."
-	| o before |
-	self define: 'twice: x ^x + x'.
-	self define: 'sumTwice: n | s | s := 0. 1 to: n do: [:i | s := s + (self twice: i)]. ^s'.
-	o := JitRuntimeTestSubject new.
-	self assert: (o sumTwice: 1000) equals: 1001000.
-	before := self statistics.
-	self assert: (o twice: 1.5) equals: 3.0.
-	self assert: (o twice: 1/2) equals: 1.
-	self assert: (o sumTwice: 1000) equals: 1001000.
-	self assert: (self statistics - before) optDeoptimizations + (self statistics - before) optMethodsCompiled > 0
+	"A Float fails the speculated SmallInteger guard. A background job can delay even synchronous tier-ups."
+	| o before answer bg |
+	bg := Smalltalk vm jitFlags includes: 'bg'.
+	bg ifTrue: [Smalltalk vm jitParameters: #(nil '-bg' nil nil)].
+	[self define: 'twice: x ^x + x'.
+	 o := JitRuntimeTestSubject new.
+	 o twice: 21.
+	 o twice: 21.
+	 self assert: (o twice: 21) equals: 42.
+	 before := self statistics optDeoptimizations.
+	 answer := o twice: 1.5.
+	 self assert: self statistics optDeoptimizations > before description: 'Float did not deoptimize twice:'.
+	 self assert: answer equals: 3.0.
+	 self assert: (o twice: 1/2) equals: 1.
+	 self assert: (o twice: 21) equals: 42]
+		ensure: [bg ifTrue: [Smalltalk vm jitParameters: #(nil 'bg' nil nil)]]
 !
 testActivationsFindOptimizedCodeThroughAnEntryOfBaselineCode
 	"An interpreted send whose cache entry was filled when plusOne: had baseline code only: its activations run the optimized code the method gets meanwhile (JitRuntime>>best:). The Float failing a SmallInteger guard in it shows that they do."

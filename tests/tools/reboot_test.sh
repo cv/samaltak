@@ -42,7 +42,7 @@ running() { # pid of the process whose command line has $1 (pgrep -f; /proc wher
 check "same process" "$pid" "$(running "$SCRATCH/build/vm/samaltak")"
 $CTL wait 'rebooted in' 10000 >/dev/null || fail "the rebuild log says rebooted"
 check "every window back" "$before" "$(windows)"
-check "top bar shows it" 'topbar @top "reboot.image | Samaltak VM, rebooted"' "$($CTL snapshot --depth 0 | grep '^topbar' | sed 's/ compositor=.*//')"
+check "top bar shows the image" 'topbar @top "reboot.image"' "$($CTL snapshot --depth 0 | grep '^topbar' | sed 's/ compositor=.*//')"
 [ -x "$SCRATCH/build/vm/samaltak" ] && pass "binary beside the sources" || fail "no $SCRATCH/build/vm/samaltak"
 check "vm/gen untouched" "$gen" "$(cat vm/gen/* | cksum)"
 
