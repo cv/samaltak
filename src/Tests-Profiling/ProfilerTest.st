@@ -38,10 +38,10 @@ busyFor: milliseconds
 busyFor: milliseconds untilSamples: n
 	"Keep this process busy for milliseconds, and on a loaded machine (fewer samples a millisecond) until the running profiler has recorded n CPU samples meanwhile, at most 10 s."
 	| n0 t |
-	n0 := Profiler default cpuSampleCount.
+	n0 := self cpuSamplesSoFar.
 	t := Time millisecondClockValue.
 	self busyFor: milliseconds.
-	[Profiler default cpuSampleCount - n0 < n and: [Time millisecondClockValue - t < 10000]] whileTrue: [self busyFor: 1]
+	[self cpuSamplesSoFar - n0 < n and: [Time millisecondClockValue - t < 10000]] whileTrue: [self busyFor: 1]
 !
 fork: aSelector named: aString
 	^workers add: (self fork: [self perform: aSelector] named: aString at: Processor userBackgroundPriority)
@@ -50,13 +50,18 @@ sleep: milliseconds
 	"Let the workers run for milliseconds (the profiled time window)."
 	(Delay forMilliseconds: milliseconds) wait
 !
+cpuSamplesSoFar
+	"The running profiler's CPU samples so far: it counts those the VM recorded in place only as it drains them (every 1024, or at a query), so it is flushed first; else a drain soon after the start would count those of before it."
+	Profiler default flushSamples.
+	^Profiler default cpuSampleCount
+!
 sleep: milliseconds untilSamples: n
 	"Let the workers run for milliseconds, and on a loaded machine (fewer samples a millisecond) until the running profiler has recorded n CPU samples meanwhile, at most 10 s."
 	| n0 t |
-	n0 := Profiler default cpuSampleCount.
+	n0 := self cpuSamplesSoFar.
 	t := Time millisecondClockValue.
 	self sleep: milliseconds.
-	[Profiler default cpuSampleCount - n0 < n and: [Time millisecondClockValue - t < 10000]] whileTrue: [self sleep: 10]
+	[self cpuSamplesSoFar - n0 < n and: [Time millisecondClockValue - t < 10000]] whileTrue: [self sleep: 10]
 !
 processNamesOf: samples
 	"The names of the samples' Processes, each once with its count."
@@ -97,6 +102,15 @@ smallRing
 !
 stackOf: aSample includes: aSelector
 	^aSample stack anySatisfy: [:f | f method selector == aSelector and: [f methodClass == ProfilerTest]]
+!
+inQuery: aSample
+	"Whether aSample is of an allocation the test's own query of the profile made."
+	^aSample stack anySatisfy: [:f | f methodClass == Profiler or: [f methodClass == Profiler class or: [f methodClass == StackRing]]]
+!
+worker: aSample in: aSelector
+	"Whether a sample of a worker (fork:named:) is in its loop aSelector, or in its block before it got there: a sample due as it starts is of the block's entry (flag 8), before perform: activates the loop."
+	^(self stackOf: aSample includes: aSelector) or: [
+		aSample stack notEmpty and: [aSample stack first method selector == #fork:named: and: [aSample stack first methodClass == ProfilerTest]]]
 !
 allocDown: d size: n
 	"d activations of me, then an Array of n."
@@ -149,11 +163,12 @@ testAllocationSamplesTakeNoProcessSwitch
 	[ | t | t := Time millisecondClockValue.
 	 [Time millisecondClockValue - t < 50] whileTrue: [1 to: 1000 do: [:i | keep := Array new: 1000]].
 	 profile := Profiler from: t0 to: Time microsecondClockValue.
-	 allocs := profile allocationsFor: Processor activeProcess.
+	 "the queries allocate too (ProfileSamples): those samples are theirs"
+	 allocs := (profile allocationsFor: Processor activeProcess) reject: [:s | self inQuery: s].
 	 allocs size < 200 and: [profile stop - t0 < 5000000]] whileTrue.
 	d := Smalltalk vm statistics - before.
 	self assert: allocs size >= 200.
-	self assert: (allocs allSatisfy: [:s | s stack notEmpty and: [s allocatedClass == Array]]).
+	self assert: (allocs allSatisfy: [:s | s stack notEmpty and: [s allocatedClass == Array]]) description: [(allocs reject: [:s | s stack notEmpty and: [s allocatedClass == Array]]) asArray printString, ' (stacks: ', ((allocs reject: [:s | s stack notEmpty and: [s allocatedClass == Array]]) asArray collect: [:s | (s stack first: (s stack size min: 4)) collect: [:f | f label]]) printString, ')'].
 	self assert: d processSwitches < (allocs size // 2) description: [d processSwitches printString, ' switches for ', allocs size printString, ' allocation samples and ', profile samples size printString, ' CPU samples']
 !
 testAllocationRateIsBounded
@@ -192,15 +207,17 @@ testInPlaceStacksAreWhole
 		s isTruncated ifFalse: [self assert: (self stackOf: s includes: #testInPlaceStacksAreWhole)]]
 !
 testCpuSamplesInPlace
-	"CPU samples recorded in place (the default) take no switch either."
-	| p t0 before d profile was |
+	"CPU samples recorded in place (the default) take no switch either. Each query of the profile takes a few (the flush wakes the timer Process), so the queries come after 150 ms of CPU time, not of the clock: a loaded machine gives the VM fewer samples a millisecond."
+	| p t0 c0 before d profile was |
 	p := Profiler new.
 	was := Profiler recordsCpuSamplesInPlace.
 	Profiler recordCpuSamplesInPlace: true.
 	[self withProfiler: p do: [
 		before := Smalltalk vm statistics.
 		t0 := Time microsecondClockValue.
-		[self busyFor: 50.
+		[c0 := Processor activeProcess cpuMicroseconds.
+		 [self busyFor: 10.
+		  Processor activeProcess cpuMicroseconds - c0 < 150000 and: [Time microsecondClockValue - t0 < 5000000]] whileTrue.
 		 profile := p from: t0 to: Time microsecondClockValue.
 		 profile samples size < 100 and: [profile stop - t0 < 5000000]] whileTrue.
 		d := Smalltalk vm statistics - before]] ensure: [Profiler recordCpuSamplesInPlace: was].
@@ -233,13 +250,13 @@ testAttributionToProcesses
 	self assert: (samples - cpu) abs < 20 description: ['factorials: ', samples rounded printString, '% of the samples, ', cpu rounded printString, '% of the CPU time'].
 	self assert: (profile processes first: 2) asSet = (Set with: a with: b) description: ['the most sampled: ', ((profile processes first: 2) collect: [:p | p name]) printString].
 	self assert: (profile processSummary first at: 2) = (profile processes first name) description: ['the summary''s first: ', (profile processSummary first at: 2) printString].
-	"Right methods: the factorial worker multiplies (LargeInteger primitives, no frames) in the loop of its inject:into:, the float worker never is."
+	"Right methods: the factorial worker multiplies (Integer>>*, which calls the VM's bigint export: most of its leaves) in the loop of its inject:into:, the float worker never is."
 	self assert: (as count: [:s | self stackOf: s includes: #factorialLoop]) * 100 / as size >= 95 description: [(as count: [:s | self stackOf: s includes: #factorialLoop]) printString, ' of the factorial worker''s ', as size printString, ' samples are in factorialLoop'].
 	self assert: (bs count: [:s | self stackOf: s includes: #floatLoop]) * 100 / bs size >= 95 description: [(bs count: [:s | self stackOf: s includes: #floatLoop]) printString, ' of the float worker''s ', bs size printString, ' samples are in floatLoop'].
 	self assert: (as noneSatisfy: [:s | self stackOf: s includes: #floatLoop]) description: 'a factorial sample in floatLoop'.
 	self assert: (bs noneSatisfy: [:s | self stackOf: s includes: #factorialLoop]) description: 'a float sample in factorialLoop'.
 	self assert: as leaves notEmpty description: 'no leaves'.
-	self assert: ((as leaves first: (5 min: as leaves size)) anySatisfy: [:assoc | #(#do: #inject:into: #factorialLoop) includes: assoc key method selector]) description: ['the top leaves: ', ((as leaves first: (5 min: as leaves size)) collect: [:assoc | assoc key method selector]) printString]
+	self assert: ((as leaves first: (5 min: as leaves size)) anySatisfy: [:assoc | #(#* #do: #inject:into: #factorialLoop) includes: assoc key method selector]) description: ['the top leaves: ', ((as leaves first: (5 min: as leaves size)) collect: [:assoc | assoc key method selector]) printString]
 !
 testLabels
 	| t0 profile frames block method |
@@ -453,9 +470,9 @@ testInlineStacksDecodeShared
 	stacks := IdentitySet new.
 	(profile samplesFor: factorials) do: [:s | stacks add: s stack].
 	self assert: stacks size * 4 < (profile samplesFor: factorials) size description: [stacks size printString, ' distinct stacks in ', (profile samplesFor: factorials) size printString, ' factorial samples'].
-	self assert: ((profile samplesFor: factorials) allSatisfy: [:s | self stackOf: s includes: #factorialLoop]) description: [((profile samplesFor: factorials) reject: [:s | self stackOf: s includes: #factorialLoop]) size printString, ' factorial samples not in factorialLoop'].
+	self assert: ((profile samplesFor: factorials) allSatisfy: [:s | self worker: s in: #factorialLoop]) description: [((profile samplesFor: factorials) reject: [:s | self worker: s in: #factorialLoop]) size printString, ' factorial samples not in factorialLoop'].
 	self assert: ((profile samplesFor: compiler)
-		allSatisfy: [:s | s isTruncated or: [self stackOf: s includes: #compileLoop]]) description: [((profile samplesFor: compiler) reject: [:s | s isTruncated or: [self stackOf: s includes: #compileLoop]]) size printString, ' compiler samples not in compileLoop'].
+		allSatisfy: [:s | s isTruncated or: [self worker: s in: #compileLoop]]) description: [((profile samplesFor: compiler) reject: [:s | s isTruncated or: [self worker: s in: #compileLoop]]) size printString, ' compiler samples not in compileLoop'].
 	self assertConsistent: profile tallyTree
 !
 testHistoryFitsInOneMegabyte
