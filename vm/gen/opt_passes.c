@@ -4,6 +4,8 @@
 
 static int32_t ps_chain[16384];
 static int32_t ps_child[2048];
+static int8_t ps_counted_checks[16384];
+static int32_t ps_counted_nodes;
 static int32_t ps_heads[4096];
 static int32_t ps_idom[2048];
 #if defined(__x86_64__)
@@ -35,6 +37,7 @@ static void drop_boxes(void);
 static void drop_int_checks(void);
 static void equality_compares(void);
 static void find_loops(void);
+static void finish_counted_checks(void);
 static bool fold_int_tests(void);
 static void forward_unboxes(void);
 static void head_bounds_out_of(int32_t h, int64_t entry, int64_t index);
@@ -101,12 +104,12 @@ static void bounds_out_of(int32_t h, int64_t entry, int64_t index)
     int32_t r_int_value_of_3;
     int32_t n_8;
     int32_t n_9;
-    int32_t n_10;
+    int32_t back;
     opt_node *i1;
     int32_t v_4;
     int32_t r_int_value_of_4;
+    int32_t n_10;
     int32_t n_11;
-    int32_t n_12;
     int32_t step_node;
     bool r_is_counted_int_const;
     opt_node *nd_2;
@@ -136,6 +139,12 @@ static void bounds_out_of(int32_t h, int64_t entry, int64_t index)
     int32_t g_3;
     int32_t size;
     int32_t g_4;
+    int j;
+    int32_t n_12;
+    opt_node *nd_4;
+    int32_t b_5;
+    bool r_block_2;
+    int32_t l_2;
     hb = opt_blocks + h;
     if (!(hb->npreds == 2)) {
         return;
@@ -214,7 +223,7 @@ static void bounds_out_of(int32_t h, int64_t entry, int64_t index)
         return;
     }
     v_3 = cond->a;
-    n_10 = ({
+    back = ({
     n_8 = opt_ir_resolve(v_3);
     while (((int32_t)(opt_nodes + n_8)->op == O_GUARDINT) && ({
     n_9 = opt_ir_resolve((opt_nodes + n_8)->a);
@@ -223,17 +232,17 @@ static void bounds_out_of(int32_t h, int64_t entry, int64_t index)
     }
     r_int_value_of_3 = n_8;
     r_int_value_of_3; });
-    i1 = opt_nodes + n_10;
+    i1 = opt_nodes + back;
     if (!(((int32_t)i1->op == O_IADD) && ({
     v_4 = i1->a;
     ({
-    n_11 = opt_ir_resolve(v_4);
-    while (((int32_t)(opt_nodes + n_11)->op == O_GUARDINT) && ({
-    n_12 = opt_ir_resolve((opt_nodes + n_11)->a);
-    (int32_t)(opt_nodes + n_12)->tkind == T_SMI; })) {
-        n_11 = opt_ir_resolve((opt_nodes + n_11)->a);
+    n_10 = opt_ir_resolve(v_4);
+    while (((int32_t)(opt_nodes + n_10)->op == O_GUARDINT) && ({
+    n_11 = opt_ir_resolve((opt_nodes + n_10)->a);
+    (int32_t)(opt_nodes + n_11)->tkind == T_SMI; })) {
+        n_10 = opt_ir_resolve((opt_nodes + n_10)->a);
     }
-    r_int_value_of_4 = n_11;
+    r_int_value_of_4 = n_10;
     r_int_value_of_4; }) == phi; }))) {
         return;
     }
@@ -251,6 +260,11 @@ static void bounds_out_of(int32_t h, int64_t entry, int64_t index)
     if (!(((cond->aux == 4) && (step > 0)) || ((cond->aux == 5) && ((step < 0) && (step > VM_INT_MIN))))) {
         return;
     }
+    if (ps_counted_nodes == 0) {
+        memset(ps_counted_checks, 0, OPT_MAX_NODES);
+        ps_counted_nodes = opt_node_count;
+    }
+    ps_counted_checks[back] = -1;
     memset(&local, 0, sizeof local);
     parts = local;
     s = -1;
@@ -386,6 +400,29 @@ exit_block:;
                         return;
                     }
                     (opt_nodes + m)->flags = (opt_nodes + m)->flags | NF_NOBOUNDS;
+                    for (j = 0; j <= 1; j++) {
+                        n_12 = parts[j];
+                        if ((n_12 < 0) || ((n_12 >= ps_counted_nodes) || (ps_counted_checks[n_12] < 0))) {
+                            goto exit_record_counted_part;
+                        }
+                        nd_4 = opt_nodes + n_12;
+                        b_5 = nd_4->block;
+                        if ((b_5 >= 0) && ((nd_4->fwd < 0) && (((int32_t)nd_4->rep == R_OOP) && (((int32_t)nd_4->tkind == T_SMI) && (((nd_4->flags & NF_HOISTED) == 0) && (({
+    l_2 = (opt_blocks + b_5)->loop;
+    while (l_2 >= 0) {
+        if (l_2 == h) {
+            r_block_2 = true;
+            goto exit_block_2;
+        }
+        l_2 = ps_loop_outer[l_2];
+    }
+    r_block_2 = false;
+exit_block_2:;
+    r_block_2; }) && ((ps_pre[entry] <= ps_pre[b_5]) && (ps_post[b_5] <= ps_post[entry])))))))) {
+                            ps_counted_checks[n_12] = 1;
+                        }
+                    exit_record_counted_part:;
+                    }
                 }
             }
         }
@@ -441,6 +478,9 @@ void cleanup(int32_t entry)
         if ((jit_flags & JIT_FLAG_GVN) != 0) {
             value_numbers();
             resolve_operands();
+        }
+        if (!opt_full) {
+            finish_counted_checks();
         }
     }
     if (opt_full) {
@@ -1248,6 +1288,30 @@ static void find_loops(void)
     }
 }
 
+/* OptPasses>>finishCountedChecks */
+static void finish_counted_checks(void)
+{
+    int32_t i;
+    int32_t n;
+    int32_t i_2;
+    opt_node *nd;
+    for (i = 0; i <= ps_counted_nodes - 1; i++) {
+        if (ps_counted_checks[i] < 0) {
+            n = opt_ir_resolve(i);
+            ps_counted_checks[n] = -1;
+        }
+    }
+    for (i_2 = 0; i_2 <= ps_counted_nodes - 1; i_2++) {
+        if (ps_counted_checks[i_2] > 0) {
+            nd = opt_nodes + i_2;
+            if ((nd->fwd < 0) && ((nd->block >= 0) && ((nd->flags & NF_HOISTED) == 0))) {
+                nd->flags = nd->flags | NF_INRANGE;
+                nd->state = -1;
+            }
+        }
+    }
+}
+
 /* OptPasses>>foldIntTests */
 static bool fold_int_tests(void)
 {
@@ -1627,6 +1691,7 @@ static void hoist_guards(void)
     int32_t i;
     int32_t b;
     find_loops();
+    ps_counted_nodes = 0;
     for (i = ps_order_count - 1; i >= 0; i--) {
         b = ps_order[i];
         if (((opt_blocks + b)->flags & BF_LOOP) != 0) {

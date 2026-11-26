@@ -1,5 +1,5 @@
 OptModule subclass: #OptPasses
-	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter psMemOut'
+	instanceVariableNames: 'ir psOrder psOrderCount psVisitMark psWorkList psIdom psPre psPost psChild psSibling psHeads psChain psUnboxOff psUnboxed psTwin psLoopOuter psMemOut psCountedChecks psCountedNodes'
 	classVariableNames: ''
 	package: 'VM-Jit'!
 
@@ -10,7 +10,8 @@ declarations
 	^#((ir OptIR) (psOrder 'int32_t[OPT_MAX_BLOCKS]') (psOrderCount int32_t) (psVisitMark 'uint8_t[OPT_MAX_BLOCKS]') (psWorkList 'int32_t[OPT_MAX_NODES]')
 		(psIdom 'int32_t[OPT_MAX_BLOCKS]') (psPre 'int32_t[OPT_MAX_BLOCKS]') (psPost 'int32_t[OPT_MAX_BLOCKS]') (psChild 'int32_t[OPT_MAX_BLOCKS]') (psSibling 'int32_t[OPT_MAX_BLOCKS]')
 		(psHeads 'int32_t[4096]') (psChain 'int32_t[OPT_MAX_NODES]') (psUnboxOff bool) (psUnboxed bool)
-		(psTwin 'int32_t[OPT_MAX_NODES]') (psLoopOuter 'int32_t[OPT_MAX_BLOCKS]') (psMemOut 'int32_t[OPT_MAX_BLOCKS]'))
+		(psTwin 'int32_t[OPT_MAX_NODES]') (psLoopOuter 'int32_t[OPT_MAX_BLOCKS]') (psMemOut 'int32_t[OPT_MAX_BLOCKS]')
+		(psCountedChecks 'int8_t[OPT_MAX_NODES]') (psCountedNodes int32_t))
 ! !
 
 !OptPasses methodsFor: 'accessing'!
@@ -72,7 +73,8 @@ cleanup: entry
 		"what moved before a loop may be what was there (an invariant load and its guard)"
 		(runtime flag: runtime gvnFlag) ifTrue: [
 			self valueNumbers.
-			self resolveOperands]].
+			self resolveOperands].
+		ir full ifFalse: [self finishCountedChecks]].
 	ir full ifTrue: [^self].
 	self unboxStates.
 	self countUses.
@@ -784,6 +786,7 @@ hoistGuards
 	"Innermost loops first: a guard that leaves a loop may leave the one around it too."
 	<function>
 	self findLoops.
+	psCountedNodes := 0.
 	psOrderCount - 1 to: 0 by: -1 do: [:i |
 		((ir block: (psOrder at: i)) flags bitAnd: BF_LOOP) ~= 0 ifTrue: [self hoistOutOf: (psOrder at: i)]]
 !
@@ -1088,12 +1091,12 @@ outerSlotsOutOf: h entry: entry
 				n := (ir node: n) next]]]
 !
 boundsOutOf: h entry: entry index: index
-	"A bottom-tested loop counts a SmallInteger phi by a constant step. With the start on the right side of the limit, any index affine in the phi is bounded by its first and last values. Prove those bounds in the entry block; any failed guard resumes at the head and marks the indexed send. The body's arithmetic and the final increment still check overflow."
+	"A bottom-tested loop counts a SmallInteger phi by a constant step. With the start on the right side of the limit, any index affine in the phi is bounded by its first and last values. Prove those bounds in the entry block; any failed guard resumes at the head and marks the indexed send. Replaying the original index operations at both endpoints also proves that their affine intermediate results fit. The increment past the last value still checks overflow."
 	<function>
 	<var: #phi type: 'int32_t'>
 	<var: #s type: 'int32_t'>
 	<var: #last type: 'int32_t'>
-	| hb e c prev steps br cond limit phi n nd i0 i1 stepNode step s last parts direction x firstIndex lastIndex lo hi size |
+	| hb e c prev steps br cond limit phi n nd i0 back i1 stepNode step s last parts direction x firstIndex lastIndex lo hi size |
 	hb := ir block: h.
 	hb npreds = 2 ifFalse: [^self].
 	"the branch every way back passes: on the phi's next value <= or >= limit, true to go around"
@@ -1122,12 +1125,17 @@ boundsOutOf: h entry: entry index: index
 	phi < 0 ifTrue: [^self].
 	i0 := ir resolve: (ir operand: (ir node: phi) args + index).
 	((ir node: i0) tkind asInt32 = T_SMI and: [self countedValue: i0 atEntry: entry]) ifFalse: [^self].
-	i1 := ir node: (self intValueOf: cond a).
+	back := self intValueOf: cond a.
+	i1 := ir node: back.
 	(i1 op asInt32 = O_IADD and: [(self intValueOf: i1 a) = phi]) ifFalse: [^self].
 	stepNode := ir resolve: i1 b.
 	(self isCountedIntConst: stepNode) ifFalse: [^self].
 	step := self intVal: (ir node: stepNode) aux asUInt64.
 	((cond aux = 4 and: [step > 0]) or: [cond aux = 5 and: [step < 0 and: [step > VM_INT_MIN]]]) ifFalse: [^self].
+	psCountedNodes = 0 ifTrue: [
+		libc memset: psCountedChecks value: 0 size: OPT_MAX_NODES.
+		psCountedNodes := ir nodeCount].
+	psCountedChecks at: back put: -1.
 	parts := self local: 'int32_t[2]'.
 	s := -1.
 	last := -1.
@@ -1165,7 +1173,31 @@ boundsOutOf: h entry: entry index: index
 					ir insert: size before: (ir block: entry) last.
 					self guard: hi atMost: size for: m in: entry state: s.
 					ir full ifTrue: [^self].
-					(ir node: m) flags: ((ir node: m) flags bitOr: NF_NOBOUNDS)]]]]
+					(ir node: m) flags: ((ir node: m) flags bitOr: NF_NOBOUNDS).
+					0 to: 1 do: [:j | self recordCountedPart: (parts at: j) loop: h entry: entry]]]]]
+!
+recordCountedPart: n loop: h entry: entry
+	"Record only original tagged body operations, after all the checks are in place."
+	| nd b |
+	(n < 0 or: [n >= psCountedNodes or: [(psCountedChecks at: n) < 0]]) ifTrue: [^self].
+	nd := ir node: n.
+	b := nd block.
+	(b >= 0 and: [nd fwd < 0 and: [nd rep asInt32 = R_OOP and: [nd tkind asInt32 = T_SMI
+		and: [(nd flags bitAnd: NF_HOISTED) = 0 and: [(self block: b isIn: h) and: [self dominates: entry block: b]]]]]]) ifTrue: [
+		psCountedChecks at: n put: 1]
+!
+finishCountedChecks
+	"Never clear a latch check, even if the final numbering gives it the same node as a proven index operation. Don't transfer proofs to the replacements of forwarded operations."
+	<function>
+	| nd n |
+	0 to: psCountedNodes - 1 do: [:i |
+		(psCountedChecks at: i) < 0 ifTrue: [
+			n := ir resolve: i.
+			psCountedChecks at: n put: -1]].
+	0 to: psCountedNodes - 1 do: [:i |
+		(psCountedChecks at: i) > 0 ifTrue: [
+			nd := ir node: i.
+			(nd fwd < 0 and: [nd block >= 0 and: [(nd flags bitAnd: NF_HOISTED) = 0]]) ifTrue: [self inRange: nd]]]
 !
 countedValue: v atEntry: entry
 	"v is available before the entry block's jump."

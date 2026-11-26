@@ -899,6 +899,62 @@ testAffineCountedLoopOverflowFallsBack
 		self assert: (o window: a from: 0 to: 12000 stopAt: 0) equals: expected]
 !
 
+testAffineIndexPrefixOverflowFallsBack
+	"The final index still fits, but bias + i at the second endpoint needs a LargeInteger."
+	| o x k before |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	k := SmallInteger maxVal - 2.
+	self define: ('prefix: x bias: bias to: n | p s | p := s := 0. 1 to: n do: [:i | p := bias + i. s := s + (x at: p - ', k printString, ')]. ^{s. p}').
+	o := JitRuntimeTestSubject new.
+	x := #[11 17 23].
+	1200 timesRepeat: [self assert: (o prefix: x bias: k to: 2) equals: {28. SmallInteger maxVal}].
+	self stressed ifFalse: [self assertAffineOverflowShapeOf: #prefix:bias:to: preheader: 4 body: 2].
+	before := self statistics.
+	4 timesRepeat: [self assert: (o prefix: x bias: k + 1 to: 2) equals: {40. SmallInteger maxVal + 1}].
+	self stressed ifFalse: [
+		self assert: (self statistics - before) optDeoptimizations > 0.
+		self deny: ((self listingOf: #prefix:bias:to:) includesSubstring: 'within bounds: checked once before the loop')].
+	self assert: (o prefix: x bias: k to: 2) equals: {28. SmallInteger maxVal}
+!
+testAffineIndexKeepsSharedLatchCheck
+	"The prefix and the loop's next counter have the same value number. Only the subtraction becomes unchecked."
+	| o x |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'shared: x to: n 1 to: n do: [:i | x at: i + 1 - 1 put: i]. ^x'.
+	o := JitRuntimeTestSubject new.
+	x := Array new: 60.
+	4 timesRepeat: [self assert: (o shared: x to: 60) equals: (1 to: 60) asArray].
+	self stressed ifFalse: [self assertAffineOverflowShapeOf: #shared:to: preheader: 4 body: 1]
+!
+testAffineIndexOverflowChecksWithSignedStrides
+	"The limits are unaligned: without rounding, each upper bound would exceed the array size."
+	| o x y |
+	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
+	self define: 'forward: x offset: offset to: n | s | s := 0. 1 to: n by: 3 do: [:i | s := s + (x at: i - offset + 2)]. ^s'.
+	self define: 'reverse: x offset: offset to: n | s | s := 0. 10 to: n by: -3 do: [:i | s := s + (x at: offset - i + 2)]. ^s'.
+	o := JitRuntimeTestSubject new.
+	x := (1 to: 10) asByteArray.
+	y := (1 to: 9) asByteArray.
+	4 timesRepeat: [
+		self assert: (o forward: x offset: -1 to: 9) equals: 21.
+		self assert: (o reverse: y offset: 11 to: 2) equals: 18].
+	self stressed ifFalse: [
+		self assertAffineOverflowShapeOf: #forward:offset:to: preheader: 6 body: 2.
+		self assertAffineOverflowShapeOf: #reverse:offset:to: preheader: 6 body: 2]
+!
+assertAffineOverflowShapeOf: selector preheader: expected body: body
+	"The last hoisted bounds guard separates endpoint arithmetic from the loop."
+	| listing opcode overflow preheader |
+	listing := self listingOf: selector.
+	self assert: (listing includesSubstring: 'within bounds: checked once before the loop').
+	opcode := self isX64 ifTrue: [' jo '] ifFalse: [' b.vs '].
+	overflow := preheader := 0.
+	listing lines do: [:line |
+		(line includesSubstring: opcode) ifTrue: [overflow := overflow + 1].
+		(line includesSubstring: 'once before the loop (its indexed accesses check no bounds)') ifTrue: [preheader := overflow]].
+	self assert: preheader equals: expected.
+	self assert: overflow - preheader equals: body
+!
 testUncheckedPointerLoadAddressing
 	"A bounds-hoisted Array scan uses the tagged index on arm64; x86 still untags it and uses its indexed memory operand."
 	| o a listing lines k |
