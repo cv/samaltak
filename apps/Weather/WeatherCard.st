@@ -137,15 +137,15 @@ drawPlaceOn: c at: aPoint width: w
 	c drawString: name at: x @ aPoint y font: font color: self dim
 !
 drawForecastOn: c width: width
-	"Each day: its glyph beside its name and its high and low; the days centered."
-	| days cells x |
+	"Center each day in an equal share of the row."
+	| days columnWidth x |
 	days := report days.
 	days isEmpty ifTrue: [^self].
-	cells := days collect: [:day | self cellWidthOf: day].
-	x := (width - ((cells inject: 0 into: [:a :b | a + b]) + ((days size - 1) * (self space: 44)))) / 2.
-	days with: cells do: [:day :cellWidth |
-		self drawDay: day on: c at: x.
-		x := x + cellWidth + (self space: 44)]
+	columnWidth := width / days size.
+	x := 0.
+	days do: [:day |
+		self drawDay: day on: c at: x + ((columnWidth - (self cellWidthOf: day)) / 2).
+		x := x + columnWidth]
 !
 drawDay: aDay on: c at: left
 	| h iconFont nameFont tempFont x y high low |
