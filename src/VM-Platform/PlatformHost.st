@@ -801,6 +801,16 @@ static bool samaltak_resize_event(id event, unsigned long type)
     }
     return false;
 }
+static void samaltak_resize_hover(id event)
+{
+    /* the resize cursor where a press would resize (AppKit''s, at the edges, is covered by SDL''s, which spans the window); SDL''s again elsewhere */
+    static bool shown;
+    id window = ((id (*)(id, SEL))objc_msgSend)(event, sel_registerName("window"));
+    unsigned edges = window && !!samaltak_resizing ? samaltak_resize_edges_at(window, samaltak_mouse_location()) : 0;
+    if (edges) samaltak_resize_cursor(edges);
+    else if (shown) SDL_SetCursor(NULL);
+    shown = edges !!= 0;
+}
 static void samaltak_send_event(id receiver, SEL selector, id event)
 {
     unsigned long type = ((unsigned long (*)(id, SEL))objc_msgSend)(event, sel_registerName("type"));
@@ -822,6 +832,7 @@ static void samaltak_send_event(id receiver, SEL selector, id event)
     } else {
         ((void (*)(id, SEL, id))samaltak_application_send_event)(receiver, selector, event);
     }
+    if (type == 5 || type == 17) samaltak_resize_hover(event); /* NSEventTypeMouseMoved, NSEventTypeCursorUpdate (in which SDL sets its cursor) */
 }
 static double samaltak_wheel_point_scale(void)
 {
