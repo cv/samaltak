@@ -100,10 +100,20 @@ int desktop_window_corner_radius(SDL_Window *sw)
     return 0;
 }
 
+/* LinuxPlatformHost>>drawingWindow: */
+void drawing_window(SDL_Window *sw)
+{
+}
+
 /* LinuxPlatformHost>>environment */
 char **environment(void)
 {
     return environ;
+}
+
+/* LinuxPlatformHost>>eventsPumped */
+void events_pumped(void)
+{
 }
 
 /* LinuxPlatformHost>>moveDesktopWindow:x:y: */

@@ -13,6 +13,10 @@ static id samaltak_resizing;
 static unsigned samaltak_resize_edges;
 static CGRect samaltak_resize_frame;
 static CGPoint samaltak_resize_mouse;
+static CGPoint samaltak_resize_point;
+static bool samaltak_resize_pending;
+static bool samaltak_resize_drawn;
+static Uint64 samaltak_resize_set_at;
 static CGRect samaltak_frame_of(id object)
 {
 #if defined(__x86_64__)
@@ -63,6 +67,37 @@ static void samaltak_resize_cursor(unsigned edges)
         sel = sel_registerName((edges & 3) ? "resizeLeftRightCursor" : "resizeUpDownCursor");
     ((void (*)(id, SEL))objc_msgSend)(((id (*)(id, SEL))objc_msgSend)(cls, sel), sel_registerName("set"));
 }
+static void samaltak_resize_show(id window, CGRect from, CGRect to)
+{
+    /* How SDL's Metal view shows its last drawing until the image drew the new size: growing, the drawing's pixels at the moving edges stretch over the new strip; shrinking, it is cut there. */
+    unsigned e = samaltak_resize_edges;
+    bool shrinks = to.size.width < from.size.width || to.size.height < from.size.height;
+    id view = ((id (*)(id, SEL))objc_msgSend)(window, sel_registerName("contentView"));
+    id views = ((id (*)(id, SEL))objc_msgSend)(view, sel_registerName("subviews"));
+    id gravity = ((id (*)(id, SEL, const char *))objc_msgSend)((id)objc_getClass("NSString"), sel_registerName("stringWithUTF8String:"),
+        !shrinks ? "resize" : e & 8 ? (e & 1 ? "bottomRight" : "bottomLeft") : (e & 1 ? "topRight" : "topLeft"));
+    unsigned long i, n = ((unsigned long (*)(id, SEL))objc_msgSend)(views, sel_registerName("count"));
+    for (i = 0; i < n; i++) {
+        id sub = ((id (*)(id, SEL, unsigned long))objc_msgSend)(views, sel_registerName("objectAtIndex:"), i);
+        id layer = ((id (*)(id, SEL))objc_msgSend)(sub, sel_registerName("layer"));
+        CGRect b, center = CGRectMake(0, 0, 1, 1);
+        double scale, w, h;
+        if (!layer) continue;
+        b = samaltak_frame_of(layer);
+        scale = ((double (*)(id, SEL))objc_msgSend)(layer, sel_registerName("contentsScale"));
+        w = fmax(b.size.width * scale, 4);
+        h = fmax(b.size.height * scale, 4);
+        /* a pixel two in from each moving edge stretches; unit coordinates, y up */
+        if (!shrinks) {
+            if (e & 1) center = CGRectMake(1 / w, 0, 1 / w, 1);
+            if (e & 2) center = CGRectMake(1 - 2 / w, 0, 1 / w, 1);
+            if (e & 4) { center.origin.y = 1 / h; center.size.height = 1 / h; }
+            if (e & 8) { center.origin.y = 1 - 2 / h; center.size.height = 1 / h; }
+        }
+        ((void (*)(id, SEL, id))objc_msgSend)(layer, sel_registerName("setContentsGravity:"), gravity);
+        ((void (*)(id, SEL, CGRect))objc_msgSend)(layer, sel_registerName("setContentsCenter:"), center);
+    }
+}
 static void samaltak_resize_to(CGPoint m)
 {
     /* keep the opposite edges where they were; not below the minimum size (SDL sets the content's) */
@@ -77,11 +112,23 @@ static void samaltak_resize_to(CGPoint m)
     if (samaltak_resize_edges & 2) f.size.width = fmax(start.size.width + dx, minW);
     if (samaltak_resize_edges & 4) { f.size.height = fmax(start.size.height - dy, minH); f.origin.y = start.origin.y + start.size.height - f.size.height; }
     if (samaltak_resize_edges & 8) f.size.height = fmax(start.size.height + dy, minH);
+    if (CGRectEqualToRect(f, samaltak_frame_of(window))) return;
+    samaltak_resize_show(window, samaltak_frame_of(window), f);
     ((void (*)(id, SEL, CGRect, BOOL))objc_msgSend)(window, sel_registerName("setFrame:display:"), f, YES);
+    samaltak_resize_drawn = false;
+    samaltak_resize_set_at = SDL_GetTicks();
+}
+static void samaltak_resize_step(void)
+{
+    /* the next size once the image drew the last one (at most 100 ms later): the window does not run ahead of its drawing */
+    if (!samaltak_resizing || !samaltak_resize_pending) return;
+    if (!samaltak_resize_drawn && SDL_GetTicks() - samaltak_resize_set_at < 100) return;
+    samaltak_resize_pending = false;
+    samaltak_resize_to(samaltak_resize_point);
 }
 static bool samaltak_resize_event(id event, unsigned long type)
 {
-    /* Resize a window by its edges here rather than in AppKit's live resize, a modal loop inside SDL_PumpEvents in which the image cannot draw: each step resizes the window, SDL reports it, and the image draws the new size. */
+    /* Resize a window by its edges here rather than in AppKit's live resize, a modal loop inside SDL_PumpEvents in which the image cannot draw: each step resizes the window, SDL reports it, and the image draws the new size before the next step. */
     if (type == 1) { /* NSEventTypeLeftMouseDown */
         id window = ((id (*)(id, SEL))objc_msgSend)(event, sel_registerName("window"));
         CGPoint m = samaltak_mouse_location();
@@ -91,16 +138,22 @@ static bool samaltak_resize_event(id event, unsigned long type)
         samaltak_resize_edges = edges;
         samaltak_resize_frame = samaltak_frame_of(window);
         samaltak_resize_mouse = m;
+        samaltak_resize_pending = false;
+        samaltak_resize_drawn = true;
         samaltak_resize_cursor(edges);
         return true;
     }
     if (!samaltak_resizing) return false;
     if (type == 6) { /* NSEventTypeLeftMouseDragged */
-        samaltak_resize_to(samaltak_mouse_location());
+        samaltak_resize_point = samaltak_mouse_location();
+        samaltak_resize_pending = true;
+        samaltak_resize_step();
         samaltak_resize_cursor(samaltak_resize_edges);
         return true;
     }
     if (type == 2) { /* NSEventTypeLeftMouseUp */
+        if (samaltak_resize_pending) samaltak_resize_to(samaltak_resize_point);
+        samaltak_resize_pending = false;
         samaltak_resizing = nil;
         ((void (*)(id, SEL))objc_msgSend)(((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSCursor"), sel_registerName("arrowCursor")), sel_registerName("set"));
         return true;
@@ -233,6 +286,10 @@ static void samaltak_order_front(SDL_Window *sw)
     id window = samaltak_ns_window(sw);
     if (window) ((void (*)(id, SEL))objc_msgSend)(window, sel_registerName("orderFrontRegardless"));
 }
+static void samaltak_drawing(SDL_Window *sw)
+{
+    if (samaltak_resizing && samaltak_ns_window(sw) == samaltak_resizing) samaltak_resize_drawn = true;
+}
 #endif
 #include "samaltak.h"
 
@@ -278,10 +335,22 @@ int desktop_window_corner_radius(SDL_Window *sw)
     return samaltak_corner_radius(sw);
 }
 
+/* DarwinPlatformHost>>drawingWindow: */
+void drawing_window(SDL_Window *sw)
+{
+    samaltak_drawing(sw);
+}
+
 /* DarwinPlatformHost>>environment */
 char **environment(void)
 {
     return *_NSGetEnviron();
+}
+
+/* DarwinPlatformHost>>eventsPumped */
+void events_pumped(void)
+{
+    samaltak_resize_step();
 }
 
 /* DarwinPlatformHost>>moveDesktopWindow:x:y: */

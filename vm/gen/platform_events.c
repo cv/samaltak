@@ -63,6 +63,7 @@ void pump(void)
     memset(&local, 0, sizeof local);
     e = &local;
     SDL_PumpEvents();
+    events_pumped();
     while (SDL_PeepEvents(e, 1, SDL_GETEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST) > 0) {
         translate(e);
     }

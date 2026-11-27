@@ -230,6 +230,7 @@ frame
 	"On the recording clock the GPU's frames, like an external program, take real time: while any are unfinished the clock moves with real time instead of jumping to the next deadline. Not while recording: the recorder waits for each frame, and every tick gets its own."
 	onWorkClock ifTrue: [Smalltalk vm workClockPaced: (OSProcess externalWork or: [recorder isNil and: [gpuTimer inFlight > 0]])].
 	(recorder isNil and: [requests isEmpty and: [gpuTimer inFlight >= self class maxFramesInFlight]]) ifTrue: [^self].
+	(recorder isNil and: [world awaitsResize]) ifTrue: [^self].
 	t0 := Time microsecondClockValue.
 	recorder isNil ifFalse: [t0 := recorder tickStartAt: t0].
 	now := Animation nowAt: t0 / 1000.0.

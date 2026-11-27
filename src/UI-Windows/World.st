@@ -1,5 +1,5 @@
 Object subclass: #World
-	instanceVariableNames: 'displayWindow extent scale windows overlays activeWindow compositor dispatcher topBar toasts tooltip lock windowCounter closingWindows needsFrame remotePointer hidden imageName clipboardText running curtain closingFrontWindows'
+	instanceVariableNames: 'displayWindow extent scale windows overlays activeWindow compositor dispatcher topBar toasts tooltip lock windowCounter closingWindows needsFrame remotePointer hidden imageName clipboardText running curtain closingFrontWindows resizingSince'
 	classVariableNames: 'All Current HelpHandler UserInterruptHandler WorldMenuBuilder QuitHandler'
 	package: 'UI-Windows'!
 
@@ -327,6 +327,15 @@ hostResized: aPoint
 		(b top > (extent y - 26) or: [b left > (extent x - 60)]) ifTrue: [
 			w moveTo: ((b left min: extent x - 60) max: 60 - b width) @ ((b top min: extent y - 26) max: topBar height)]].
 	self changed
+!
+awaitsResize
+	"Whether the compositor should hold the frame: the host window or a window has a size I or its drawing do not have yet. At most 100 ms."
+	| now |
+	(extent = displayWindow extent and: [windows allSatisfy: [:w | w layer contentList isNil or: [w layer contentList extent = w extent]]])
+		ifTrue: [resizingSince := nil. ^false].
+	now := Time millisecondClockValue.
+	resizingSince isNil ifTrue: [resizingSince := now].
+	^now - resizingSince < 100
 !
 debugged: aProcess changed: aSymbol
 	"DebugSession process listener: a debugger holds aProcess (#held) or let it go (#released). If it is my compositor's or input dispatcher's, a stand-in runs meanwhile (StandIn)."

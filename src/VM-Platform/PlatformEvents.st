@@ -209,6 +209,7 @@ pump
 	windows videoInited ifFalse: [^self].
 	e := self local: 'SDL_Event'.
 	sdl pumpEvents.
+	host eventsPumped.
 	[(sdl peepEvents: e count: 1 action: sdl SDL_GETEVENT minType: sdl SDL_EVENT_FIRST maxType: sdl SDL_EVENT_LAST) > 0]
 		whileTrue: [self translate: e].
 	lastPumpNs := sdl getTicksNS
