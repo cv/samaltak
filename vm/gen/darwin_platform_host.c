@@ -104,16 +104,16 @@ static void samaltak_resize_to(CGPoint m)
     id window = samaltak_resizing;
     id view = ((id (*)(id, SEL))objc_msgSend)(window, sel_registerName("contentView"));
     CGSize min = ((CGSize (*)(id, SEL))objc_msgSend)(window, sel_registerName("contentMinSize"));
-    CGRect start = samaltak_resize_frame, f = start, content = samaltak_frame_of(view);
+    CGRect start = samaltak_resize_frame, f = start, now = samaltak_frame_of(window), content = samaltak_frame_of(view);
     double dx = m.x - samaltak_resize_mouse.x, dy = m.y - samaltak_resize_mouse.y;
-    double minW = (min.width > 1 ? min.width : 1) + start.size.width - content.size.width;
-    double minH = (min.height > 1 ? min.height : 1) + start.size.height - content.size.height;
+    double minW = (min.width > 1 ? min.width : 1) + now.size.width - content.size.width;
+    double minH = (min.height > 1 ? min.height : 1) + now.size.height - content.size.height;
     if (samaltak_resize_edges & 1) { f.size.width = fmax(start.size.width - dx, minW); f.origin.x = start.origin.x + start.size.width - f.size.width; }
     if (samaltak_resize_edges & 2) f.size.width = fmax(start.size.width + dx, minW);
     if (samaltak_resize_edges & 4) { f.size.height = fmax(start.size.height - dy, minH); f.origin.y = start.origin.y + start.size.height - f.size.height; }
     if (samaltak_resize_edges & 8) f.size.height = fmax(start.size.height + dy, minH);
-    if (CGRectEqualToRect(f, samaltak_frame_of(window))) return;
-    samaltak_resize_show(window, samaltak_frame_of(window), f);
+    if (CGRectEqualToRect(f, now)) return;
+    samaltak_resize_show(window, now, f);
     ((void (*)(id, SEL, CGRect, BOOL))objc_msgSend)(window, sel_registerName("setFrame:display:"), f, YES);
     samaltak_resize_drawn = false;
     samaltak_resize_set_at = SDL_GetTicks();
