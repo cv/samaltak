@@ -639,7 +639,6 @@ acquireSwapchain: cmd window: win width: w height: h
 		^self sdlFail: 'SDL_AcquireGPUSwapchainTexture'].
 	"too many frames in flight: try again later"
 	t value isNull ifTrue: [^0].
-	host drawingWindow: sw.
 	dev := c dev.
 	fmt := self swapchainFormat: dev window: win.
 	sh := common table: objs add: K_SWAP pointer: t value.

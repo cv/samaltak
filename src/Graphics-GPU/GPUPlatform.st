@@ -166,6 +166,15 @@ window: window title: aString
 window: window width: w height: h
 	^self display window: window width: w height: h
 !
+window: window background: rgb
+	^self display window: window background: rgb
+!
+window: window minimumWidth: w height: h
+	^self display window: window minimumWidth: w height: h
+!
+window: window presentingWidth: w height: h
+	^self display window: window presentingWidth: w height: h
+!
 window: window x: x y: y
 	^self display window: window x: x y: y
 !

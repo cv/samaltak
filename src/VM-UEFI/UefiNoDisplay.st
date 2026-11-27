@@ -467,6 +467,31 @@ setSize: win width: w height: h
 	common setError: 'not on UEFI'.
 	^false
 !
+setBackground: win rgb: rgb
+	<function>
+	<var: #win type: 'int32_t'>
+	<var: #rgb type: 'uint32_t'>
+	<returns: 'bool'>
+	common setError: 'not on UEFI'.
+	^false
+!
+setMinimumSize: win width: w height: h
+	<function>
+	<var: #win type: 'int32_t'>
+	<var: #w type: 'int32_t'>
+	<var: #h type: 'int32_t'>
+	<returns: 'bool'>
+	common setError: 'not on UEFI'.
+	^false
+!
+presenting: win width: w height: h
+	<function>
+	<var: #win type: 'int32_t'>
+	<var: #w type: 'int32_t'>
+	<var: #h type: 'int32_t'>
+	<returns: 'bool'>
+	^true
+!
 setPosition: win x: x y: y
 	<function>
 	<var: #win type: 'int32_t'>

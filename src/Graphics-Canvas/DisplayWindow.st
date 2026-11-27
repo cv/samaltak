@@ -3,7 +3,7 @@ Object subclass: #DisplayWindow
 	classVariableNames: ''
 	package: 'Graphics-Canvas'!
 
-DisplayWindow comment: 'I am a host window that shows DisplayLists: each frame is rendered into my offscreen Surface (RGBA8, the window''s pixel size, readable) and blitted to the swapchain. Present at most 60 Hz (vm/platform/README.md).
+DisplayWindow comment: 'I am a host window that shows DisplayLists: each frame is rendered into my offscreen Surface (RGBA8, the frame''s pixel size, readable) and copied to the swapchain, never scaled. Present at most 60 Hz (vm/platform/README.md).
 
 	| w | w := DisplayWindow width: 900 height: 560 title: ''Samaltak''.
 	w show: aDisplayList clear: Color white'!
@@ -37,9 +37,11 @@ scale
 	^window scale
 !
 surface
-	"The offscreen surface of the last frame (its size follows the window)."
-	| pixels |
-	pixels := window pixelExtent.
+	"The offscreen surface of the last frame (before the first, one of the window's size)."
+	^surface ifNil: [self surfaceFor: window pixelExtent]
+!
+surfaceFor: pixels
+	"The offscreen surface for a frame of pixels."
 	(surface isNil or: [surface pixelExtent ~= pixels]) ifTrue: [
 		surface isNil ifFalse: [surface release].
 		surface := Surface width: pixels x height: pixels y scale: window scale].
@@ -56,6 +58,14 @@ extent: aPoint
 	"Resize the host window to aPoint points; answer whether it did."
 	^window extent: aPoint
 !
+background: aColor
+	"What the host window shows where no frame is drawn."
+	window background: aColor
+!
+minimumExtent: aPoint
+	"Keep the host window at least aPoint points, also when the user resizes it."
+	window minimumExtent: aPoint
+!
 hidden: aBoolean
 	"Hidden or shown when my host window opens next (after an image restart)."
 	window hidden: aBoolean
@@ -66,13 +76,19 @@ textInputArea: aRectangle cursor: x
 
 !DisplayWindow methodsFor: 'presenting'!
 show: aDisplayList clear: aColorOrNil
-	"Render aDisplayList and present it. Answer false if the window could not be drawn (hidden, minimized, too many frames in flight)."
-	| cmd target swap |
-	target := self surface.
+	"Render aDisplayList at its size and present it. A window the host sizes by its frames (macOS, while the user resizes it by its edges) takes that size first; in another window of another size the frame shows from the top left, unscaled, the rest cleared. Answer false if the window could not be drawn (hidden, minimized, too many frames in flight)."
+	| cmd target swap w h |
+	target := self surfaceFor: aDisplayList pixelExtent.
 	cmd := renderer device commandBuffer.
 	renderer render: aDisplayList into: target texture clear: aColorOrNil commandBuffer: cmd.
+	window presenting: aDisplayList extent.
 	swap := cmd acquireSwapchainTexture: swapchain.
-	swap isNil ifFalse: [cmd blit: target texture to: swap].
+	swap isNil ifFalse: [
+		w := swap width min: target width.
+		h := swap height min: target height.
+		(w = swap width and: [h = swap height]) ifFalse: [
+			(cmd beginPassOn: swap clear: (aColorOrNil ifNil: [Color black]) asArray) end].
+		cmd blit: target texture rect: {0. 0. w. h} to: swap rect: {0. 0. w. h} linear: false].
 	cmd submit.
 	^swap notNil
 !

@@ -8,7 +8,7 @@ Application comment: 'I am an application that runs as a window of the host''s w
 	bin/samaltak run apps/Weather          "files in the package directory apps/Weather, runs its Application"
 	WeatherApp run                         "the same from a running image"
 
-Subclasses answer content (a View, built once), and may override title, extent (default: the content''s preferredExtent; fitToContent resizes the host window to it when it changed), backgroundColor, prepare (before the window opens: themes, fonts) and started (after it opened: timers, fetching). Code that touches my widgets runs in my window''s Process (window do: [...]). Unhandled errors in my window''s Process are reported (stderr, a toast) and its event loop restarts. The sampling profiler is paused unless the command line has --profile.
+Subclasses answer content (a View, built once), and may override title, extent (default: the content''s preferredExtent; fitToContent resizes the host window to it when it changed), minimumExtent (of a resizable window), backgroundColor, prepare (before the window opens: themes, fonts) and started (after it opened: timers, fetching). Code that touches my widgets runs in my window''s Process (window do: [...]). Unhandled errors in my window''s Process are reported (stderr, a toast) and its event loop restarts. The sampling profiler is paused unless the command line has --profile.
 
 ⌘J, ⌘I, ⌘B and ⌘C that my content does not take act on me (commandKey:). A right-click my content does not take opens my menu (contextMenu): the items subclasses add (addMenuItemsTo:), then those other packages add to every application (Application addMenuItem:with:; UI-Agent''s Agent opens the agent on me, agentContext). isResizable makes my host window resizable (a tiling window manager then tiles it).'!
 
@@ -32,6 +32,10 @@ extent
 	^window isNil
 		ifTrue: [self content preferredExtent]
 		ifFalse: [window content preferredExtent]
+!
+minimumExtent
+	"The least size (points) of my host window when it is resizable; nil for none."
+	^nil
 !
 backgroundColor
 	"What shows before my content drew its first frame."
@@ -118,6 +122,7 @@ openHidden: aBoolean main: mainBoolean desktop: desktopBoolean
 	world := AppWorld openExtent: self extent title: self title hidden: aBoolean main: mainBoolean
 		resizable: (self isResizable and: [desktopBoolean not]) desktop: desktopBoolean.
 	world deskColor: self backgroundColor.
+	self minimumExtent ifNotNil: [:e | world minimumExtent: e].
 	window := AppWindow new title: self title; content: view; yourself.
 	window menuBlock: [self contextMenu].
 	window keyBlock: [:event | self commandKey: event].

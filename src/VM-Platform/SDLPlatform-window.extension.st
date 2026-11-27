@@ -154,6 +154,38 @@ ffiWindow: win width: w height: h
 	<returns: 'int32_t'>
 	(w < 1 or: [w > 16r7FFFFFFF or: [h < 1 or: [h > 16r7FFFFFFF]]]) ifTrue: [^0].
 	^(windows setSize: win asInt32 width: w asInt32 height: h asInt32) ifTrue: [1] ifFalse: [0]
+!
+ffiWindow: win background: rgb
+	"What the window shows where no frame is drawn: rgb 16rRRGGBB."
+	<function>
+	<approvedFFI: 401 symbol: 'platform_windows_set_background' arguments: #(3 3) result: 1>
+	<var: #win type: 'int64_t'>
+	<var: #rgb type: 'int64_t'>
+	<returns: 'int32_t'>
+	(rgb < 0 or: [rgb > 16rFFFFFF]) ifTrue: [^0].
+	^(windows setBackground: win asInt32 rgb: rgb asUInt32) ifTrue: [1] ifFalse: [0]
+!
+ffiWindow: win minimumWidth: w height: h
+	"The window's content is never smaller than w × h points."
+	<function>
+	<approvedFFI: 429 symbol: 'platform_windows_set_minimum_size' arguments: #(3 3 3) result: 1>
+	<var: #win type: 'int64_t'>
+	<var: #w type: 'int64_t'>
+	<var: #h type: 'int64_t'>
+	<returns: 'int32_t'>
+	(w < 0 or: [w > 16r7FFFFFFF or: [h < 0 or: [h > 16r7FFFFFFF]]]) ifTrue: [^0].
+	^(windows setMinimumSize: win asInt32 width: w asInt32 height: h asInt32) ifTrue: [1] ifFalse: [0]
+!
+ffiWindow: win presentingWidth: w height: h
+	"A frame of w × h points is about to be presented in the window."
+	<function>
+	<approvedFFI: 419 symbol: 'platform_windows_presenting' arguments: #(3 3 3) result: 1>
+	<var: #win type: 'int64_t'>
+	<var: #w type: 'int64_t'>
+	<var: #h type: 'int64_t'>
+	<returns: 'int32_t'>
+	(w < 1 or: [w > 16r7FFFFFFF or: [h < 1 or: [h > 16r7FFFFFFF]]]) ifTrue: [^0].
+	^(windows presenting: win asInt32 width: w asInt32 height: h asInt32) ifTrue: [1] ifFalse: [0]
 ! !
 
 !SDLPlatform methodsFor: '*VM-Platform-window-events'!

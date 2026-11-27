@@ -249,6 +249,9 @@ static void translate(SDL_Event *e)
             return;
         }
         if (t == SDL_EVENT_WINDOW_RESIZED) {
+            if (owns_size_of(sdl_window(ev->window))) {
+                return;
+            }
             ev->type = PF_EV_WINDOW_RESIZED;
             ev->x = (double)e->window.data1;
             ev->y = (double)e->window.data2;

@@ -24,6 +24,9 @@ content
 extent
 	^720 @ 640
 !
+minimumExtent
+	^self content minimumWindowExtent
+!
 isResizable
 	^true
 ! !

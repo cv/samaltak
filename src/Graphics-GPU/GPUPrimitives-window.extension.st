@@ -47,6 +47,27 @@ window: window width: w height: h
 	result == false ifTrue: [^false].
 	^result = 0 ifTrue: [false] ifFalse: [self]
 !
+window: window background: rgb
+	| binding result |
+	binding := WindowPlatformFFI backgroundCall.
+	binding isNil ifTrue: [^false].
+	result := binding tryInvoke2: window with: rgb.
+	result == false ifTrue: [^false].
+	^result = 0 ifTrue: [false] ifFalse: [self]
+!
+window: window minimumWidth: w height: h
+	| binding result |
+	binding := WindowPlatformFFI minimumSizeCall.
+	binding isNil ifTrue: [^false].
+	result := binding tryInvoke3: window with: w with: h.
+	result == false ifTrue: [^false].
+	^result = 0 ifTrue: [false] ifFalse: [self]
+!
+window: window presentingWidth: w height: h
+	| binding |
+	binding := WindowPlatformFFI presentingCall.
+	binding isNil ifFalse: [binding tryInvoke3: window with: w with: h]
+!
 clipboardGet
 	| binding result |
 	binding := WindowPlatformFFI clipboardGetCall.

@@ -323,9 +323,11 @@ testTicksKeepTheirPaceWithoutDisplayRefreshes
 	self assert: Time millisecondClockValue - t0 / 6 < 185
 !
 testHostResize
+	"The host's resize event sizes the World (on macOS a drag of the window's edges asks for a size the window takes with the frame of it); the frames are drawn at that size, not the host window's."
 	DisplayWindow injectEvent: {UIEvent evWindowResized. nil. 1000. 700. 0. 0. nil. world displayWindow windowId}.
 	self settle.
-	self assert: world extent equals: world displayWindow extent
+	self assert: world extent equals: 1000 @ 700.
+	self assert: world displayWindow surface pixelExtent equals: (1000 @ 700 * world displayScale) ceiling
 !
 testVsyncWhileAnotherWorldRuns
 	| b |

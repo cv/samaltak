@@ -126,6 +126,32 @@ setTitle: win title: title
 	sw := self sdlWindow: win.
 	^sw notNull and: [sdl setWindowTitle: sw title: title]
 !
+setBackground: win rgb: rgb
+	"What the window shows where no frame is drawn (rgb 16rRRGGBB): while it is resized, where the system shows its new size and its new frame at different moments."
+	<export>
+	<var: #rgb type: 'uint32_t'>
+	| sw |
+	sw := self sdlWindow: win.
+	sw isNull ifTrue: [^false].
+	^host setWindowBackground: sw rgb: rgb
+!
+setMinimumSize: win width: w height: h
+	"The window's content is never smaller than w × h points: the system's and the user's resizing keep it."
+	<export>
+	| sw |
+	sw := self sdlWindow: win.
+	sw isNull ifTrue: [^false].
+	^sdl setWindowMinimumSize: sw w: w h: h
+!
+presenting: win width: w height: h
+	"The image is about to present a frame of w × h points (before acquiring its drawable). Where the host sizes a window by its frames (macOS, while it is resized by its edges), the window takes that size now."
+	<export>
+	| sw |
+	sw := self sdlWindow: win.
+	sw isNull ifTrue: [^false].
+	host presenting: sw width: w height: h.
+	^true
+!
 setSize: win width: w height: h
 	"Resize to w × h points; a window that is not resizable keeps the new size fixed."
 	<export>

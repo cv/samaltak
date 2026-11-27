@@ -71,6 +71,7 @@ openNativeTitle: aString hidden: aBoolean
 	| world w |
 	world := AppWorld openExtent: 720 @ 640 title: aString hidden: aBoolean main: false resizable: true.
 	world deskColor: self theme paper.
+	world minimumExtent: self minimumWindowExtent.
 	w := AppWindow new title: aString; content: self; yourself.
 	w whenClosed: [self windowClosed].
 	w openIn: world.

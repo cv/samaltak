@@ -320,7 +320,7 @@ quitProcess
 
 !World methodsFor: 'host window'!
 hostResized: aPoint
-	extent := displayWindow extent.
+	extent := aPoint.
 	windows do: [:w |
 		| b |
 		b := w bounds.
@@ -329,9 +329,9 @@ hostResized: aPoint
 	self changed
 !
 awaitsResize
-	"Whether the compositor should hold the frame: the host window or a window has a size I or its drawing do not have yet. At most 100 ms."
+	"Whether the compositor should hold the frame: a window was resized and has not drawn its new size yet. At most 100 ms."
 	| now |
-	(extent = displayWindow extent and: [windows allSatisfy: [:w | w layer contentList isNil or: [w layer contentList extent = w extent]]])
+	(windows allSatisfy: [:w | w layer contentList isNil or: [w layer contentList extent = w extent]])
 		ifTrue: [resizingSince := nil. ^false].
 	now := Time millisecondClockValue.
 	resizingSince isNil ifTrue: [resizingSince := now].

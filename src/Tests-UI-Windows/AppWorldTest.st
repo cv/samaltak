@@ -56,6 +56,15 @@ testPresentsOnlyWhatChanged
 	self assert: world compositor frameCount > frames.
 	self assertColor: (Color r: 0 g: 0 b: 1) at: 150 @ 100 in: self screenshot
 !
+testAResizeEventSizesTheWindow
+	| w |
+	w := self openApp: RecordingTestView new.
+	DisplayWindow injectEvent: {UIEvent evWindowResized. nil. 240. 150. 0. 0. nil. world displayWindow windowId}.
+	self settle.
+	self assert: world extent equals: 240 @ 150.
+	self assert: w bounds equals: (0 @ 0 extent: 240 @ 150).
+	self assert: world displayWindow surface pixelExtent equals: (240 @ 150 * world displayScale) ceiling
+!
 testAClosingWindowDoesNotFade
 	"On the host's desktop the window manager animates windows, not I: a closed window is gone with the next frame."
 	| first second |

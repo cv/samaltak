@@ -1,5 +1,5 @@
 Object subclass: #HostWindow
-	instanceVariableNames: 'handle session width height title flags'
+	instanceVariableNames: 'handle session width height title flags minimum background'
 	classVariableNames: 'Icon IconWidth'
 	package: 'Graphics-GPU'!
 
@@ -20,6 +20,8 @@ handle
 	session := GPUDevice currentSession.
 	"a desktop window (flag 8) is no application window: it has no icon"
 	(Icon notNil and: [(flags bitAnd: 8) = 0]) ifTrue: [GPUPlatform window: handle icon: Icon width: IconWidth].
+	minimum isNil ifFalse: [GPUPlatform window: handle minimumWidth: minimum x height: minimum y].
+	background isNil ifFalse: [GPUPlatform window: handle background: background].
 	^handle
 !
 isOpen
@@ -57,6 +59,20 @@ extent: aPoint
 	width := aPoint x ceiling.
 	height := aPoint y ceiling.
 	^self isOpen and: [(GPUPlatform window: handle width: width height: height) ~~ false]
+!
+background: aColor
+	"Show aColor where no frame is drawn (while the user resizes me, where the system shows my new size and my new frame at different moments)."
+	background := aColor hex.
+	self isOpen ifTrue: [GPUPlatform window: handle background: background]
+!
+minimumExtent: aPoint
+	"Never smaller than aPoint points: the system's and the user's resizing keep it."
+	minimum := aPoint ceiling.
+	self isOpen ifTrue: [GPUPlatform window: handle minimumWidth: minimum x height: minimum y]
+!
+presenting: aPoint
+	"A frame of aPoint points is about to be presented in me: where the host sizes me by my frames (macOS, while the user resizes me by my edges), I take that size now."
+	self isOpen ifTrue: [GPUPlatform window: handle presentingWidth: aPoint x ceiling height: aPoint y ceiling]
 !
 hidden: aBoolean
 	"Open hidden (offscreen) or shown when my handle is created next (first use, new session)."

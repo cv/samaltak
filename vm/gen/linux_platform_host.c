@@ -100,11 +100,6 @@ int desktop_window_corner_radius(SDL_Window *sw)
     return 0;
 }
 
-/* LinuxPlatformHost>>drawingWindow: */
-void drawing_window(SDL_Window *sw)
-{
-}
-
 /* LinuxPlatformHost>>environment */
 char **environment(void)
 {
@@ -128,6 +123,17 @@ SDL_Window *open_desktop_window(char *title, int32_t w, int32_t h, SDL_WindowFla
     return open_surface(title, w, h, flags);
 }
 
+/* LinuxPlatformHost>>ownsSizeOf: */
+bool owns_size_of(SDL_Window *sw)
+{
+    return false;
+}
+
+/* LinuxPlatformHost>>presenting:width:height: */
+void platform_host_presenting(SDL_Window *sw, int w, int h)
+{
+}
+
 /* LinuxPlatformHost>>raiseDesktopWindow: */
 bool raise_desktop_window(SDL_Window *sw)
 {
@@ -144,6 +150,12 @@ bool resize_desktop_window(SDL_Window *sw, int32_t w, int32_t h)
 bool set_desktop_window_opacity(SDL_Window *sw, int32_t permille)
 {
     return set_surface_opacity(sw, permille);
+}
+
+/* LinuxPlatformHost>>setWindowBackground:rgb: */
+bool set_window_background(SDL_Window *sw, uint32_t rgb)
+{
+    return false;
 }
 
 /* LinuxPlatformHost>>shaderFormats */

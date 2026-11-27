@@ -239,6 +239,18 @@ bool present_surface(int32_t win)
     return SDL_UpdateWindowSurface(sw);
 }
 
+/* PlatformWindows>>presenting:width:height: */
+bool platform_windows_presenting(int32_t win, int32_t w, int32_t h)
+{
+    SDL_Window *sw;
+    sw = sdl_window(win);
+    if (sw == NULL) {
+        return false;
+    }
+    platform_host_presenting(sw, w, h);
+    return true;
+}
+
 /* PlatformWindows>>refreshRate: */
 double refresh_rate(int32_t win)
 {
@@ -262,6 +274,17 @@ SDL_Window *sdl_window(int32_t win)
         return (SDL_Window *)NULL;
     }
     return (SDL_Window *)o->ptr;
+}
+
+/* PlatformWindows>>setBackground:rgb: */
+bool set_background(int32_t win, uint32_t rgb)
+{
+    SDL_Window *sw;
+    sw = sdl_window(win);
+    if (sw == NULL) {
+        return false;
+    }
+    return set_window_background(sw, rgb);
 }
 
 /* PlatformWindows>>setCursor: */
@@ -339,6 +362,17 @@ bool set_icon(int32_t win, const uint8_t *pixels, int32_t w, int32_t h)
     ok = SDL_SetWindowIcon(sw, surface);
     SDL_DestroySurface(surface);
     return ok;
+}
+
+/* PlatformWindows>>setMinimumSize:width:height: */
+bool set_minimum_size(int32_t win, int32_t w, int32_t h)
+{
+    SDL_Window *sw;
+    sw = sdl_window(win);
+    if (sw == NULL) {
+        return false;
+    }
+    return SDL_SetWindowMinimumSize(sw, w, h);
 }
 
 /* PlatformWindows>>setOpacity:permille: */

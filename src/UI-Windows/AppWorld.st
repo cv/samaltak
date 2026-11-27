@@ -43,6 +43,7 @@ deskColor
 !
 deskColor: aColor
 	deskColor := aColor.
+	displayWindow background: aColor.
 	self changed
 ! !
 
@@ -126,12 +127,16 @@ cornerRadius
 	"The radius (points) the system rounds my host window's corners with (a desktop one on macOS); 0 if square."
 	^displayWindow hostWindow cornerRadius
 !
+minimumExtent: aPoint
+	"Keep my host window at least aPoint points, also when the user resizes it."
+	displayWindow minimumExtent: aPoint
+!
 resizeTo: aPoint
 	"Ask the host window to become aPoint points (it stays fixed-size); my window follows when the host reports the new size. Answer whether the host took it."
 	^displayWindow extent: aPoint
 !
 hostResized: aPoint
-	extent := displayWindow extent.
+	extent := aPoint.
 	windows do: [:w | w bounds: self bounds].
 	self changed.
 	resizedBlock isNil ifFalse: [resizedBlock cull: self]

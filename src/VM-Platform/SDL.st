@@ -306,6 +306,10 @@ setWindowSize: window w: w h: h
 	<c: 'bool SDL_SetWindowSize(SDL_Window *window, int w, int h)'>
 	^self notSimulated
 !
+setWindowMinimumSize: window w: w h: h
+	<c: 'bool SDL_SetWindowMinimumSize(SDL_Window *window, int min_w, int min_h)'>
+	^self notSimulated
+!
 showWindow: window
 	<c: 'bool SDL_ShowWindow(SDL_Window *window)'>
 	^self notSimulated

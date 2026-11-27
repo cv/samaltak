@@ -97,6 +97,20 @@ window: window width: w height: h
 	self check: window.
 	^false
 !
+window: window background: rgb
+	"The screen always shows a frame."
+	self check: window.
+	^false
+!
+window: window minimumWidth: w height: h
+	"The screen keeps its size."
+	self check: window.
+	^false
+!
+window: window presentingWidth: w height: h
+	"The screen keeps its size."
+	self check: window
+!
 window: window x: x y: y
 	"The screen stays where it is."
 	self check: window.

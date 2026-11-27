@@ -91,7 +91,6 @@ int32_t acquire_swapchain(int32_t cmd, int32_t win, int *w, int *h)
     if (*t == NULL) {
         return 0;
     }
-    drawing_window(sw);
     dev = c->dev;
     fmt = swapchain_format(dev, win);
     sh = platform_common_table_add_pointer(objs, K_SWAP, *t);

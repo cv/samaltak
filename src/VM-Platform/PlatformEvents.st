@@ -187,6 +187,8 @@ translate: e
 			ev window = 0 ifTrue: [^self].
 			t = sdl SDL_EVENT_WINDOW_RESIZED
 				ifTrue: [
+					"the image has the size of a window the host sizes"
+					(host ownsSizeOf: (windows sdlWindow: ev window)) ifTrue: [^self].
 					ev type: PF_EV_WINDOW_RESIZED.
 					ev x: e window data1 asFloat.
 					ev y: e window data2 asFloat]

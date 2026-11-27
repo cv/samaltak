@@ -113,9 +113,12 @@ static int64_t ffi_tls_recv(int64_t h, uint8_t *buf, uint64_t n);
 static int32_t ffi_tls_semaphore(int64_t h, int64_t r, int64_t w);
 static int64_t ffi_tls_send(int64_t h, const uint8_t *buf, uint64_t n);
 static int32_t ffi_tls_start(int64_t h, const uint8_t *name, uint64_t n);
+static int32_t sdl_platform_ffi_window_background(int64_t win, int64_t rgb);
 static int32_t sdl_platform_ffi_window_fill_rects_size(int64_t win, const uint8_t *bytes, uint64_t n);
 static int32_t sdl_platform_ffi_window_icon_size_width(int64_t win, const uint8_t *bytes, uint64_t n, int64_t w);
+static int32_t sdl_platform_ffi_window_minimum_width_height(int64_t win, int64_t w, int64_t h);
 static int32_t sdl_platform_ffi_window_opacity(int64_t win, int64_t permille);
+static int32_t sdl_platform_ffi_window_presenting_width_height(int64_t win, int64_t w, int64_t h);
 static int32_t sdl_platform_ffi_window_show(int64_t w, int32_t flag);
 static int32_t sdl_platform_ffi_window_title_size(int64_t win, const uint8_t *bytes, uint64_t n);
 static int32_t sdl_platform_ffi_window_width_height(int64_t win, int64_t w, int64_t h);
@@ -212,6 +215,10 @@ static int32_t ffi_window_open_entry_witness(int64_t a1, int64_t a2, const uint8
     fprintf(stderr, "\nffi-native-entry 1424\n");
     return ffi_window_open(a1, a2, a3, a4, a5);
 }
+static int32_t sdl_platform_ffi_window_background_entry_witness(int64_t a1, int64_t a2) {
+    fprintf(stderr, "\nffi-native-entry 1425\n");
+    return sdl_platform_ffi_window_background(a1, a2);
+}
 static int32_t ffi_window_size_entry_witness(int64_t a1, uint8_t *a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1426\n");
     return ffi_window_size(a1, a2, a3);
@@ -252,6 +259,10 @@ static int64_t ffi_dropped_events_entry_witness(void) {
     fprintf(stderr, "\nffi-native-entry 1442\n");
     return ffi_dropped_events();
 }
+static int32_t sdl_platform_ffi_window_presenting_width_height_entry_witness(int64_t a1, int64_t a2, int64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1443\n");
+    return sdl_platform_ffi_window_presenting_width_height(a1, a2, a3);
+}
 static int32_t ffi_clipboard_data_entry_witness(const uint8_t *a1, uint64_t a2, uint64_t a3) {
     fprintf(stderr, "\nffi-native-entry 1444\n");
     return ffi_clipboard_data(a1, a2, a3);
@@ -283,6 +294,10 @@ static int32_t ffi_window_corner_radius_entry_witness(int64_t a1) {
 static int32_t ffi_system_theme_entry_witness(void) {
     fprintf(stderr, "\nffi-native-entry 1452\n");
     return ffi_system_theme();
+}
+static int32_t sdl_platform_ffi_window_minimum_width_height_entry_witness(int64_t a1, int64_t a2, int64_t a3) {
+    fprintf(stderr, "\nffi-native-entry 1453\n");
+    return sdl_platform_ffi_window_minimum_width_height(a1, a2, a3);
 }
 static int32_t ffi_gpu_create_device_entry_witness(int32_t a1) {
     fprintf(stderr, "\nffi-native-entry 1454\n");
@@ -608,6 +623,12 @@ int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signatu
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_window_open_entry_witness;
         return 1424;
     }
+    if (packed_signature == 817 && strcmp(approved_name, "platform_windows_set_background") == 0) {
+        *target_out = (uint64_t) sdl_platform_ffi_window_background;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) sdl_platform_ffi_window_background_entry_witness;
+        return 1425;
+    }
     if (packed_signature == 913 && strcmp(approved_name, "platform_windows_size") == 0) {
         *target_out = (uint64_t) ffi_window_size;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
@@ -668,6 +689,12 @@ int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signatu
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_dropped_events_entry_witness;
         return 1442;
     }
+    if (packed_signature == 13105 && strcmp(approved_name, "platform_windows_presenting") == 0) {
+        *target_out = (uint64_t) sdl_platform_ffi_window_presenting_width_height;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) sdl_platform_ffi_window_presenting_width_height_entry_witness;
+        return 1443;
+    }
     if (packed_signature == 2113 && strcmp(approved_name, "platform_windows_clipboard_data") == 0) {
         *target_out = (uint64_t) ffi_clipboard_data;
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
@@ -715,6 +742,12 @@ int32_t ffi_approved_platform(const char *approved_name, uint32_t packed_signatu
         const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
         if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) ffi_system_theme_entry_witness;
         return 1452;
+    }
+    if (packed_signature == 13105 && strcmp(approved_name, "platform_windows_set_minimum_size") == 0) {
+        *target_out = (uint64_t) sdl_platform_ffi_window_minimum_width_height;
+        const char *trace = getenv("SAMALTAK_FFI_NATIVE_TRACE");
+        if (trace && strcmp(trace, "1") == 0) *target_out = (uint64_t) sdl_platform_ffi_window_minimum_width_height_entry_witness;
+        return 1453;
     }
     if (packed_signature == 17 && strcmp(approved_name, "platform_gpu_create_device") == 0) {
         *target_out = (uint64_t) ffi_gpu_create_device;
@@ -2569,6 +2602,15 @@ uint64_t ffi_target(int32_t stable_id)
     return v;
 }
 
+/* SDLPlatform>>ffiWindow:background: */
+static int32_t sdl_platform_ffi_window_background(int64_t win, int64_t rgb)
+{
+    if ((rgb < 0) || (rgb > 0xFFFFFF)) {
+        return 0;
+    }
+    return set_background((int32_t)win, (uint32_t)rgb) ? 1 : 0;
+}
+
 /* SDLPlatform>>ffiWindow:fillRects:size: */
 static int32_t sdl_platform_ffi_window_fill_rects_size(int64_t win, const uint8_t *bytes, uint64_t n)
 {
@@ -2608,6 +2650,15 @@ static int32_t sdl_platform_ffi_window_icon_size_width(int64_t win, const uint8_
     return set_icon((int32_t)win, bytes, (int32_t)w, (int32_t)h) ? 1 : 0;
 }
 
+/* SDLPlatform>>ffiWindow:minimumWidth:height: */
+static int32_t sdl_platform_ffi_window_minimum_width_height(int64_t win, int64_t w, int64_t h)
+{
+    if ((w < 0) || ((w > 0x7FFFFFFF) || ((h < 0) || (h > 0x7FFFFFFF)))) {
+        return 0;
+    }
+    return set_minimum_size((int32_t)win, (int32_t)w, (int32_t)h) ? 1 : 0;
+}
+
 /* SDLPlatform>>ffiWindow:opacity: */
 static int32_t sdl_platform_ffi_window_opacity(int64_t win, int64_t permille)
 {
@@ -2615,6 +2666,15 @@ static int32_t sdl_platform_ffi_window_opacity(int64_t win, int64_t permille)
         return 0;
     }
     return set_opacity((int32_t)win, (int32_t)permille) ? 1 : 0;
+}
+
+/* SDLPlatform>>ffiWindow:presentingWidth:height: */
+static int32_t sdl_platform_ffi_window_presenting_width_height(int64_t win, int64_t w, int64_t h)
+{
+    if ((w < 1) || ((w > 0x7FFFFFFF) || ((h < 1) || (h > 0x7FFFFFFF)))) {
+        return 0;
+    }
+    return platform_windows_presenting((int32_t)win, (int32_t)w, (int32_t)h) ? 1 : 0;
 }
 
 /* SDLPlatform>>ffiWindow:show: */
