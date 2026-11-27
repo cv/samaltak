@@ -673,27 +673,25 @@ static CGPoint samaltak_mouse_location(void)
 }
 static unsigned samaltak_resize_edges_at(id window, CGPoint m)
 {
-    /* the edges (1 left, 2 right, 4 bottom, 8 top; y up) a press at m resizes: just outside or on the frame, both near a corner */
-    const double outside = 6, inside = 2, corner = 12;
+    /* the edges (1 left, 2 right, 4 bottom, 8 top; y up) a press at m (screen) resizes: exactly where AppKit would start its live resize (its frame view''s resize region), those within its corner thickness of m; none where AppKit does not tell */
     unsigned long style = ((unsigned long (*)(id, SEL))objc_msgSend)(window, sel_registerName("styleMask"));
+    id frameView = ((id (*)(id, SEL))objc_msgSend)(((id (*)(id, SEL))objc_msgSend)(window, sel_registerName("contentView")), sel_registerName("superview"));
+    SEL inRegion = sel_registerName("_isInResizeRegion:"), cornerSel = sel_registerName("_windowResizeCornerThickness");
+    CGRect f = samaltak_frame_of(window);
+    CGPoint p = CGPointMake(m.x - f.origin.x, m.y - f.origin.y);
+    double corner, dl, dr, db, dt;
     unsigned edges = 0;
-    CGRect f;
     /* titled and resizable, not full screen */
-    if (!!(style & 1UL) || !!(style & (1UL << 3)) || (style & (1UL << 14))) return 0;
-    f = samaltak_frame_of(window);
-    if (m.x < f.origin.x - outside || m.x > f.origin.x + f.size.width + outside
-        || m.y < f.origin.y - outside || m.y > f.origin.y + f.size.height + outside) return 0;
-    if (m.x < f.origin.x + inside) edges |= 1;
-    else if (m.x > f.origin.x + f.size.width - inside) edges |= 2;
-    if (m.y < f.origin.y + inside) edges |= 4;
-    else if (m.y > f.origin.y + f.size.height - inside) edges |= 8;
-    if (edges == 1 || edges == 2) {
-        if (m.y < f.origin.y + corner) edges |= 4;
-        else if (m.y > f.origin.y + f.size.height - corner) edges |= 8;
-    } else if (edges == 4 || edges == 8) {
-        if (m.x < f.origin.x + corner) edges |= 1;
-        else if (m.x > f.origin.x + f.size.width - corner) edges |= 2;
-    }
+    if (!!(style & 1UL) || !!(style & (1UL << 3)) || (style & (1UL << 14)) || !!frameView) return 0;
+    if (!!((BOOL (*)(id, SEL, SEL))objc_msgSend)(frameView, sel_registerName("respondsToSelector:"), inRegion)
+        || !!((BOOL (*)(id, SEL, SEL))objc_msgSend)(frameView, sel_registerName("respondsToSelector:"), cornerSel)) return 0;
+    if (!!((BOOL (*)(id, SEL, CGPoint))objc_msgSend)(frameView, inRegion,
+        ((CGPoint (*)(id, SEL, CGPoint, id))objc_msgSend)(frameView, sel_registerName("convertPoint:fromView:"), p, nil))) return 0;
+    corner = ((double (*)(id, SEL))objc_msgSend)(frameView, cornerSel);
+    dl = p.x; dr = f.size.width - p.x; db = p.y; dt = f.size.height - p.y;
+    if (fmin(dl, dr) < corner) edges |= dl <= dr ? 1 : 2;
+    if (fmin(db, dt) < corner) edges |= db <= dt ? 4 : 8;
+    if (!!edges) edges = fmin(dl, dr) <= fmin(db, dt) ? (dl <= dr ? 1 : 2) : (db <= dt ? 4 : 8);
     return edges;
 }
 static void samaltak_resize_cursor(unsigned edges)
