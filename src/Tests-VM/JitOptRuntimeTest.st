@@ -1377,7 +1377,7 @@ testDivisionByAConstantIsInTheCode
 	self deny: (listing includesSubstring: (self isX64 ifTrue: ['idiv'] ifFalse: ['sdiv']))
 !
 testFlooredDivisionByAPowerOfTwo
-	"x // 2^k and x \\ 2^k of a SmallInteger are a shift and a mask of the tagged value: what a divisor that is no constant gives, for both signs and at the ends of the range. The runs and the listing at the timing priority, as in testDivisionByAConstantIsInTheCode."
+	"x // 2^k and x \\ 2^k are a shift and a mask of a tagged SmallInteger. Compare with variable divisors for both signs and the ends of the range. Inspect the listing before baseline code can pick up shared Float feedback."
 	| o check active priority listing |
 	Smalltalk vm jitParameters: #(nil '-eager' nil nil).
 	self define: 'halves: x ^{x // 2. x \\ 2. x // 16. x \\ 16. x // 1024. x \\ 1024}'.
@@ -1386,14 +1386,15 @@ testFlooredDivisionByAPowerOfTwo
 	check := [:x | | r |
 		r := o halves: x.
 		1 to: 3 do: [:i | self assert: (r copyFrom: i * 2 - 1 to: i * 2) equals: (o by: (#(2 16 1024) at: i) of: x)]].
+	listing := self listingOf: #halves:.
+	self assert: (listing includesSubstring: 'floored division by the constant 16').
+	self assert: (listing includesSubstring: 'modulo the constant 1024').
 	active := Processor activeProcess.
 	priority := active priority.
 	active priority: Processor timingPriority.
 	[-3000 to: 3000 do: [:x | check value: x].
-	 {SmallInteger maxVal. SmallInteger maxVal - 1. SmallInteger minVal. SmallInteger minVal + 1} do: [:x | check value: x].
-	 listing := self listingOf: #halves:] ensure: [active priority: priority].
-	self assert: (listing includesSubstring: 'floored division by the constant 16').
-	self assert: (listing includesSubstring: 'modulo the constant 1024')
+	 {SmallInteger maxVal. SmallInteger maxVal - 1. SmallInteger minVal. SmallInteger minVal + 1} do: [:x | check value: x]]
+		ensure: [active priority: priority]
 !
 testShiftRightByAConstant
 	"x bitShift: -k of a SmallInteger is one shift of the tagged value: what a count that is no constant gives, for both signs and at the ends of the range (counts beyond 61 baseline code sends, and so does optimized code). The runs and the listing at the timing priority, as in testDivisionByAConstantIsInTheCode."
@@ -1477,17 +1478,21 @@ testCopyOfAStringIsFused
 	self assert: ((self listingOf: #cutB:to:) includesSubstring: 'the last slot zeroed')
 !
 testSpeculatedGlobalClass
-	"A global holding a class is that class in the code, guarded; once the global changed, the push loads it."
-	| o |
-	Smalltalk at: #JitRuntimeTestGlobal put: Array.
-	[self define: 'makeGlobal ^JitRuntimeTestGlobal new: 2'.
-	o := JitRuntimeTestSubject new.
-	3 timesRepeat: [self assert: o makeGlobal class equals: Array].
-	self assert: ((self listingOf: #makeGlobal) includesSubstring: 'the global holds another value').
-	Smalltalk at: #JitRuntimeTestGlobal put: OrderedCollection.
-	3 timesRepeat: [self assert: o makeGlobal class equals: OrderedCollection].
-	self deny: ((self listingOf: #makeGlobal) includesSubstring: 'the global holds another value')]
-		ensure: [Smalltalk removeKey: #JitRuntimeTestGlobal ifAbsent: []]
+	"A global holding a class is guarded until it changes. Tier up synchronously to exercise the guard, not just list it."
+	| o bg |
+	bg := Smalltalk vm jitFlags includes: 'bg'.
+	bg ifTrue: [Smalltalk vm jitParameters: #(nil '-bg' nil nil)].
+	[Smalltalk at: #JitRuntimeTestGlobal put: Array.
+	 self define: 'makeGlobal ^JitRuntimeTestGlobal new: 2'.
+	 o := JitRuntimeTestSubject new.
+	 3 timesRepeat: [self assert: o makeGlobal class equals: Array].
+	 self assert: ((self listingOf: #makeGlobal) includesSubstring: 'the global holds another value').
+	 Smalltalk at: #JitRuntimeTestGlobal put: OrderedCollection.
+	 3 timesRepeat: [self assert: o makeGlobal class equals: OrderedCollection].
+	 self deny: ((self listingOf: #makeGlobal) includesSubstring: 'the global holds another value')]
+		ensure: [
+			Smalltalk removeKey: #JitRuntimeTestGlobal ifAbsent: [].
+			bg ifTrue: [Smalltalk vm jitParameters: #(nil 'bg' nil nil)]]
 !
 testDoublesWhereAGlobalHoldsAnotherClass
 	"Floats live where a speculated global holds another class (the deoptimization) are what they were, in straight code and in a loop."

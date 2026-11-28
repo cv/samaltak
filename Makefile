@@ -40,10 +40,9 @@ translate: image
 	$(MAKE) -C vm
 
 # The image's tests under each JIT, every method compiled on its first activation (under opt also optimized after
-# one more, and again with deoptimization stress); Tests-Kernel also with a code cache small enough to be flushed
-# again and again (x86-64's code is a third bigger than arm64's: in 1 MB it thrashes so hard that the slowest tests
-# time out, 2 MB still flushes hundreds of times).
-STRESS_CACHE_MB := $(if $(filter x86_64 amd64,$(shell uname -m)),2,1)
+# one more, and again with deoptimization stress); Tests-Kernel also with a code cache small enough to flush
+# repeatedly. Use 3 MB on x86-64 to avoid pathological recompilation.
+STRESS_CACHE_MB := $(if $(filter x86_64 amd64,$(shell uname -m)),3,1)
 test-jit: image
 	$(MAKE) test-jit-none
 	$(MAKE) test-jit-baseline

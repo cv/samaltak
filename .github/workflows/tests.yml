@@ -51,6 +51,8 @@ jobs:
         run: make ${{ matrix.targets }}
       - name: Run ${{ matrix.targets }} with software Vulkan
         if: ${{ matrix.targets != 'test-ffi-headless test-ffi-gpu-paged' && matrix.targets != 'test-ffi-no-platform' }}
+        env:
+          SAMALTAK_TEST_TRACE: ${{ matrix.targets == 'test-jit-deopt test-tools' && '1' || '' }}
         run: |
           mkdir -p .context "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"

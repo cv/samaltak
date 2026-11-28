@@ -24,6 +24,11 @@ opened: aWindow
 	"Wait for aWindow's Process to have browsed: its queue may be empty while it still does."
 	self in: aWindow do: [nil]
 !
+resizeWindowTo: anExtent
+	"Wait for the queued layout before inspecting it or resizing again."
+	window extent: anExtent.
+	self in: window do: []
+!
 namesIn: anInteger
 	^((browser listAt: anInteger) items collect: [:each | each name]) asArray
 !
@@ -289,7 +294,7 @@ testLargeFileOpensFastAndDrawsOnlyTheRowsShown
 testColumnsScrollSideways
 	| columns |
 	columns := browser columns.
-	self in: window do: [window bounds: (window bounds origin extent: 900 @ 500)].
+	self resizeWindowTo: 900 @ 500.
 	"Three columns and the preview: the preview at the right edge, the first column out of view."
 	self reveal: 'src/Tools/FileBrowser.st'.
 	self assert: columns scrollTotal > columns width.
@@ -297,8 +302,8 @@ testColumnsScrollSideways
 	self assert: columns preview bounds right equals: columns width.
 	self assert: (browser listAt: 1) bounds right <= 0.
 	"Wider, then narrower again: the end stays in view."
-	self in: window do: [window bounds: (window bounds origin extent: 1300 @ 500)].
-	self in: window do: [window bounds: (window bounds origin extent: 900 @ 500)].
+	self resizeWindowTo: 1300 @ 500.
+	self resizeWindowTo: 900 @ 500.
 	self assert: columns preview bounds right equals: columns width.
 	"Four columns: left, left brings the first back."
 	self reveal: 'vm/platform/tests'.

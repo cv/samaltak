@@ -37,9 +37,12 @@ hasPassed
 
 !TestResult methodsFor: 'running'!
 runClasses: testClasses
-	| start |
+	| start trace |
 	start := Time millisecondClockValue.
-	testClasses do: [:class | class suite do: [:test | self runCase: test]].
+	trace := (Smalltalk vm getenv: 'SAMALTAK_TEST_TRACE') = '1'.
+	testClasses do: [:class | class suite do: [:test |
+		trace ifTrue: [Smalltalk vm stderrWrite: 'st_suite: starting ', test printString, (String with: Character lf)].
+		self runCase: test]].
 	Transcript
 		show: self summary;
 		show: ' in ';
